@@ -111,13 +111,9 @@ end
 
 -- Whether the Auto-Decline modules let a player through, per the shared Let through settings.
 function ns.IsTrusted(name, guid)
-    if IsSecret(name) or not name or name == "" then return false end
-    if IsSecret(guid) then guid = nil end
     local profile = HST.db.profile
-    return IsIn(name, guid, profile.trustFriends, profile.trustGuild, profile.trustCommunities)
+    return ns.IsFrom(name, guid, profile.trustFriends, profile.trustGuild, profile.trustCommunities)
 end
-
-HST.IsTrusted = ns.IsTrusted
 
 -- The "count as friends" settings each Auto-Decline module shows; they are shared by all of them.
 local function TrustOptions(name)
