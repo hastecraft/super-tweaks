@@ -108,11 +108,10 @@ local function QuestLogFull()
 end
 
 -- Whether the quest open in the quest frame may be accepted ("accept") or handed in ("turnIn") for you now.
--- Checked right before every accept, hand-in and reward, however the dialog was reached: Shift and the settings
--- are read at that moment, and repeatable quests, quests that cost gold, quests that flag you for PvP (the game asks
--- first) and shares being declined are left alone.
+-- Checked right before every accept, hand-in and reward, however the dialog was reached (Shift just before): the
+-- settings are read at that moment, and repeatable quests, quests that cost gold, quests that flag you for PvP (the
+-- game asks first) and shares being declined are left alone.
 function Q:Eligible(action)
-    if IsShiftKeyDown() then return false end
     local p = self.db.profile
     if Repeatable(GetQuestID and GetQuestID()) then return false end
     if action == "accept" then return p.accept and not (QuestFlagsPVP and QuestFlagsPVP()) and not BlockedShare() end
