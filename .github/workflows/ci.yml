@@ -43,13 +43,17 @@ jobs:
           python-version: '3.13'
       - run: pip install -r tools/requirements.txt
       - name: Consistency
+        # Release mode only for release/* branches in this repository (which only the maintainer can push), never forks.
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD_REF: ${{ github.head_ref }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           if [ -n "$BASE" ]; then
             release=""
-            case "$HEAD_REF" in release/*) release="--release" ;; esac
+            if [ "$SAME_REPO" = "true" ]; then
+              case "$HEAD_REF" in release/*) release="--release" ;; esac
+            fi
             python tools/check.py --base "$BASE" $release
           else
             python tools/check.py

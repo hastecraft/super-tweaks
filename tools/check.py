@@ -5,8 +5,9 @@
 - the TOC's ## Version is the newest patch notes entry's version (a prerelease such as 1.2.0-beta.1 matches 1.2.0);
 - CHANGELOG.md is up to date with the patch notes;
 - with --tag vX: the tag is the TOC's version;
-- with --base REF: the pull request leaves the patch notes' entries and the TOC's version alone (so CHANGELOG.md too),
-  unless it is a release pull request (--release). Releases write those; see .claude/skills/release. (PatchNotes.lua's code
+- with --base REF: the pull request leaves the patch notes' entries and the TOC's version alone (so CHANGELOG.md too).
+  A release pull request (--release; CI passes it only for release/* branches of this repository) adds one entry on
+  top and keeps every shipped entry, in order, with its version and date. Releases write those; see .claude/skills/release. (PatchNotes.lua's code
   and comments may change.)
 
 Usage: python tools/check.py [--tag vX.Y.Z] [--base REF [--release]]
@@ -82,18 +83,32 @@ def main():
         error(f'Tag {tag} doesn\'t match the TOC\'s version {version}: the tag must be v{version}')
 
     base = arg('--base')
-    if base and '--release' not in sys.argv:
+    if base:
         def at_base(path):
             return subprocess.run(['git', 'show', f'{base}:{path}'], cwd=PROJECT, capture_output=True, text=True,
                                   encoding='utf-8', check=True).stdout
-        changed = subprocess.run(['git', 'diff', '--name-only', f'{base}...HEAD'], cwd=PROJECT, capture_output=True,
-                                 text=True, check=True).stdout.split()
-        later = 'describe the change for players in the pull request instead (see CONTRIBUTING.md)'
-        if NOTES in changed and changelog.load_notes(at_base(NOTES).lstrip('\ufeff')) != notes:
-            error(f'Patch notes entries are written at release time; {later}', NOTES)
-        if toc_version(at_base('HastesSuperTweaks/HastesSuperTweaks.toc')) != version:
-            error('The TOC\'s ## Version is set at release time; leave it as it is (see CONTRIBUTING.md)',
-                  'HastesSuperTweaks/HastesSuperTweaks.toc')
+        old = changelog.load_notes(at_base(NOTES).lstrip('\ufeff'))
+        if '--release' in sys.argv:
+            # A release adds one entry on top (or keeps reworking its own, between betas of the same version); every
+            # shipped entry below stays, in order, with its version and date.
+            shipped = [e for e in old if not notes or e['version'] != notes[0]['version']]
+            added = len(notes) - len(shipped)
+            kept = notes[added:] if added >= 0 else []
+            if added != 1 or [(e['version'], e['date']) for e in kept] != [(e['version'], e['date']) for e in shipped]:
+                error('A release adds one patch notes entry on top and keeps every shipped entry below it, in order, '
+                      'with its version and date', NOTES)
+            else:
+                for before, after in zip(shipped, kept):
+                    if before != after:
+                        print(f'::warning file={NOTES}::The shipped patch notes for {before["version"]} were edited; '
+                              'make sure that was meant (only to correct mistakes)')
+        else:
+            later = 'describe the change for players in the pull request instead (see CONTRIBUTING.md)'
+            if old != notes:
+                error(f'Patch notes entries are written at release time; {later}', NOTES)
+            if toc_version(at_base('HastesSuperTweaks/HastesSuperTweaks.toc')) != version:
+                error('The TOC\'s ## Version is set at release time; leave it as it is (see CONTRIBUTING.md)',
+                      'HastesSuperTweaks/HastesSuperTweaks.toc')
 
     if errors:
         sys.exit(f'{len(errors)} problem(s) found')
