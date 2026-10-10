@@ -25,14 +25,16 @@ TooltipDataProcessor = { AddTooltipPostCall = function(kind, fn)
     local list = POSTCALL_LISTS[kind] or {}
     POSTCALL_LISTS[kind] = list
     list[#list + 1] = fn
-    POSTCALLS[kind] = function(...) for _, f in ipairs(list) do f(...) end end
+    POSTCALLS[kind] = function(...) for _, f in ipairs(list) do CallIn(f, ...) end end
 end }
 GameTooltip.name = 'GameTooltip'
 local show = GameTooltip.Show
 function GameTooltip:Show() self.shows = (self.shows or 0) + 1; return show(self) end
+-- The game showing its tooltip itself (scenarios call this, so it isn't counted as the addon's widget call).
+blizzardShowTooltip, blizzardHideTooltip = GameTooltip.Show, GameTooltip.Hide
 GameTooltip.NineSlice = CreateFrame('Frame', nil, GameTooltip)
 GameTooltip.NineSlice.border = { 1, 1, 1, 1 }
-function GameTooltip.NineSlice:SetBorderColor(...) self.border = { ... } end
+function GameTooltip.NineSlice:SetBorderColor(r, g, b, a) local c = self.border; c[1], c[2], c[3], c[4] = r, g, b, a end
 function GameTooltip.NineSlice:GetBorderColor() return unpack(self.border) end
 GameTooltip.NineSlice.TopEdge = CreateFrame('Texture', nil, GameTooltip.NineSlice)
 GameTooltip.NineSlice.TopEdge.texture = 'border'
@@ -70,11 +72,6 @@ function UnitHealthPercent(unit, _, curve) assert(curve == 'ScaleTo100'); return
 
 SIMPLE_MOCKS = r'''
 PERMISSIVE_FRAMES = true
-function hooksecurefunc(t, name, fn)
-    if type(t) == 'string' then t, name, fn = _G, t, name end
-    local original = t[name]
-    t[name] = function(...) local r = { original(...) }; fn(...); return unpack(r) end
-end
 -- Tooltip lines added by modules.
 function GameTooltip:AddDoubleLine(left, right) self.added = self.added or {}; self.added[#self.added + 1] = left .. '=' .. right end
 function GameTooltip:AddLine(text) self.added = self.added or {}; self.added[#self.added + 1] = text end
@@ -88,12 +85,12 @@ function DeclinePetition() state.declined = (state.declined or 0) + 1 end
 function ClosePetition() state.petitionClosed = true end
 C_FriendList = { GetNumFriends = function() return 1 end, GetFriendInfoByIndex = function() return { name = 'Buddy-TestRealm' } end }
 -- Quest log (classic and modern), loaded before the addon.
-function QuestLog_Update() for i = 1, 2 do _G['QuestLogTitle' .. i]:SetText(QUEST_TITLES[i]) end end
+function QuestLog_Update() for i = 1, QUESTS_DISPLAYED do _G['QuestLogTitle' .. i]:SetText(QUEST_TITLES[i]) end end
 QUEST_TITLES = { 'Header', '  [10] The Kobold Menace' }
 QUESTS_DISPLAYED = 2
 QuestLogListScrollFrame = CreateFrame('Frame')
 function FauxScrollFrame_GetOffset() return 0 end
-for i = 1, 2 do local b = CreateFrame('Button', 'QuestLogTitle' .. i); b.GetID = function() return i end end
+for i = 1, 2 do CreateFrame('Button', 'QuestLogTitle' .. i).id = i end
 local modernButtons = {}
 QuestScrollFrame = CreateFrame('Frame')
 QuestScrollFrame.titleFramePool = { EnumerateActive = function() return pairs(modernButtons) end,
@@ -112,7 +109,7 @@ function QuestMapLogTitleButton_OnEnter(button)
 end
 function AddModernQuest(questID, title, lines)
     local b = CreateFrame('Button'); b.questID, b.title = questID, title
-    b.Text = CreateFrame('FontString', nil, b); b.Text.GetNumLines = function() return lines end
+    b.Text = CreateFrame('FontString', nil, b); b.Text.numLines = lines
     modernButtons[b] = true
     return b
 end

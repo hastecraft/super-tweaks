@@ -1,13 +1,8 @@
 -- Game API mocks for Fast Loot and Loot Window: an open loot window whose slots the benchmark fills in.
--- Calls are recorded in CALLS as "Name(args)"; the loot window is drawn with permissive frames.
+-- Actions are counted in CALLS by name (allocating nothing); the loot window is drawn with permissive frames.
 PERMISSIVE_FRAMES = true
 CALLS = {}
-function Called(text) for _, call in ipairs(CALLS) do if call == text then return true end end; return false end
-local function record(name, ...)
-    local args = {}
-    for i = 1, select('#', ...) do args[i] = tostring((select(i, ...))) end
-    CALLS[#CALLS + 1] = name .. '(' .. table.concat(args, ',') .. ')'
-end
+local function record(name) CALLS[name] = (CALLS[name] or 0) + 1 end
 -- LOOT.slots[i] = { icon, name, quantity, quality, locked, quest, coin, link }; taken slots are empty.
 LOOT = { slots = {} }
 function GetNumLootItems() return #LOOT.slots end
@@ -39,6 +34,11 @@ LootFrame:RegisterEvent('LOOT_OPENED')
 LootFrame:RegisterEvent('LOOT_CLOSED')
 -- Loot sounds and the pieces Fast Loot reads for master loot.
 SOUNDKIT.UI_CONTAINER_ITEM_OPEN, SOUNDKIT.FISHING_REEL_IN, SOUNDKIT.LOOT_WINDOW_OPEN_EMPTY = 'container', 'fish', 'empty'
+-- Free-for-all loot (Forever's C_PartyInfo answers with Enum.LootMethod).
+Enum = Enum or {}
+Enum.LootMethod = { Freeforall = 0, Roundrobin = 1, Masterlooter = 2, Group = 3, Needbeforegreed = 4, Personal = 5 }
+C_PartyInfo = { GetLootMethod = function() return 0, nil, nil end }
+GAME_MESSAGES = { [51] = 'ERR_OUT_OF_RANGE', [3] = 'ERR_INV_FULL' }
 function IsFishingLoot() return state.fishing == true end
 function GetLootThreshold() return 2 end
 function StaticPopup_Hide(which, data) if data ~= nil then record('StaticPopup_Hide', which, data) else record('StaticPopup_Hide', which) end end

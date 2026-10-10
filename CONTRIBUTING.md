@@ -44,7 +44,7 @@ Don't edit the patch notes entries in `PatchNotes.lua`, the TOC's `## Version` o
 python tools/bench.py
 ```
 
-This loads the addon into a mocked game and counts the work done per operation on its hot paths: game API calls, widget calls, frames and regions created, and memory allocated. The counts are the same on every run, so compare before and after your change. CI runs the bench on every pull request and on its base branch, and posts the difference in the Performance check's summary. More work fails the check, unless the maintainer agrees the cost is worth it. If you add something that runs often, add a scenario for it to `tools/bench.py`.
+This loads the addon into a mocked game and counts the work done per operation on its hot paths: game API calls, widget calls, frames and regions created, event handlers run, and memory allocated. It covers every tweak's frequent events, a login, and each tweak alone, and checks that turned-off tweaks cost nothing. The counts are the same on every run, so compare before and after your change. CI runs the bench on every pull request and on its base branch, and posts the difference in the Performance check's summary. More work fails the check, unless the maintainer agrees the cost is worth it. If you add something that runs often, add a scenario for it to `tools/bench.py`.
 
 The bench counts work; it doesn't time the real game. For a real-world check, compare FPS in a busy spot with the tweak on and off.
 

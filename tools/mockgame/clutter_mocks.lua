@@ -26,19 +26,19 @@ ITEM_COUNTS = {}
 C_Item.GetItemCount = function(id) return ITEM_COUNTS[id] or 0 end
 function ItemLink(id) return link(id) end
 
--- Bag 0 is BAGS (BAG_SIZE slots); other bags (Forever's reagent bag is 5) are OTHER_BAGS[bag], 4 slots each. Sales are
--- recorded as Sell(slot) for bag 0 and Sell(bag/slot) for the others. EXCLUDED[bag]: the bag is set to ignore junk
--- selling. QUEST_SLOTS[slot]: the quest info of a slot in bag 0.
+-- Bag 0 is BAGS (BAG_SIZE slots); other bags (Forever's reagent bag is 5) are OTHER_BAGS[bag], 4 slots each. A sale
+-- empties the slot. EXCLUDED[bag]: the bag is set to ignore junk selling. QUEST_SLOTS[slot]: the quest info of a slot
+-- in bag 0. Slot info comes back as a new table on every call, as the game's does.
 BAG_SIZE, OTHER_BAGS, EXCLUDED, QUEST_SLOTS = 16, {}, {}, {}
 NUM_TOTAL_EQUIPPED_BAG_SLOTS = 5
 C_Container.GetContainerNumSlots = function(bag) if bag == 0 then return BAG_SIZE end; return OTHER_BAGS[bag] and 4 or 0 end
 C_Container.GetContainerItemInfo = function(bag, slot)
-    if bag == 0 then return BAGS[slot] end
-    return OTHER_BAGS[bag] and OTHER_BAGS[bag][slot]
+    if bag == 0 then return CopyItemInfo(BAGS[slot]) end
+    return CopyItemInfo(OTHER_BAGS[bag] and OTHER_BAGS[bag][slot])
 end
 C_Container.UseContainerItem = function(bag, slot)
-    if bag == 0 then CALLS[#CALLS + 1] = 'Sell(' .. slot .. ')'; BAGS[slot] = nil; return end
-    CALLS[#CALLS + 1] = 'Sell(' .. bag .. '/' .. slot .. ')'; OTHER_BAGS[bag][slot] = nil
+    if bag == 0 then BAGS[slot] = nil; return end
+    OTHER_BAGS[bag][slot] = nil
 end
 Enum.BagSlotFlags = { ExcludeJunkSell = 64 }
 C_Container.GetBagSlotFlag = function(bag, flag) return flag == 64 and EXCLUDED[bag] == true end
@@ -65,6 +65,14 @@ end
 -- Your class and level, and professions by skill line ID; GetProfessions names them by index as Forever does.
 function UnitClass() return state.className or 'Warrior', state.class or 'WARRIOR' end
 PROFESSIONS = {}
+-- Your skill lines (C_SkillInfo, as Forever has it): languages, weapons, armor, two professions and their tiers.
+SKILLS = {}
+for i, id in ipairs({ 98, 109, 43, 44, 54, 95, 162, 413, 414, 415, 433, 186, 393, 129, 185 }) do SKILLS[i] = { skillID = id } end
+C_SkillInfo = { GetNumSkillLines = function() return #SKILLS end, GetSkillLineInfo = function(i)
+    local s = SKILLS[i]
+    return s and { skillID = s.skillID, parentSkillLineID = s.parent }
+end }
+C_TradeSkillUI = { GetTradeSkillDisplayName = function() return nil end }
 function GetProfessions() local indexes = {}; for i = 1, #PROFESSIONS do indexes[i] = i end; return unpack(indexes) end
 function GetProfessionInfo(index) return 'Profession', 'icon', 1, 75, 0, 0, PROFESSIONS[index] end
 
@@ -87,9 +95,14 @@ TIP_LINES = {}
 function GameTooltip:AddLine(text) TIP_LINES[#TIP_LINES + 1] = text end
 function GameTooltip:GetOwner() return self.owner end
 function BagButton(bag, slot) return { GetBagID = function() return bag end, GetID = function() return slot end } end
+-- The tooltip data the game hands its hooks, made once per item: the game makes it whether or not an addon hooks, so
+-- it isn't the addon's garbage.
+local tooltipData = {}
 function HoverItem(id, owner)
-    TIP_LINES = {}
+    for i = #TIP_LINES, 1, -1 do TIP_LINES[i] = nil end
     GameTooltip.owner = owner
-    for _, fn in ipairs(ITEM_TOOLTIP_HOOKS) do fn(GameTooltip, { id = id }) end
+    local data = tooltipData[id]
+    if not data then data = { id = id }; tooltipData[id] = data end
+    for _, fn in ipairs(ITEM_TOOLTIP_HOOKS) do CallIn(fn, GameTooltip, data) end
     return TIP_LINES[1]
 end

@@ -75,10 +75,12 @@ jobs:
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           ACCEPTED: ${{ contains(github.event.pull_request.labels.*.name, 'perf-accepted') }}
+        # Both sides run this version's bench, mocks and scenarios; only the addon differs.
         run: |
           mkdir "$RUNNER_TEMP/base"
-          git archive "$BASE" HastesSuperTweaks tools | tar -x -C "$RUNNER_TEMP/base"
-          HST_ROOT="$RUNNER_TEMP/base" python tools/bench.py --json > "$RUNNER_TEMP/base.json"
+          git archive "$BASE" HastesSuperTweaks | tar -x -C "$RUNNER_TEMP/base"
+          HST_ROOT="$RUNNER_TEMP/base" python tools/bench.py --json > "$RUNNER_TEMP/base.json" \
+            || echo "::warning::Some scenarios failed on the base branch; they're compared as new."
           status=0
           python tools/bench_compare.py "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" > "$RUNNER_TEMP/report.md" || status=$?
           cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
@@ -92,7 +94,8 @@ jobs:
             fi
           fi
       - name: Full bench
-        run: python tools/bench.py >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          { echo '<details><summary>Every scenario</summary>'; echo; echo '```'; python tools/bench.py; echo '```'; echo '</details>'; } >> "$GITHUB_STEP_SUMMARY"
 
   package:
     name: Package

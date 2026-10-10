@@ -1,7 +1,6 @@
 -- Game API mocks for Auto-Equip Bags: your backpack, bag slots and cursor. EQUIPPED[bag] is the bag item in bag
 -- slots 1-4; CONTENTS[bag][slot] = { id = itemID, bound = true } for what's in each bag. Swapping a bag moves what
--- was in it into the new one, as the game does. Calls are recorded in CALLS.
-CALLS = {}
+-- was in it into the new one, as the game does.
 Enum = Enum or {}
 Enum.ItemClass = { Container = 1, Quiver = 11 }
 Enum.ItemContainerSubclass = { Bag = 0 }
@@ -34,7 +33,7 @@ function Equip(bag, id) EQUIPPED[bag], CONTENTS[bag] = id, {} end
 
 function GetInventoryItemID(unit, inv) assert(unit == 'player'); return EQUIPPED[inv - 30] end
 function GetCursorInfo() if CURSOR then return 'item', CURSOR.id end end
-function ClearCursor() CALLS[#CALLS + 1] = 'ClearCursor()'; CURSOR = nil end
+function ClearCursor() CURSOR = nil end
 C_Container = {
     ContainerIDToInventoryID = function(bag) assert(bag >= 1 and bag <= 4, 'bag slot'); return bag + 30 end,
     GetContainerNumSlots = slots,
@@ -50,7 +49,6 @@ C_Container = {
     end,
     -- Picks an item up, or puts the one held down in an empty slot.
     PickupContainerItem = function(bag, slot)
-        CALLS[#CALLS + 1] = 'Pickup(' .. bag .. ',' .. slot .. ')'
         if CURSOR then
             assert(not CONTENTS[bag][slot], 'placed in an empty slot')
             CONTENTS[bag][slot], CONTENTS[CURSOR.bag][CURSOR.slot], CURSOR = CONTENTS[CURSOR.bag][CURSOR.slot], nil, nil
@@ -64,7 +62,6 @@ C_Container = {
 -- from inside the bag it would replace is turned down (and stays on the cursor), as is everything while REFUSE is set.
 function PutItemInBag(inv)
     local bag, held = inv - 30, assert(CURSOR, 'holding a bag')
-    CALLS[#CALLS + 1] = 'PutItemInBag(' .. bag .. ')'
     if REFUSE or held.bag == bag then return end
     local item, old = CONTENTS[held.bag][held.slot], EQUIPPED[bag]
     local moved = CONTENTS[bag] or {}

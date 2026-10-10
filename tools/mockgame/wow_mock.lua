@@ -4,12 +4,18 @@
 state = { xp = 100, cap = 1000, level = 10, rested = 300, afk = false, combat = false, quests = {}, time = 0,
     instanceType = "none", raidGroup = false, loggedIn = false }
 ERRORS, CHAT, SOUNDS = {}, {}, {}
+-- Calls from the game into the addon (events, scripts, timers, hooks), counted by tools/bench.py. Mocks and the
+-- benchmark run addon code through CallIn so each one counts.
+ADDON_CALLS = 0
+function CallIn(fn, ...) ADDON_CALLS = ADDON_CALLS + 1; return fn(...) end
 -- WoW's xpcall forwards extra arguments (AceAddon relies on it); stock Lua 5.1's does not.
 local rawxpcall = xpcall
 function xpcall(fn, handler, ...)
     local args, n = { ... }, select('#', ...)
     return rawxpcall(function() return fn(unpack(args, 1, n)) end, handler)
 end
+-- Forever hides some values from addons (secret values); fixtures that model them replace this.
+function issecretvalue() return false end
 function geterrorhandler() return function(err) ERRORS[#ERRORS + 1] = tostring(err); return err end end
 function GetTime() return state.time end
 bit = { band = function(a, b) return 0 end }
@@ -37,6 +43,16 @@ function IsInGroup() return state.raidGroup end
 function IsShiftKeyDown() return state.shift == true end
 function RequestTimePlayed() state.playedRequests = (state.playedRequests or 0) + 1 end
 function securecallfunction(fn, ...) return fn(...) end
+-- hooksecurefunc([table,] name, fn): fn runs after the original with the same arguments (a game call into the addon).
+function hooksecurefunc(t, name, fn)
+    if type(t) == 'string' then t, name, fn = _G, t, name end
+    local original = t[name]
+    t[name] = function(...)
+        local a, b, c, d = original(...)
+        CallIn(fn, ...)
+        return a, b, c, d
+    end
+end
 function PlaySound(id) SOUNDS[#SOUNDS + 1] = id end
 SOUNDKIT = { IG_MAINMENU_OPTION_CHECKBOX_ON = 856, IG_MAINMENU_OPTION_CHECKBOX_OFF = 857, IG_CHARACTER_INFO_TAB = 841 }
 function GetCursorPosition() return 0, 0 end
@@ -60,25 +76,42 @@ end
 -- Timers keep their deadline (state.time + delay). RunTimers() runs everything queued so far, due or not;
 -- AdvanceTime(seconds) moves the clock and runs timers as they come due, in deadline order, including ones those
 -- timers start. Cancelled timers never run.
-local timers = {}
-local function queue(delay, fn) local timer = { at = state.time + (delay or 0), fn = fn }; timers[#timers + 1] = timer; return timer end
+-- The game keeps its timers outside Lua, so their records are reused here rather than left as Lua garbage; a ticker
+-- keeps its one record.
+local timers, free = {}, {}
+local function queue(delay, fn, timer)
+    if not timer then
+        timer = free[#free]
+        if timer then free[#free] = nil; timer.fn = fn else timer = { fn = fn } end
+    end
+    timer.at = state.time + (delay or 0)
+    timers[#timers + 1] = timer
+    return timer
+end
+local function done(timer) if not timer.keep then timer.fn = nil; free[#free + 1] = timer end end
+-- Timer handles share their methods (MOCK_TIMER_METHODS, counted by the benchmark), and a ticker requeues one timer,
+-- so the mock allocates nothing per tick.
+local handleMethods = {}
+function handleMethods.Cancel(self) self.cancelled = true end
+function handleMethods.IsCancelled(self) return self.cancelled == true end
+MOCK_TIMER_METHODS = handleMethods
 C_Timer = { After = function(delay, fn) queue(delay, fn) end }
 function C_Timer.NewTicker(interval, fn, iterations)
     assert(interval > 0, 'ticker interval must be positive')
-    local handle = { interval = interval, callback = fn, Cancel = function(self) self.cancelled = true end,
-        IsCancelled = function(self) return self.cancelled == true end }
-    local count = 0
+    local handle = { interval = interval, callback = fn, Cancel = handleMethods.Cancel, IsCancelled = handleMethods.IsCancelled }
+    local count, timer = 0, nil
     local function tick()
         if handle.cancelled then return end
         fn(handle)
         count = count + 1
-        if not handle.cancelled and (not iterations or count < iterations) then queue(interval, tick) end
+        if not handle.cancelled and (not iterations or count < iterations) then queue(interval, tick, timer) end
     end
-    queue(interval, tick)
+    timer = queue(interval, tick)
+    timer.keep = true
     return handle
 end
 function C_Timer.NewTimer(delay, fn)
-    local handle = { Cancel = function(self) self.cancelled = true end }
+    local handle = { Cancel = handleMethods.Cancel, IsCancelled = handleMethods.IsCancelled }
     queue(delay, function() if not handle.cancelled then fn() end end)
     return handle
 end
@@ -88,8 +121,19 @@ function EventRegistry:RegisterCallback(event, fn, owner)
     self.callbacks[event] = self.callbacks[event] or {}
     table.insert(self.callbacks[event], { fn, owner })
 end
-function EventRegistry:TriggerEvent(event, ...) for _, c in ipairs(self.callbacks[event] or {}) do c[1](c[2], ...) end end
-function RunTimers() local t = timers; timers = {}; for _, timer in ipairs(t) do timer.fn() end end
+function EventRegistry:TriggerEvent(event, ...) for _, c in ipairs(self.callbacks[event] or {}) do CallIn(c[1], c[2], ...) end end
+function RunTimers()
+    local n = #timers
+    for i = 1, n do
+        local timer = timers[i]
+        CallIn(timer.fn)
+        done(timer)
+    end
+    -- Timers those started stay queued (moved down in place, so nothing is allocated).
+    local total = #timers
+    for i = n + 1, total do timers[i - n] = timers[i] end
+    for i = total - n + 1, total do timers[i] = nil end
+end
 function AdvanceTime(seconds)
     local target = state.time + seconds
     while true do
@@ -100,7 +144,8 @@ function AdvanceTime(seconds)
         if not index then break end
         local timer = table.remove(timers, index)
         state.time = math.max(state.time, timer.at)
-        timer.fn()
+        CallIn(timer.fn)
+        done(timer)
     end
     state.time = target
 end
@@ -131,6 +176,20 @@ function GetGuildRosterInfo(i) local m = state.roster[i]; return m.name, m.rank,
 function GetGuildRosterMOTD() return state.motd end
 function GetNormalizedRealmName() return "TestRealm" end
 function GuildRoster() state.rosterRequests = (state.rosterRequests or 0) + 1 end
+-- Game functions Forever has that the addon reads on common paths (the leveling cap, your loot method, money
+-- strings, file checks, error IDs), answered for a leveling character in a plain world.
+function IsXPUserDisabled() return false end
+function GetMaxLevelForPlayerExpansion() return 60 end
+function UnitPlayerControlled(unit) return unit == 'player' or unit == 'pet' end
+function UnitTokenFromGUID() return nil end
+function UnitInRaid() return nil end
+function GetGameMessageInfo(id) return GAME_MESSAGES and GAME_MESSAGES[id] or 'ERR_GENERIC', nil, nil end
+C_CurrencyInfo = { GetCoinTextureString = function(copper) return tostring(copper) .. 'c' end }
+C_UIFileAsset = { IsKnownFile = function() return true end }
+C_GuildInfo = { GuildRoster = function() state.rosterRequests = (state.rosterRequests or 0) + 1 end,
+    GetMOTD = function() return state.motd end }
+C_QuestLog.RequestLoadQuestByID = function(id) state.questRequests = (state.questRequests or 0) + 1 end
+PixelUtil = { GetNearestPixelSize = function(size) return size end }
 function GetQuestLogRewardXP(id) for _, q in ipairs(state.quests) do if q.questID == id then return q.reward end end end
 
 local methods = {}
@@ -144,35 +203,52 @@ function methods:HookScript(name, fn)
     local old = self.scripts[name]
     self.scripts[name] = function(...) if old then old(...) end; return fn(...) end
 end
-function methods:RegisterEvent(event)
+-- Mock methods reach each other through these locals, not self:Method(), so a widget call the addon makes counts
+-- once in the benchmark however the mock carries it out.
+-- Registering an event this client doesn't have raises an error, as the game does (UNKNOWN_EVENTS: fixtures' events
+-- of another client).
+local function register(self, event)
+    if UNKNOWN_EVENTS and UNKNOWN_EVENTS[event] then error('Attempt to register unknown event "' .. event .. '"', 2) end
     assert(not KNOWN_EVENTS or KNOWN_EVENTS[event], 'Unknown event: ' .. tostring(event))
     self.events[event] = true
 end
+methods.RegisterEvent = register
 -- Unit events record the units they are for.
-function methods:RegisterUnitEvent(event, ...) self:RegisterEvent(event); self.events[event] = { ... } end
+function methods:RegisterUnitEvent(event, unit1, unit2)
+    register(self, event)
+    -- Each frame keeps one list per event, so registering again allocates nothing (nor does the game).
+    self.unitLists = self.unitLists or {}
+    local units = self.unitLists[event] or {}
+    units[1], units[2] = unit1, unit2
+    self.unitLists[event], self.events[event] = units, units
+end
 function methods:UnregisterEvent(event) self.events[event] = nil end
-function methods:UnregisterAllEvents() self.events = {} end
+-- Emptied in place: the game allocates nothing for this, so the mock doesn't either.
+function methods:UnregisterAllEvents() for event in pairs(self.events) do self.events[event] = nil end end
 function methods:SetOwner(owner) self.owner = owner end
 function methods:IsOwned(owner) return self.owner == owner end
 function methods:SetSize(w, h) assert(w >= 0 and h >= 0); self.w, self.h = w, h end
 function methods:SetWidth(w) self.w = w end
 function methods:SetHeight(h) self.h = h end
-function methods:GetWidth()
+local width, height
+function width(self)
     if self.w then return self.w end
-    if self.points.TOPLEFT and self.points.BOTTOMRIGHT then return self.parent:GetWidth() - 2 * (tonumber(self.points.TOPLEFT[4]) or 0) end
-    return self.parent and self.parent.GetWidth and self.parent:GetWidth() or 1920
+    if self.points.TOPLEFT and self.points.BOTTOMRIGHT then return width(self.parent) - 2 * (tonumber(self.points.TOPLEFT[4]) or 0) end
+    return self.parent and self.parent.GetWidth and width(self.parent) or 1920
 end
-function methods:GetHeight()
+function height(self)
     if self.h then return self.h end
-    if self.points.TOPLEFT and self.points.BOTTOMRIGHT then return self.parent:GetHeight() + 2 * (tonumber(self.points.TOPLEFT[5]) or 0) end
-    return self.parent and self.parent.GetHeight and self.parent:GetHeight() or 1080
+    if self.points.TOPLEFT and self.points.BOTTOMRIGHT then return height(self.parent) + 2 * (tonumber(self.points.TOPLEFT[5]) or 0) end
+    return self.parent and self.parent.GetHeight and height(self.parent) or 1080
 end
+methods.GetWidth, methods.GetHeight = width, height
 function methods:SetScale(s) self.scale = s end
 function methods:GetScale() return self.scale or 1 end
 function methods:GetEffectiveScale() return self.scale or 1 end
 function methods:SetFrameLevel(level) self.level = level end
 function methods:SetFrameStrata(strata) self.strata = strata end
-function methods:GetFrameStrata() return self.strata or (self.parent and self.parent:GetFrameStrata()) or 'MEDIUM' end
+local function strata(self) return self.strata or (self.parent and self.parent.GetFrameStrata and strata(self.parent)) or 'MEDIUM' end
+methods.GetFrameStrata = strata
 function methods:GetFrameLevel() return self.level or 1 end
 function methods:ClearAllPoints() self.points = {} end
 function methods:SetPoint(...) local p = {...}; self.points[p[1]] = p end
@@ -183,13 +259,19 @@ function methods:IsMouseEnabled() return self.mouse == true end
 function methods:IsMouseOver() return self.mouseOver == true end
 function methods:SetAlpha(value) self.alpha = value end
 function methods:GetAlpha() return self.alpha or 1 end
-function methods:SetShown(value) if value then self:Show() else self:Hide() end end
-function methods:Show() self.shown = true; if self.scripts.OnShow then self.scripts.OnShow(self) end end
-function methods:Hide()
+-- As the game does, OnShow and OnHide run only when the frame was hidden or shown before.
+local function show(self)
+    local was = self.shown
+    self.shown = true
+    if not was and self.scripts.OnShow then CallIn(self.scripts.OnShow, self) end
+end
+local function hide(self)
     local was = self.shown
     self.shown = false; self.owner = nil
-    if was and self.scripts.OnHide then self.scripts.OnHide(self) end
+    if was and self.scripts.OnHide then CallIn(self.scripts.OnHide, self) end
 end
+methods.Show, methods.Hide = show, hide
+function methods:SetShown(value) if value then show(self) else hide(self) end end
 function methods:IsShown() return self.shown end
 function methods:IsVisible()
     local f = self
@@ -207,18 +289,22 @@ function methods:SetOrientation(value) self.orientation = value end
 function methods:SetReverseFill(value) self.reverse = value end
 function methods:SetMinMaxValues(low, high) self.low, self.high = low, high end
 function methods:SetValue(value) assert(value >= (self.low or 0) and value <= (self.high or 1)); self.value = value end
-function methods:SetFormattedText(format, ...) self:SetText(string.format(format, ...)) end
+local setText
+function methods:SetFormattedText(format, ...) setText(self, string.format(format, ...)) end
 function methods:SetFont(path, size, flags)
     if path:find('missing', 1, true) then return false end
     self.font, self.fontsize, self.flags = path, size, flags; return true
 end
-function methods:SetText(text)
+function setText(self, text)
     self.text = text; self.textWrites = (self.textWrites or 0) + 1
-    if self.kind == 'EditBox' and self.scripts.OnTextChanged then self.scripts.OnTextChanged(self, false) end
+    if self.kind == 'EditBox' and self.scripts.OnTextChanged then CallIn(self.scripts.OnTextChanged, self, false) end
 end
+methods.SetText = setText
 function methods:GetText() return self.text end
 function methods:SetHyperlink(link) self.hyperlink = link end
 function methods:GetParent() return self.parent end
+function methods:GetFont() return self.font or 'Fonts\\FRIZQT__.TTF', self.fontsize or 12, self.flags or '' end
+function methods:GetID() return self.id or 0 end
 function methods:SetParent(parent) self.parent = parent end
 function methods:IsProtected() return self.protected == true end
 function methods:AddMessage(text) CHAT[#CHAT + 1] = text end
@@ -228,7 +314,7 @@ function methods:IsForbidden() return false end
 function methods:GetName() return self.name end
 function methods:NumLines() return self.lines or 0 end
 function methods:GetUnit() return self.unitName, self.unit end
-function methods:GetClampRectInsets() local c = self.clamp or { 0, 0, 0, 0 }; return c[1], c[2], c[3], c[4] end
+function methods:GetClampRectInsets() local c = self.clamp; if not c then return 0, 0, 0, 0 end; return c[1], c[2], c[3], c[4] end
 function methods:SetClampRectInsets(...) self.clamp = { ... } end
 
 -- Settings-window extras (only used when PERMISSIVE_FRAMES is set).
@@ -245,26 +331,28 @@ function ui:SetEnabled(value) self.enabled = value and true or false end
 function ui:SetNormalTexture(value) self.normalTexture = value end
 function ui:SetPushedTexture(value) self.pushedTexture = value end
 function ui:SetDisabledTexture(value) self.disabledTexture = value end
-function ui:IsEnabled() return self.enabled ~= false end
+local function enabled(self) return self.enabled ~= false end
+ui.IsEnabled = enabled
 function ui:Enable() self.enabled = true end
 function ui:Disable() self.enabled = false end
+function ui:GetNumLines() return self.numLines or 1 end
 function ui:GetStringWidth() return #(self.text or '') * 6 end
 function ui:GetStringHeight() local text = self.text or ''; local _, lines = text:gsub('\n', ''); return 14 * (lines + 1) end
 function ui:HasFocus() return self.focus == true end
-function ui:SetFocus() self.focus = true; if self.scripts.OnEditFocusGained then self.scripts.OnEditFocusGained(self) end end
+function ui:SetFocus() self.focus = true; if self.scripts.OnEditFocusGained then CallIn(self.scripts.OnEditFocusGained, self) end end
 function ui:ClearFocus()
     local had = self.focus; self.focus = false
-    if had and self.scripts.OnEditFocusLost then self.scripts.OnEditFocusLost(self) end
+    if had and self.scripts.OnEditFocusLost then CallIn(self.scripts.OnEditFocusLost, self) end
 end
 function ui:SetScrollChild(child) self.scrollChild = child end
 function ui:GetVerticalScrollRange()
-    return math.max(0, (self.scrollChild and self.scrollChild:GetHeight() or 0) - self:GetHeight())
+    return math.max(0, (self.scrollChild and height(self.scrollChild) or 0) - height(self))
 end
-function ui:SetVerticalScroll(value) self.scroll = value; if self.scripts.OnVerticalScroll then self.scripts.OnVerticalScroll(self, value) end end
+function ui:SetVerticalScroll(value) self.scroll = value; if self.scripts.OnVerticalScroll then CallIn(self.scripts.OnVerticalScroll, self, value) end end
 function ui:GetVerticalScroll() return self.scroll or 0 end
 function ui:SetColorTexture(...) self.color = {...} end
 function ui:GetName() return self.name end
-function ui:Click(button) if self.scripts.OnClick and self:IsEnabled() then self.scripts.OnClick(self, button or 'LeftButton') end end
+function ui:Click(button) if self.scripts.OnClick and enabled(self) then CallIn(self.scripts.OnClick, self, button or 'LeftButton') end end
 -- Animation groups (the patch notes pip's blink): played and stopped, never animated. Unknown methods error.
 local animation = { SetFromAlpha = noop, SetToAlpha = noop, SetDuration = noop, SetSmoothing = noop }
 animation.__index = animation
@@ -277,9 +365,14 @@ function animationGroup:IsPlaying() return self.playing == true end
 function ui:CreateAnimationGroup() return setmetatable({ playing = false }, animationGroup) end
 -- MinimalSliderWithSteppersTemplate
 local slider = {}
-function slider:Init(value, low, high, steps) self.low, self.high, self.steps = low, high, steps; self:SetValue(value) end
+local function sliderValue(self, value)
+    self.sliderValue = value
+    local fn = self.callbacks[MinimalSliderWithSteppersMixin.Event.OnValueChanged]
+    if fn then CallIn(fn, nil, value) end
+end
+function slider:Init(value, low, high, steps) self.low, self.high, self.steps = low, high, steps; sliderValue(self, value) end
 function slider:RegisterCallback(event, fn) self.callbacks[event] = fn end
-function slider:SetValue(value) self.sliderValue = value; local fn = self.callbacks[MinimalSliderWithSteppersMixin.Event.OnValueChanged]; if fn then fn(nil, value) end end
+slider.SetValue = sliderValue
 function slider:SetEnabled(value) self.enabled = value end
 -- DropdownButton with WowStyle1DropdownTemplate
 local dropdown = {}
@@ -311,6 +404,8 @@ function dropdown:Pick(data)
     end
     error('dropdown has no entry ' .. tostring(data))
 end
+-- Every table of widget methods (frames, templates, animations), for the benchmark's widget call counts.
+MOCK_WIDGET_METHODS = { methods, ui, slider, dropdown, animation, animationGroup }
 MinimalSliderWithSteppersMixin = { Event = { OnValueChanged = 'OnValueChanged' } }
 ColorPickerFrame = {}
 function ColorPickerFrame:SetupColorPickerAndShow(info) self.info = info; self.r, self.g, self.b, self.a = info.r, info.g, info.b, info.opacity end
@@ -347,5 +442,7 @@ Minimap = CreateFrame('Frame', nil, UIParent); Minimap:SetSize(140, 140)
 GameTooltip = CreateFrame('Frame')
 function GameTooltip:SetText(text) self.text = text end
 DEFAULT_CHAT_FRAME = CreateFrame('Frame')
+-- The game's font objects the addon reads its default fonts from.
+for _, name in ipairs({ 'GameFontNormal', 'GameFontHighlight', 'CombatTextFont' }) do CreateFrame('Font', name) end
 
 function GetPhysicalScreenSize() return 2560, 1440 end
