@@ -1,0 +1,49 @@
+## Interface: 16001, 11509
+## Title: Haste's Super Tweaks
+## Notes: Small quality-of-life modules for WoW Forever: XP bar, tooltips, combat text, loot window, vendor selling, quest and group automation, auto-decline and more. /hst opens settings.
+## Author: Haste
+## Version: 1.0.0
+## SavedVariables: HastesSuperTweaksDB
+## OptionalDeps: EllesmereUI, SharedMedia, SharedMedia_Inter, LibSharedMedia-3.0, Questie, Blizzard_PTRFeedback
+## IconTexture: Interface\AddOns\HastesSuperTweaks\Art\Logo
+## AddonCompartmentFunc: HastesSuperTweaks_OnAddonCompartmentClick
+## Category: Interface
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
+Libs\AceAddon-3.0\AceAddon-3.0.xml
+Libs\AceConsole-3.0\AceConsole-3.0.xml
+Libs\AceDB-3.0\AceDB-3.0.xml
+
+Core.lua
+PatchNotes.lua
+Media.lua
+Settings\Widgets.lua
+Settings\Panel.lua
+EditMode.lua
+Modules\XPTracker.lua
+Modules\XPTrackerOptions.lua
+Modules\XPTrackerEditMode.lua
+Modules\GuildInvite.lua
+Modules\HideIssueReporter.lua
+Modules\MinimapButton.lua
+Modules\Tooltip.lua
+Modules\CombatText.lua
+Modules\CombatTextOptions.lua
+Modules\BreathMeter.lua
+Modules\GuildMOTD.lua
+Modules\WhisperFlash.lua
+Modules\KillsToLevel.lua
+Modules\QuestXP.lua
+Modules\QuestSparkle.lua
+Modules\LevelUpScreenshot.lua
+Modules\Automation.lua
+Modules\SellClutter.lua
+Modules\Blocks.lua
+Modules\MuteSounds.lua
+Modules\Loot.lua
+Modules\SpellRanks.lua
+Modules\ConsumableMacros.lua
+Modules\AutoBags.lua
+Modules\MailHelper.lua

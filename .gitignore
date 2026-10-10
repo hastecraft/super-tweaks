@@ -1,0 +1,18 @@
+# Written by tools/install.py: the last installed release, backups of what it replaced, and the release ZIP.
+/.last-installed/
+/backups/
+/dist/
+
+# Point-in-time review artifacts (source snapshots and a copy of Blizzard's UI source); git history replaces them.
+/reviews/
+
+__pycache__/
+*.pyc
+*.tmp
+
+# Internal working notes, kept locally but not published.
+/reports/
+/research_notes/
+
+# Vendored Windows build of lupa, kept locally; others install it with pip (see README.md).
+/tools/mockgame/pydeps/

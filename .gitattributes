@@ -1,0 +1,4 @@
+* text=auto
+*.tga binary
+*.pyd binary
+*.zip binary
