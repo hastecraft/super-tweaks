@@ -1,0 +1,10 @@
+# Keeps the pinned GitHub Actions current (pull requests, weekly).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

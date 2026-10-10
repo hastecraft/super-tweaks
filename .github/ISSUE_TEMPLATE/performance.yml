@@ -1,0 +1,40 @@
+name: Performance report
+description: The addon seems to cost FPS, CPU or memory.
+labels: [performance]
+body:
+  - type: markdown
+    attributes:
+      value: Haste's Super Tweaks aims to cost as little as possible. Numbers help most, even rough ones.
+  - type: input
+    id: version
+    attributes:
+      label: Addon version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: Game client
+      options:
+        - WoW Forever
+        - Classic Era
+    validations:
+      required: true
+  - type: textarea
+    id: when
+    attributes:
+      label: When does it happen?
+      description: For example in big fights, with many nameplates, at a vendor, while the settings window is open.
+    validations:
+      required: true
+  - type: textarea
+    id: numbers
+    attributes:
+      label: Measurements
+      description: FPS with the addon on and off (or with single tweaks off), and memory or CPU from an addon profiler if you use one.
+  - type: textarea
+    id: tweaks
+    attributes:
+      label: Tweaks turned on
+      description: Turning tweaks off one by one and noting which one makes the difference helps the most.

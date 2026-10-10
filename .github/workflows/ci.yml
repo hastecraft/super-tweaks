@@ -1,0 +1,121 @@
+# Checks every pull request and every push to main. Runs with a read-only token and no secrets, so it is safe for pull
+# requests from forks. Third-party actions are pinned to a commit; Dependabot keeps the pins current.
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install luacheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lua-check
+      - name: luacheck
+        run: luacheck . --formatter plain
+
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - run: pip install -r tools/requirements.txt
+      - name: Consistency
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ -n "$BASE" ]; then
+            release=""
+            case "$HEAD_REF" in release/*) release="--release" ;; esac
+            python tools/check.py --base "$BASE" $release
+          else
+            python tools/check.py
+          fi
+
+  performance:
+    name: Performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - run: pip install -r tools/requirements.txt
+      - name: Bench this version
+        run: python tools/bench.py --json > "$RUNNER_TEMP/head.json"
+      - name: Compare with the base branch
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          ACCEPTED: ${{ contains(github.event.pull_request.labels.*.name, 'perf-accepted') }}
+        run: |
+          mkdir "$RUNNER_TEMP/base"
+          git archive "$BASE" HastesSuperTweaks tools | tar -x -C "$RUNNER_TEMP/base"
+          HST_ROOT="$RUNNER_TEMP/base" python tools/bench.py --json > "$RUNNER_TEMP/base.json"
+          status=0
+          python tools/bench_compare.py "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" > "$RUNNER_TEMP/report.md" || status=$?
+          cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/report.md"
+          if [ "$status" -ne 0 ]; then
+            if [ "$ACCEPTED" = "true" ]; then
+              echo "::warning::The bench counts more work than the base branch; accepted with the perf-accepted label."
+            else
+              echo "::error::The bench counts more work than the base branch (see the job summary). Fix it, or have the maintainer add the perf-accepted label if the cost is worth it."
+              exit 1
+            fi
+          fi
+      - name: Full bench
+        run: python tools/bench.py >> "$GITHUB_STEP_SUMMARY"
+
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build the addon ZIP (no upload)
+        uses: BigWigsMods/packager@e50a250f8705041e40f2fa1ddcb280a686d65aa0 # v2.6.1
+        with:
+          args: -d
+          pandoc: 'false'
+      - name: Prepare the test build
+        run: |
+          mkdir test-build
+          cp -r .release/HastesSuperTweaks test-build/
+          printf '%s\n' "Test build of this pull request. Copy the HastesSuperTweaks folder into your game's" \
+            "Interface\\AddOns folder (replacing the installed one), then restart the game." > test-build/INSTALL.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: HastesSuperTweaks-test-build
+          path: test-build/*
+          retention-days: 14

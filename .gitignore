@@ -16,3 +16,7 @@ __pycache__/
 
 # Vendored Windows build of lupa, kept locally; others install it with pip (see README.md).
 /tools/mockgame/pydeps/
+
+# Written by the packager (CI) and the release workflow.
+/.release/
+/RELEASE_NOTES.md

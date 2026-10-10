@@ -76,21 +76,21 @@ Settings that cannot apply are disabled. Font menus preview each font. A confirm
 
 ## Commands
 
-- `/hst` — settings window. `/hst help` — command list.
-- `/hst xp`, `/hst tooltip`, `/hst sct`, `/hst breath`, `/hst ranks`, `/hst macros`, `/hst mail`, `/hst clutter` — XP Tracker, Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Upgrade Spell Ranks, Consumable Macros, Mail Expiry & Alt List and Sell Clutter Automatically settings. Any module's internal name works too, for example `/hst guildmotd`.
-- `/hst keep <item>`, `/hst sell <item>` — put an item on Sell Clutter's Never sell or Always sell list (shift-click it into the chat line); again takes it off. `/hst clutter list` — what Sell Clutter would sell right now.
+- `/hst`: settings window. `/hst help`: command list.
+- `/hst xp`, `/hst tooltip`, `/hst sct`, `/hst breath`, `/hst ranks`, `/hst macros`, `/hst mail`, `/hst clutter`: XP Tracker, Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Upgrade Spell Ranks, Consumable Macros, Mail Expiry & Alt List and Sell Clutter Automatically settings. Any module's internal name works too, for example `/hst guildmotd`.
+- `/hst keep <item>`, `/hst sell <item>`: put an item on Sell Clutter's Never sell or Always sell list (shift-click it into the chat line); again takes it off. `/hst clutter list`: what Sell Clutter would sell right now.
 
 XP bar commands use `/hxp`:
 
-- `/hxp` — XP Tracker settings. `/hxp help` — command list.
-- `/hxp lock`, `/hxp unlock`, `/hxp center` — position the XP bar.
-- `/hxp preview` — sample XP data for styling the bar at any level.
-- `/hxp resetstats` — restart the XP/hour session.
-- `/hxp show`, `/hxp hide` — turn the XP Tracker on or off.
+- `/hxp`: XP Tracker settings. `/hxp help`: command list.
+- `/hxp lock`, `/hxp unlock`, `/hxp center`: position the XP bar.
+- `/hxp preview`: sample XP data for styling the bar at any level.
+- `/hxp resetstats`: restart the XP/hour session.
+- `/hxp show`, `/hxp hide`: turn the XP Tracker on or off.
 
 ## Installing
 
-`tools/install.py` (in the project, not the addon) stages the release, and installs and zips exactly the staged files. The installed folder is swapped for a verified copy, and put back if anything fails. WoW can stay open for an ordinary update; the installer ends by saying whether `/reload` is enough or a restart is needed (a changed TOC or XML include, or new or changed art).
+Unzip the release into your game's `Interface\AddOns` folder, so that you get `Interface\AddOns\HastesSuperTweaks`, then restart the game. Releases are on the project's GitHub page: https://github.com/hastecraft/super-tweaks
 
 ## Limits and edge cases
 

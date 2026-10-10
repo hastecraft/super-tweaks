@@ -10,13 +10,16 @@ Type `/hst` in game to open the settings. The full list of tweaks and how each b
 2. Unzip it into your game's `Interface\AddOns` folder, so that you get `Interface\AddOns\HastesSuperTweaks`.
 3. Restart the game.
 
-## Development
+What changed in each version is in [CHANGELOG.md](CHANGELOG.md), and in game: click the version beside the settings window's title.
 
-The addon is the `HastesSuperTweaks` folder. The scripts in `tools` need Python 3 with `pip install lupa pillow`.
+## Contributing
 
-- `python tools/install.py` installs the addon into the game and builds the release ZIP in `dist`. Set `HST_WOW_DIR` to your game folder (the one holding `Interface`). `--dry-run` shows what it would do.
+Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). The addon is the `HastesSuperTweaks` folder. The scripts in `tools` need Python 3 (`python -m pip install -r tools/requirements.txt`):
+
+- `python tools/install.py` installs the addon into the game. Set `HST_WOW_DIR` to your game folder (the one holding `Interface`). `--dry-run` shows what it would do.
+- `python tools/bench.py` counts the work done on the addon's hot paths in a mocked game runtime (`tools/mockgame`). CI compares it on every pull request.
+- `python tools/check.py` runs the consistency checks CI runs.
 - `python tools/make_art.py` redraws the icons in `HastesSuperTweaks/Art`.
-- `python tools/bench.py` counts the work done on the addon's hot paths in a mocked game runtime (`tools/mockgame`), to compare two versions.
 
 ## License
 

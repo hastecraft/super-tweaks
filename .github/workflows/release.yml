@@ -1,0 +1,48 @@
+# Publishes a release when the maintainer pushes a version tag (v1.2.3, or v1.2.3-beta.1 for a beta). The job runs in the
+# "release" environment, which waits for the maintainer's approval and is the only place the upload keys exist.
+# The packager builds the ZIP from .pkgmeta and uploads it to GitHub Releases, plus CurseForge and Wago once their
+# project IDs are in the TOC (X-Curse-Project-ID, X-Wago-ID) and their keys are environment secrets.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write # create the GitHub release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - run: pip install -r tools/requirements.txt
+      - name: Check the tag, version and notes agree
+        run: python tools/check.py --tag "$GITHUB_REF_NAME"
+      - name: Release notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          python tools/changelog.py --version "${version%%-*}" > RELEASE_NOTES.md
+      - name: Package and upload
+        uses: BigWigsMods/packager@e50a250f8705041e40f2fa1ddcb280a686d65aa0 # v2.6.1
+        with:
+          pandoc: 'false'
+        env:
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
