@@ -1,4 +1,4 @@
-# Checks every pull request and every push to main. Runs with a read-only token and no secrets, so it is safe for pull
+# Checks every pull request and every push to master. Runs with a read-only token and no secrets, so it is safe for pull
 # requests from forks. Third-party actions are pinned to a commit; Dependabot keeps the pins current.
 name: CI
 
@@ -6,7 +6,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read

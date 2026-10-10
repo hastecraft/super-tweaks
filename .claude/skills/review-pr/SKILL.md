@@ -40,7 +40,7 @@ git worktree add ../super-tweaks-pr-N pr-N
 cd ../super-tweaks-pr-N && python tools/bench.py && python tools/install.py
 ```
 
-`install.py` replaces the installed addon with the PR's version. Say so, and remind the maintainer to reinstall `main` afterwards (run `python tools/install.py` in the main checkout). Only run the PR's code (`tools/` scripts included) once you've read the diff and found nothing suspicious. Its scripts run on the maintainer's machine.
+`install.py` replaces the installed addon with the PR's version. Say so, and remind the maintainer to reinstall `master` afterwards (run `python tools/install.py` in the main checkout). Only run the PR's code (`tools/` scripts included) once you've read the diff and found nothing suspicious. Its scripts run on the maintainer's machine.
 
 ## 4. Report
 

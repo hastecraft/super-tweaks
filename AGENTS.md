@@ -20,7 +20,7 @@ When it finishes, tell the user whether `/reload` is enough or whether a full ga
 
 ## Branches and pull requests
 
-- Work on a branch and open a pull request into `main`; never push to `main`. Several sessions often work on this repo at once, so prefer a git worktree of your own, and never commit or revert changes you didn't make.
+- Work on a branch and open a pull request into `master`; never push to `master`. Several sessions often work on this repo at once, so prefer a git worktree of your own, and never commit or revert changes you didn't make.
 - One change per pull request. Fill in the template, including the one line "For the patch notes" in player terms.
 - Don't edit the patch notes entries in `HastesSuperTweaks/PatchNotes.lua`, the TOC's `## Version` or `CHANGELOG.md`: those are written at release time from the merged pull requests (maintainers: `.claude/skills/release`). CI fails pull requests that change them.
 - CI must pass: luacheck, `tools/check.py`, the bench comparison and the package build.
