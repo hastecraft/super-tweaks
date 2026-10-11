@@ -143,7 +143,7 @@ S.FADE_IN, S.FADE_FROM, S.FADE_OUT, S.POP = 0.08, 0.5, 0.25, 0.15 -- seconds; al
 S.BLINK, S.BLINK_LOW = 0.5, 0.2
 S.MOST, S.MOST_ON_PLATE = 20, 8
 S.AREA_WIDTH = 200
-local layer, driver, ticking
+local layer, layerLevel, driver, ticking
 -- Free texts: on the interface's layer, and on the world's (numbers behind nameplates). Each kind keeps its own
 -- frames.
 local pool, worldPool, live = {}, {}, {}
@@ -329,6 +329,7 @@ local function Layer()
         layer = CreateFrame("Frame", nil, UIParent)
         layer:SetFrameStrata("HIGH")
         layer:SetAllPoints(UIParent)
+        layerLevel = layer:GetFrameLevel() + 1 -- the texts' level, just above it
     end
     return layer
 end
@@ -439,7 +440,7 @@ function S:Show(lane, color, kind, icon, fmt, a, b)
         f.hostLevel = nil
         local strata = mode or "HIGH"
         if f.shownStrata ~= strata then f.shownStrata = strata; f:SetFrameStrata(strata) end
-        level = mode and p.plateLevel or Layer():GetFrameLevel() + 1
+        level = mode and p.plateLevel or layerLevel -- Acquire made the layer
     end
     if f.shownLevel ~= level then f.shownLevel = level; f:SetFrameLevel(level) end
     local flags = self.flags or S.FontFlags(p)
