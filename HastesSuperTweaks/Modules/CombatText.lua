@@ -1243,11 +1243,14 @@ end
 
 -- A notice from the game's combat text events turned off here, shown by the game's frame as it would show it: only
 -- while replacing it (else it shows it itself), with the frame up and the game's own setting for that kind on.
+-- Called from here, the frame runs as addon code, which can't place a text holding a value the game hides from addons:
+-- that's an error, and the frame loses one of its lines of text for good. Such notices (spell and aura names, faction
+-- changes and honor, wherever the game hides them) aren't handed over.
 function S:GiveToGame(kind)
     local frame, info = CombatText, CombatTextTypeInfo and CombatTextTypeInfo[kind]
     if not (self.replacing and frame and frame:IsVisible() and info and info.show) then return end
     local data, amount = CombatTextInfo()
-    if not IsSecret(data) and data == nil then return end
+    if IsSecret(data) or IsSecret(amount) or data == nil then return end
     local text, display
     if kind == "SPELL_ACTIVE" then
         text, display = string.format("<%s>", data), "crit"
@@ -1257,23 +1260,15 @@ function S:GiveToGame(kind)
         text = string.format(AURA_END or "<%s fades>", data)
     elseif kind == "FACTION" then
         -- data is the faction, amount the change.
-        if IsSecret(amount) then
-            text = string.format("(%s %s)", data, amount)
-        else
-            amount = tonumber(amount)
-            if not amount then return end
-            text = string.format(amount > 0 and "(%s +%d)" or "(%s %d)", data, amount)
-        end
+        amount = tonumber(amount)
+        if not amount then return end
+        text = string.format(amount > 0 and "(%s +%d)" or "(%s %d)", data, amount)
     elseif kind == "HONOR_GAINED" then
         -- data is the honor.
-        local honor = data
-        if not IsSecret(data) then
-            honor = tonumber(data)
-            if not honor or abs(honor) < 1 then return end
-            honor = floor(honor)
-            honor = honor > 0 and "+" .. honor or tostring(honor)
-        end
-        text = string.format(COMBAT_TEXT_HONOR_GAINED or "Honor %s", honor)
+        local honor = tonumber(data)
+        if not honor or abs(honor) < 1 then return end
+        honor = floor(honor)
+        text = string.format(COMBAT_TEXT_HONOR_GAINED or "Honor %s", honor > 0 and "+" .. honor or tostring(honor))
     end
     local scroll = frame.scrollFunction or (CombatTextUtil and CombatTextUtil.StandardScroll)
     if frame.AddMessage then
@@ -1319,16 +1314,12 @@ function S:HoldCVar(name, value, hold)
         if not Same(current, value) then
             WriteCVar(name, value)
             heldAs[name] = ReadCVar(name)
-            return true
         end
     elseif saved[name] ~= nil then
         local back, held = saved[name], heldAs[name]
         saved[name], heldAs[name] = nil, nil
         -- Equality with the held value can be the user's real preference, including in older saved records.
-        if Same(current, value) or Same(current, held) then
-            WriteCVar(name, back)
-            return not Same(current, back)
-        end
+        if Same(current, value) or Same(current, held) then WriteCVar(name, back) end
     end
 end
 
@@ -1359,7 +1350,9 @@ function S:UpdateCVars()
     -- given back too (released, a hold is put back when the setting is the value given here or the one held).
     local size = on and p.enemyMode == "GAME" and p.gameDamageSize ~= 1 and p.gameDamageSize or nil
     self:HoldCVar("WorldTextScale_v2", size and tostring(size) or "0", size ~= nil)
-    local changed = false
+    -- The game's frame reads these settings only as it loads, its combat text is turned on or the screen is resized,
+    -- so one changed here shows from the next reload. Its own update, called from here, would run as addon code and
+    -- taint the frame: the game's combat text would then fail on the values it hides from addons.
     for name, keys in pairs(GAME_NOTICE_CVARS) do
         local handed = false
         if on and p.replaceBlizzard then
@@ -1367,15 +1360,7 @@ function S:UpdateCVars()
                 if self:GameShows(key) then handed = true end
             end
         end
-        if self:HoldCVar(name, "1", handed) then changed = true end
-    end
-    -- The game's frame reads these settings only as it loads or its combat text is turned on: it's told again, once
-    -- the game has taken in the change.
-    if changed then
-        C_Timer.After(0, function()
-            local frame = CombatText
-            if frame and frame.UpdateDisplayedMessages then pcall(frame.UpdateDisplayedMessages, frame) end
-        end)
+        self:HoldCVar(name, "1", handed)
     end
 end
 
