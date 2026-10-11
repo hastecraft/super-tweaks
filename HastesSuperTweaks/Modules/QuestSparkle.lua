@@ -30,8 +30,7 @@ function Q.info.preview(frame)
             star:SetPoint("CENTER", v.item, "CENTER", SPOTS[i][1], SPOTS[i][2])
             v.stars[i] = star
         end
-        v.caption = W.Caption(frame, "Quest items sparkle even with outlines off")
-        W.Column(frame, { v.item, 14, v.caption })
+        W.Column(frame, { v.item })
     end
     -- Three stars pulse in turn around the item, each turning slowly.
     W.Loop(frame, 2.4, function(t)

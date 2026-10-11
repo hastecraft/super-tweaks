@@ -73,11 +73,10 @@ function F.info.preview(frame)
     if not frame.hstWindow then
         frame.hstWindow = L:BuildWindow(frame)
         frame.hstWindow:SetScale(0.8)
-        frame.hstCaption = ns.Widgets.Caption(frame, "All the loot taken at once")
     end
     local W, f = ns.Widgets, frame.hstWindow
     L:Layout(f, L.samples.fast, false, L:Look({ hotkey = "" }), { amount = 152 })
-    W.Column(frame, { f, 6, frame.hstCaption })
+    W.Column(frame, { f })
     -- The list opens and every item lands in it at once, a beat apart, the money last.
     local count = #L.samples.fast
     W.Loop(frame, 4, function(t)

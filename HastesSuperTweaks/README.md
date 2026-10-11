@@ -81,7 +81,7 @@ Search finds tweaks and settings by name, description, section, page or menu cho
 
 ### Profiles and About
 
-Profiles lets you switch, create, copy, delete and reset profiles. Profiles hold every tweak's settings; statistics are saved per character. About lists the commands and credits, with GitHub and donate links.
+Profiles lets you switch, create, copy, delete and reset profiles. Profiles hold every tweak's settings; statistics are saved per character. About lists the commands and credits. The GitHub button sits beside Profiles and About.
 
 ### Other details
 

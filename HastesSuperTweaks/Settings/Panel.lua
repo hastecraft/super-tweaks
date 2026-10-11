@@ -1415,27 +1415,30 @@ function P:CreateSidebar(f)
     end)
     pip:SetScript("OnClick", function() self:NavClick({ kind = "notes" }) end)
     self:PaintPip()
-    -- The web links (GitHub, Donate) as icons across from Profiles and About, at the right.
+    -- The web links (GitHub, Donate) as icons across from Profiles and About, at the right; a link without a URL
+    -- yet isn't shown.
     local x = -(PAD - 3)
     for i = #HST.links, 1, -1 do
         local link = HST.links[i]
-        local b = CreateFrame("Button", nil, bottom)
-        b:SetSize(20, 20)
-        b:SetPoint("BOTTOMRIGHT", x, -1)
-        b.icon = W.PixelIcon(b, link.icon, 16, C.muted)
-        b.icon:SetPoint("CENTER")
-        b:SetScript("OnEnter", function()
-            b.icon:SetVertexColor(unpack(C.accent))
-            W.ShowTooltip(b, link.name, link.url ~= "" and link.url or "Link coming soon.")
-        end)
-        b:SetScript("OnLeave", function()
-            b.icon:SetVertexColor(unpack(C.muted))
-            W.HideTooltip(b)
-        end)
-        b:SetScript("OnClick", function()
-            if link.url ~= "" then StaticPopup_Show("HASTES_SUPER_TWEAKS_LINK", link.name, nil, link.url) end
-        end)
-        x = x - 24
+        if link.url ~= "" then
+            local b = CreateFrame("Button", nil, bottom)
+            b:SetSize(20, 20)
+            b:SetPoint("BOTTOMRIGHT", x, -1)
+            b.icon = W.PixelIcon(b, link.icon, 16, C.muted)
+            b.icon:SetPoint("CENTER")
+            b:SetScript("OnEnter", function()
+                b.icon:SetVertexColor(unpack(C.accent))
+                W.ShowTooltip(b, link.name, link.url)
+            end)
+            b:SetScript("OnLeave", function()
+                b.icon:SetVertexColor(unpack(C.muted))
+                W.HideTooltip(b)
+            end)
+            b:SetScript("OnClick", function()
+                StaticPopup_Show("HASTES_SUPER_TWEAKS_LINK", link.name, nil, link.url)
+            end)
+            x = x - 24
+        end
     end
     self.navArea = W.ScrollArea(sidebar)
     self.navArea:SetPoint("TOPLEFT", 0, -56)
@@ -2269,7 +2272,7 @@ function P:RefreshOffOverlay(module, on)
     local box, info = off.box, module.info
     local unavailable = info.unavailable
     box.title:SetText(info.name .. (unavailable and " isn't available" or " is off"))
-    box.text:SetText(unavailable or "Enable it to modify settings.")
+    box.text:SetText(unavailable or "Turn it on to change its settings.")
     box.button:SetShown(not unavailable)
     for key, stage in pairs(box.stages) do if key ~= info.key then stage:Hide() end end
     local previewed = info.preview ~= nil

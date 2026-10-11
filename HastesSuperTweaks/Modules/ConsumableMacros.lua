@@ -66,7 +66,7 @@ function M.info.preview(frame)
         v.glow = W.Fill(v.food, { 1, 0.82, 0, 1 }, "OVERLAY")
         v.glow:SetAllPoints()
         v.glow:SetBlendMode("ADD")
-        W.Column(frame, { bar, 10, W.Caption(frame, "Each macro switches to the best one in your bags") })
+        W.Column(frame, { bar })
     end
     local switched
     W.Loop(frame, 4.5, function(t)

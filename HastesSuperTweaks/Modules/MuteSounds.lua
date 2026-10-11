@@ -166,7 +166,7 @@ local S = HST:NewFeature("MuteCustomSounds", {
     name = "Mute Custom Sounds", category = "sound", order = 2, enabledByDefault = false, unavailable = unavailable,
     summary = "Mutes any game sounds you choose.", examples = { "weather", "fizzle", "list" },
     description = "Mutes any game sounds by their sound file IDs, or rain and weather and the spell fizzle with a "
-        .. "switch. A built-in sound player helps you find them.",
+        .. "switch. Its settings can play sounds by ID, to find the ones you want.",
 })
 ns.MuteCustomSounds = S
 
@@ -192,7 +192,7 @@ function S.info.preview(frame)
         id:SetPoint("RIGHT", panel, "TOPRIGHT", -10, y - 7)
         id:SetText(sound[2])
     end
-    W.Column(frame, { panel, 10, W.Caption(frame, "Find IDs with the built-in sound player") })
+    W.Column(frame, { panel, 10, W.Caption(frame, "Find IDs with Sound player in the settings") })
 end
 
 -- The sound file IDs in a list, with how many there are. Anything but digits separates them,

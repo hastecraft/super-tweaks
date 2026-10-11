@@ -65,7 +65,7 @@ function T.info.preview(frame)
         v.tracker:SetAlpha(1 - W.Window(t, 1.3, 3.7, 0.25))
         if gone ~= shown then
             shown = gone
-            v.caption:SetText(gone and "Entering a dungeon: hidden" or "Back as you leave")
+            v.caption:SetText(gone and "In a dungeon: hidden" or "Outside: shown")
         end
     end)
 end

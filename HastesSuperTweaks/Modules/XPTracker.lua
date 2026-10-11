@@ -84,7 +84,7 @@ function X:SampleXP()
                 -- Intermediate XP caps are unavailable after a boost/multi-level jump.
                 -- Start a fresh rate window instead of reporting an invented gain.
                 self.db.char.session = NewSession()
-                self:Print("Multiple-level jump detected; XP/hour session restarted.")
+                self:Print("You gained more than one level at once, so the XP/hour session started over.")
             end
             self.db.char.levelTime = 0
             self.questDirty = true

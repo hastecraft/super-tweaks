@@ -89,8 +89,7 @@ function G.info.preview(frame)
                 v.mark:SetPoint("CENTER", slot, "BOTTOMRIGHT", -2, 2)
             end
         end
-        v.caption = W.Caption(frame, "Open All leaves gold from strangers")
-        W.Column(frame, { inbox, 10, v.caption })
+        W.Column(frame, { inbox })
     end
     W.Loop(frame, 2, function(t) v.mark:SetAlpha(0.55 + 0.45 * math.abs(math.cos(t * math.pi))) end)
 end

@@ -20,7 +20,7 @@ function R.info.preview(frame)
         local art = shot:CreateTexture(nil, "ARTWORK")
         art:SetAllPoints()
         art:SetTexture("Interface\\AddOns\\HastesSuperTweaks\\Art\\IssueReporter")
-        W.Column(frame, { shot, 8, W.Caption(frame, "Gone from your screen") })
+        W.Column(frame, { shot })
     end
     W.Loop(frame, 4, function(t) shot:SetAlpha(1 - W.Window(t, 1.0, 3.6, 0.4)) end)
 end
