@@ -23,7 +23,7 @@ X.defaults = { profile = {
     locked = true, width = 600, height = 24, scale = 1,
     x = 0, y = -230, strata = "MEDIUM", alpha = 1, combatAlpha = 1,
     hideCombat = false, hideMax = true, hideDungeon = false, hideRaid = false,
-    mouseover = false, clickThrough = false, ignoreMouseInCombat = true,
+    mouseover = false, clickThrough = true, ignoreMouseInCombat = true,
     hideBlizzard = false, tooltip = true, showRested = true, showQuests = true,
     reverse = false, orientation = "HORIZONTAL", texture = "EUI: Atrocity",
     texturePath = "", backgroundTexture = "Solid", backgroundPath = "",
@@ -685,6 +685,7 @@ ns.Listen(X, { "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "UPDATE_EXHAUSTION", "QUES
         -- Written under the real character, known by now, never the placeholder it may have loaded as.
         HST:EnsureCharacterKey()
         self.db.char.played, self.db.char.levelTime = ...
+        self:UnmutePlayed()
     elseif event == "PLAYER_ENTERING_WORLD" then
         local initial, reload = ...
         HST:EnsureCharacterKey()
@@ -731,10 +732,34 @@ function X:EnteredWorld(initial, reload)
 end
 
 -- Played and this-level time are only counted while the tracker is on, so at login and whenever it's turned on it asks
--- the game for both (the game prints them in chat too), and reminds you when the bar can still be dragged.
+-- the game for both, and reminds you when the bar can still be dragged. The game prints its answer in every chat window
+-- that listens for it; those stop listening until the answer comes (or 10 seconds pass), so asking prints nothing.
 function X:Greet()
-    if RequestTimePlayed then RequestTimePlayed() end
+    if RequestTimePlayed then
+        self:MutePlayed()
+        RequestTimePlayed()
+    end
     if not self.db.profile.locked then self:Print("XP bar unlocked: drag to move, then /hxp lock. /hxp opens settings.") end
+end
+
+function X:MutePlayed()
+    if self.muted then return end
+    self.muted = {}
+    for i = 1, NUM_CHAT_WINDOWS or 10 do
+        local frame = _G["ChatFrame" .. i]
+        if frame and frame.IsEventRegistered and frame:IsEventRegistered("TIME_PLAYED_MSG") then
+            frame:UnregisterEvent("TIME_PLAYED_MSG")
+            self.muted[#self.muted + 1] = frame
+        end
+    end
+    C_Timer.After(10, function() self:UnmutePlayed() end)
+end
+
+function X:UnmutePlayed()
+    local muted = self.muted
+    if not muted then return end
+    self.muted = nil
+    for _, frame in ipairs(muted) do frame:RegisterEvent("TIME_PLAYED_MSG") end
 end
 
 -- Edit Mode redraws its layouts through UpdateLayoutInfo, both on its layouts event and when the game switches them

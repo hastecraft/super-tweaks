@@ -1,5 +1,6 @@
 -- Elite & Rare Markers: a gold dragon beside the names of elite mobs and a silver one beside rares on their nameplates
--- (WoW Forever's nameplates don't mark them), and a sound and chat line the first time a rare's nameplate shows.
+-- (WoW Forever's nameplates don't mark them; Classic Era's do, so it leaves those), and a chat line, with a sound if
+-- chosen, the first time a rare's nameplate shows.
 -- Only the game's own nameplates are marked: nameplate addons that replace them draw their own.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -11,7 +12,7 @@ local N = HST:NewFeature("NameplateMarkers", {
     summary = "Marks elite and rare mobs on nameplates and tells you when a rare is near.",
     examples = { "elite", "rare", "alert", "sound" },
     description = "Puts a gold dragon beside elite mobs' names and a silver one beside rares' on their nameplates, and "
-        .. "plays a sound and says so in chat the first time a rare's nameplate shows.",
+        .. "says so in chat, with a sound if you like, the first time a rare's nameplate shows.",
 })
 ns.NameplateMarkers = N
 
@@ -33,7 +34,7 @@ local MARKS = {
     rare = { atlas = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star", key = "rare", rare = true },
 }
 
-ns.Configure(N, { elite = true, rare = true, enemiesOnly = true, size = 14, alert = true, sound = true }, function(m)
+ns.Configure(N, { elite = true, rare = true, enemiesOnly = true, size = 14, alert = true, sound = false }, function(m)
     local function profile() return m.db.profile end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra, function() m:Refresh() end) end
     return ns.OnePage(m.info.name, "markers", "Markers", {
@@ -124,10 +125,18 @@ function N:Counts(unit)
     return not IsSecret(attackable) and attackable == true
 end
 
+-- Whether the game marks a unit's nameplate itself: Classic Era shows its own elite and rare art on enemy nameplates,
+-- which WoW Forever turns off (NamePlateEnemyFrameOptions.showClassificationIndicator).
+local function GameMarks(unit)
+    if not (NamePlateEnemyFrameOptions and NamePlateEnemyFrameOptions.showClassificationIndicator) then return false end
+    local attackable = UnitCanAttack("player", unit)
+    return IsSecret(attackable) or attackable == true
+end
+
 -- What a unit is marked with, or nil.
 function N:Mark(unit)
     local mark = MARKS[UnitClassification(unit) or ""]
-    if not (mark and self.db.profile[mark.key] and self:Counts(unit)) then return nil end
+    if not (mark and self.db.profile[mark.key] and self:Counts(unit)) or GameMarks(unit) then return nil end
     return mark
 end
 

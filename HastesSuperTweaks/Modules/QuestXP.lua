@@ -10,6 +10,13 @@ local Q = HST:NewFeature("QuestXP", {
 ns.QuestXP = Q
 local floor = math.floor
 
+-- WoW Forever tells addons 0 XP for every quest (see ns.QuestRewardXP), so there the XP comes from Questie, which loads
+-- first when installed. Forever files Linen Cloth by kind (Trade Goods, subclass 5); Classic Era as plain Trade Goods.
+local ItemInfoInstant = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
+if not ns.AddOnLoaded("Questie") and ItemInfoInstant and select(7, ItemInfoInstant(2589)) == 5 then
+    Q.info.unavailable = "Needs Questie: WoW Forever doesn't tell addons how much XP a quest gives."
+end
+
 -- Settings preview: quest log rows with the XP added.
 function Q.info.preview(frame)
     if frame.hstDrawn then return end
