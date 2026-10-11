@@ -661,9 +661,10 @@ function X:OnInitialize()
     ns.OnProfile(self, "Apply")
     ns.LazyOptions(self, self.BuildOptions)
     self.info.preview = function(frame) return self:DrawPreview(frame) end
-    -- Reward data a quest was waiting for (see ns.QuestRewardXP) changes the total of completed quests.
+    -- Reward data a quest was waiting for (see ns.QuestRewardXP) changes the total of completed quests, while one of
+    -- them has no known reward: data for others (the quest log asks about every quest it shows) changes nothing.
     ns.OnQuestRewardData(function()
-        if self:IsEnabled() then self.questDirty = true; self:Render() end
+        if self:IsEnabled() and self.questAvailable == false then self.questDirty = true; self:Render() end
     end)
     local function run(fn) return function() fn(); HST:RefreshSettings() end end
     local commands = HST.xpCommands
