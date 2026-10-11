@@ -72,7 +72,7 @@ Profiles lets you switch, create, copy, delete and reset profiles. Profiles hold
 
 ### Other details
 
-Settings that cannot apply are disabled. Font menus preview each font. A confirmation accepted after you switched profiles does nothing, since it was asked about the other profile. Profiles made on one character are listed on all of them. Closing and reopening the window returns to the page you had open. Changes take effect immediately; if one ever needs a UI reload, the bottom of the sidebar says so and offers a Reload UI button. The Loot Window's "Show on screen" shows its sample where the window opens, to drag it into place.
+Settings that cannot apply are disabled. Font menus preview each font. A confirmation accepted after you switched profiles does nothing, since it was asked about the other profile. Profiles made on one character are listed on all of them. Closing and reopening the window returns to the page you had open. Changes take effect immediately. The Loot Window's "Show on screen" shows its sample where the window opens, to drag it into place.
 
 ## Commands
 

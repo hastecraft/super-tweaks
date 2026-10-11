@@ -39,8 +39,7 @@ end
 -- Registers a feature module. info: name, category, order, summary (one short line for the settings list), description,
 -- and optionally examples (keys of settings the settings window shows as a sample),
 -- options (function returning an options group), preview (function drawing into a frame), icon (shown
--- when there is no preview), enabledByDefault (false to start off) and requiresReload (switching it
--- on or off only takes effect after a UI reload).
+-- when there is no preview) and enabledByDefault (false to start off).
 function HST:NewFeature(key, info, ...)
     local module = self:NewModule(key, ...)
     info.key = key
@@ -72,28 +71,9 @@ end
 function HST:SetFeatureEnabled(key, enabled)
     local module = self:GetModule(key)
     if module.info.unavailable then return end
-    local was = module:IsEnabled()
     self.db.global.modules[key] = enabled
     if enabled then module:Enable() else module:Disable() end
-    if module.info.requiresReload then self:ChangedUntilReload("module:" .. key, was, enabled) end
     self:RefreshSettings()
-end
-
--- Changes that only take effect after a UI reload, by key, with the value before the first change.
--- Modules mark themselves with info.requiresReload and settings with requiresReload = true; the
--- settings window then offers a reload. Changing a value back to what it was clears it.
-HST.pendingReload = {}
-function HST:ChangedUntilReload(key, before, after)
-    local pending = self.pendingReload[key]
-    if not pending then
-        if before ~= after then self.pendingReload[key] = { before = before } end
-    elseif pending.before == after then
-        self.pendingReload[key] = nil
-    end
-end
-
-function HST:NeedsReload()
-    return next(self.pendingReload) ~= nil
 end
 
 -- On this client UnitName("player") can return "Unknown" while addons load, and AceDB builds its

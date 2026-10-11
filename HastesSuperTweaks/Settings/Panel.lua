@@ -177,12 +177,8 @@ end
 ---------------------------------------------------------------------------
 local Build = {}
 
--- Writes an option's value; options marked requiresReload are remembered until the next reload.
+-- Writes an option's value.
 local function Write(o, info, ...)
-    if o.requiresReload then
-        local before = o.get(info)
-        HST:ChangedUntilReload(o, before, (...))
-    end
     o.set(info, ...)
     P:Refresh()
 end
@@ -1377,9 +1373,8 @@ function P:CreateSidebar(f)
     local edge = W.Fill(sidebar, C.border, "BORDER")
     edge:SetPoint("TOPRIGHT"); edge:SetPoint("BOTTOMRIGHT"); edge:SetWidth(1)
     self:CreateSearch(sidebar)
-    -- Profiles and About as small chips, pinned to the bottom under the reload notice when there is one.
+    -- Profiles and About as small chips, pinned to the bottom.
     local bottom = CreateFrame("Frame", nil, sidebar)
-    self.sidebarBottom = bottom
     bottom:SetPoint("BOTTOMLEFT", 0, 8)
     bottom:SetPoint("BOTTOMRIGHT", -1, 8)
     bottom:SetHeight(24)
@@ -1454,23 +1449,6 @@ function P:CreateSidebar(f)
         end)
         x = x - 24
     end
-    -- Empty unless a change needs a UI reload.
-    local reload = CreateFrame("Frame", nil, sidebar)
-    self.reload = reload
-    reload:SetPoint("BOTTOMLEFT", bottom, "TOPLEFT", PAD - 4, 10)
-    reload:SetPoint("BOTTOMRIGHT", bottom, "TOPRIGHT", -PAD + 4, 10)
-    reload:SetHeight(78)
-    W.Fill(reload, { C.warning[1], C.warning[2], C.warning[3], 0.08 }):SetAllPoints()
-    W.Border(reload, { C.warning[1], C.warning[2], C.warning[3], 0.5 })
-    reload.text = W.Text(reload, "GameFontHighlightSmall", C.warning)
-    reload.text:SetPoint("TOPLEFT", 8, -8)
-    reload.text:SetPoint("TOPRIGHT", -8, -8)
-    reload.text:SetText("Some changes take effect after you reload the UI.")
-    reload.button = W.Button(reload, "Reload UI", "primary")
-    reload.button:SetPoint("BOTTOMLEFT", 8, 8)
-    reload.button:SetPoint("BOTTOMRIGHT", -8, 8)
-    reload.button:SetScript("OnClick", function() ReloadUI() end)
-    reload:Hide()
     self.navArea = W.ScrollArea(sidebar)
     self.navArea:SetPoint("TOPLEFT", 0, -56)
     self.navArea:SetPoint("BOTTOMRIGHT", bottom, "TOPRIGHT", -8, 4)
@@ -1692,12 +1670,6 @@ function P:PaintPip()
         pip.paint(tint)
     end
     pip.text:SetTextColor(unpack(pip.hovered and C.bright or open and C.accent or C.muted))
-end
-
-function P:RefreshReload()
-    local needed = HST:NeedsReload()
-    self.reload:SetShown(needed)
-    self.navArea:SetPoint("BOTTOMRIGHT", self.sidebarBottom, "TOPRIGHT", -8, needed and 100 or 4)
 end
 
 ---------------------------------------------------------------------------
@@ -3048,7 +3020,6 @@ end
 ---------------------------------------------------------------------------
 function P:Refresh()
     if not (self.frame and self.frame:IsShown()) then return end
-    self:RefreshReload()
     if self.mode == "modules" or self.mode == "search" then
         self:RefreshRows()
         -- The details pane's button says what it will do (Turn on, Turn off), so it follows the module's state.
@@ -3069,7 +3040,6 @@ function HST:OpenSettings(moduleKey)
     if not P.frame then P:Create() end
     P.frame:Show()
     P.frame:Raise()
-    P:RefreshReload()
     if moduleKey then return P:OpenModule(moduleKey) end
     -- Reopened where it was left.
     if P.view == "module" and P.openModule then return P:OpenModule(P.openModule) end
