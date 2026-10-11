@@ -414,12 +414,14 @@ function W.Switch(parent)
         self.SetTrack(on and C.trackOn or C.trackOff)
         self.knob:SetVertexColor(unpack(on and C.knobOn or C.knob))
     end
-    -- Only what changed is set: every settings change refreshes the page. animate slides the knob there.
+    -- Only what changed is set: every settings change refreshes the page. animate slides the knob there, except the
+    -- first time (the switch is drawn off until then).
     function s:SetOn(on, animate)
         on = on and true or false
         if on == self.on then return end
         local first = self.on == nil
         self.on = on
+        if first and not on then return end
         self:Paint()
         local x = on and KNOB_ON or KNOB_OFF
         if animate and not first and self:IsVisible() then
@@ -455,7 +457,7 @@ function W.Switch(parent)
         if self.onLeave then self.onLeave() end
         W.HideTooltip(self)
     end)
-    s:SetOn(false)
+    s:Paint()
     return s
 end
 

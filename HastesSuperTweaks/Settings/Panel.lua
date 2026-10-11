@@ -2122,9 +2122,10 @@ function P:RefreshRows()
     for _, row in ipairs(self.rows) do
         local module = row:IsShown() and row.module
         if module then
-            -- What a row shows of its module is set once; after that only its being on or off changes.
-            local info = module.info
-            if row.drawn ~= module then
+            -- What a row shows of its module is set once; after that only its being on or off changes (its switch
+            -- slides then, not when the row is reused for another module).
+            local info, same = module.info, row.drawn == module
+            if not same then
                 row.drawn = module
                 row.label:SetText(info.name)
                 row.sub:SetText(info.unavailable or info.summary or info.description)
@@ -2137,7 +2138,7 @@ function P:RefreshRows()
                 row.switch:SetPoint("RIGHT", page and -38 or -12, 0)
             end
             local on = module:IsEnabled()
-            row.switch:SetOn(on, true)
+            row.switch:SetOn(on, same)
             row.switch.tipText = on and "On. Click to turn it off." or "Off. Click to turn it on."
         end
     end
@@ -2517,7 +2518,9 @@ function P:RefreshHeader()
     end
     if not module then return self:RefreshOffOverlay(nil) end
     local on, info = module:IsEnabled(), module.info
-    header.toggle:SetOn(on, true)
+    -- It slides when this module is turned on or off, not when another one opens.
+    header.toggle:SetOn(on, header.module == module)
+    header.module = module
     header.toggle:SetDisabledLook(info.unavailable ~= nil)
     header.state:SetText(on and "On" or "Off")
     header.state:SetTextColor(unpack(on and C.accent or C.muted))
@@ -2835,7 +2838,9 @@ function P:PaintResult(row)
     end
     if o.type == "toggle" then
         local off = not HST:GetModule(result.owner):IsEnabled() or Disabled(result.chain, { option = o, key = result.key })
-        row.switch:SetOn(o.get({ option = o, key = result.key }), true)
+        -- It slides when this setting changes, not when another search puts a different one in the row.
+        row.switch:SetOn(o.get({ option = o, key = result.key }), row.painted == result)
+        row.painted = result
         row.switch:SetDisabledLook(off)
     elseif o.type == "color" then
         local r, g, b, a = o.get({ option = o, key = result.key })
