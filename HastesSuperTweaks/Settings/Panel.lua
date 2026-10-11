@@ -715,7 +715,8 @@ end
 
 -- A titled grid of items: o.get returns a set of item IDs. Dropping an item on the grid, or clicking it while holding
 -- one, adds it (o.add(info, itemID)); right-clicking an item takes it off (o.remove(info, itemID)). Longer lists scroll
--- with the mouse wheel, a row at a time. As many columns as fit the width.
+-- with the mouse wheel, a row at a time; past either end, and for lists that fit, the wheel scrolls the page. As many
+-- columns as fit the width.
 local ITEM_SLOT, ITEM_GAP = 30, 4
 local function ItemIcon(itemID)
     local get = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
@@ -748,7 +749,12 @@ function Build.items(parent, o, chain, info, gate)
     end
     local function scroll(_, delta)
         local hidden = math.ceil((#c.list + 1) / c.columns) - rows
-        c.offset = Clamp(c.offset - delta, 0, math.max(0, hidden))
+        local offset = Clamp(c.offset - delta, 0, math.max(0, hidden))
+        if offset == c.offset then
+            local area = P.pageArea
+            return area:GetScript("OnMouseWheel")(area, delta)
+        end
+        c.offset = offset
         c:Refresh()
     end
     box:EnableMouse(true)
