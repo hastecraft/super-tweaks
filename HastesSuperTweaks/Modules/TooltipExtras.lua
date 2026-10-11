@@ -2,7 +2,7 @@
 -- Part of Better Tooltips (Tooltip.lua): its switch, profile and settings page are shared.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
-local HST, T = ns.HST, ns.Tooltip
+local T = ns.Tooltip
 local IsSecret, Hex = ns.IsSecret, ns.ColorCode
 
 -- Off unless chosen, except the target line.
@@ -35,28 +35,31 @@ local targets = setmetatable({}, { __index = function(list, unit)
     return target
 end })
 
-local made = {} -- the target line last made: guid, name, text
+local made = {} -- the target line last made: guid, text
+local playerGUID
 
 -- The target's name for the line: "You", a player's in their class color, or the name; nil when there's no target or
--- the game hides who it is.
+-- the game hides who it is. A redraw with the same target reads only its GUID.
 local function TargetText(unit)
     local target = targets[unit]
-    local exists = UnitExists(target)
-    if IsSecret(exists) or not exists then return nil end
-    local isYou = UnitIsUnit(target, "player")
-    if IsSecret(isYou) then return nil end
-    if isYou then return YOU end
-    local guid, name = UnitGUID(target), UnitName(target)
-    if IsSecret(guid) or IsSecret(name) or not name then return nil end
-    if guid and guid == made.guid and name == made.name then return made.text end
-    local text = name
-    local isPlayer = UnitIsPlayer(target)
-    if not IsSecret(isPlayer) and isPlayer then
-        local _, class = UnitClass(target)
-        local color = not IsSecret(class) and class and RAID_CLASS_COLORS[class]
-        if color then text = Hex(color) .. name .. "|r" end
+    local guid = UnitGUID(target)
+    if IsSecret(guid) or not guid then return nil end
+    if guid == made.guid then return made.text end
+    playerGUID = playerGUID or UnitGUID("player")
+    local text = YOU
+    if guid ~= playerGUID then
+        local name = UnitName(target)
+        -- A name still loading isn't kept, so the next redraw asks again.
+        if IsSecret(name) or not name or name == UNKNOWNOBJECT then return nil end
+        text = name
+        local isPlayer = UnitIsPlayer(target)
+        if not IsSecret(isPlayer) and isPlayer then
+            local _, class = UnitClass(target)
+            local color = not IsSecret(class) and class and RAID_CLASS_COLORS[class]
+            if color then text = Hex(color) .. name .. "|r" end
+        end
     end
-    made.guid, made.name, made.text = guid, name, text
+    made.guid, made.text = guid, text
     return text
 end
 
@@ -72,6 +75,8 @@ local function NpcID(guid)
     return npc.id
 end
 
+local HookIds -- below
+
 local function OnUnit(tip, data, unit)
     if not T:IsEnabled() then return end
     local p = T.db.profile
@@ -83,6 +88,7 @@ local function OnUnit(tip, data, unit)
         if text then tip:AddDoubleLine(TARGET_LABEL, text, 0.6, 0.6, 0.6, 1, 1, 1) end
     end
     if p.ids then
+        HookIds() -- a profile with IDs on, switched to
         local isPlayer = UnitIsPlayer(unit)
         if not IsSecret(isPlayer) and not isPlayer then
             local guid = data and data.guid
@@ -106,14 +112,11 @@ local function IdHook(label)
     end
 end
 
--- Hooked the first time Better Tooltips is on, a frame after login like its own hooks (see Tooltip.lua) and right
--- after them, so these lines come after its guild notes.
-local hooked
-local function Hook()
-    if hooked then return end
-    hooked = true
-    if GameTooltip_SetDefaultAnchor then hooksecurefunc("GameTooltip_SetDefaultAnchor", Anchor) end
-    ns.HookUnitTooltip(OnUnit)
+-- Item and spell tooltips are hooked only once IDs are first turned on, so they cost nothing until then.
+local idsHooked
+function HookIds()
+    if idsHooked then return end
+    idsHooked = true
     local kinds = Enum and Enum.TooltipDataType
     if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and kinds then
         local spell = IdHook("Spell ID")
@@ -122,6 +125,17 @@ local function Hook()
             if kinds[kind] then TooltipDataProcessor.AddTooltipPostCall(kinds[kind], hook) end
         end
     end
+end
+
+-- Hooked the first time Better Tooltips is on, a frame after login like its own hooks (see Tooltip.lua) and right
+-- after them, so these lines come after its guild notes.
+local hooked
+local function Hook()
+    if hooked then return end
+    hooked = true
+    if GameTooltip_SetDefaultAnchor then hooksecurefunc("GameTooltip_SetDefaultAnchor", Anchor) end
+    ns.HookUnitTooltip(OnUnit)
+    if T.db.profile.ids then HookIds() end
 end
 
 local Listen = T.OnListen
@@ -149,8 +163,9 @@ function T:BuildOptions()
         lines = ns.Section("Extra lines", 2, {
             targetLine = option("toggle", "targetLine", "Target line", 1, {
                 desc = "Adds who a player or mob is targeting, players in their class color. When it's you, it says You in red." }),
-            ids = option("toggle", "ids", "Item, spell and NPC IDs", 2, {
-                desc = "Adds the ID to item, spell and NPC tooltips, to look them up or use them in macros and addons." }),
+            ids = ns.Option(profile, "toggle", "ids", "Item, spell and NPC IDs", 2, {
+                desc = "Adds the ID to item, spell and NPC tooltips, to look them up or use them in macros and addons." },
+                function() if hooked and T.db.profile.ids then HookIds() end end),
         }),
     } }
     return options
