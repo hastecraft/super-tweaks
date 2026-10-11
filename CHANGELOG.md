@@ -22,8 +22,8 @@ Defaults that got in the way are gentler: no sound with the rare alert, no /play
 ### Changed
 
 - Auto-Decline Guild Charters now starts off, like the other Auto-Decline tweaks.
-- Elite & Rare Markers: the rare alert is silent unless you turn on With a sound.
-- Guild Message Popup: At login, only if changed now starts on, so the same message doesn't pop up at every login and /reload.
+- Elite & Rare Markers: the rare alert is silent unless you turn on "With a sound".
+- Guild Message Popup: the "At login, only if changed" setting now starts on, so the same message doesn't pop up at every login and /reload.
 - XP Tracker: Click-through now starts on, so clicks and camera drags reach the world behind the locked bar. Turn it off for the tooltip and right-click settings.
 - Quest XP in Quest Log says it needs Questie on WoW Forever, which doesn't tell addons how much XP a quest gives.
 - Minimap Button starts in a new spot, clear of other addons' minimap buttons. Drag it wherever you like.

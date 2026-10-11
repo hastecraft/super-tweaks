@@ -28,9 +28,9 @@ HST.patchNotes = {
         },
         changed = {
             { "Auto-Decline Guild Charters now starts off, like the other Auto-Decline tweaks.", module = "DeclineCharters" },
-            { "Elite & Rare Markers: the rare alert is silent unless you turn on With a sound.",
+            { "Elite & Rare Markers: the rare alert is silent unless you turn on \"With a sound\".",
                 module = "NameplateMarkers", path = { "general" }, setting = "sound" },
-            { "Guild Message Popup: At login, only if changed now starts on, so the same message doesn't pop up at every login and /reload.",
+            { "Guild Message Popup: the \"At login, only if changed\" setting now starts on, so the same message doesn't pop up at every login and /reload.",
                 module = "GuildMOTD", path = { "general" }, setting = "onlyChanged" },
             { "XP Tracker: Click-through now starts on, so clicks and camera drags reach the world behind the locked bar. Turn it off for the tooltip and right-click settings.",
                 module = "XPTracker", path = { "general" }, setting = "clickThrough" },
