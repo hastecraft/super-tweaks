@@ -606,7 +606,7 @@ function S:GearVerdict(item, info, ctx, bag, slot)
         if quality <= 1 then return "gear" end
         if p.professions ~= "none" and ctx.professions[ENCHANTING] then return nil end
         local bound = info and info.isBound
-        if not (bound and p.boundGreens or p.anyGreens) then return nil end
+        if not (bound and p.boundGreens or not bound and p.anyGreens) then return nil end
         return not (bound and bag and Tradeable(bag, slot)) and "gear" or nil
     end
     if quality > 1 then return nil end
