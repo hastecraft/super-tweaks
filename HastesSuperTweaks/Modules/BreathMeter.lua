@@ -299,15 +299,20 @@ end
 ---------------------------------------------------------------------------
 -- The game's own bars: while this replaces them they stop listening to the timer events, and get them back when it
 -- stops. A bar the game is showing when this takes over finishes the game's way first (taking its stop event away
--- would leave it up).
+-- would leave it up). Classic Era has no container for them: its three bars (MirrorTimer1 to 3), which the game's
+-- UIParent shows, are faded out instead.
 ---------------------------------------------------------------------------
 function B:UpdateBlizzard()
-    local frame = MirrorTimerContainer
-    if not frame then return end
     local hide = self:IsEnabled() and self.db.profile.hideBlizzard or false
     self.waitingForGame = nil
     if hide == (self.hidingGame or false) then return end
-    if hide then
+    local frame = MirrorTimerContainer
+    if not frame then
+        for i = 1, MIRRORTIMER_NUMTIMERS or 3 do
+            local bar = _G["MirrorTimer" .. i]
+            if bar then bar:SetAlpha(hide and 0 or 1) end
+        end
+    elseif hide then
         for _, bar in ipairs(frame.mirrorTimers or {}) do
             if bar.timer then self.waitingForGame = true; return end
         end
