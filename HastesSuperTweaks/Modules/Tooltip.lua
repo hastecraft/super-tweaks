@@ -281,11 +281,16 @@ function T:UpdateHealth(recolor, guid)
     bar:SetMinMaxValues(0, 1)
     local fraction = maximum > 0 and max(0, min(1, current / maximum)) or 0
     bar:SetValue(fraction)
-    local text = status
+    -- Only the text shown is put together.
+    local mode, text = p.barText, status
+    if mode == "NONE" then return end
     if not text then
-        local percent = floor(fraction * 100 + 0.5) .. "%"
-        local values = ns.ShortNumber(current, 10000) .. " / " .. ns.ShortNumber(maximum, 10000)
-        text = p.barText == "PERCENT" and percent or p.barText == "BOTH" and (values .. " (" .. percent .. ")") or values
+        if mode == "PERCENT" then
+            text = floor(fraction * 100 + 0.5) .. "%"
+        else
+            text = ns.ShortNumber(current, 10000) .. " / " .. ns.ShortNumber(maximum, 10000)
+            if mode == "BOTH" then text = text .. " (" .. floor(fraction * 100 + 0.5) .. "%)" end
+        end
     end
     bar.text:SetText(text)
 end
