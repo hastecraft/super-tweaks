@@ -559,30 +559,30 @@ function X:ShowTooltip(fresh)
     GameTooltip:Show()
 end
 
--- Blizzard's XP bar, as regions to fade out. This client keeps it in the status bar containers at the bottom of the
+-- Blizzard's XP bar, as regions to fade out. Both clients keep it in the status bar containers at the bottom of the
 -- screen (StatusTrackingBarManager.barContainers), each holding one bar of each kind: the Experience one is faded,
--- plus the frame and dividers of a container while it is the bar that container shows. Reputation and honor bars
--- stay. Older clients have the classic XP bar frames instead.
-local LEGACY_XP_BARS = { "MainMenuExpBar", "ExhaustionLevelFillBar", "ExperienceBar" }
+-- plus a container's frame art while it is the bar that container shows (Forever's frame and dividers, Classic Era's
+-- two sets of border textures, of which the game shows one). Reputation and honor bars stay.
+local NO_ART = {}
 function X:BlizzardXPRegions()
     local regions = {}
     local manager, kinds = StatusTrackingBarManager, StatusTrackingBarInfo and StatusTrackingBarInfo.BarsEnum
     local experience = kinds and kinds.Experience
-    if manager and manager.barContainers and experience then
-        for _, container in ipairs(manager.barContainers) do
-            local bar = container.bars and container.bars[experience]
-            -- The rested marker is a button of its own, with the same tooltip.
-            if bar then regions[#regions + 1] = bar; regions[#regions + 1] = bar.ExhaustionTick end
-            if container.shownBarIndex == experience then
-                regions[#regions + 1] = container.BarFrameTexture
-                local dividers = container.HorizontalDividersPool
-                if dividers and dividers.EnumerateActive then
-                    for divider in dividers:EnumerateActive() do regions[#regions + 1] = divider end
-                end
+    if not (manager and manager.barContainers and experience) then return regions end
+    for _, container in ipairs(manager.barContainers) do
+        local bar = container.bars and container.bars[experience]
+        -- The rested marker is a button of its own, with the same tooltip.
+        if bar then regions[#regions + 1] = bar; regions[#regions + 1] = bar.ExhaustionTick end
+        if container.shownBarIndex == experience then
+            regions[#regions + 1] = container.BarFrameTexture
+            local dividers = container.HorizontalDividersPool
+            if dividers and dividers.EnumerateActive then
+                for divider in dividers:EnumerateActive() do regions[#regions + 1] = divider end
             end
+            for _, art in ipairs(container.MainMenuBarTextures or NO_ART) do regions[#regions + 1] = art end
+            for _, art in ipairs(container.StandaloneTextures or NO_ART) do regions[#regions + 1] = art end
         end
     end
-    for _, name in ipairs(LEGACY_XP_BARS) do regions[#regions + 1] = _G[name] end
     return regions
 end
 
