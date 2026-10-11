@@ -67,9 +67,9 @@ Then:
 
 ```bash
 git switch -c release/vX.Y.Z
-git commit -am "Release X.Y.Z"
+git commit -am "chore(release): X.Y.Z"
 git push -u origin release/vX.Y.Z
-gh pr create --title "Release X.Y.Z" --body "<the notes, and which PRs each line comes from>"
+gh pr create --title "chore(release): X.Y.Z" --body "<the notes, and which PRs each line comes from>"
 ```
 
 The `release/` branch name lets CI accept the patch notes changes.

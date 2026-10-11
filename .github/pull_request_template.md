@@ -1,3 +1,6 @@
+<!-- Title: Conventional Commits, such as "fix(sell-clutter): keep quest items under collapsed headers" or
+"feat: add Train All". See CONTRIBUTING.md. -->
+
 ## What this changes
 
 <!-- What does this do, and why? Link the issue it fixes, if any (Fixes #123). -->

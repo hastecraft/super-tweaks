@@ -1,0 +1,32 @@
+# Checks that a pull request's title follows Conventional Commits (https://www.conventionalcommits.org/en/v1.0.0/).
+# Pull requests are squash-merged, so the title becomes the commit on master. Its own workflow, so editing a title
+# reruns only this check. Read-only token, no secrets, no checkout: safe for pull requests from forks.
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    name: PR title
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Conventional Commits
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|perf|refactor|docs|ci|build|chore|revert)(\([a-z0-9]+(-[a-z0-9]+)*\))?!?: [^ ]'
+          if printf '%s' "$TITLE" | grep -Eq "$pattern"; then
+            echo "Title OK: $TITLE"
+          else
+            echo "::error::The title \"$TITLE\" isn't a Conventional Commits title: type(scope): summary, for example \"fix(sell-clutter): keep quest items under collapsed headers\". Types: feat, fix, perf, refactor, docs, ci, build, chore, revert. See CONTRIBUTING.md."
+            exit 1
+          fi

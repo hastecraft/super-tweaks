@@ -34,6 +34,29 @@ By contributing, you agree that your work is licensed under the [MPL-2.0](LICENS
 - Some APIs return hidden values in restricted situations. Check them with `ns.IsSecret(x)` before testing, comparing or indexing them.
 - Don't add unit tests; changes are checked in game.
 
+## Commit messages and pull request titles
+
+Commits and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+
+```
+type(scope): summary in the imperative
+```
+
+| Type | For |
+| --- | --- |
+| `feat` | a new tweak, setting or visible feature |
+| `fix` | a fix for a problem players could run into |
+| `perf` | less CPU, memory or garbage, with no visible change |
+| `refactor` | code changes with no change in behavior |
+| `docs` | README, CONTRIBUTING and other docs |
+| `ci`, `build` | GitHub workflows, packaging, `tools/` |
+| `chore` | anything else, including releases (`chore(release): 1.2.0`) |
+| `revert` | undoing an earlier commit |
+
+The scope is optional: the tweak or area it touches, in kebab case, such as `sell-clutter`, `tooltips` or `settings`. If players lose something or have to redo it (a removed tweak or command, settings that reset), add `!` after the type or scope (`feat!: remove Flash Taskbar on Whisper`) or a `BREAKING CHANGE:` footer.
+
+Pull requests are squash-merged, so the pull request's title becomes the commit on `master`, and CI checks that it follows the format. The type hints at the version step too: `fix` is a patch, `feat` a minor version and `!` a major one.
+
 ## Patch notes and versions
 
 Don't edit the patch notes entries in `PatchNotes.lua`, the TOC's `## Version` or `CHANGELOG.md`. Instead, write one line for players under "For the patch notes" in your pull request, in game terms, naming the tweak as the settings window does. The maintainer writes the patch notes and picks the version when releasing. CI fails pull requests that change these.
@@ -54,6 +77,7 @@ Every pull request runs:
 
 | Check | What it does |
 | --- | --- |
+| PR title | The title follows [Conventional Commits](#commit-messages-and-pull-request-titles). |
 | Lint | [luacheck](https://github.com/lunarmodules/luacheck) with `.luacheckrc`: accidental globals, unused variables, syntax errors. |
 | Checks | `tools/check.py`: the TOC's files exist, and the patch notes and version are untouched. |
 | Performance | The bench comparison described above. |
