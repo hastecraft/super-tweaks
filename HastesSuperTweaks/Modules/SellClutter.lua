@@ -670,7 +670,7 @@ end
 -- Junk would take first (with it on), and bags you've told the game not to sell junk from, are left out.
 function S:FindClutter()
     local found, sale = {}, ns.VendorSale
-    local selected, _, eligible = sale:Find()
+    local selected, waiting, eligible = sale:Find()
     for _, item in ipairs(selected) do
         if item.seller == self then
             local info = C_Container.GetContainerItemInfo(item.bag, item.slot)
@@ -681,12 +681,14 @@ function S:FindClutter()
             end
         end
     end
-    return found, eligible[self] or 0
+    return found, eligible[self] or 0, waiting
 end
 
 -- Prints what your next vendor visit would sell, by category.
 function S:PrintClutter()
-    local found, eligible = self:FindClutter()
+    if not self:IsEnabled() then return HST:Print("Sell Clutter Automatically is off.") end
+    local found, eligible, waiting = self:FindClutter()
+    if waiting then return HST:Print("Your quest data is still loading. Try again in a moment.") end
     if #found == 0 then return HST:Print("Nothing in your bags counts as clutter right now.") end
     local total = 0
     for _, item in ipairs(found) do total = total + item.price * item.count end
