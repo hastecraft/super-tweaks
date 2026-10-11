@@ -30,6 +30,7 @@ HST.defaults = { global = { modules = { ["*"] = true } } }
 
 -- Chat output for the addon and its modules, prefixed with the addon title.
 local CHAT_PREFIX = "|cffffcc66" .. HST.title .. ":|r "
+ns.CHAT_PREFIX = CHAT_PREFIX
 function HST:Print(text, ...)
     text = tostring(text)
     for i = 1, select("#", ...) do text = text .. " " .. tostring((select(i, ...))) end

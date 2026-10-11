@@ -384,10 +384,7 @@ end
 local RELEASE_HEAD, NOTE_PAD, NOTE_GAP = 54, 12, 8
 
 -- A color as a text escape, to color part of a text.
-local function Hex(color)
-    return string.format("|cff%02x%02x%02x", math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5),
-        math.floor(color[3] * 255 + 0.5))
-end
+local Hex = ns.ColorCode
 
 -- The module a highlight or change leads to, when it names one this addon has.
 local function NoteModule(note)
@@ -2494,7 +2491,7 @@ function P:RefreshHeader()
     header.state:SetTextColor(unpack(on and C.accent or C.muted))
     local crumb = self.crumb
     if info.unavailable then
-        crumb = crumb .. "   |cfff28538" .. info.unavailable .. "|r"
+        crumb = crumb .. "   " .. Hex(C.warning) .. info.unavailable .. "|r"
     end
     header.crumb:SetText(crumb)
     self:RefreshOffOverlay(module, on)
@@ -2736,7 +2733,7 @@ local function Highlight(name, words)
     for _, mark in ipairs(marks) do
         if mark[1] >= at then
             out[#out + 1] = name:sub(at, mark[1] - 1)
-            out[#out + 1] = "|cffffcc66" .. name:sub(mark[1], mark[2]) .. "|r"
+            out[#out + 1] = Hex(C.accent) .. name:sub(mark[1], mark[2]) .. "|r"
             at = mark[2] + 1
         end
     end

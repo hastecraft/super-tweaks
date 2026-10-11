@@ -1217,7 +1217,7 @@ function W.Popup(parent, spec)
 end
 
 -- Text as this addon prints it to chat, and a line showing it.
-function W.Chat(text) return "|cffffcc66" .. ns.HST.title .. ":|r " .. text end
+function W.Chat(text) return ns.CHAT_PREFIX .. text end
 function W.ChatLine(parent, text)
     local line = W.Text(parent, "GameFontHighlightSmall", nil, "CENTER")
     line:SetWidth(242)
