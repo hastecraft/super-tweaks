@@ -964,8 +964,11 @@ function W.InputRow(parent, full)
         return height
     end
     function c:SetValue(text, off)
-        self.saved = text or ""
-        if not e:HasFocus() then e:SetText(self.saved) end
+        -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile.
+        local saved = text or ""
+        local kept = e:HasFocus() or (saved == self.saved and dirty())
+        self.saved = saved
+        if not kept then e:SetText(saved) end
         e:SetEnabled(not off)
         e:SetTextColor(unpack(off and C.disabled or C.bright))
         self.off = off
