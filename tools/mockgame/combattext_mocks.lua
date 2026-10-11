@@ -6,6 +6,7 @@ function issecretvalue(value) return value == SECRET end
 -- UNITS[token] = { hostile, tapDenied, target, player (you) }; PLATES[token] = its nameplate frame.
 UNITS, PLATES = {}, {}
 function UnitCanAttack(_, unit) local u = UNITS[unit]; return u ~= nil and u.hostile ~= false end
+function UnitClassification(unit) local u = UNITS[unit]; return u and u.classification or 'normal' end
 function UnitIsDead(unit) local u = UNITS[unit]; return u ~= nil and u.dead == true end
 function UnitIsTapDenied(unit) local u = UNITS[unit]; return u ~= nil and u.tapDenied == true end
 function UnitIsUnit(a, b)
