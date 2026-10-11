@@ -1028,7 +1028,7 @@ function W.Button(parent, text, style)
     return b
 end
 
--- A titled panel that settings rows sit in. card:Layout(width) is done by the settings window.
+-- A titled panel that settings rows sit in; the settings window lays it out (LayoutCard in Panel.lua).
 function W.Card(parent, title)
     local card = CreateFrame("Frame", nil, parent)
     W.Fill(card, C.card):SetAllPoints()

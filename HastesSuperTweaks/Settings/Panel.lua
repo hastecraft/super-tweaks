@@ -2125,7 +2125,7 @@ function P:ShowModules()
     local view = self.overview
     view.title:SetText("Tweaks")
     self:ListTop(false)
-    for key, chip in pairs(self.filters) do chip:SetSelected(key == self.filter); chip:Show() end
+    for key, chip in pairs(self.filters) do chip:SetSelected(key == self.filter) end
     self:LayoutModules(shown)
     for _, row in ipairs(self.results) do row:Hide() end
     if self.moreResults then self.moreResults:Hide() end
@@ -2569,21 +2569,21 @@ function P:OpenModule(key, path, focus)
     State().expanded[info.category] = true
     local names = {}
     local group = options
-    for _, part in ipairs(path or {}) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
+    for _, part in ipairs(path) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
     self.crumb = CategoryName(info.category) .. (#names > 0 and ("  >  " .. table.concat(names, "  >  ")) or "")
     self:SetHeader(info.name, self.crumb, info.description)
     self:BuildTabs()
     self.tabsChange = PagesChange(options)
     self:RefreshHeader()
     local gate = function() return not module:IsEnabled() end
-    self:ShowPage(key .. "/" .. table.concat(path or {}, "/"), group, gate, focus)
+    self:ShowPage(key .. "/" .. table.concat(path, "/"), group, gate, focus)
     self:RefreshNav()
 end
 
 -- Tabs for the open module's pages, and chips for the open page's sub-pages (those shown with its settings as they
 -- are). Returns whether which ones show changed.
 function P:BuildTabs()
-    local options, path = self.pageOptions, self.openPath or {}
+    local options, path = self.pageOptions, self.openPath
     local tabs, chips = {}, {}
     local pages = Pages(options)
     if #pages > 1 or (pages[1] and #Pages(pages[1].option) > 0) then
