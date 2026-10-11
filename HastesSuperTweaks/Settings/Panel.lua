@@ -64,6 +64,15 @@ end
 
 local function Disabled(chain, info) return Resolve(Inherited(chain, "disabled"), info) and true or false end
 
+-- Whether a setting on a page (chain starting with the page) is hidden, by itself or a section it's in. The page's own
+-- `hidden` only takes away its tab (see Pages): a page opened anyway shows its settings.
+local function Hidden(chain, info)
+    for i = #chain, 2, -1 do
+        local value = chain[i].hidden
+        if value ~= nil then return Resolve(value, info) end
+    end
+end
+
 local function Sorted(args)
     local list = {}
     for key, option in pairs(args or {}) do list[#list + 1] = { key = key, option = option } end
@@ -912,7 +921,7 @@ function P:BuildPage(group, gate)
         for _, entry in ipairs(Sorted(args)) do
             local o = entry.option
             local info, path = { option = o, key = entry.key }, Extend(chain, o)
-            if Resolve(Inherited(path, "hidden"), info) then
+            if Hidden(path, info) then
                 -- skipped
             elseif o.type == "group" then
                 if o.inline then
@@ -928,7 +937,7 @@ function P:BuildPage(group, gate)
     for _, entry in ipairs(Sorted(group.args)) do
         local o = entry.option
         local info, path = { option = o, key = entry.key }, Extend({ group }, o)
-        if Resolve(Inherited(path, "hidden"), info) or IsPage(o) then
+        if Hidden(path, info) or IsPage(o) then
             -- skipped; sub-pages have tabs of their own
         elseif o.type == "group" then
             loose = nil
@@ -2855,9 +2864,11 @@ function P:Search(text, again)
         if All(haystack, words) then modules[#modules + 1] = module end
     end
     -- Settings whose name has every word come first, then those whose section, page or module does, then the rest.
+    -- Settings hidden for now, or on a page that is, aren't offered.
     local ranked = {}
     for i, entry in ipairs(self:SettingsIndex()) do
-        if All(entry.all, words) then
+        if All(entry.all, words)
+            and not Resolve(Inherited(entry.chain, "hidden"), { option = entry.option, key = entry.key }) then
             local rank = All(entry.lname, words) and 1 or All(entry.near, words) and 2 or 3
             ranked[#ranked + 1] = { entry = entry, rank = rank, order = i }
         end
