@@ -1,6 +1,7 @@
 ---
 name: review-pr
-description: Review a pull request to Haste's Super Tweaks for the maintainer - read it, check CI and the bench, review the code against the project's rules, install it for testing in game, and suggest labels. Use when the maintainer asks to review, look at or test a pull request.
+description: Maintainer only. Review a pull request to Haste's Super Tweaks - read it, check CI and the bench, review the code against the project's rules, install it for testing in game, and suggest labels. Run with /review-pr <number>.
+disable-model-invocation: true
 ---
 
 # Review a pull request
