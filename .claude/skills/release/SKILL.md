@@ -1,6 +1,7 @@
 ---
 name: release
-description: Prepare a release of Haste's Super Tweaks - write the patch notes from the pull requests merged since the last release, set the version, and open the release pull request. Use when the maintainer asks to release, cut a version, ship, or prepare a beta.
+description: Maintainer only. Prepare a release of Haste's Super Tweaks - write the patch notes from the pull requests merged since the last release, set the version, and open the release pull request. Run with /release.
+disable-model-invocation: true
 ---
 
 # Release
