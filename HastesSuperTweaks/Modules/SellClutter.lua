@@ -342,12 +342,15 @@ local function Professions()
 end
 
 -- The text of every item objective in your quest log, finished or not: an item named in one is kept until the quest
--- is turned in. Missing data is tracked separately from an empty, loaded objective list.
+-- is turned in. Missing data is tracked separately from an empty, loaded objective list. Classic Era leaves the quests
+-- under a collapsed header out of the log's entries (its count of quests has them all): hidden says some are.
 local function Objectives()
-    local texts, missing, complete = {}, {}, true
+    local texts, missing, complete, seen = {}, {}, true, 0
     local Q = C_QuestLog or {}
     local count = Q.GetNumQuestLogEntries or GetNumQuestLogEntries
-    for i = 1, count and count() or 0 do
+    local entries, quests = 0, 0
+    if count then entries, quests = count() end
+    for i = 1, entries or 0 do
         local questID, header
         if Q.GetInfo then
             local info = Q.GetInfo(i)
@@ -357,6 +360,7 @@ local function Objectives()
             questID, header = id, isHeader
         end
         if not header then
+            seen = seen + 1
             if Q.GetQuestObjectives and questID and questID > 0 then
                 local objectives = Q.GetQuestObjectives(questID)
                 if not objectives then complete = false; missing[#missing + 1] = questID end
@@ -378,7 +382,7 @@ local function Objectives()
             else complete = false end
         end
     end
-    return texts, complete, missing
+    return texts, complete, missing, not Q.GetInfo and (quests or 0) > seen
 end
 
 -- Items in your equipment sets (item ID -> true), on clients with the equipment manager.
@@ -428,9 +432,10 @@ function S:Context(fresh)
     local rxp = RestedXP()
     local current = rxp and type(rxp.currentGuide) == "table" and rxp.currentGuide.name or nil
     if ctx and not fresh and ctx.rxp == rxp and ctx.guide == current and now - ctx.time < self.CONTEXT_AGE then return ctx end
-    local objectives, complete, missing = Objectives()
+    local objectives, complete, missing, hidden = Objectives()
     ctx = { time = now, level = UnitLevel("player") or 1, class = select(2, UnitClass("player")), professions = Professions(),
-        objectives = objectives, complete = complete, missing = missing, sets = EquipmentSets(), needed = {}, guided = {} }
+        objectives = objectives, complete = complete, missing = missing, hidden = hidden, sets = EquipmentSets(), needed = {},
+        guided = {} }
     if rxp then
         ctx.rxp, ctx.guide, ctx.guideLow = rxp, current, GuideRange(current)
     end
@@ -623,15 +628,22 @@ function S:Keeps(itemID) return self.db.profile.keep[itemID] == true end
 -- With "at most 12" chosen, no more clutter than the vendor's Buyback tab holds goes in one visit.
 function S:Limit() return self.db.profile.buyback and 12 or nil end
 
--- The clutter-specific policy and unit price. VendorSale checks locks, exclusions and quest-item flags first.
+-- The clutter-specific policy and unit price. VendorSale checks locks, exclusions and quest-item flags first. With
+-- quests hidden (see Objectives) nothing sells, which a vendor visit's scan says once, if there's clutter to keep.
+local HIDDEN = "Clutter is kept while quests are under collapsed headers in your quest log, since what they need can't "
+    .. "be seen. Expand the headers to sell it."
 function S:SalePrice(info, bag, slot, ctx)
     if not info.quality or info.quality > 4 then return nil end
-    local itemID = info.itemID
+    local itemID, scan = info.itemID, ctx ~= nil
     ctx = ctx or self:Context()
     -- Guide steps may change without a game event; re-evaluate this item's guide decision at the action boundary.
     ctx.guided[itemID] = nil
     local category = self:Verdict(itemID, info, ctx, bag, slot)
     if not category then return nil end
+    if ctx.hidden then
+        if scan and not ctx.told then ctx.told = true; HST:Print(HIDDEN) end
+        return nil
+    end
     -- Verdict only names items with a price: an item kept for its kind has one, and an Always sell item was just asked.
     local item = self:Item(itemID)
     return item and item.price or select(11, ItemInfo(itemID)), category
@@ -687,6 +699,7 @@ end
 -- Prints what your next vendor visit would sell, by category.
 function S:PrintClutter()
     if not self:IsEnabled() then return HST:Print("Sell Clutter Automatically is off.") end
+    if self:Context(true).hidden then return HST:Print(HIDDEN) end
     local found, eligible, waiting = self:FindClutter()
     if waiting then return HST:Print("Your quest data is still loading. Try again in a moment.") end
     if #found == 0 then return HST:Print("Nothing in your bags counts as clutter right now.") end
@@ -781,7 +794,7 @@ function S:TooltipLine(tip, itemID)
         if info then
             local _
             _, category = ns.VendorSale:Price(self, info, bag, slot)
-        else
+        elseif not ctx.hidden then
             category = self:Verdict(itemID, nil, ctx)
         end
         if not category then return end
