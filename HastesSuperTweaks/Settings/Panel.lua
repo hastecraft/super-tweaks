@@ -819,7 +819,6 @@ function Build.items(parent, o, chain, info, gate)
     end
     function c:Refresh()
         local name = Resolve(o.name, info)
-        self.tipTitle, self.tipText = name, Resolve(o.desc, info)
         self.title:SetText(name)
         self.off = IsOff(self)
         self.title:SetTextColor(unpack(self.off and C.disabled or C.text))
@@ -913,11 +912,9 @@ function P:BuildPage(group, gate)
         if parent ~= card then
             if parent ~= last then card.rows[#card.rows + 1] = parent end
             parent.buttons[#parent.buttons + 1] = c
-            c.bar = parent
         else
             card.rows[#card.rows + 1] = c
         end
-        c.card = card
     end
     local function fill(card, args, chain)
         for _, entry in ipairs(Sorted(args)) do
@@ -1089,7 +1086,7 @@ local function TextButton(parent, text, font)
         W.ShowTooltip(self, self.tipTitle, self.tipText, "ANCHOR_BOTTOM")
     end)
     b:SetScript("OnLeave", function(self)
-        self.SetHover(CLEAR); self.label:SetTextColor(unpack(self.color or C.header))
+        self.SetHover(CLEAR); self.label:SetTextColor(unpack(C.header))
         W.HideTooltip(self)
     end)
     return b
@@ -1148,14 +1145,12 @@ function P:Create()
     self:CreateTitleBar(f)
     self:CreateSidebar(f)
     local main = CreateFrame("Frame", nil, f)
-    self.main = main
     main:SetPoint("TOPLEFT", SIDEBAR + 1, -TITLE - 1)
     main:SetPoint("BOTTOMRIGHT", -1, 1)
     self:CreateOverview(main)
     self:CreatePageView(main)
     -- Resize grip: drag to resize, right-click for the default size.
     local grip = CreateFrame("Button", nil, f)
-    self.grip = grip
     grip:SetSize(18, 18)
     grip:SetPoint("BOTTOMRIGHT", -2, 2)
     grip:SetFrameLevel(self.offOverlay:GetFrameLevel() + 10) -- above the off overlay, so the window still resizes under it
@@ -1279,7 +1274,6 @@ function P:CreateTitleBar(f)
     self.titleText = title
     -- Close: a pixel-exact X.
     local close = CreateFrame("Button", nil, bar)
-    self.close = close
     close:SetSize(TITLE - 8, TITLE - 8)
     close:SetPoint("RIGHT", -4, 0)
     close.hover = W.Dot(close, TITLE - 8, { 0.8, 0.25, 0.15, 0.25 })
@@ -1304,7 +1298,7 @@ function P:CreateTitleBar(f)
     text:SetPoint("RIGHT", larger, "LEFT", -2, 0)
     local smaller = TextButton(bar, "-", "GameFontNormalLarge")
     smaller:SetPoint("RIGHT", text, "LEFT", -2, 0)
-    self.scaleText, self.scaleUp, self.scaleDown = text, larger, smaller
+    self.scaleText = text
     local tip = "Window scale. Click the percentage for 100%, or use the mouse wheel over it."
     for _, b in ipairs({ larger, text, smaller }) do
         b.tipTitle, b.tipText = "Scale", tip
@@ -1365,7 +1359,6 @@ local PIP_LIT = { C.line[1], C.line[2], C.line[3], 0.55 }
 
 function P:CreateSidebar(f)
     local sidebar = CreateFrame("Frame", nil, f)
-    self.sidebar = sidebar
     sidebar:SetPoint("TOPLEFT", 1, -TITLE - 1)
     sidebar:SetPoint("BOTTOMLEFT", 1, 1)
     sidebar:SetWidth(SIDEBAR)
@@ -1426,12 +1419,10 @@ function P:CreateSidebar(f)
     pip:SetScript("OnClick", function() self:NavClick({ kind = "notes" }) end)
     self:PaintPip()
     -- The web links (GitHub, Donate) as icons across from Profiles and About, at the right.
-    self.linkIcons = {}
     local x = -(PAD - 3)
     for i = #HST.links, 1, -1 do
         local link = HST.links[i]
         local b = CreateFrame("Button", nil, bottom)
-        self.linkIcons[i] = b
         b:SetSize(20, 20)
         b:SetPoint("BOTTOMRIGHT", x, -1)
         b.icon = W.PixelIcon(b, link.icon, 16, C.muted)
@@ -1474,7 +1465,6 @@ function P:CreateSearch(sidebar)
     clear:SetSize(18, 18)
     clear:SetPoint("RIGHT", -6, 0)
     clear.icon = W.CloseIcon(clear, 8)
-    self.clearIcon = clear.icon
     clear:SetScript("OnClick", function() e:SetText(""); e:ClearFocus() end)
     clear:SetScript("OnEnter", function() clear.icon:SetVertexColor(unpack(C.bright)) end)
     clear:SetScript("OnLeave", function() clear.icon:SetVertexColor(unpack(C.header)) end)

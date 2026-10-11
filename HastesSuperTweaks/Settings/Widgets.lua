@@ -467,7 +467,6 @@ end
 -- for that width and returns the row's height; row:SetDisabled(off) dims it.
 ---------------------------------------------------------------------------
 local HEAD, ROW_PAD, DESC_GAP = 30, 4, 2
-W.HEAD = HEAD
 
 -- How wide a row's control is.
 function W.ControlWidth(width)
@@ -504,7 +503,6 @@ local function PlaceText(c, width, control, head)
     c.desc:SetPoint("TOPLEFT", 2, -ROW_PAD - head + DESC_GAP)
     return head + ROW_PAD * 2 + c.desc:GetStringHeight() + 4, head
 end
-W.PlaceText = PlaceText
 
 -- Sets the label and description; only text that changed is written.
 local function SetTexts(c, label, desc)
@@ -565,7 +563,6 @@ function W.ToggleRow(parent)
     function c:OnLit(lit) self.switch:SetLit(lit) end
     function c:Layout(width) return (PlaceText(self, width, SWITCH_W)) end
     function c:SetValue(on, off)
-        self.checked = on and true or false
         self.switch:SetOn(on, true)
         off = off and true or false
         if off == self.off then return end
@@ -931,7 +928,6 @@ function W.InputRow(parent, full)
     local c = NewRow(parent)
     c:EnableMouse(true)
     local e = CreateFrame("EditBox", nil, c)
-    c.edit = e
     e:SetHeight(22)
     e:SetFontObject("ChatFontNormal")
     e:SetTextInsets(11, 11, 0, 0)
