@@ -52,7 +52,6 @@ local F = HST:NewFeature("FastLoot", {
         .. "Hold the auto loot key (Shift by default) to look first.",
 })
 ns.FastLoot = F
-F.modifiers = modifiers
 Configure(F, { soloBind = false, speed = "MODERATE" }, function(m)
     return ns.OnePage(m.info.name, "settings", "Settings", {
         autoLoot = { type = "toggle", name = "Auto Loot (game setting)", order = 1,
@@ -1022,12 +1021,7 @@ function L:PlayNoticeSample()
     if self.session and self.session.open then return end
     local items = self.samples.fast
     for i, item in ipairs(items) do
-        C_Timer.After((i - 1) * 0.4, function()
-            if not self:IsEnabled() then return end
-            local copy = {}
-            for k, v in pairs(item) do copy[k] = v end
-            self:Notify(copy)
-        end)
+        C_Timer.After((i - 1) * 0.4, function() if self:IsEnabled() then self:Notify(item) end end)
     end
     C_Timer.After(#items * 0.4, function() if self:IsEnabled() then self:NotifyMoney(self.samples.money) end end)
 end
@@ -1517,5 +1511,4 @@ L.info.livePreview = function(frame, width, height)
         v.list:SetPoint("TOP", frame, "TOP", 0, -(y + captions) / scale)
         v.off:SetPoint("TOP", frame, "TOP", 0, -(y + captions + 8))
     end
-    v.listCaption:SetShown(true)
 end
