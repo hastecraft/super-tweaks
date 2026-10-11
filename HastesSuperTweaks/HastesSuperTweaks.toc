@@ -8,6 +8,7 @@
 ## IconTexture: Interface\AddOns\HastesSuperTweaks\Art\Logo
 ## AddonCompartmentFunc: HastesSuperTweaks_OnAddonCompartmentClick
 ## Category: Interface
+## X-Curse-Project-ID: 1739405
 
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
