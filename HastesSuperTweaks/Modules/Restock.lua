@@ -141,12 +141,22 @@ local function StopsBuying(errorType, message)
 end
 
 -- What the vendor's item at `index` costs: the price of a bundle, how many come in one, how many the vendor has left
--- (-1 for no limit), and whether gold buys it.
+-- (-1 for no limit), and whether gold buys it. WoW Forever has C_MerchantFrame.GetItemInfo; Classic Era the global
+-- GetMerchantItemInfo (name, texture, price, stackCount, numAvailable, isPurchasable, isUsable, extendedCost).
+local MerchantInfo = C_MerchantFrame and C_MerchantFrame.GetItemInfo
 local function Offer(index)
-    local info = C_MerchantFrame and C_MerchantFrame.GetItemInfo and C_MerchantFrame.GetItemInfo(index)
-    if not info then return nil end
-    local plain = info.isPurchasable and not info.hasExtendedCost and (info.price or 0) > 0
-    return info.price, math.max(1, info.stackCount or 1), info.numAvailable or -1, plain
+    local price, stack, left, buyable, extended
+    if MerchantInfo then
+        local info = MerchantInfo(index)
+        if not info then return nil end
+        price, stack, left, buyable, extended = info.price, info.stackCount, info.numAvailable, info.isPurchasable,
+            info.hasExtendedCost
+    elseif GetMerchantItemInfo then
+        local _
+        _, _, price, stack, left, buyable, _, extended = GetMerchantItemInfo(index)
+    end
+    if not price then return nil end
+    return price, math.max(1, stack or 1), left or -1, buyable and not extended and price > 0
 end
 
 -- The purchases to make now: { index, itemID, quantity, cost }, in the vendor's order.
