@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Release
 
-Releases are prepared by you and published by the maintainer. You write the patch notes and set the version in a release pull request. The maintainer merges it and pushes the tag; the tag starts `.github/workflows/release.yml`, which waits in the `release` environment for the maintainer's approval and then uploads to GitHub, CurseForge and Wago. Never push a tag, merge, or approve a deployment unless the maintainer tells you to in this conversation.
+Releases are prepared by you and published by the maintainer. You write the patch notes and set the version in a release pull request. Merging it publishes the release: `.github/workflows/tag-release.yml` tags the merged commit with the TOC's version and starts `.github/workflows/release.yml` on that tag, which uploads to GitHub, CurseForge and Wago. Never push a tag or merge unless the maintainer tells you to in this conversation.
 
 ## 1. Start from master
 
@@ -81,12 +81,8 @@ Tell the maintainer:
 
 - the version and why (which change set the step);
 - the notes, line by line, so they can adjust them before merging;
-- what to do next: test in game, merge the PR, then push the tag:
+- what to do next: test in game, then squash-merge the PR, keeping its title `chore(release): X.Y.Z`. Merging publishes it; the Actions tab shows the Tag release and Release runs.
 
-  ```bash
-  git fetch origin && git tag -a vX.Y.Z origin/master -m "Release X.Y.Z" && git push origin vX.Y.Z
-  ```
+For a beta (TOC version X.Y.Z-beta.N), merging tags and publishes it the same way.
 
-  and approve the deployment on the Actions tab.
-
-Push the tag yourself only if the maintainer tells you to.
+Merge or push a tag yourself only if the maintainer tells you to.

@@ -1,0 +1,50 @@
+# Tags a release when the maintainer merges a release pull request ("chore(release): X.Y.Z"), then starts the Release
+# workflow on that tag. A tag pushed with GITHUB_TOKEN starts no workflow by itself; a workflow_dispatch does. The
+# "release tags" ruleset lets GitHub Actions create v* tags.
+name: Tag release
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag
+    if: startsWith(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # push the tag
+      actions: write # start the Release workflow
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Tag the version in the TOC
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^## Version: *//p' HastesSuperTweaks/HastesSuperTweaks.toc | tr -d '\r')
+          case "$version" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::No version in the TOC (got \"$version\")."; exit 1 ;;
+          esac
+          tag="v$version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::$tag already exists. Raise the version in the release pull request."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Release $version" "$GITHUB_SHA"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$tag"
+          gh workflow run release.yml --ref "$tag"
+          echo "Tagged $tag and started the Release workflow." >> "$GITHUB_STEP_SUMMARY"
