@@ -518,7 +518,9 @@ function ns.AtMaxLevel(level, cap)
     return level >= maxLevel
 end
 
-ns.WHITE, ns.FALLBACK_FONT = "Interface\\Buttons\\WHITE8X8", "Fonts\\FRIZQT__.TTF"
+-- The fallback font is the game's own for this client's language (Friz Quadrata has no Cyrillic, Korean or Chinese
+-- letters), used when a chosen font isn't installed.
+ns.WHITE, ns.FALLBACK_FONT = "Interface\\Buttons\\WHITE8X8", STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 
 -- A LibSharedMedia file by name, or `path` when one is set and the game knows that file.
 function ns.Media(kind, name, path)

@@ -9,8 +9,9 @@ local M = HST:NewFeature("MinimapButton", {
     description = "A button on the edge of your minimap that opens these settings. Drag it to move it.",
 })
 ns.MinimapButton = M
--- Position around the minimap in degrees (0 = right, 90 = top); shared by all characters.
-HST.defaults.global.minimapAngle = 225
+-- Position around the minimap in degrees (0 = right, 90 = top); shared by all characters. Not 225, where LibDBIcon puts
+-- other addons' buttons until they're moved.
+HST.defaults.global.minimapAngle = 200
 
 -- Standard minimap button art on a 31 x 31 frame: dark disc, the icon inside it and the round border.
 local function DrawButton(button)

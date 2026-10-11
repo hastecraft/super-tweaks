@@ -40,7 +40,7 @@ function M.info.preview(frame)
     W.Loop(frame, shown + 1, function(t) band:SetAlpha(W.Window(t, 0.3, 0.3 + shown, FADE)) end)
 end
 
-M.defaults = { profile = { duration = 8, size = 18, outline = "", y = 220, sound = false, onlyChanged = false },
+M.defaults = { profile = { duration = 8, size = 18, outline = "", y = 220, sound = false, onlyChanged = true },
     char = { lastSeen = "" } }
 
 function M:CreatePopup()

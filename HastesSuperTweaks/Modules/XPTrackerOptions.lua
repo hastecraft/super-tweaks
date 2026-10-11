@@ -92,9 +92,11 @@ function X:BuildOptions()
             locked = toggle("locked", "Lock position", 1,
                 "Unlock to drag the bar outside Edit Mode."),
             clickThrough = option("toggle", "clickThrough", "Click-through", 2, {
-                desc = "While locked, clicks pass through the bar, so right-click settings won't open. Not available with Mouseover only.",
+                desc = "While locked, the bar ignores the mouse: clicks and camera drags reach the world behind it, and it "
+                    .. "shows no tooltip or right-click settings. Not available with Mouseover only.",
                 disabled = whenSet("mouseover") }),
-            tooltip = toggle("tooltip", "Tooltip", 3, "Shows XP details when you point at the bar."),
+            tooltip = toggle("tooltip", "Tooltip", 3,
+                "Shows XP details when you point at the bar, unless it's locked with Click-through on."),
             ignoreMouseInCombat = toggle("ignoreMouseInCombat", "Ignore mouse in combat", 4,
                 "In combat, the bar shows no tooltip, stays faded with Mouseover only, and lets clicks pass through."),
         }),
