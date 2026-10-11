@@ -556,23 +556,6 @@ function J.info.preview(frame)
     end)
 end
 
-local GetInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
-local IsEquippable = C_Item and C_Item.IsEquippableItem or IsEquippableItem
-local function SellPrice(itemID)
-    return select(11, GetInfo(itemID)) or 0
-end
-local function IsGear(itemID)
-    return IsEquippable ~= nil and IsEquippable(itemID) == true
-end
-
--- The sell price of a bag item that is junk to sell under the current settings, or nil.
-function J:JunkPrice(info)
-    if not (info and info.quality == 0 and not info.hasNoValue and not info.isLocked and info.itemID) then return nil end
-    if self.db.profile.keepGear and IsGear(info.itemID) then return nil end
-    local price = SellPrice(info.itemID)
-    return price > 0 and price or nil
-end
-
 ---------------------------------------------------------------------------
 -- Selling at vendors, shared by Sell Junk and Sell Clutter: one sale per vendor visit sells what every selling module
 -- that's on picks, one item per step. A vendor accepts a burst but may drop sales that arrive too quickly, so two
@@ -581,8 +564,10 @@ end
 -- A seller answers SalePrice(info, bag, slot) with the price of one of the slot's items when it would sell them (and
 -- optionally why), else nil; the first seller (in the order added) that would sell an item gets it, and each seller's
 -- items are sold after those of the sellers before it. Its Sold(sales) hears what went through ({ bag, slot, itemID,
--- total, count, link, reason }). Optional: PrepareSale(), run once before a scan, for work every slot shares;
--- Keeps(itemID), true for items no seller may sell; Limit(), the most items it sells in one visit.
+-- total, count, link, reason }). Optional: PrepareSale(), run once before a scan, for work every slot shares: it
+-- answers whether the seller is ready (false waits a little for data still loading) and a context, which the scan
+-- hands SalePrice as a fourth argument; Keeps(itemID), true for items no seller may sell; Limit(), the most items it
+-- sells in one visit.
 ---------------------------------------------------------------------------
 local Sale = { sellers = {}, step = 0.1 }
 ns.VendorSale = Sale
@@ -597,8 +582,6 @@ function Sale.Excluded(bag)
     local flag = Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ExcludeJunkSell
     return flag ~= nil and C_Container.GetBagSlotFlag ~= nil and C_Container.GetBagSlotFlag(bag, flag) == true
 end
-
-function Sale:Add(seller) self.sellers[#self.sellers + 1] = seller end
 
 -- Every selling module listens for the vendor opening; the first of them that's on starts the sale.
 function Sale:Leads(seller)
@@ -768,7 +751,7 @@ end
 
 -- Listens for vendor visits on behalf of a selling module: the first of them that's on starts the sale; Shift skips it.
 function Sale:Listen(seller)
-    self:Add(seller)
+    self.sellers[#self.sellers + 1] = seller
     local events = { "MERCHANT_SHOW", "MERCHANT_CLOSED" }
     for _, event in ipairs(seller.protectionEvents or {}) do events[#events + 1] = event end
     Listen(seller, events, function(module, event)
@@ -780,7 +763,15 @@ function Sale:Listen(seller)
     function seller:OnUnlisten() Sale:Left() end
 end
 
-function J:SalePrice(info) return self:JunkPrice(info) end
+-- Grey items, keeping grey weapons and armor when asked (the sale has checked the slot: see Sale:SlotAllowed).
+local GetInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
+local IsEquippable = C_Item and C_Item.IsEquippableItem or IsEquippableItem
+function J:SalePrice(info)
+    local itemID = info.itemID
+    if info.quality ~= 0 or self.db.profile.keepGear and IsEquippable and IsEquippable(itemID) then return nil end
+    local price = select(11, GetInfo(itemID)) or 0
+    return price > 0 and price or nil
+end
 function J:Sold(sold)
     if not self.db.profile.summary then return end
     local total = 0
