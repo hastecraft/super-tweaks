@@ -29,6 +29,7 @@ Modules\GuildInvite.lua
 Modules\HideIssueReporter.lua
 Modules\MinimapButton.lua
 Modules\Tooltip.lua
+Modules\TooltipExtras.lua
 Modules\CombatText.lua
 Modules\CombatTextOptions.lua
 Modules\BreathMeter.lua

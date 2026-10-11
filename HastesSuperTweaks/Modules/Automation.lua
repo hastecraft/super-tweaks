@@ -507,9 +507,11 @@ local J = HST:NewFeature("SellJunk", {
     description = "Sells your grey items whenever you visit a vendor. Hold Shift to skip.",
 })
 ns.SellJunk = J
-Settings(J,{ summary = true, keepGear = false }, function(m) return {
+Settings(J,{ summary = true, keepGear = false, skipConfirm = false }, function(m) return {
     summary = Toggle(m, "summary", "Say what was sold", 1, "Prints how many items were sold and for how much."),
     keepGear = Toggle(m, "keepGear", "Keep grey weapons and armor", 2, "Sells only grey items that can't be equipped."),
+    skipConfirm = Toggle(m, "skipConfirm", "Sell All Junk without asking", 3,
+        "The vendor's own Sell All Junk button sells right away, without asking you to confirm."),
 } end)
 
 J.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
@@ -789,6 +791,27 @@ function J:Sold(sold)
     HST:Print(string.format("Sold %d junk %s for %s.", #sold, #sold == 1 and "item" or "items", Money(total)))
 end
 Sale:Listen(J)
+
+-- Sell All Junk without asking: the vendor's Sell All Junk button shows the game's confirmation, which is answered
+-- the moment it shows (before it's ever drawn). Hooks can't be removed; this one checks the module and the setting.
+local function IsJunkConfirmation(dialog)
+    local data = dialog.which == "GENERIC_CONFIRMATION" and dialog.data
+    return type(data) == "table" and (data.callback == MerchantFrame_OnSellAllJunkButtonConfirmed
+        or (SELL_ALL_JUNK_ITEMS_POPUP ~= nil and data.text == SELL_ALL_JUNK_ITEMS_POPUP))
+end
+function J:OnListen()
+    if self.sellAllHooked or not (MerchantFrame_OnSellAllJunkButtonClicked and StaticPopup_ForEachShownDialog
+        and C_MerchantFrame and C_MerchantFrame.SellAllJunkItems) then return end
+    self.sellAllHooked = true
+    hooksecurefunc("MerchantFrame_OnSellAllJunkButtonClicked", function()
+        if not (J:IsEnabled() and J.db.profile.skipConfirm) then return end
+        local shown
+        StaticPopup_ForEachShownDialog(function(dialog) if IsJunkConfirmation(dialog) then shown = dialog end end)
+        if not shown then return end
+        StaticPopup_Hide("GENERIC_CONFIRMATION", shown.data)
+        C_MerchantFrame.SellAllJunkItems()
+    end)
+end
 
 ---------------------------------------------------------------------------
 -- Repair Automatically

@@ -164,8 +164,9 @@ end)
 ---------------------------------------------------------------------------
 local S = HST:NewFeature("MuteCustomSounds", {
     name = "Mute Custom Sounds", category = "sound", order = 2, enabledByDefault = false, unavailable = unavailable,
-    summary = "Mutes any game sounds you choose.", examples = { "list" },
-    description = "Mutes any game sounds by their sound file IDs. A built-in sound player helps you find them.",
+    summary = "Mutes any game sounds you choose.", examples = { "weather", "fizzle", "list" },
+    description = "Mutes any game sounds by their sound file IDs, or rain and weather and the spell fizzle with a "
+        .. "switch. A built-in sound player helps you find them.",
 })
 ns.MuteCustomSounds = S
 
@@ -205,7 +206,37 @@ function S.Parse(text)
     return ids, count
 end
 
-function S:Wanted() return (self.Parse(self.db.profile.list)) end
+-- Sounds muted with a switch: the game's weather sounds, and the sound of a spell fizzling (failing or being
+-- interrupted). Sound file IDs from the game's file list, checked against the weather and sound tables of WoW Forever
+-- (1.60.1) and Classic Era, which play some different files for the same weather.
+S.PRESETS = {
+    { key = "weather", name = "Rain and weather", order = 1,
+        desc = "Rain, snow and sandstorm loops, thunder and distant lightning. The weather still shows. Thunder that "
+            .. "other storm sounds share is muted with it.",
+        ids = {
+            -- sound/ambience/weather: rain, snow and sandstorm, light, medium and heavy.
+            538983, 538981, 538982, 538985, 538989, 538984, 538988, 538987, 538986,
+            -- The stereo rain loops and the lightning storm loop newer weather plays.
+            2057626, 2057628, 2057629, 2057630, 2057631, 2057632, 2182419,
+            -- Thunder cracks, thunder strikes and distant lightning played with storms.
+            565712, 565974, 566471, 566202, 566511,
+            4883319, 4883321, 4883325, 4883327, 4883329, 4883333, 4883335, 4883337, 4883339, 4883341,
+            1822951, 1822952, 1822953, 1822954,
+        } },
+    { key = "fizzle", name = "Spell fizzle", order = 2,
+        desc = "The sound a spell makes when it fails or is interrupted, for every school of magic.",
+        -- sound/spells/fizzle: holy, fire, nature, frost and shadow.
+        ids = { 569772, 569773, 569774, 569775, 569776 } },
+}
+
+function S:Wanted()
+    local p = self.db.profile
+    local wanted = self.Parse(p.list)
+    for _, preset in ipairs(self.PRESETS) do
+        if p[preset.key] then for _, id in ipairs(preset.ids) do wanted[id] = true end end
+    end
+    return wanted
+end
 
 -- Plays a sound file for finding IDs, stopping the one before.
 function S:Play(id)
@@ -220,12 +251,18 @@ function S:Stop()
     self.playing = nil
 end
 
-Setup(S, { list = "" }, function(s)
+Setup(S, { list = "", weather = false, fizzle = false }, function(s)
     local function profile() return s.db.profile end
     local function step(delta) return function() s:Play((s.testSound or 0) + delta) end end
     local function noTest() return not s.testSound end
+    local presets = {}
+    for _, preset in ipairs(s.PRESETS) do
+        presets[preset.key] = ns.Option(profile, "toggle", preset.key, preset.name, preset.order, { desc = preset.desc },
+            function() s:Apply() end)
+    end
     return { name = s.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
+            presets = ns.Section("Presets", 0, presets),
             mute = ns.Section("Sounds to mute", 1, {
                 list = ns.Option(profile, "input", "list", "Sound file IDs", 1, { width = "full",
                     desc = "Separate IDs with commas or spaces. Notes without numbers are fine. Press Enter to apply." },
