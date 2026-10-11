@@ -1,5 +1,6 @@
-# Publishes a release when the maintainer pushes a version tag (v1.2.3, or v1.2.3-beta.1 for a beta). The job runs in the
-# "release" environment, which waits for the maintainer's approval and is the only place the upload keys exist.
+# Publishes a release for a version tag (v1.2.3, or v1.2.3-beta.1 for a beta). Merging a release pull request tags it
+# and starts this workflow on the tag (tag-release.yml); the maintainer pushing a tag also starts it, for betas. The job
+# runs in the "release" environment, the only place the upload keys exist, open to v* tags only.
 # The packager builds the ZIP from .pkgmeta and uploads it to GitHub Releases, plus CurseForge and Wago once their
 # project IDs are in the TOC (X-Curse-Project-ID, X-Wago-ID) and their keys are environment secrets.
 name: Release
@@ -7,6 +8,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: read
