@@ -482,6 +482,7 @@ end
 local function CreateRow(window)
     local W, C = ns.Widgets, ns.Widgets.C
     local row = CreateFrame("Button", nil, window)
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp") -- either button loots, as in the game's window
     row.hover = W.Fill(row, C.hover)
     row.hover:SetAllPoints()
     row.hover:Hide()
@@ -630,6 +631,7 @@ function L:BuildWindow(parent, name)
     -- Money: its own line at the bottom; clicking it takes the money in the loot.
     local footer = CreateFrame("Button", nil, f)
     f.footer = footer
+    footer:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     footer.hover = W.Fill(footer, C.hover)
     footer.hover:SetAllPoints()
     footer.hover:Hide()
