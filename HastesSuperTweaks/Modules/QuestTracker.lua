@@ -15,6 +15,8 @@ local T = HST:NewFeature("QuestTracker", {
         .. "combat, or always. It comes back as you leave, and while Edit Mode is open.",
 })
 ns.QuestTracker = T
+-- Classic Era has no ObjectiveTrackerFrame (its quest watch list is another frame).
+if not ObjectiveTrackerFrame then T.info.unavailable = "This client's quest tracker can't be hidden this way." end
 
 ns.Configure(T, { instances = true, pvp = false, combat = false, always = false }, function(m)
     local function profile() return m.db.profile end

@@ -15,6 +15,11 @@ local G = HST:NewFeature("MailGuard", {
         .. "send the mail back. It lowers the risk; it can't promise anything.",
 })
 ns.MailGuard = G
+-- Classic Era's Open All (loaded before addons) has no ShouldSkipCurrentMail to leave mail with, and its inbox no
+-- InboxFrame:Update to mark rows from, so nothing here would work there. WoW Forever's loads with Blizzard_MailFrame.
+if OpenAllMailMixin and not OpenAllMailMixin.ShouldSkipCurrentMail then
+    G.info.unavailable = "This client's Open All can't be told to leave mail."
+end
 
 local ALERT = "Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew"
 local WARN = { 1, 0.45, 0.2 }

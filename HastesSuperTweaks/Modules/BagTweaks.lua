@@ -25,6 +25,9 @@ ns.Configure(B, {
     local function profile() return m.db.profile end
     local function apply() m:Apply() end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra, apply) end
+    -- Classic Era has no combined bags, Clean Up or fill directions: only the free-slot count applies there.
+    local function noCombined() return not ContainerFrameCombinedBags end
+    local function noSort() return not C_Container.SetSortBagsRightToLeft end
     return { name = m.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             window = ns.Section("Combined bags", 1, {
@@ -39,7 +42,7 @@ ns.Configure(B, {
                     func = function() local p = m.db.profile; p.x, p.y = false, false; m:Apply() end },
                 note = { type = "description", order = 5, name = "Turn on Use Combined Inventory Bags in the game's "
                     .. "Options > Controls to use the combined bags." },
-            }),
+            }, { disabled = noCombined }),
             slots = ns.Section("Free slots", 2, {
                 freeSlots = option("toggle", "freeSlots", "Count only slots any item fits in", 1,
                     { desc = "The number on the backpack button leaves out quivers, ammo pouches, soul bags and "
@@ -53,7 +56,7 @@ ns.Configure(B, {
                 insertLeft = option("select", "insertLeft", "Insert items left to right", 2, { values = DIRECTIONS,
                     sorting = DIRECTION_ORDER, desc = "On, new items go into your leftmost bag first instead of your "
                         .. "backpack." }),
-            }),
+            }, { disabled = noSort }),
         } },
     } }
 end, "Apply")
@@ -187,6 +190,7 @@ end
 -- /hst sort cleans up your bags, with Bag Tweaks on.
 HST.commands.sort = function()
     if not B:IsEnabled() then return HST:Print("Turn on Bag Tweaks to clean up your bags with /hst sort.") end
+    if not C_Container.SortBags then return HST:Print("This client has no Clean Up Bags.") end
     B:Sort()
 end
 
