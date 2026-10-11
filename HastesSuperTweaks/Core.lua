@@ -410,6 +410,31 @@ function ns.ChatLockdown()
     return C_ChatInfo ~= nil and C_ChatInfo.InChatMessagingLockdown ~= nil and C_ChatInfo.InChatMessagingLockdown() == true
 end
 
+-- A game setting's (CVar's) value, or nil on a client without it. Internal settings aren't returned to addons' GetCVar;
+-- the console's list of them has them.
+function ns.ReadCVar(name)
+    local value = GetCVar and GetCVar(name)
+    if value == nil and C_CVar and C_CVar.GetCVarInfo then
+        local ok, info = pcall(C_CVar.GetCVarInfo, name)
+        if ok then value = info end
+    end
+    return value
+end
+
+-- Whether two CVar values are the same setting ("0" and "0.000000" are).
+function ns.SameCVar(a, b)
+    if a == b then return true end
+    local x, y = tonumber(a), tonumber(b)
+    return x ~= nil and x == y
+end
+
+-- Sets a CVar. Internal ones refuse addons' SetCVar; those are set as /console sets them.
+function ns.WriteCVar(name, value)
+    local ok, done = pcall(SetCVar, name, value)
+    if ok and done ~= false and ns.SameCVar(ns.ReadCVar(name), value) then return end
+    if ConsoleExec then pcall(ConsoleExec, name .. " " .. value) end
+end
+
 -- Registers the module's events while it is on and calls handler(module, event, ...) for them. An event this client
 -- doesn't have is skipped (registering it would raise an error), so a module can list each client's name for one.
 -- The module's OnListen, when it has one, runs after each enable; its OnUnlisten after each disable, to drop
