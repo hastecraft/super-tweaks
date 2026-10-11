@@ -1248,9 +1248,13 @@ local SESSION_EVENTS = { "PLAYER_MONEY", "UI_ERROR_MESSAGE" }
 function L:SyncLootFrame()
     local mine = self:IsEnabled() and not MasterLooter()
     if mine and LootFrame then
-        local open = LootFrame.isOpen
-        if open == nil then open = LootFrame:IsShown() end
-        if open then self.blizzard, self.takeOver = true, true; return end
+        -- Open, or still fading out after closing (WoW Forever's window animates away, then closes whatever loot is
+        -- open as it hides): it keeps looting until it's hidden, and its OnHide hands over.
+        if LootFrame.isOpen or LootFrame:IsShown() then
+            self.blizzard, self.takeOver = true, true
+            self:WatchLootFrameHide()
+            return
+        end
     end
     self.blizzard, self.takeOver = not mine, nil
     if not LootFrame then return end
@@ -1261,6 +1265,15 @@ function L:SyncLootFrame()
         LootFrame:RegisterEvent("LOOT_OPENED")
         LootFrame:RegisterEvent("LOOT_CLOSED")
     end
+end
+
+-- Takes over from the game's window once it has hidden (hooked once, the first time it's needed).
+function L:WatchLootFrameHide()
+    if self.lootFrameHooked then return end
+    self.lootFrameHooked = true
+    LootFrame:HookScript("OnHide", function()
+        if self.takeOver then C_Timer.After(0, function() if self.takeOver and self:IsEnabled() then self:SyncLootFrame() end end) end
+    end)
 end
 
 -- True when the open loot has nothing left in it.
