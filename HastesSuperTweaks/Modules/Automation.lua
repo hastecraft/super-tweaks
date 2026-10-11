@@ -664,12 +664,12 @@ local function AtMerchant()
 end
 
 -- Sells one item per step. Each vendor visit has its own number: closing the vendor, a new visit or turning the last
--- selling module off ends the steps of the old one. A sale the vendor dropped (its item still there and no longer
--- locked once the rest are done) is tried once more.
+-- selling module off ends the steps of the old one, and so does combat, where selling is blocked. A sale the vendor
+-- dropped (its item still there and no longer locked once the rest are done) is tried once more.
 function Sale:Open()
     self.visit = (self.visit or 0) + 1
     local visit, list, queue, index, retried = self.visit, nil, nil, 0, false
-    local function step()
+    local function step(checked)
         index = index + 1
         if not queue[index] and not retried and visit == self.visit then
             retried = true
@@ -682,7 +682,10 @@ function Sale:Open()
             end
         end
         local item = queue[index]
-        if visit ~= self.visit or not item or not AtMerchant() then return self:Confirm(list) end
+        -- The first step comes right after the scan, which checked the vendor and combat.
+        if visit ~= self.visit or not item or not checked and (not AtMerchant() or InCombatLockdown()) then
+            return self:Confirm(list)
+        end
         -- Checked again for each item: bags may have been sorted, and the settings changed, since the scan.
         local seller, info = item.seller, C_Container.GetContainerItemInfo(item.bag, item.slot)
         local price, reason
@@ -698,7 +701,7 @@ function Sale:Open()
     -- Scan after the vendor opens. Cold protection data gets a bounded chance to arrive; unknown items stay kept.
     local attempts = 0
     local function begin()
-        if visit ~= self.visit or not AtMerchant() then return end
+        if visit ~= self.visit or not AtMerchant() or InCombatLockdown() then return end
         local waiting
         list, waiting = self:Find()
         attempts = attempts + 1
@@ -706,7 +709,7 @@ function Sale:Open()
         if waiting then HST:Print("Kept items whose quest protection data is still loading. Visit the vendor again to retry.") end
         if #list == 0 then return end
         queue = { unpack(list) }
-        step()
+        step(true)
     end
     C_Timer.After(self.step, begin)
 end
