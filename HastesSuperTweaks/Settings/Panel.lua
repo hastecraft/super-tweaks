@@ -2079,13 +2079,13 @@ function P:ListHeader(key, text)
     return header
 end
 
--- Places category headers and module rows in the list; returns the content height.
+-- Places category headers and module rows in the list, which is self.listHeight high. Rows are reused in order, and
+-- a row that stays shown isn't hidden first: showing a row runs its switch's OnShow work.
 function P:LayoutModules(modules)
     local y, used = 0, 0
     for _, header in pairs(self.headers) do header:Hide() end
     -- A search's arrow-key highlight goes with it (P:PaintCursor draws it again when a search lays rows out).
-    for _, row in ipairs(self.rows) do row:Hide(); row.cursor:Hide() end
-    for _, row in ipairs(self.results) do row:Hide() end
+    for _, row in ipairs(self.rows) do row.cursor:Hide() end
     self.categoryTop = {}
     local width = self.listWidth
     for _, category in ipairs(HST.categories) do
@@ -2114,8 +2114,8 @@ function P:LayoutModules(modules)
             end
         end
     end
+    for i = used + 1, #self.rows do self.rows[i]:Hide() end
     self.listHeight = y
-    return used, y
 end
 
 function P:RefreshRows()
@@ -2141,7 +2141,7 @@ function P:RefreshRows()
             row.switch.tipText = on and "On. Click to turn it off." or "Off. Click to turn it on."
         end
     end
-    -- Result rows only show in search mode (P:LayoutModules hides them for the list).
+    -- Result rows only show in search mode (P:ShowModules hides them for the list).
     if self.mode == "search" then
         for _, row in ipairs(self.results) do
             if row:IsShown() and row.result then self:PaintResult(row) end
@@ -2161,6 +2161,8 @@ function P:ShowModules()
     self:ListTop(false)
     for key, chip in pairs(self.filters) do chip:SetSelected(key == self.filter); chip:Show() end
     self:LayoutModules(shown)
+    for _, row in ipairs(self.results) do row:Hide() end
+    if self.moreResults then self.moreResults:Hide() end
     self:RefreshRows()
     self.list:SetContentHeight(self.listHeight + 20)
     self.detail:Show()
@@ -2907,14 +2909,16 @@ function P:Search(text, again)
     self:RefreshNav()
 end
 
--- Modules that match, then matching settings.
+-- Modules that match, then matching settings: the best RESULTS of them, which a word or two more narrows down to the
+-- one you want (a one-letter search matches nearly all of the hundreds there are).
+P.RESULTS = 50
 function P:LayoutResults(modules, ranked, words)
-    local _, y = self:LayoutModules(modules)
+    self:LayoutModules(modules)
     self:RefreshRows()
-    local width = self.listWidth
+    local y, width, shown = self.listHeight, self.listWidth, math.min(#ranked, self.RESULTS)
     self.cursorRows = {}
     for _, row in ipairs(self.rows) do if row:IsShown() then self.cursorRows[#self.cursorRows + 1] = row end end
-    if #ranked > 0 then
+    if shown > 0 then
         if y > 0 then y = y + 10 end
         local header = self:ListHeader("settings", "Settings")
         header:ClearAllPoints()
@@ -2922,7 +2926,8 @@ function P:LayoutResults(modules, ranked, words)
         header:SetWidth(width)
         header:Show()
         y = y + 30
-        for i, item in ipairs(ranked) do
+        for i = 1, shown do
+            local item = ranked[i]
             local row = self:ResultRow(i)
             local result = item.entry
             row.result = result
@@ -2936,6 +2941,21 @@ function P:LayoutResults(modules, ranked, words)
             self.cursorRows[#self.cursorRows + 1] = row
             y = y + RESULT_ROW
         end
+    end
+    for i = shown + 1, #self.results do self.results[i]:Hide() end
+    local more = self.moreResults
+    if #ranked > shown then
+        if not more then
+            more = W.Text(self.list.child, "GameFontHighlightSmall", C.muted)
+            self.moreResults = more
+        end
+        more:SetText(string.format("%d more settings match. Add a word to find the one you want.", #ranked - shown))
+        more:ClearAllPoints()
+        more:SetPoint("TOPLEFT", 12, -(y + 8))
+        more:Show()
+        y = y + 30
+    elseif more then
+        more:Hide()
     end
     self.list:SetContentHeight(y + 20)
 end
