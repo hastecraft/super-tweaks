@@ -795,22 +795,14 @@ function S:TooltipLine(tip, itemID)
     return true
 end
 
--- Hooks can't be removed, so the line checks the module and setting each time. The tooltip data processor sizes the
--- tooltip after its hooks run; the older OnTooltipSetItem runs after, so the tooltip is shown again to fit the line.
+-- Hooks can't be removed, so the line checks the module and setting each time. The tooltip data processor (which
+-- fills item tooltips on both clients) sizes the tooltip after its hooks run.
 local function HookTooltips()
     if S.tooltipHooked then return end
     S.tooltipHooked = true
-    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
-        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tip, data)
-            if tip == GameTooltip and data then S:TooltipLine(tip, data.id) end
-        end)
-    elseif GameTooltip and GameTooltip.HookScript then
-        GameTooltip:HookScript("OnTooltipSetItem", function(tip)
-            local _, link = tip:GetItem()
-            local itemID = not IsSecret(link) and type(link) == "string" and tonumber(link:match("item:(%d+)"))
-            if itemID and S:TooltipLine(tip, itemID) then tip:Show() end
-        end)
-    end
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tip, data)
+        if tip == GameTooltip and data then S:TooltipLine(tip, data.id) end
+    end)
 end
 
 ---------------------------------------------------------------------------

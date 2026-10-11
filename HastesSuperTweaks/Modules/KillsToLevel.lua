@@ -191,9 +191,7 @@ function K:OnTooltip(tip, data, unit)
     -- No XP (gray mobs, critters): K.Kills would answer nil, so your XP isn't read.
     if xp <= 0 then return end
     local kills = K.Kills(xp, UnitXPMax("player") - (UnitXP("player") or 0), GetXPExhaustion() or 0)
-    if not kills or ns.TooltipHasLine(tip, LABEL) then return end
-    tip:AddDoubleLine(LABEL, "~" .. kills, 0.7, 0.7, 0.7, 1, 1, 1)
-    ns.FitTooltip(tip)
+    if kills then tip:AddDoubleLine(LABEL, "~" .. kills, 0.7, 0.7, 0.7, 1, 1, 1) end
 end
 
 function K:OnInitialize()

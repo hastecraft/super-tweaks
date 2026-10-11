@@ -319,7 +319,7 @@ end
 -- what it's made from stays the same, so redrawing a tooltip puts no new text together.
 function T:FormatGuild(tip)
     local guild = self.guildName
-    if not guild then return false end
+    if not guild then return end
     local p, made = self.db.profile, self.guildText
     local color = p.highlightGuild and self.myGuild and p.ownGuildColor or p.guildColor
     local rank = p.guildRank and self.guildRank
@@ -332,9 +332,7 @@ function T:FormatGuild(tip)
         made.text = text
     end
     local line, current = ns.FindTooltipLine(tip, guild)
-    if not line or current == made.text then return false end
-    line:SetText(made.text)
-    return true
+    if line and current ~= made.text then line:SetText(made.text) end
 end
 
 -- Public and officer guild notes by player name: "Name" for your realm, "Name-Realm" for any. Roster updates only
@@ -381,25 +379,21 @@ function T:GuildNotes()
     return notes, officer
 end
 
--- Adds a note line unless the tooltip already has one with this label; returns true if it did.
 local function AddNote(tip, label, text)
-    if not text or text == "" or ns.TooltipHasLine(tip, label) then return false end
-    tip:AddDoubleLine(label, text, 0.6, 0.6, 0.6, 1, 1, 1)
-    return true
+    if text and text ~= "" then tip:AddDoubleLine(label, text, 0.6, 0.6, 0.6, 1, 1, 1) end
 end
 
--- Adds a guildmate's public note and, when your rank can read it, officer note. Returns true if it added a line.
+-- Adds a guildmate's public note and, when your rank can read it, officer note.
 -- Whether the unit can be one of your guildmates is checked before reading the roster (slow for large guilds), so
 -- mobs and strangers never trigger it; when the game can't say whether a player is in your guild, any player can be.
 function T:AddNotes(tip)
     local p, key = self.db.profile, self.rosterName
     if not (key and self.isPlayer and (p.guildNotes or p.officerNotes)) or self.myGuild == false or not IsInGuild() then
-        return false
+        return
     end
     local notes, officer = self:GuildNotes()
-    local added = p.guildNotes and AddNote(tip, "Note", notes[key])
-    if p.officerNotes and AddNote(tip, "Officer note", officer[key]) then added = true end
-    return added
+    if p.guildNotes then AddNote(tip, "Note", notes[key]) end
+    if p.officerNotes then AddNote(tip, "Officer note", officer[key]) end
 end
 
 -- GameTooltip filled in for a unit (see ns.HookUnitTooltip).
@@ -413,12 +407,10 @@ function T:OnUnitTooltip(tip, data, unit)
     -- What the bar shows depends only on the reading (see UpdateHealth), so a unit tooltip redrawn several times a
     -- second (unit frames refresh theirs) redraws nothing that didn't change.
     self.unit, self.guid = unit, guid
-    local changed = self.db.profile.guildLine and self:FormatGuild(tip)
-    if self:AddNotes(tip) then changed = true end
+    if self.db.profile.guildLine then self:FormatGuild(tip) end
+    self:AddNotes(tip)
     self:UpdateBorder()
     self:ShowBar(guid)
-    -- Resize for the longer guild line and added notes.
-    if changed then ns.FitTooltip(tip) end
 end
 
 function T:Clear()
