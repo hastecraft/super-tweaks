@@ -1,0 +1,10 @@
+# The maintainer reviews every change; these paths matter most (CI, releases, licensing, the logo).
+*                       @hastecraft
+/.github/               @hastecraft
+/.pkgmeta               @hastecraft
+/.claude/               @hastecraft
+/tools/                 @hastecraft
+/LICENSE                @hastecraft
+/TRADEMARKS.md          @hastecraft
+/HastesSuperTweaks/Art/ @hastecraft
+/HastesSuperTweaks/Libs/ @hastecraft

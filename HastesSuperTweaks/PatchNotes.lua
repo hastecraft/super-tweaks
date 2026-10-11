@@ -1,6 +1,7 @@
 -- Patch notes, newest first. The settings window shows them when the version beside its title is clicked, and a
 -- blinking dot there marks notes this account hasn't opened yet (unless New Patch Dot is off).
--- The newest entry's version must be the TOC's ## Version (AGENTS.md says when to add an entry and bump it).
+-- Written at release time from the merged pull requests (.claude/skills/release); pull requests leave this file
+-- alone. The newest entry's version must be the TOC's ## Version; tools/check.py checks it in CI.
 -- Write for players: what changed in game, naming tweaks as the settings window does. One line per change.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...

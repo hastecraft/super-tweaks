@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a new tweak or a change to one.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: What it does in game, and what it saves you.
+    validations:
+      required: true
+  - type: textarea
+    id: native
+    attributes:
+      label: Does the game already do this?
+      description: Tweaks should add what the game lacks. Mention any game option or other addon that does something similar.
+  - type: dropdown
+    id: client
+    attributes:
+      label: Game client
+      multiple: true
+      options:
+        - WoW Forever
+        - Classic Era

@@ -1,0 +1,31 @@
+# BigWigs packager (https://github.com/BigWigsMods/packager): builds the release ZIP in CI and, on release tags, uploads it
+# to GitHub, CurseForge and Wago. The addon lives in the HastesSuperTweaks folder, so the checkout is packaged under a
+# temporary name and that folder is moved out; everything else is dev-only and ignored.
+package-as: super-tweaks
+
+move-folders:
+  super-tweaks/HastesSuperTweaks: HastesSuperTweaks
+
+enable-nolib-creation: no
+
+manual-changelog:
+  filename: RELEASE_NOTES.md
+  markup-type: markdown
+
+ignore:
+  - .claude
+  - .github
+  - tools
+  - .gitattributes
+  - .gitignore
+  - .luacheckrc
+  - AGENTS.md
+  - CHANGELOG.md
+  - CLAUDE.md
+  - CODE_OF_CONDUCT.md
+  - CONTRIBUTING.md
+  - LICENSE
+  - README.md
+  - RELEASE_NOTES.md
+  - SECURITY.md
+  - TRADEMARKS.md

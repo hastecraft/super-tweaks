@@ -10,8 +10,16 @@ HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parent.parent
 # The addon folder to load: the project's, or another copy (tools/bench.py can measure an older one).
 ADDON = Path(os.environ.get('HST_ADDON_DIR') or PROJECT / 'HastesSuperTweaks')
+# lupa: the copy in pydeps (built for Windows, Python 3.13), else an installed one (pip install -r tools/requirements.txt,
+# as CI does on Linux).
 sys.path.insert(0, str(HERE / 'pydeps'))
-from lupa.lua51 import LuaRuntime  # noqa: E402
+try:
+    from lupa.lua51 import LuaRuntime  # noqa: E402
+except ImportError:
+    sys.path.remove(str(HERE / 'pydeps'))
+    for _name in [name for name in sys.modules if name == 'lupa' or name.startswith('lupa.')]:
+        del sys.modules[_name]
+    from lupa.lua51 import LuaRuntime  # noqa: E402
 
 
 def toc_files(root=ADDON):

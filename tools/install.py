@@ -434,6 +434,9 @@ def recover_upgrade():
 
 
 def install():
+    if not ADDONS.is_dir():
+        raise InstallError(f'No AddOns folder at {ADDONS}. Set HST_WOW_DIR to your game folder (the one holding '
+                           'Interface).')
     recover_upgrade()
     # WoW only has to be closed while there is saved data to migrate or an old addon to remove.
     accounts = [a for a in (WOW / 'WTF' / 'Account').glob('*') if (a / 'SavedVariables').is_dir()]

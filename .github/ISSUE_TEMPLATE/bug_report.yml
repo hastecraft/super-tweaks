@@ -1,0 +1,54 @@
+name: Bug report
+description: Something in Haste's Super Tweaks doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting! Please check the open issues first in case it's already known.
+  - type: input
+    id: version
+    attributes:
+      label: Addon version
+      description: Shown beside the settings window's title (type /hst).
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: Game client
+      options:
+        - WoW Forever
+        - Classic Era
+    validations:
+      required: true
+  - type: input
+    id: tweak
+    attributes:
+      label: Which tweak?
+      description: As named in the settings window.
+      placeholder: Better Tooltips
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      placeholder: |
+        1. Turn on ...
+        2. Talk to a vendor ...
+  - type: textarea
+    id: errors
+    attributes:
+      label: Lua errors
+      description: Paste any error text (from BugSack, or after typing /console scriptErrors 1). Errors are also saved in your game's Logs\General.log.
+      render: text
+  - type: textarea
+    id: addons
+    attributes:
+      label: Other addons
+      description: Especially UI replacements (ElvUI, EllesmereUI) and tooltip, loot or bag addons.

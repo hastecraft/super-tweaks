@@ -1,24 +1,11 @@
 -- Game API mocks for Upgrade Spell Ranks, Consumable Macros and Mail Expiry & Alt List.
 -- MODERN_SPELLBOOK (set before this file) gives the newer C_SpellBook API instead of the Classic spellbook functions.
 PERMISSIVE_FRAMES = true
-function hooksecurefunc(name, fn)
-    local original = _G[name]
-    _G[name] = function(...) local r = { original(...) }; fn(...); return unpack(r) end
-end
 Enum = Enum or {}
--- Registering an event the client doesn't have raises an error, as the game does. Each client has one of these.
+-- Registering an event the client doesn't have raises an error, as the game does (see wow_mock.lua). Each client has
+-- one of these.
 UNKNOWN_EVENTS = MODERN_SPELLBOOK and { LEARNED_SPELL_IN_TAB = true } or { LEARNED_SPELL_IN_SKILL_LINE = true }
 if KNOWN_EVENTS and not MODERN_SPELLBOOK then KNOWN_EVENTS.LEARNED_SPELL_IN_TAB = true end
-local createFrame = CreateFrame
-function CreateFrame(...)
-    local f = createFrame(...)
-    local register = f.RegisterEvent
-    rawset(f, 'RegisterEvent', function(self, event)
-        if UNKNOWN_EVENTS[event] then error('Attempt to register unknown event "' .. event .. '"') end
-        return register(self, event)
-    end)
-    return f
-end
 
 -- Spellbook: BOOK lists your spells in spellbook order ({ id, name, sub }). Spell ranks come from the subtext.
 BOOK = {}
@@ -94,6 +81,13 @@ function EditMacro(i, name, icon, body)
     return i
 end
 function ShowMacroFrame() state.macroFrame = true end
+-- Icons by file ID, as Forever tells which icon a macro was given.
+function GetFileIDFromPath(path) return 'file:' .. path:lower() end
+C_Macro = { GetSelectedMacroIcon = function(i)
+    local icon = MACROS[i] and MACROS[i].icon
+    if type(icon) == 'string' and not icon:find('\\', 1, true) then return GetFileIDFromPath('Interface\\Icons\\' .. icon) end
+    return icon
+end }
 
 -- Items and bags. BAGS[bag][slot] = { itemID, count }. ITEMS[id] = { name, level, ilvl, class, spell, tooltip (lines),
 -- unusable }; an item without a name isn't loaded yet.
