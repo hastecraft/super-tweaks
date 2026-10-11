@@ -90,8 +90,8 @@ local REDUCED = {
     BLOCK = COMBAT_TEXT_BLOCK or BLOCK or "Block", ABSORB = COMBAT_TEXT_ABSORB or ABSORB or "Absorb",
     RESIST = COMBAT_TEXT_RESIST or RESIST or "Resist",
 }
--- Part of a hit taken by a block, absorb or resist (the game doesn't say how much).
-local PARTIAL = { BLOCK_REDUCED = "-%s (blocked)", ABSORB = "-%s (absorbed)", RESIST = "-%s (resisted)" }
+-- Part of a hit on your pet taken by a block, absorb or resist (the game doesn't say how much).
+local PET_PARTIAL = { BLOCK_REDUCED = "Pet -%s (blocked)", ABSORB = "Pet -%s (absorbed)", RESIST = "Pet -%s (resisted)" }
 
 -- The game's font for its damage numbers over enemies, before this changed it.
 local GAME_DAMAGE_FONT = DAMAGE_TEXT_FONT
@@ -133,7 +133,7 @@ function S:Amount(amount)
 end
 
 ---------------------------------------------------------------------------
--- Texts: pooled frames (a font string with an icon to its left) that the layer moves every frame while any shows.
+-- Texts: pooled frames (a font string with an icon to its left) that one frame moves every frame while any shows.
 -- Each belongs to a lane: a scroll area, or an enemy's nameplate.
 ---------------------------------------------------------------------------
 -- Texts fade in from half shown, so they're seen the moment their hit arrives (unless Fade in is off: then they show
@@ -143,14 +143,12 @@ S.FADE_IN, S.FADE_FROM, S.FADE_OUT, S.POP = 0.08, 0.5, 0.25, 0.15 -- seconds; al
 S.BLINK, S.BLINK_LOW = 0.5, 0.2
 S.MOST, S.MOST_ON_PLATE = 20, 8
 S.AREA_WIDTH = 200
-local layer, driver, ticking
+local layer, layerLevel, driver, ticking
 -- Free texts: on the interface's layer, and on the world's (numbers behind nameplates). Each kind keeps its own
 -- frames.
 local pool, worldPool, live = {}, {}, {}
-S.live, S.pool, S.worldPool = live, pool, worldPool
 -- Nameplates seen, by their frame: what listens to each one's unit's hits while it has one (see S:WatchPlate).
 local watchers = {}
-S.watchers = watchers
 
 -- Movement over a text's life (t from 0 to 1), from where it started.
 local function Motion(f, t)
@@ -331,7 +329,7 @@ local function Layer()
         layer = CreateFrame("Frame", nil, UIParent)
         layer:SetFrameStrata("HIGH")
         layer:SetAllPoints(UIParent)
-        S.layer = layer
+        layerLevel = layer:GetFrameLevel() + 1 -- the texts' level, just above it
     end
     return layer
 end
@@ -442,7 +440,7 @@ function S:Show(lane, color, kind, icon, fmt, a, b)
         f.hostLevel = nil
         local strata = mode or "HIGH"
         if f.shownStrata ~= strata then f.shownStrata = strata; f:SetFrameStrata(strata) end
-        level = mode and p.plateLevel or Layer():GetFrameLevel() + 1
+        level = mode and p.plateLevel or layerLevel -- Acquire made the layer
     end
     if f.shownLevel ~= level then f.shownLevel = level; f:SetFrameLevel(level) end
     local flags = self.flags or S.FontFlags(p)
@@ -544,39 +542,31 @@ local function PowerColor(token)
     return color
 end
 
-function S:OnIncoming(unit, action, flags, amount, school)
-    if IsSecret(action) or IsSecret(unit) then return end
+-- What your pet takes (its combat events, with Include your pet on), marked Pet.
+function S:OnPet(action, flags, amount, school)
+    if IsSecret(action) then return end
     if IsSecret(flags) then flags = nil end
     local p, lane = self.db.profile, self:Lane("incoming")
-    local pet = unit == "pet"
-    if pet and not p.inPet then return end
     local secret = IsSecret(amount)
     if not secret and type(amount) ~= "number" then amount = 0 end
     if action == "WOUND" then
         if secret or amount > 0 then
             if not p.inDamage or (not secret and amount < p.inDamageMin) then return end
             local color = p.schoolColors and SchoolColor(school, p.damageColor) or p.damageColor
-            local fmt = p.inReduction and PARTIAL[flags] or "-%s"
-            return self:Show(lane, color, Kind(flags), nil, pet and ("Pet " .. fmt) or fmt, self:Amount(amount))
+            return self:Show(lane, color, Kind(flags), nil, p.inReduction and PET_PARTIAL[flags] or "Pet -%s", self:Amount(amount))
         end
         -- Nothing got through: a full block, absorb or resist. Without one of those it was no hit at all (the swing an
         -- on-next-swing ability like Heroic Strike takes the place of arrives so): nothing to show. Misses come as
         -- misses.
         local word = REDUCED[flags]
-        if word and p.inReduction then self:Show(lane, p.missColor, "miss", nil, pet and "Pet %s" or "%s", word) end
+        if word and p.inReduction then self:Show(lane, p.missColor, "miss", nil, "Pet %s", word) end
     elseif action == "HEAL" then
         if not p.inHeals or (not secret and (amount <= 0 or amount < p.inHealMin)) then return end
-        self:Show(lane, p.healColor, flags == "CRITICAL" and "crit" or nil, nil, pet and "Pet +%s" or "+%s", self:Amount(amount))
-    elseif action == "ENERGIZE" then
-        if pet or not p.inEnergy or (not secret and amount <= 0) then return end
-        -- The event doesn't say which power; it's colored and named for your main one.
-        local _, token = UnitPowerType("player")
-        if IsSecret(token) then token = nil end
-        self:Show(lane, PowerColor(token), nil, nil, "+%s %s", self:Amount(amount), token and _G[token] or "")
+        self:Show(lane, p.healColor, flags == "CRITICAL" and "crit" or nil, nil, "Pet +%s", self:Amount(amount))
     elseif REDUCED[action] then
-        if p.inReduction then self:Show(lane, p.missColor, "miss", nil, pet and "Pet %s" or "%s", REDUCED[action]) end
+        if p.inReduction then self:Show(lane, p.missColor, "miss", nil, "Pet %s", REDUCED[action]) end
     elseif MISSES[action] then
-        if p.inMisses then self:Show(lane, p.missColor, "miss", nil, pet and "Pet %s" or "%s", MISSES[action]) end
+        if p.inMisses then self:Show(lane, p.missColor, "miss", nil, "Pet %s", MISSES[action]) end
     end
 end
 
@@ -702,7 +692,7 @@ function S:OnEnemy(plate, unit, action, flags, amount, school)
                 or p.schoolColors and SchoolColor(school, p.enemyColor) or p.enemyColor
             return self:Show(lane, color, kind, nil, "%s", self:Amount(amount))
         end
-        -- Nothing got through: a full block, absorb or resist; without one of those, no hit at all (see S:OnIncoming).
+        -- Nothing got through: a full block, absorb or resist; without one of those, no hit at all (see S:OnPet).
         local word = REDUCED[flags]
         if word and p.enemyMisses then self:Show(lane, p.missColor, "miss", nil, "%s", word) end
     elseif p.enemyMisses and (MISSES[action] or REDUCED[action]) then
@@ -844,6 +834,13 @@ local GAME_TEXT = {
     SPELL_ACTIVE = "reactives", SPELL_AURA_START = "buffs", SPELL_AURA_START_HARMFUL = "debuffs",
     SPELL_AURA_END = "fades", SPELL_AURA_END_HARMFUL = "fades", FACTION = "reputation", HONOR_GAINED = "honor",
 }
+-- The notices whose details come from the game's combat text event (the names and amounts above).
+S.TEXT_INFO_NOTICES = {}
+for _, option in pairs(GAME_TEXT) do S.TEXT_INFO_NOTICES[option] = true end
+-- WoW Forever hides those details from addons (C_CombatText.GetCurrentEventInfo returns secret values), so its notices
+-- can show here but can't be handed to the game's combat text. Classic Era has the same function without secret
+-- returns, so the client is told apart by its interface version (Forever's is 16001, Era's 11509).
+S.HIDES_TEXT_INFO = select(4, GetBuildInfo()) >= 16000
 -- Whether the game's combat text events are needed: for what you take or a notice shown here, or while replacing the
 -- game's combat text, to hand it those turned off here.
 function S:UsesGameCombatText()
@@ -912,7 +909,6 @@ local function Reactive()
 end
 -- Which of them were usable when last looked: as a spell alert showed, and after one was used.
 local wasLit = {}
-S.wasLit = wasLit
 
 -- Whether a spell alert for this spell shows.
 local function AlertShows(name)
@@ -953,6 +949,8 @@ function S:Alert(f, spell)
         f.spell = self:ReactiveLitUp()
         f.unmatched = f.spell == nil
     end
+    -- Your casts are listened to only while an alert may need taking down (see S:OnCast).
+    if p.reactiveHide and (f.spell or f.unmatched) then self.events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player") end
     if p.reactiveOnce and f.spell then
         local now = GetTime()
         for _, other in ipairs(live) do
@@ -967,12 +965,13 @@ end
 -- abilities above is used and no alert is known to be its own, the oldest alert whose ability couldn't be told goes.
 S.USED_CHECK, S.VANISH = 0.2, 0.15
 function S:OnCast(spellID)
-    if not self.db.profile.reactiveHide or IsSecret(spellID) then return end
+    if IsSecret(spellID) then return end
     local alert
     for _, f in ipairs(live) do
         if f.spell or f.unmatched then alert = true; break end
     end
-    if not alert then return end
+    -- None left to take down: casts go unheard until another alert shows.
+    if not alert then return self.events:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED") end
     local name = SpellName(spellID)
     if not name then return end
     C_Timer.After(self.USED_CHECK, function()
@@ -1105,8 +1104,7 @@ end
 ---------------------------------------------------------------------------
 -- Events: each listened to only while something shown needs it.
 ---------------------------------------------------------------------------
-local function Register(frame, event, unit, unit2)
-    if unit2 then return pcall(frame.RegisterUnitEvent, frame, event, unit, unit2) end
+local function Register(frame, event, unit)
     if unit then return pcall(frame.RegisterUnitEvent, frame, event, unit) end
     return pcall(frame.RegisterEvent, frame, event)
 end
@@ -1117,8 +1115,8 @@ function S:CreateEventFrames()
     self.events:SetScript("OnEvent", function(_, event, ...) self:OnEvent(event, ...) end)
     -- Hits on your pet, and on your target for its scroll area, come on frames of their own; on nameplates, each
     -- nameplate's own (see S:WatchPlate). Yours come in the game's combat text events.
-    self.incomingEvents = CreateFrame("Frame")
-    self.incomingEvents:SetScript("OnEvent", function(_, _, ...) self:OnIncoming(...) end)
+    self.petEvents = CreateFrame("Frame")
+    self.petEvents:SetScript("OnEvent", function(_, _, _, ...) self:OnPet(...) end)
     self.enemyEvents = CreateFrame("Frame")
     self.enemyEvents:SetScript("OnEvent", function(_, _, ...)
         if self.db.profile.enemyMode == "NAMEPLATE" then return self:OnTargetHit(...) end
@@ -1128,26 +1126,26 @@ end
 
 function S:UpdateEvents()
     self:CreateEventFrames()
-    local general, incoming, enemies = self.events, self.incomingEvents, self.enemyEvents
-    general:UnregisterAllEvents(); incoming:UnregisterAllEvents(); enemies:UnregisterAllEvents()
+    local general, pet, enemies = self.events, self.petEvents, self.enemyEvents
+    general:UnregisterAllEvents(); pet:UnregisterAllEvents(); enemies:UnregisterAllEvents()
     local on, p = self:IsEnabled(), self.db.profile
     self:WatchPlates(on and p.enemyMode == "NAMEPLATE")
     if not on then return end
     if p.combatState then Register(general, "PLAYER_REGEN_DISABLED"); Register(general, "PLAYER_REGEN_ENABLED") end
-    if self:UsesGameCombatText() then Register(general, "COMBAT_TEXT_UPDATE") end
-    if p.lowHealth then Register(general, "UNIT_HEALTH", "player") end
-    if p.lowMana or p.comboPoints then Register(general, "UNIT_POWER_UPDATE", "player") end
-    if p.skills then Register(general, "CHAT_MSG_SKILL") end
-    if p.reactives and p.reactiveHide then Register(general, "UNIT_SPELLCAST_SUCCEEDED", "player") end
-    if Taking(p) then
-        -- The game's combat text is about one unit: you, unless the game set another (a vehicle).
+    if self:UsesGameCombatText() then
+        Register(general, "COMBAT_TEXT_UPDATE")
+        -- The game's combat text is about one unit: you, unless the game set another (a vehicle). The game sets it only
+        -- while its own combat text runs, so it's set here for notices as for what you take.
         local text = C_CombatText
         if text and text.GetActiveUnit and text.SetActiveUnit then
             local unit = text.GetActiveUnit()
             if not IsSecret(unit) and unit == nil then pcall(text.SetActiveUnit, "player") end
         end
-        if p.inPet then Register(incoming, "UNIT_COMBAT", "pet") end
     end
+    if p.lowHealth then Register(general, "UNIT_HEALTH", "player") end
+    if p.lowMana or p.comboPoints then Register(general, "UNIT_POWER_UPDATE", "player") end
+    if p.skills then Register(general, "CHAT_MSG_SKILL") end
+    if Taking(p) and p.inPet then Register(pet, "UNIT_COMBAT", "pet") end
     if p.enemyMode == "NAMEPLATE" then
         Register(general, "NAME_PLATE_UNIT_ADDED")
         Register(general, "NAME_PLATE_UNIT_REMOVED")
@@ -1188,6 +1186,7 @@ local GAME_FRAME_EVENTS = {
 -- Whether a notice is set to show in the game's combat text.
 function S:GameShows(key)
     local p = self.db.profile
+    if self.HIDES_TEXT_INFO and self.TEXT_INFO_NOTICES[key] then return false end
     return not p[key] and p.gameNotices[key] == true
 end
 
@@ -1195,7 +1194,6 @@ end
 -- registers its frame's events again) and for combat ending, when CVars changed in combat are set. Listened to only
 -- while needed.
 local watcher = CreateFrame("Frame")
-S.watcher = watcher
 watcher:SetScript("OnEvent", function(_, event, name)
     if event == "ADDON_LOADED" then
         if name == "Blizzard_CombatText" then watcher:UnregisterEvent("ADDON_LOADED"); S:UpdateBlizzard() end
@@ -1243,11 +1241,14 @@ end
 
 -- A notice from the game's combat text events turned off here, shown by the game's frame as it would show it: only
 -- while replacing it (else it shows it itself), with the frame up and the game's own setting for that kind on.
+-- Called from here, the frame runs as addon code, which can't place a text holding a value the game hides from addons:
+-- that's an error, and the frame loses one of its lines of text for good. Such notices (spell and aura names, faction
+-- changes and honor, wherever the game hides them) aren't handed over.
 function S:GiveToGame(kind)
     local frame, info = CombatText, CombatTextTypeInfo and CombatTextTypeInfo[kind]
     if not (self.replacing and frame and frame:IsVisible() and info and info.show) then return end
     local data, amount = CombatTextInfo()
-    if not IsSecret(data) and data == nil then return end
+    if IsSecret(data) or IsSecret(amount) or data == nil then return end
     local text, display
     if kind == "SPELL_ACTIVE" then
         text, display = string.format("<%s>", data), "crit"
@@ -1257,23 +1258,15 @@ function S:GiveToGame(kind)
         text = string.format(AURA_END or "<%s fades>", data)
     elseif kind == "FACTION" then
         -- data is the faction, amount the change.
-        if IsSecret(amount) then
-            text = string.format("(%s %s)", data, amount)
-        else
-            amount = tonumber(amount)
-            if not amount then return end
-            text = string.format(amount > 0 and "(%s +%d)" or "(%s %d)", data, amount)
-        end
+        amount = tonumber(amount)
+        if not amount then return end
+        text = string.format(amount > 0 and "(%s +%d)" or "(%s %d)", data, amount)
     elseif kind == "HONOR_GAINED" then
         -- data is the honor.
-        local honor = data
-        if not IsSecret(data) then
-            honor = tonumber(data)
-            if not honor or abs(honor) < 1 then return end
-            honor = floor(honor)
-            honor = honor > 0 and "+" .. honor or tostring(honor)
-        end
-        text = string.format(COMBAT_TEXT_HONOR_GAINED or "Honor %s", honor)
+        local honor = tonumber(data)
+        if not honor or abs(honor) < 1 then return end
+        honor = floor(honor)
+        text = string.format(COMBAT_TEXT_HONOR_GAINED or "Honor %s", honor > 0 and "+" .. honor or tostring(honor))
     end
     local scroll = frame.scrollFunction or (CombatTextUtil and CombatTextUtil.StandardScroll)
     if frame.AddMessage then
@@ -1283,29 +1276,7 @@ function S:GiveToGame(kind)
     end
 end
 
--- Whether two CVar values are the same setting ("0" and "0.000000" are).
-local function Same(a, b)
-    if a == b then return true end
-    local x, y = tonumber(a), tonumber(b)
-    return x ~= nil and x == y
-end
-
--- A CVar's value. Internal CVars aren't returned to addons' GetCVar; the console's CVar list has them.
-local function ReadCVar(name)
-    local value = GetCVar and GetCVar(name)
-    if value == nil and C_CVar and C_CVar.GetCVarInfo then
-        local ok, info = pcall(C_CVar.GetCVarInfo, name)
-        if ok then value = info end
-    end
-    return value
-end
-
--- Sets a CVar. Internal ones refuse addons' SetCVar; those are set as /console sets them.
-local function WriteCVar(name, value)
-    local ok, done = pcall(SetCVar, name, value)
-    if ok and done ~= false and Same(ReadCVar(name), value) then return end
-    if ConsoleExec then pcall(ConsoleExec, name .. " " .. value) end
-end
+local Same, ReadCVar, WriteCVar = ns.SameCVar, ns.ReadCVar, ns.WriteCVar
 
 -- Holds a CVar at a value, saving what it was; releasing it puts that back, unless it was changed meanwhile (it's
 -- neither the value held nor what the game reported for it).
@@ -1319,16 +1290,12 @@ function S:HoldCVar(name, value, hold)
         if not Same(current, value) then
             WriteCVar(name, value)
             heldAs[name] = ReadCVar(name)
-            return true
         end
     elseif saved[name] ~= nil then
         local back, held = saved[name], heldAs[name]
         saved[name], heldAs[name] = nil, nil
         -- Equality with the held value can be the user's real preference, including in older saved records.
-        if Same(current, value) or Same(current, held) then
-            WriteCVar(name, back)
-            return not Same(current, back)
-        end
+        if Same(current, value) or Same(current, held) then WriteCVar(name, back) end
     end
 end
 
@@ -1342,7 +1309,6 @@ local GAME_NOTICE_CVARS = {
     floatingCombatTextCombatState_v2 = { "combatState" },
     floatingCombatTextLowManaHealth_v2 = { "lowHealth", "lowMana" },
 }
-S.GAME_NOTICE_CVARS = GAME_NOTICE_CVARS
 
 function S:UpdateCVars()
     if InCombatLockdown() then return watcher:RegisterEvent("PLAYER_REGEN_ENABLED") end
@@ -1359,7 +1325,9 @@ function S:UpdateCVars()
     -- given back too (released, a hold is put back when the setting is the value given here or the one held).
     local size = on and p.enemyMode == "GAME" and p.gameDamageSize ~= 1 and p.gameDamageSize or nil
     self:HoldCVar("WorldTextScale_v2", size and tostring(size) or "0", size ~= nil)
-    local changed = false
+    -- The game's frame reads these settings only as it loads, its combat text is turned on or the screen is resized,
+    -- so one changed here shows from the next reload. Its own update, called from here, would run as addon code and
+    -- taint the frame: the game's combat text would then fail on the values it hides from addons.
     for name, keys in pairs(GAME_NOTICE_CVARS) do
         local handed = false
         if on and p.replaceBlizzard then
@@ -1367,15 +1335,7 @@ function S:UpdateCVars()
                 if self:GameShows(key) then handed = true end
             end
         end
-        if self:HoldCVar(name, "1", handed) then changed = true end
-    end
-    -- The game's frame reads these settings only as it loads or its combat text is turned on: it's told again, once
-    -- the game has taken in the change.
-    if changed then
-        C_Timer.After(0, function()
-            local frame = CombatText
-            if frame and frame.UpdateDisplayedMessages then pcall(frame.UpdateDisplayedMessages, frame) end
-        end)
+        self:HoldCVar(name, "1", handed)
     end
 end
 
@@ -1549,7 +1509,7 @@ end
 
 for _, spec in ipairs(EDITORS) do
     local key = spec.key
-    local editor = { info = { name = spec.name }, area = key }
+    local editor = { info = { name = spec.name } }
     function editor:GetName() return S:GetName() end
     function editor:IsEnabled() return S:IsEnabled() and S:AreaUsed(key) end
     function editor:EditFrame() return S:AreaBox(key) end

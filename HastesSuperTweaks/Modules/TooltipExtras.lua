@@ -72,24 +72,15 @@ local function NpcID(guid)
     return npc.id
 end
 
--- Adds a line unless the tooltip has it already: clients without the tooltip data processor run unit hooks again for
--- the same lines (see ns.TooltipHasLine in Core.lua).
-local function AddLine(tip, label, text, r, g, b)
-    if ns.TooltipHasLine and ns.TooltipHasLine(tip, label) then return false end
-    tip:AddDoubleLine(label, text, r, g, b, 1, 1, 1)
-    return true
-end
-
 local function OnUnit(tip, data, unit)
     if not T:IsEnabled() then return end
     local p = T.db.profile
     if not (p.targetLine or p.ids) then return end
     unit = unit or T:MouseoverUnit(data)
     if not unit then return end
-    local added = false
     if p.targetLine then
         local text = TargetText(unit)
-        if text and AddLine(tip, TARGET_LABEL, text, 0.6, 0.6, 0.6) then added = true end
+        if text then tip:AddDoubleLine(TARGET_LABEL, text, 0.6, 0.6, 0.6, 1, 1, 1) end
     end
     if p.ids then
         local isPlayer = UnitIsPlayer(unit)
@@ -97,11 +88,9 @@ local function OnUnit(tip, data, unit)
             local guid = data and data.guid
             if IsSecret(guid) or not guid then guid = UnitGUID(unit) end
             local id = NpcID(guid)
-            if id and AddLine(tip, "NPC ID", id, ID_COLOR[1], ID_COLOR[2], ID_COLOR[3]) then added = true end
+            if id then tip:AddDoubleLine("NPC ID", id, ID_COLOR[1], ID_COLOR[2], ID_COLOR[3], 1, 1, 1) end
         end
     end
-    -- Those clients have sized the tooltip already.
-    if added and ns.FitTooltip then ns.FitTooltip(tip) end
 end
 
 ---------------------------------------------------------------------------

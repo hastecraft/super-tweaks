@@ -253,8 +253,8 @@ function S:Item(itemID)
         return nil
     end
     local kind = (price or 0) > 0 and self:KindOf(itemID, classID, subclassID, equipLoc)
-    -- Qualities never sold by kind (Verdict, GearVerdict): rare and better gear and recipes, uncommon and better of the
-    -- rest. Known as false, their tooltips skip the facts lookup.
+    -- Qualities never sold by kind: rare and better gear and recipes, uncommon and better of the rest. Known as false,
+    -- their tooltips skip the facts lookup.
     if kind and quality > ((kind == "equipment" or kind == "recipes") and 2 or 1) then kind = false end
     item = false
     if kind then
@@ -342,12 +342,15 @@ local function Professions()
 end
 
 -- The text of every item objective in your quest log, finished or not: an item named in one is kept until the quest
--- is turned in. Missing data is tracked separately from an empty, loaded objective list.
+-- is turned in. Missing data is tracked separately from an empty, loaded objective list. Classic Era leaves the quests
+-- under a collapsed header out of the log's entries (its count of quests has them all): hidden says some are.
 local function Objectives()
-    local texts, missing, complete = {}, {}, true
+    local texts, missing, complete, seen = {}, {}, true, 0
     local Q = C_QuestLog or {}
     local count = Q.GetNumQuestLogEntries or GetNumQuestLogEntries
-    for i = 1, count and count() or 0 do
+    local entries, quests = 0, 0
+    if count then entries, quests = count() end
+    for i = 1, entries or 0 do
         local questID, header
         if Q.GetInfo then
             local info = Q.GetInfo(i)
@@ -357,6 +360,7 @@ local function Objectives()
             questID, header = id, isHeader
         end
         if not header then
+            seen = seen + 1
             if Q.GetQuestObjectives and questID and questID > 0 then
                 local objectives = Q.GetQuestObjectives(questID)
                 if not objectives then complete = false; missing[#missing + 1] = questID end
@@ -378,7 +382,7 @@ local function Objectives()
             else complete = false end
         end
     end
-    return texts, complete, missing
+    return texts, complete, missing, not Q.GetInfo and (quests or 0) > seen
 end
 
 -- Items in your equipment sets (item ID -> true), on clients with the equipment manager.
@@ -428,27 +432,28 @@ function S:Context(fresh)
     local rxp = RestedXP()
     local current = rxp and type(rxp.currentGuide) == "table" and rxp.currentGuide.name or nil
     if ctx and not fresh and ctx.rxp == rxp and ctx.guide == current and now - ctx.time < self.CONTEXT_AGE then return ctx end
-    local objectives, complete, missing = Objectives()
+    local objectives, complete, missing, hidden = Objectives()
     ctx = { time = now, level = UnitLevel("player") or 1, class = select(2, UnitClass("player")), professions = Professions(),
-        objectives = objectives, complete = complete, missing = missing, sets = EquipmentSets(), needed = {}, guided = {} }
+        objectives = objectives, complete = complete, missing = missing, hidden = hidden, sets = EquipmentSets(), needed = {},
+        guided = {} }
     if rxp then
         ctx.rxp, ctx.guide, ctx.guideLow = rxp, current, GuideRange(current)
     end
     self.context = ctx
     return ctx
 end
+S.requestedObjectives = {}
 function S:PrepareSale()
     local ctx = self:Context(true)
     local visit = ns.VendorSale.visit
     if self.objectiveVisit ~= visit then self.objectiveVisit, self.requestedObjectives = visit, {} end
-    self.requestedObjectives = self.requestedObjectives or {}
     for _, id in ipairs(ctx.missing) do
         if not self.requestedObjectives[id] and C_QuestLog and C_QuestLog.RequestLoadQuestByID then
             self.requestedObjectives[id] = true
             C_QuestLog.RequestLoadQuestByID(id)
         end
     end
-    return ctx.complete, ctx -- the synchronous scan can share this snapshot; each delayed action reads current state
+    return ctx.complete, ctx -- the scan shares this snapshot; each sale step asks for the facts again (see Context)
 end
 -- Your bags changing (as they do with every item sold) only changes which crates you hold: those are looked up again
 -- when next asked for, and the rest of the facts stay.
@@ -575,14 +580,13 @@ function S:Verdict(itemID, info, ctx, bag, slot)
     local item = self:Item(itemID)
     if not item or Needed(ctx, itemID, item.name) or ctx.sets[itemID] then return nil end
     if p.rxp and self:GuideStatus(itemID, ctx) == "needed" then return nil end
-    local kind, quality = item.kind, item.quality
+    local kind = item.kind
     -- Anything that opens (crates, sacks, chests) is opened, not sold; clams only go when chosen.
     if kind ~= "clams" and info and info.hasLoot then return nil end
     if kind == "equipment" then return self:GearVerdict(item, info, ctx, bag, slot) end
     -- Drinks only restore mana: without any, they're clutter at every level.
     if item.drink and p.drinks and self.NO_MANA[ctx.class] then kind = "drinks" end
-    -- Uncommon and better materials and consumables are yours to judge; recipes go up to uncommon.
-    if not p[kind] or quality > (kind == "recipes" and 2 or 1) then return nil end
+    if not p[kind] then return nil end
     local crates = ctx.crates
     if not crates then crates = self:CrateKinds(); ctx.crates = crates end
     if crates[kind] then return nil end
@@ -605,9 +609,9 @@ function S:GearVerdict(item, info, ctx, bag, slot)
     if not self:Usable(ctx.class, item) then
         if not p.gear then return nil end
         if quality <= 1 then return "gear" end
-        if quality ~= 2 or (p.professions ~= "none" and ctx.professions[ENCHANTING]) then return nil end
+        if p.professions ~= "none" and ctx.professions[ENCHANTING] then return nil end
         local bound = info and info.isBound
-        if not (bound and p.boundGreens or p.anyGreens) then return nil end
+        if not (bound and p.boundGreens or not bound and p.anyGreens) then return nil end
         return not (bound and bag and Tradeable(bag, slot)) and "gear" or nil
     end
     if quality > 1 then return nil end
@@ -624,19 +628,25 @@ function S:Keeps(itemID) return self.db.profile.keep[itemID] == true end
 -- With "at most 12" chosen, no more clutter than the vendor's Buyback tab holds goes in one visit.
 function S:Limit() return self.db.profile.buyback and 12 or nil end
 
--- The clutter-specific policy and unit price. VendorSale checks locks, exclusions and quest-item flags first.
+-- The clutter-specific policy and unit price. VendorSale checks locks, exclusions and quest-item flags first. With
+-- quests hidden (see Objectives) nothing sells, which a vendor visit's scan says once, if there's clutter to keep.
+local HIDDEN = "Clutter is kept while quests are under collapsed headers in your quest log, since what they need can't "
+    .. "be seen. Expand the headers to sell it."
 function S:SalePrice(info, bag, slot, ctx)
     if not info.quality or info.quality > 4 then return nil end
-    local itemID = info.itemID
+    local itemID, scan = info.itemID, ctx ~= nil
     ctx = ctx or self:Context()
     -- Guide steps may change without a game event; re-evaluate this item's guide decision at the action boundary.
     ctx.guided[itemID] = nil
     local category = self:Verdict(itemID, info, ctx, bag, slot)
     if not category then return nil end
+    if ctx.hidden then
+        if scan and not ctx.told then ctx.told = true; HST:Print(HIDDEN) end
+        return nil
+    end
+    -- Verdict only names items with a price: an item kept for its kind has one, and an Always sell item was just asked.
     local item = self:Item(itemID)
-    local price = item and item.price or select(11, ItemInfo(itemID)) or 0
-    if price <= 0 then return nil end
-    return price, category
+    return item and item.price or select(11, ItemInfo(itemID)), category
 end
 
 -- Says what sold, by category: "Sold 6 items you won't use for 1s 12c: cooking ingredients 3, gear your class can't
@@ -672,7 +682,7 @@ end
 -- Junk would take first (with it on), and bags you've told the game not to sell junk from, are left out.
 function S:FindClutter()
     local found, sale = {}, ns.VendorSale
-    local selected, _, eligible = sale:Find()
+    local selected, waiting, eligible = sale:Find()
     for _, item in ipairs(selected) do
         if item.seller == self then
             local info = C_Container.GetContainerItemInfo(item.bag, item.slot)
@@ -683,12 +693,15 @@ function S:FindClutter()
             end
         end
     end
-    return found, eligible[self] or 0
+    return found, eligible[self] or 0, waiting
 end
 
 -- Prints what your next vendor visit would sell, by category.
 function S:PrintClutter()
-    local found, eligible = self:FindClutter()
+    if not self:IsEnabled() then return HST:Print("Sell Clutter Automatically is off.") end
+    if self:Context(true).hidden then return HST:Print(HIDDEN) end
+    local found, eligible, waiting = self:FindClutter()
+    if waiting then return HST:Print("Your quest data is still loading. Try again in a moment.") end
     if #found == 0 then return HST:Print("Nothing in your bags counts as clutter right now.") end
     local total = 0
     for _, item in ipairs(found) do total = total + item.price * item.count end
@@ -769,22 +782,22 @@ local function TooltipSlot(tip, itemID)
 end
 
 S.TIP_COLOR, S.KEEP_COLOR = { 0.95, 0.6, 0.25 }, { 0.45, 0.8, 0.45 }
--- Adds the tooltip line for an item; true when one was added.
+-- Adds the tooltip line for an item, if it gets one.
 function S:TooltipLine(tip, itemID)
-    if IsSecret(itemID) or type(itemID) ~= "number" or not (self:IsEnabled() and self.db.profile.tooltip) then return false end
+    if IsSecret(itemID) or type(itemID) ~= "number" or not (self:IsEnabled() and self.db.profile.tooltip) then return end
     local c, text = self.KEEP_COLOR, "Never sold: on your Never sell list"
     if not self:Keeps(itemID) then
-        if not self.db.profile.sell[itemID] and not self:Item(itemID) then return false end
+        if not self.db.profile.sell[itemID] and not self:Item(itemID) then return end
         local info, bag, slot = TooltipSlot(tip, itemID)
         local ctx = self:Context()
         local category
         if info then
             local _
             _, category = ns.VendorSale:Price(self, info, bag, slot)
-        else
+        elseif not ctx.hidden then
             category = self:Verdict(itemID, nil, ctx)
         end
-        if not category then return false end
+        if not category then return end
         c, text = self.TIP_COLOR, (info and "Sold at vendors: " or "Vendor policy: ") .. self.CATEGORY[category].tip
         -- RestedXP's own line still says its guide uses the item.
         if category ~= "list" and self.db.profile.rxp and self:GuideStatus(itemID, ctx) == "done" then
@@ -792,25 +805,16 @@ function S:TooltipLine(tip, itemID)
         end
     end
     tip:AddLine(text, c[1], c[2], c[3], true)
-    return true
 end
 
--- Hooks can't be removed, so the line checks the module and setting each time. The tooltip data processor sizes the
--- tooltip after its hooks run; the older OnTooltipSetItem runs after, so the tooltip is shown again to fit the line.
+-- Hooks can't be removed, so the line checks the module and setting each time. The tooltip data processor (which
+-- fills item tooltips on both clients) sizes the tooltip after its hooks run.
 local function HookTooltips()
     if S.tooltipHooked then return end
     S.tooltipHooked = true
-    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
-        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tip, data)
-            if tip == GameTooltip and data then S:TooltipLine(tip, data.id) end
-        end)
-    elseif GameTooltip and GameTooltip.HookScript then
-        GameTooltip:HookScript("OnTooltipSetItem", function(tip)
-            local _, link = tip:GetItem()
-            local itemID = not IsSecret(link) and type(link) == "string" and tonumber(link:match("item:(%d+)"))
-            if itemID and S:TooltipLine(tip, itemID) then tip:Show() end
-        end)
-    end
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tip, data)
+        if tip == GameTooltip and data then S:TooltipLine(tip, data.id) end
+    end)
 end
 
 ---------------------------------------------------------------------------

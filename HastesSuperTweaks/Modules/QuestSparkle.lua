@@ -46,23 +46,9 @@ function Q.info.preview(frame)
     end)
 end
 
--- The option's value, or nil on a client without it. Internal options aren't returned to addons' GetCVar; the console's
--- list of them has them.
-local function Read()
-    local value = GetCVar and GetCVar(CVAR)
-    if value == nil and C_CVar and C_CVar.GetCVarInfo then
-        local ok, info = pcall(C_CVar.GetCVarInfo, CVAR)
-        if ok then value = info end
-    end
-    return value
-end
-
--- Sets the option, as /console sets it when the game refuses addons' SetCVar.
-local function Write(value)
-    local ok, done = pcall(SetCVar, CVAR, value)
-    if ok and done ~= false and Read() == value then return end
-    if ConsoleExec then pcall(ConsoleExec, CVAR .. " " .. value) end
-end
+-- The option's value (nil on a client without it), and setting it (see ns.ReadCVar and ns.WriteCVar).
+local function Read() return ns.ReadCVar(CVAR) end
+local function Write(value) ns.WriteCVar(CVAR, value) end
 
 -- Turns the option on, keeping (account-wide, as the option is) what it was before this first changed it.
 function Q:Apply()

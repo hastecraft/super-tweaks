@@ -36,7 +36,6 @@ Small quality-of-life modules for WoW Forever (1.60.1, interface 16001; the TOC 
 | Right-Click Guild Invite | Social | Invite players to your guild straight from the right-click menu on their name in chat (not shown for people already in your guild). |
 | Guild Message Popup | Social | Shows your guild's message of the day in the middle of the screen when you log in or when it changes. |
 | Chat Spam Filter | Social | Hides messages in trade, general and other public channels that match your word lists: gold selling, boosting, guild recruitment and words of your own. Whispers, group and guild chat, and your friends and guildmates, are never hidden. |
-| Flash Taskbar on Whisper | Social | Your WoW icon flashes on the taskbar when someone whispers you while you're tabbed out. |
 | Auto-Decline Battle.net Friend Requests | Auto-Decline | Turns down Battle.net friend requests and tells you who sent them. |
 | Auto-Decline Duels | Auto-Decline | Turns down duel requests, including duels to the death on Hardcore realms. You can let friends, guildmates or community members through. |
 | Auto-Decline Guild Charters | Auto-Decline | Turns down guild charters people ask you to sign. You can let friends, guildmates or community members through. |
@@ -68,7 +67,7 @@ Search is at the top, then every tweak by category. Click a category to open or 
 
 Every tweak with a switch to turn it on or off, filtered by All, On or Off. Pointing at one shows its description and preview on the right; clicking it opens its page.
 
-Tweaks with nothing to set (Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Skip NPC Chat, Quest Item Sparkle, Quest Reward Value, Right-Click Guild Invite, Flash Taskbar on Whisper, Auto-Decline Battle.net Friend Requests, Minimap Button, Hide Issue Reporter) have no page. They're just a switch, in the list and in the sidebar, and clicking them turns them on or off.
+Tweaks with nothing to set (Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Skip NPC Chat, Quest Item Sparkle, Quest Reward Value, Right-Click Guild Invite, Auto-Decline Battle.net Friend Requests, Minimap Button, Hide Issue Reporter) have no page. They're just a switch, in the list and in the sidebar, and clicking them turns them on or off.
 
 ### A tweak's page
 
@@ -84,27 +83,27 @@ Profiles lets you switch, create, copy, delete and reset profiles. Profiles hold
 
 ### Other details
 
-Settings that cannot apply are disabled. Font menus preview each font. A confirmation accepted after you switched profiles does nothing, since it was asked about the other profile. Profiles made on one character are listed on all of them. Closing and reopening the window returns to the page you had open. Changes take effect immediately; if one ever needs a UI reload, the bottom of the sidebar says so and offers a Reload UI button. The Loot Window's "Show on screen" shows its sample where the window opens, to drag it into place.
+Settings that cannot apply are disabled. Font menus preview each font. A confirmation accepted after you switched profiles does nothing, since it was asked about the other profile. Profiles made on one character are listed on all of them. Closing and reopening the window returns to the page you had open. Changes take effect immediately. The Loot Window's "Show on screen" shows its sample where the window opens, to drag it into place.
 
 ## Commands
 
-- `/hst` — settings window. `/hst help` — command list.
-- `/hst xp`, `/hst tooltip`, `/hst sct`, `/hst breath`, `/hst ranks`, `/hst macros`, `/hst mail`, `/hst clutter` — XP Tracker, Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Upgrade Spell Ranks, Consumable Macros, Mail Expiry & Alt List and Sell Clutter Automatically settings. Any module's internal name works too, for example `/hst guildmotd`.
-- `/hst train`, `/hst tracker`, `/hst rolls`, `/hst restock`, `/hst mailguard`, `/hst bags`, `/hst spam`, `/hst game` — Train All, Hide Quest Tracker, Movable Loot Rolls, Restock at Vendors, Mail Gold Guard, Bag Tweaks, Chat Spam Filter and Game Settings settings.
-- `/hst keep <item>`, `/hst sell <item>` — put an item on Sell Clutter's Never sell or Always sell list (shift-click it into the chat line); again takes it off. `/hst clutter list` — what Sell Clutter would sell right now.
-- `/hst sort` — clean up your bags (the game's Clean Up Bags).
+- `/hst`: settings window. `/hst help`: command list.
+- `/hst xp`, `/hst tooltip`, `/hst sct`, `/hst breath`, `/hst ranks`, `/hst macros`, `/hst mail`, `/hst clutter`: XP Tracker, Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Upgrade Spell Ranks, Consumable Macros, Mail Expiry & Alt List and Sell Clutter Automatically settings. Any module's internal name works too, for example `/hst guildmotd`.
+- `/hst train`, `/hst tracker`, `/hst rolls`, `/hst restock`, `/hst mailguard`, `/hst bags`, `/hst spam`, `/hst game`: Train All, Hide Quest Tracker, Movable Loot Rolls, Restock at Vendors, Mail Gold Guard, Bag Tweaks, Chat Spam Filter and Game Settings settings.
+- `/hst keep <item>`, `/hst sell <item>`: put an item on Sell Clutter's Never sell or Always sell list (shift-click it into the chat line); again takes it off. `/hst clutter list`: what Sell Clutter would sell right now.
+- `/hst sort`: clean up your bags (the game's Clean Up Bags).
 
 XP bar commands use `/hxp`:
 
-- `/hxp` — XP Tracker settings. `/hxp help` — command list.
-- `/hxp lock`, `/hxp unlock`, `/hxp center` — position the XP bar.
-- `/hxp preview` — sample XP data for styling the bar at any level.
-- `/hxp resetstats` — restart the XP/hour session.
-- `/hxp show`, `/hxp hide` — turn the XP Tracker on or off.
+- `/hxp`: XP Tracker settings. `/hxp help`: command list.
+- `/hxp lock`, `/hxp unlock`, `/hxp center`: position the XP bar.
+- `/hxp preview`: sample XP data for styling the bar at any level.
+- `/hxp resetstats`: restart the XP/hour session.
+- `/hxp show`, `/hxp hide`: turn the XP Tracker on or off.
 
 ## Installing
 
-`tools/install.py` (in the project, not the addon) stages the release, and installs and zips exactly the staged files. The installed folder is swapped for a verified copy, and put back if anything fails. WoW can stay open for an ordinary update; the installer ends by saying whether `/reload` is enough or a restart is needed (a changed TOC or XML include, or new or changed art).
+Unzip the release into your game's `Interface\AddOns` folder, so that you get `Interface\AddOns\HastesSuperTweaks`, then restart the game. Releases are on the project's GitHub page: https://github.com/hastecraft/super-tweaks
 
 ## Limits and edge cases
 

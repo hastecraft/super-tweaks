@@ -1,6 +1,7 @@
 -- Patch notes, newest first. The settings window shows them when the version beside its title is clicked, and a
 -- blinking dot there marks notes this account hasn't opened yet (unless New Patch Dot is off).
--- The newest entry's version must be the TOC's ## Version (AGENTS.md says when to add an entry and bump it).
+-- Written at release time from the merged pull requests (.claude/skills/release); pull requests leave this file
+-- alone. The newest entry's version must be the TOC's ## Version; tools/check.py checks it in CI.
 -- Write for players: what changed in game, naming tweaks as the settings window does. One line per change.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -12,40 +13,6 @@ local HST = ns.HST
 -- with every field but the text optional. A highlight is the same table, its title in the accent. Naming a module makes
 -- it a link to that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
-    {
-        version = "1.1.0", date = "2026-10-11",
-        summary = "Twelve new tweaks players asked for, from keeping gold sellers' mail out of Open All to a Train All "
-            .. "button, plus new options for Better Tooltips, Sell Junk Automatically and Mute Custom Sounds.",
-        highlights = {
-            { "Mail with gold from players who aren't your characters, friends or guildmates is marked, and Open All "
-                .. "leaves it, so gold a gold seller mailed you isn't taken by accident. Click the mark to send it back.",
-                title = "Mail Gold Guard", module = "MailGuard" },
-            { "A Train All button on trainers learns everything you can afford, and each level-up names the new spells "
-                .. "your class trainer has for you.", title = "Train All", module = "TrainAll" },
-            { "Drag the combined bags anywhere, see free slots without quivers and soul bags, and keep your Clean Up "
-                .. "direction.", title = "Bag Tweaks", module = "BagTweaks" },
-            { "A farther camera, nameplate distance, less weather, the action camera and the spell queue window, each "
-                .. "with a switch and kept at every login, and a backup of your Edit Mode layouts.",
-                title = "Game Settings", module = "GameSettings" },
-        },
-        new = {
-            { "Train All: a Train All button on trainers, and the new spells at your class trainer named when you level up.", module = "TrainAll" },
-            { "Quest Reward Value: the quest reward that sells for the most gets a gold coin and its price.", module = "QuestRewards" },
-            { "Hide Quest Tracker: hides the quest tracker in dungeons and raids, in battlegrounds, in combat, or always.", module = "QuestTracker" },
-            { "Movable Loot Rolls: move the Need, Greed and Pass rolls in Edit Mode, and size them.", module = "LootRolls" },
-            { "Restock at Vendors: buys your ammo, reagents and other listed items back up to the amounts you choose, and warns when your ammo runs low.", module = "Restock" },
-            { "Mail Gold Guard: marks mail with gold from strangers, keeps Open All from taking it, and sends it back with a click.", module = "MailGuard" },
-            { "Bag Tweaks: movable, scalable combined bags, a free-slot count without special bags, your Clean Up and new-item directions kept, and /hst sort.", module = "BagTweaks" },
-            { "Group Finder Whispers: while you're listed, whispers show the sender's class, level and race, with a list to invite them from.", module = "GroupFinderWhispers" },
-            { "Chat Spam Filter: hides gold selling, boosting and guild recruitment in public channels, with word lists you can edit.", module = "ChatFilter" },
-            { "Elite & Rare Markers: marks elite and rare mobs on nameplates, and says when a rare is near.", module = "NameplateMarkers" },
-            { "Error Message Filter: hides the red errors you choose, like Not enough rage, always or only in combat.", module = "ErrorFilter" },
-            { "Game Settings: console settings with a switch each, kept at every login, and an Edit Mode layout backup.", module = "GameSettings" },
-            { "Better Tooltips: tooltips at the mouse, a Target line, and item, spell and NPC IDs, on its new Extras page.", module = "Tooltip", path = { "extras" } },
-            { "Sell Junk Automatically: Sell All Junk without asking makes the vendor's Sell All Junk button skip its confirmation.", module = "SellJunk", setting = "skipConfirm" },
-            { "Mute Custom Sounds: switches to mute rain and weather, and the spell fizzle.", module = "MuteCustomSounds", setting = "weather" },
-        },
-    },
     {
         version = "1.0.0", date = "2026-10-10",
         summary = "First release. Small quality-of-life tweaks for WoW Forever in one settings window, written to use as little CPU and memory as they can.",

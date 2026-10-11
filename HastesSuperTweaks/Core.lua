@@ -30,6 +30,7 @@ HST.defaults = { global = { modules = { ["*"] = true } } }
 
 -- Chat output for the addon and its modules, prefixed with the addon title.
 local CHAT_PREFIX = "|cffffcc66" .. HST.title .. ":|r "
+ns.CHAT_PREFIX = CHAT_PREFIX
 function HST:Print(text, ...)
     text = tostring(text)
     for i = 1, select("#", ...) do text = text .. " " .. tostring((select(i, ...))) end
@@ -39,8 +40,7 @@ end
 -- Registers a feature module. info: name, category, order, summary (one short line for the settings list), description,
 -- and optionally examples (keys of settings the settings window shows as a sample),
 -- options (function returning an options group), preview (function drawing into a frame), icon (shown
--- when there is no preview), enabledByDefault (false to start off) and requiresReload (switching it
--- on or off only takes effect after a UI reload).
+-- when there is no preview) and enabledByDefault (false to start off).
 function HST:NewFeature(key, info, ...)
     local module = self:NewModule(key, ...)
     info.key = key
@@ -72,28 +72,9 @@ end
 function HST:SetFeatureEnabled(key, enabled)
     local module = self:GetModule(key)
     if module.info.unavailable then return end
-    local was = module:IsEnabled()
     self.db.global.modules[key] = enabled
     if enabled then module:Enable() else module:Disable() end
-    if module.info.requiresReload then self:ChangedUntilReload("module:" .. key, was, enabled) end
     self:RefreshSettings()
-end
-
--- Changes that only take effect after a UI reload, by key, with the value before the first change.
--- Modules mark themselves with info.requiresReload and settings with requiresReload = true; the
--- settings window then offers a reload. Changing a value back to what it was clears it.
-HST.pendingReload = {}
-function HST:ChangedUntilReload(key, before, after)
-    local pending = self.pendingReload[key]
-    if not pending then
-        if before ~= after then self.pendingReload[key] = { before = before } end
-    elseif pending.before == after then
-        self.pendingReload[key] = nil
-    end
-end
-
-function HST:NeedsReload()
-    return next(self.pendingReload) ~= nil
 end
 
 -- On this client UnitName("player") can return "Unknown" while addons load, and AceDB builds its
@@ -456,48 +437,28 @@ function ns.Listen(module, events, handler)
 end
 
 -- Runs fn(tooltip, data, unit) after GameTooltip is filled in for a unit, unit being the token the tooltip gives when
--- it names a unit that exists (else nil; data.guid may still say which). Hooks can't be removed, so fn checks the
+-- it names a unit that exists (else nil; data.guid may still say which). Both clients fill unit tooltips through the
+-- tooltip data processor, which fills a cleared tooltip before its hooks run and shows (and sizes) it after them, so
+-- lines added here are neither there already nor need a Show of their own. Hooks can't be removed, so fn checks the
 -- module state. Every fn runs from one hook, which asks the tooltip for its unit once (unit frames redraw their
 -- tooltip five times a second); as with the game's own hooks, an error in one doesn't stop the others. Callers
 -- register a frame after login, to run after other addons' login-time hooks.
-local unitTooltipHooks, legacyTooltipHooks = {}, false
-local Isolated = securecallfunction or function(fn, ...) return fn(...) end
+local unitTooltipHooks = {}
 local function OnUnitTooltip(tip, data)
     if tip ~= GameTooltip or (tip.IsForbidden and tip:IsForbidden()) then return end
     local ok, _, unit = pcall(tip.GetUnit, tip)
     if not ok or IsSecret(unit) or not unit or not UnitExists(unit) then unit = nil end
-    for i = 1, #unitTooltipHooks do Isolated(unitTooltipHooks[i], tip, data, unit) end
+    for i = 1, #unitTooltipHooks do securecallfunction(unitTooltipHooks[i], tip, data, unit) end
 end
 function ns.HookUnitTooltip(fn)
     unitTooltipHooks[#unitTooltipHooks + 1] = fn
-    if #unitTooltipHooks > 1 then return end
-    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
-        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnUnitTooltip)
-    else
-        legacyTooltipHooks = true
-        GameTooltip:HookScript("OnTooltipSetUnit", OnUnitTooltip)
-    end
+    if #unitTooltipHooks == 1 then TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnUnitTooltip) end
 end
 
--- Whether a unit tooltip already has a line a hook is about to add (its left text is `label`). The tooltip data
--- processor fills a cleared tooltip before its hooks run, so there the answer is always no and nothing is read; the
--- older OnTooltipSetUnit hook can run more than once for the same lines.
-function ns.TooltipHasLine(tip, label)
-    return legacyTooltipHooks and ns.FindTooltipLine(tip, label, true) ~= nil
-end
-
--- Resizes a tooltip to lines a unit tooltip hook added. The tooltip data processor shows (and sizes) the tooltip
--- right after its hooks run, so there a Show of our own would only lay it out twice; unit frames redraw their tooltip
--- five times a second. The older OnTooltipSetUnit hook runs after the tooltip was sized. A tooltip showing protected
--- content refuses a re-show.
-function ns.FitTooltip(tip)
-    if legacyTooltipHooks and tip:IsShown() then pcall(tip.Show, tip) end
-end
-
--- The first left-hand tooltip line after the title whose text contains `text` (equals it, with exact), and
--- that text. Lines holding secret text are skipped. Line names are built once per tooltip and index.
+-- The first left-hand tooltip line after the title whose text contains `text`, and that text. Lines holding secret
+-- text are skipped. Line names are built once per tooltip and index.
 local lineNames = {}
-function ns.FindTooltipLine(tip, text, exact)
+function ns.FindTooltipLine(tip, text)
     local prefix = tip:GetName()
     if not prefix then return nil end
     local names = lineNames[prefix]
@@ -507,7 +468,7 @@ function ns.FindTooltipLine(tip, text, exact)
         if not name then name = prefix .. "TextLeft" .. i; names[i] = name end
         local line = _G[name]
         local current = line and line:GetText()
-        if not IsSecret(current) and current and (current == text or not exact and current:find(text, 1, true)) then
+        if not IsSecret(current) and current and current:find(text, 1, true) then
             return line, current
         end
     end

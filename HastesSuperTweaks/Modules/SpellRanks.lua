@@ -106,6 +106,12 @@ local function RankOf(subtext)
     return tonumber(subtext:match("(%d+)"))
 end
 
+-- Whether a spellbook entry is a lower rank of its spell than the best (one without a rank number counts as lower).
+local function Lower(spell, spellID)
+    local rank = spell.rankOf[spellID]
+    return spellID ~= spell.best and not (rank and spell.rank and rank >= spell.rank)
+end
+
 -- Your spells by name: { best = spellID, rank = n, index = {spellID = spellbook index}, rankOf = {spellID = n} }.
 -- The best is the one the game doesn't call a lower rank, else the highest rank number, else the last one listed
 -- (the spellbook lists ranks lowest first).
@@ -194,22 +200,9 @@ function R:Report(changed, spells)
 end
 
 -- Applies the waiting upgrades now if the game allows it: out of combat, with nothing held on the cursor. Otherwise
--- they wait for combat to end, or look again shortly while you're holding something.
+-- they wait for combat to end (PLAYER_REGEN_ENABLED), or for the cursor to change (CURSOR_CHANGED).
 function R:Apply(spells)
-    if not next(self.pending) or not self:IsEnabled() then return end
-    if InCombatLockdown() then return end -- PLAYER_REGEN_ENABLED comes back here
-    if GetCursorInfo() then
-        if not self.retrying then
-            self.retrying = true
-            local generation = self.generation
-            C_Timer.After(1, function()
-                if self.generation ~= generation then return end
-                self.retrying = false
-                self:Apply()
-            end)
-        end
-        return
-    end
+    if not next(self.pending) or not self:IsEnabled() or InCombatLockdown() or GetCursorInfo() then return end
     local swaps = self.pending
     self.pending = {}
     spells = spells or self:Scan()
@@ -243,8 +236,7 @@ function R:Update()
                 self.pending[spell.previous] = best
             else
                 for spellID in pairs(spell.index) do
-                    local rank = spell.rankOf[spellID]
-                    if spellID ~= best and not (rank and spell.rank and rank >= spell.rank) then self.pending[spellID] = best end
+                    if Lower(spell, spellID) then self.pending[spellID] = best end
                 end
             end
             -- Upgraded once: the game repeating that you learned this rank (loading screens can) doesn't upgrade a
@@ -274,6 +266,12 @@ function R:QueueScan()
     end)
 end
 
+-- Upgrades that waited for combat to end or the cursor to be free.
+function R:Resume()
+    if self.upgradeAllPending then self:UpgradeAll(nil, true) end
+    self:Apply()
+end
+
 -- Every lower rank on your bars gets your highest rank now.
 function R:UpgradeAll(spells, deferred)
     if deferred and (InCombatLockdown() or GetCursorInfo()) then return end
@@ -284,9 +282,8 @@ function R:UpgradeAll(spells, deferred)
     for name, spell in pairs(spells) do
         if not spell.complete then waiting = true end
         for spellID in pairs(spell.index) do
-            local rank = spell.rankOf[spellID]
             self.nameOf[spellID] = name
-            if spell.complete and spellID ~= spell.best and not (rank and spell.rank and rank >= spell.rank) then swaps[spellID] = spell.best end
+            if spell.complete and Lower(spell, spellID) then swaps[spellID] = spell.best end
         end
     end
     self.upgradeAllPending = waiting
@@ -303,9 +300,11 @@ ns.Listen(R, { "SPELLS_CHANGED", "SPELL_TEXT_UPDATE", "LEARNED_SPELL_IN_TAB", "L
     "PLAYER_REGEN_ENABLED", "CURSOR_CHANGED" }, function(self, event, spellID)
     if event == "PLAYER_REGEN_ENABLED" or event == "CURSOR_CHANGED" then
         -- Our own spells passing through the cursor: the upgrade under way isn't started over for each button.
-        if self.swapping then return end
-        if self.upgradeAllPending then self:UpgradeAll(nil, true) end
-        return self:Apply()
+        if self.swapping or not (next(self.pending) or self.upgradeAllPending) then return end
+        -- The cursor says it changed in the middle of whatever changed it (another addon may be moving buttons):
+        -- buttons change once that's done.
+        if event == "CURSOR_CHANGED" then return C_Timer.After(0, function() self:Resume() end) end
+        return self:Resume()
     end
     if (event == "LEARNED_SPELL_IN_TAB" or event == "LEARNED_SPELL_IN_SKILL_LINE") and spellID then self.learned[spellID] = GetTime() end
     if next(self.learned) or self.upgradeAllPending then self:QueueScan() end
@@ -313,12 +312,12 @@ end)
 -- Turned on: what you know now is the starting point, so nothing already on your bars is changed.
 function R:OnListen()
     self.generation = (self.generation or 0) + 1
-    self.scanQueued, self.retrying, self.upgradeAllPending = false, false, false
+    self.scanQueued, self.upgradeAllPending = false, false
     self.pending, self.learned, self.nameOf, self.swapping = {}, {}, {}, false
     self.spells = self:Scan()
 end
 function R:OnUnlisten()
     self.generation = (self.generation or 0) + 1
-    self.scanQueued, self.retrying, self.upgradeAllPending = false, false, false
+    self.scanQueued, self.upgradeAllPending = false, false
     self.pending, self.learned = {}, {}
 end

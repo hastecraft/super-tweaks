@@ -153,18 +153,15 @@ end, "Queue")
 -- Items. What an item is doesn't change, so each is looked at once; items the game hasn't loaded yet are asked for
 -- and looked at again when they arrive.
 ---------------------------------------------------------------------------
-local function ItemInfo(itemID) return (C_Item and C_Item.GetItemInfo or GetItemInfo)(itemID) end
-local function ItemSpell(itemID) return (C_Item and C_Item.GetItemSpell or GetItemSpell)(itemID) end
-local function Usable(itemID) return ((C_Item and C_Item.IsUsableItem or IsUsableItem)(itemID)) end
+local ItemInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
+local ItemSpell = C_Item and C_Item.GetItemSpell or GetItemSpell
+local Usable = C_Item and C_Item.IsUsableItem or IsUsableItem
+local SpellName = C_Spell and C_Spell.GetSpellName or function(spellID) return (GetSpellInfo(spellID)) end
 -- Whether you can use an item. The game also says no for a while at times (while you're dead, for one), which would
 -- empty the macros, so an item it has allowed once stays allowed: what it guards for good (skill, level) only goes up.
 local function Allowed(item)
     if not item.usable and Usable(item.itemID) then item.usable = true end
     return item.usable
-end
-local function SpellName(spellID)
-    if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(spellID) end
-    return (GetSpellInfo(spellID))
 end
 
 local TooltipLines = ns.ItemTooltipLines
@@ -203,12 +200,10 @@ function M:Classify(itemID)
             local buff = SpellName(id)
             if buff then wellFed[#wellFed + 1] = buff:lower() end
         end
-        for _, text in ipairs(lines) do
-            if not ns.IsSecret(text) and type(text) == "string" then
-                if text == ITEM_CONJURED then item.conjured = true end
-                for _, buff in ipairs(wellFed) do
-                    if text:lower():find(buff, 1, true) then item.buff = true end
-                end
+        for _, text in ipairs(lines) do -- tooltip lines are never secret (see Core.lua)
+            if text == ITEM_CONJURED then item.conjured = true end
+            for _, buff in ipairs(wellFed) do
+                if text:lower():find(buff, 1, true) then item.buff = true end
             end
         end
     end
@@ -384,7 +379,6 @@ end
 
 -- Macros are ready once you're in the world. The first time is noted even while the module is off.
 local world = CreateFrame("Frame")
-M.world = world
 world:RegisterEvent("PLAYER_ENTERING_WORLD")
 world:SetScript("OnEvent", function(frame)
     frame:UnregisterAllEvents()
