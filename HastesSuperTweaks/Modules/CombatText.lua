@@ -941,6 +941,8 @@ function S:Alert(f, spell)
         f.spell = self:ReactiveLitUp()
         f.unmatched = f.spell == nil
     end
+    -- Your casts are listened to only while an alert may need taking down (see S:OnCast).
+    if p.reactiveHide and (f.spell or f.unmatched) then self.events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player") end
     if p.reactiveOnce and f.spell then
         local now = GetTime()
         for _, other in ipairs(live) do
@@ -955,12 +957,13 @@ end
 -- abilities above is used and no alert is known to be its own, the oldest alert whose ability couldn't be told goes.
 S.USED_CHECK, S.VANISH = 0.2, 0.15
 function S:OnCast(spellID)
-    if not self.db.profile.reactiveHide or IsSecret(spellID) then return end
+    if IsSecret(spellID) then return end
     local alert
     for _, f in ipairs(live) do
         if f.spell or f.unmatched then alert = true; break end
     end
-    if not alert then return end
+    -- None left to take down: casts go unheard until another alert shows.
+    if not alert then return self.events:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED") end
     local name = SpellName(spellID)
     if not name then return end
     C_Timer.After(self.USED_CHECK, function()
@@ -1134,7 +1137,6 @@ function S:UpdateEvents()
     if p.lowHealth then Register(general, "UNIT_HEALTH", "player") end
     if p.lowMana or p.comboPoints then Register(general, "UNIT_POWER_UPDATE", "player") end
     if p.skills then Register(general, "CHAT_MSG_SKILL") end
-    if p.reactives and p.reactiveHide then Register(general, "UNIT_SPELLCAST_SUCCEEDED", "player") end
     if Taking(p) and p.inPet then Register(pet, "UNIT_COMBAT", "pet") end
     if p.enemyMode == "NAMEPLATE" then
         Register(general, "NAME_PLATE_UNIT_ADDED")
