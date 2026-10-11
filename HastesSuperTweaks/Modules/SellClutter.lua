@@ -641,7 +641,7 @@ function S:SalePrice(info, bag, slot, ctx)
     local category = self:Verdict(itemID, info, ctx, bag, slot)
     if not category then return nil end
     if ctx.hidden then
-        if scan and not ctx.told then ctx.told = true; HST:Print(HIDDEN) end
+        if scan then ns.VendorSale:TellOnce(HIDDEN) end
         return nil
     end
     -- Verdict only names items with a price: an item kept for its kind has one, and an Always sell item was just asked.

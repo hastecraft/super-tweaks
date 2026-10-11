@@ -717,7 +717,15 @@ function Sale:Open()
 end
 
 -- The vendor closed.
-function Sale:Close() self.visit = (self.visit or 0) + 1 end
+function Sale:Close() self.visit, self.told = (self.visit or 0) + 1, nil end
+
+-- Prints a notice once per vendor visit, however many scans (the sale's, a repair short of gold) come to it.
+function Sale:TellOnce(text)
+    self.told = self.told or {}
+    if self.told[text] then return end
+    self.told[text] = true
+    HST:Print(text)
+end
 
 -- A selling module was turned off. With none left on the sale stops, since MERCHANT_CLOSED no longer arrives; otherwise
 -- that module's items are skipped when their turn comes.
