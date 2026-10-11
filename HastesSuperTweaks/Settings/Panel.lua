@@ -3019,7 +3019,8 @@ function P:Refresh()
     self:RefreshReload()
     if self.mode == "modules" or self.mode == "search" then
         self:RefreshRows()
-        if self.mode == "modules" and self.detailModule and not self.detail.result then self:ShowDetail(self.detailModule) end
+        -- The details pane's button says what it will do (Turn on, Turn off), so it follows the module's state.
+        if self.detailModule and not self.detail.result then self:ShowDetail(self.detailModule) end
         self:PaintNav()
     else
         if self.view == "profiles" then self.pageHeader.crumb:SetText("Active profile: " .. HST.db:GetCurrentProfile()) end
