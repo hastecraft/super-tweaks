@@ -229,7 +229,7 @@ function J:OnListen()
 end
 
 Block("DeclineCharters", {
-    name = "Auto-Decline Guild Charters", category = "decline", order = 3,
+    name = "Auto-Decline Guild Charters", category = "decline", order = 3, enabledByDefault = false,
     summary = "Turns down requests to sign guild charters.", examples = { { "trustFriends", "Let friends through" }, { "trustGuild", "Let guild members through" }, { "trustCommunities", "Let community members through" } },
     description = "Turns down guild charters people ask you to sign. You can let friends, guildmates or community members through.",
     preview = Declined("Interface\\Icons\\INV_Misc_Note_01", "Gankalot asks you to sign a charter for <Gank Squad>.",

@@ -2047,10 +2047,100 @@ function P:ListHeader(key, text)
     return header
 end
 
--- Places category headers and module rows in the list, which is self.listHeight high. Rows are reused in order, and
--- a row that stays shown isn't hidden first: showing a row runs its switch's OnShow work.
-function P:LayoutModules(modules)
+-- The welcome card over the full list until it's put away: what starts on, how the list works, and the starting
+-- points (HST.startingPoints). Built the first time it shows.
+local WELCOME_PAD = 14
+
+function P:CloseWelcome()
+    HST.db.global.welcomed = true
+    self.welcome:Hide()
+    self:ShowModules()
+end
+
+function P:WelcomeCard()
+    local card = self.welcome
+    if card then return card end
+    card = W.Card(self.list.child)
+    self.welcome = card
+    card.heading = W.Text(card, "GameFontNormalLarge", C.accent)
+    card.heading:SetPoint("TOPLEFT", WELCOME_PAD, -WELCOME_PAD)
+    card.heading:SetText("Welcome to " .. HST.title)
+    card.text = W.Text(card, "GameFontHighlight", C.body)
+    card.text:SetPoint("TOPLEFT", card.heading, "BOTTOMLEFT", 0, -8)
+    card.text:SetPoint("RIGHT", -WELCOME_PAD, 0)
+    card.text:SetSpacing(3)
+    card.text:SetText("Tweaks that show you more, like the XP bar and better tooltips, start on. Tweaks that act for you, "
+        .. "like selling, accepting and declining, start off. Point at a tweak to see what it does, and click its switch "
+        .. "to turn it on or off.")
+    local keep = W.Button(card, "Keep these", "primary")
+    keep:Fit(110)
+    keep:SetScript("OnClick", function() self:CloseWelcome() end)
+    card.buttons = { keep }
+    for _, point in ipairs(HST.startingPoints) do
+        local b = W.Button(card, point.name)
+        b:Fit(110)
+        card.buttons[#card.buttons + 1] = b
+        b.tipTitle = point.name
+        if point.on then
+            local names = {}
+            for _, key in ipairs(point.on) do
+                local module = HST:GetModule(key, true)
+                if module and not module.info.unavailable then names[#names + 1] = module.info.name end
+            end
+            b.tipText = point.tip .. " " .. table.concat(names, ", ") .. "."
+        else
+            b.tipText = point.tip
+        end
+        b:SetScript("OnClick", function()
+            local function apply()
+                HST:ApplyStartingPoint(point)
+                self:CloseWelcome()
+            end
+            if point.confirm then
+                StaticPopup_Show("HASTES_SUPER_TWEAKS_CONFIRM", point.confirm, nil, apply)
+            else
+                apply()
+            end
+        end)
+    end
+    return card
+end
+
+-- Places the welcome card at the top of the list, the given width, its buttons wrapping onto more lines when they
+-- don't fit on one; returns the height it takes, gap included.
+function P:LayoutWelcome(width)
+    local card = self:WelcomeCard()
+    if card.width == width and card:IsShown() then return card.taken end
+    card.width = width
+    card:ClearAllPoints()
+    card:SetPoint("TOPLEFT")
+    card:SetWidth(width)
+    card.text:SetWidth(width - WELCOME_PAD * 2)
+    local y = math.ceil(WELCOME_PAD + card.heading:GetStringHeight() + 8 + card.text:GetStringHeight() + 14)
+    local x, room = WELCOME_PAD, width - WELCOME_PAD
+    for _, b in ipairs(card.buttons) do
+        if x > WELCOME_PAD and x + b:GetWidth() > room then x, y = WELCOME_PAD, y + 26 + 8 end
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", x, -y)
+        x = x + b:GetWidth() + 8
+    end
+    local height = y + 26 + WELCOME_PAD
+    card:SetHeight(height)
+    card:Show()
+    card.taken = height + 12
+    return card.taken
+end
+
+-- Places category headers and module rows in the list, which is self.listHeight high, under the welcome card when
+-- welcome is set. Rows are reused in order, and a row that stays shown isn't hidden first: showing a row runs its
+-- switch's OnShow work.
+function P:LayoutModules(modules, welcome)
     local y, used = 0, 0
+    if welcome then
+        y = self:LayoutWelcome(self.listWidth)
+    elseif self.welcome then
+        self.welcome:Hide()
+    end
     for _, header in pairs(self.headers) do header:Hide() end
     -- A search's arrow-key highlight goes with it (P:PaintCursor draws it again when a search lays rows out).
     for _, row in ipairs(self.rows) do row.cursor:Hide() end
@@ -2129,7 +2219,7 @@ function P:ShowModules()
     view.title:SetText("Tweaks")
     self:ListTop(false)
     for key, chip in pairs(self.filters) do chip:SetSelected(key == self.filter) end
-    self:LayoutModules(shown)
+    self:LayoutModules(shown, self.filter == "all" and not HST.db.global.welcomed)
     for _, row in ipairs(self.results) do row:Hide() end
     if self.moreResults then self.moreResults:Hide() end
     self:RefreshRows()

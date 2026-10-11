@@ -69,12 +69,66 @@ function HST:Features()
     return list
 end
 
-function HST:SetFeatureEnabled(key, enabled)
+function HST:SetFeatureEnabled(key, enabled, batch)
     local module = self:GetModule(key)
     if module.info.unavailable then return end
     self.db.global.modules[key] = enabled
     if enabled then module:Enable() else module:Disable() end
+    if not batch then self:RefreshSettings() end
+end
+
+-- Starting points the settings window's welcome card offers: tweaks to turn on (on), or every tweak off (allOff).
+HST.startingPoints = {
+    { name = "Add the leveling set", tip = "Also turns on the tweaks that save time while leveling:",
+        on = { "AutoQuests", "AutoGossip", "SellJunk", "AutoRepair", "FastLoot", "SpellRanks", "AutoBags" } },
+    { name = "Start with all off", tip = "Turns every tweak off, so you can pick the ones you want from the list.",
+        allOff = true, confirm = "Turn every tweak off? You can turn the ones you want back on from the list." },
+}
+
+-- Applies a starting point and says in chat what it changed.
+function HST:ApplyStartingPoint(point)
+    local changed, wanted = {}, {}
+    for _, key in ipairs(point.on or {}) do wanted[key] = true end
+    for _, module in ipairs(self:Features()) do
+        local key = module:GetName()
+        local want
+        if point.allOff then want = false else want = wanted[key] end
+        if want ~= nil and want ~= module:IsEnabled() and not module.info.unavailable then
+            self:SetFeatureEnabled(key, want, true)
+            changed[#changed + 1] = module.info.name
+        end
+    end
     self:RefreshSettings()
+    if point.allOff then
+        self:Print("Every tweak is off. Turn on the ones you want with /hst.")
+    elseif #changed > 0 then
+        self:Print("Turned on " .. table.concat(changed, ", ") .. ".")
+    end
+end
+
+-- How many tweaks are on, of those this client can use.
+function HST:CountEnabled()
+    local on, total = 0, 0
+    for _, module in ipairs(self:Features()) do
+        if not module.info.unavailable then
+            total = total + 1
+            if module:IsEnabled() then on = on + 1 end
+        end
+    end
+    return on, total
+end
+
+-- The first time this account logs in with the addon, one chat line says what's on and where to choose.
+function HST:Introduce()
+    local global = self.db.global
+    if global.introduced then return end
+    global.introduced = true
+    C_Timer.After(5, function()
+        local on, total = self:CountEnabled()
+        local minimap = self:GetModule("MinimapButton", true)
+        self:Print(on .. " of " .. total .. " tweaks are on. Type /hst" .. (minimap and minimap:IsEnabled() and " or click the minimap button" or "")
+            .. " to see what each one does and choose yours.")
+    end)
 end
 
 -- On this client UnitName("player") can return "Unknown" while addons load, and AceDB builds its
@@ -270,6 +324,7 @@ function HST:OnEnable()
         -- How this session entered the world, for modules turned on later (they missed the event).
         self.worldEntry = { initial = initial and true or false, reload = reload and true or false }
         self.events:UnregisterAllEvents()
+        self:Introduce()
     end)
 end
 
