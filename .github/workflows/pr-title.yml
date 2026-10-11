@@ -23,7 +23,7 @@ jobs:
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
-          pattern='^(feat|fix|perf|refactor|docs|ci|build|chore|revert)(\([a-z0-9]+(-[a-z0-9]+)*\))?!?: [^ ].*[^.]$'
+          pattern='^(feat|fix|perf|refactor|docs|ci|build|chore|revert)(\([a-z0-9]+(-[a-z0-9]+)*\))?!?: [^ ]'
           if printf '%s' "$TITLE" | grep -Eq "$pattern"; then
             echo "Title OK: $TITLE"
           else
