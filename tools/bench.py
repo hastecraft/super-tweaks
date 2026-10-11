@@ -314,9 +314,6 @@ Section('Guild Message Popup', function()
 end)
 
 Section('Social', function()
-    Measure('Whisper received: taskbar flash', 300, function()
-        Send('WhisperFlash', 'CHAT_MSG_WHISPER', Chat('Deadmines run?', 'Thrall-TestRealm'))
-    end)
     local context = { name = 'Buddy', server = 'TestRealm' }
     Measure('Player name menu: Guild Invite added', 300, function()
         CallIn(MENU_HOOKS.MENU_UNIT_FRIEND, nil, MENU_ROOT, context)

@@ -11,7 +11,6 @@ local X = HST:NewFeature("XPTracker", {
 })
 ns.XPTracker = X
 function X:Print(...) HST:Print(...) end
-X.LSM = HST.LSM
 local WHITE = ns.WHITE
 local min, max, floor = math.min, math.max, math.floor
 
@@ -53,9 +52,6 @@ X.defaults.profile.texts.total.enabled = false
 X.RATE_AFTER = 60
 local function NewSession() return { seconds = 0, gained = 0 } end
 
--- Font flags for an outline setting: EUI follows EllesmereUI's outline (an outline without it).
-X.Outline = ns.OutlineFlags
-
 function X:FormatNumber(value)
     value = max(0, tonumber(value) or 0)
     if self.db.profile.compact then return ns.ShortNumber(value) end
@@ -67,12 +63,6 @@ function X:FormatTime(seconds)
     seconds = max(0, floor(seconds))
     if seconds >= 3600 then return string.format("%dh %02dm", floor(seconds / 3600), floor(seconds / 60) % 60) end
     return string.format("%dm %02ds", floor(seconds / 60), seconds % 60)
-end
-
-function X:CopyTable(source)
-    local copy = {}
-    for key, value in pairs(source) do copy[key] = type(value) == "table" and self:CopyTable(value) or value end
-    return copy
 end
 
 function X:ResetSession()
@@ -106,7 +96,7 @@ end
 
 function X:UpdateQuestXP()
     -- Only scan on quest changes. Never change the user's selected quest.
-    local Q = C_QuestLog or {}
+    local Q = C_QuestLog
     local count = Q.GetNumQuestLogEntries or GetNumQuestLogEntries
     -- Rewards come from ns.QuestRewardXP, as in the quest log; one that's unknown makes the total unknown.
     local total, available, estimated = 0, count ~= nil, false
@@ -116,10 +106,7 @@ function X:UpdateQuestXP()
             if Q.GetQuestIDForLogIndex then
                 -- Just the quest's ID (none for headers), without the table GetInfo makes for every entry.
                 id = Q.GetQuestIDForLogIndex(i)
-            elseif Q.GetInfo then
-                local info = Q.GetInfo(i)
-                if info then id, header = info.questID, info.isHeader end
-            elseif GetQuestLogTitle then
+            elseif GetQuestLogTitle then -- Classic Era
                 local _, _, _, h, _, c, _, questID = GetQuestLogTitle(i)
                 id, header, complete = questID, h, c == 1
             end
@@ -346,7 +333,7 @@ end
 function X:StyleLabel(fontString, t, p, anchor)
     local font = ns.Media("font", t.font ~= "" and t.font or p.font,
         t.fontPath ~= "" and t.fontPath or (t.font == "" and p.fontPath or ""))
-    local flags = X.Outline(t.outline == "INHERIT" and p.outline or t.outline)
+    local flags = ns.OutlineFlags(t.outline == "INHERIT" and p.outline or t.outline)
     -- Whole sizes keep text sharp at a pixel-perfect UI scale.
     local size = max(1, floor(t.size * p.textScale + 0.5))
     ns.SetFont(fontString, font, size, flags)
@@ -452,7 +439,7 @@ function X:Render(sameContent)
     if self.questDirty then self.questDirty = false; self:UpdateQuestXP() end
     self:GetState()
     self:DrawTexts()
-    self:DrawBars(state)
+    self:DrawBars()
     -- The tooltip follows the readouts while you point at the bar.
     if self.hovered and GameTooltip:IsOwned(self.frame) then self:ShowTooltip(true) end
 end
@@ -484,7 +471,7 @@ function X:RenderTimes()
     end
     if self:TimeTokens(self.timedTokens) then self:DrawTexts(true) end
     -- What the bars show only changes with a full redraw; a tick draws them just until the frame has reported its size.
-    if not ((drawn.width or 0) > 0 and (drawn.height or 0) > 0) then self:DrawBars(state) end
+    if not ((drawn.width or 0) > 0 and (drawn.height or 0) > 0) then self:DrawBars() end
 end
 
 -- Places a projection's bar over what's left after start (a fraction of the XP bar) and fills amount of the whole
@@ -505,7 +492,7 @@ end
 -- Fills and the spark: XP, then rested right after it as the game's own bar shows it, then completed quests in
 -- what's left of the level. Most refreshes only change the time readouts, so the bars are redrawn only when what they show
 -- changed; Apply (size, orientation, colors, profile) clears the record.
-function X:DrawBars(state)
+function X:DrawBars()
     local p = self.db.profile
     local cap = max(1, state.cap)
     local xp = state.atMax and 1 or min(1, state.xp / cap)
@@ -559,30 +546,30 @@ function X:ShowTooltip(fresh)
     GameTooltip:Show()
 end
 
--- Blizzard's XP bar, as regions to fade out. This client keeps it in the status bar containers at the bottom of the
+-- Blizzard's XP bar, as regions to fade out. Both clients keep it in the status bar containers at the bottom of the
 -- screen (StatusTrackingBarManager.barContainers), each holding one bar of each kind: the Experience one is faded,
--- plus the frame and dividers of a container while it is the bar that container shows. Reputation and honor bars
--- stay. Older clients have the classic XP bar frames instead.
-local LEGACY_XP_BARS = { "MainMenuExpBar", "ExhaustionLevelFillBar", "ExperienceBar" }
+-- plus a container's frame art while it is the bar that container shows (Forever's frame and dividers, Classic Era's
+-- two sets of border textures, of which the game shows one). Reputation and honor bars stay.
+local NO_ART = {}
 function X:BlizzardXPRegions()
     local regions = {}
     local manager, kinds = StatusTrackingBarManager, StatusTrackingBarInfo and StatusTrackingBarInfo.BarsEnum
     local experience = kinds and kinds.Experience
-    if manager and manager.barContainers and experience then
-        for _, container in ipairs(manager.barContainers) do
-            local bar = container.bars and container.bars[experience]
-            -- The rested marker is a button of its own, with the same tooltip.
-            if bar then regions[#regions + 1] = bar; regions[#regions + 1] = bar.ExhaustionTick end
-            if container.shownBarIndex == experience then
-                regions[#regions + 1] = container.BarFrameTexture
-                local dividers = container.HorizontalDividersPool
-                if dividers and dividers.EnumerateActive then
-                    for divider in dividers:EnumerateActive() do regions[#regions + 1] = divider end
-                end
+    if not (manager and manager.barContainers and experience) then return regions end
+    for _, container in ipairs(manager.barContainers) do
+        local bar = container.bars and container.bars[experience]
+        -- The rested marker is a button of its own, with the same tooltip.
+        if bar then regions[#regions + 1] = bar; regions[#regions + 1] = bar.ExhaustionTick end
+        if container.shownBarIndex == experience then
+            regions[#regions + 1] = container.BarFrameTexture
+            local dividers = container.HorizontalDividersPool
+            if dividers and dividers.EnumerateActive then
+                for divider in dividers:EnumerateActive() do regions[#regions + 1] = divider end
             end
+            for _, art in ipairs(container.MainMenuBarTextures or NO_ART) do regions[#regions + 1] = art end
+            for _, art in ipairs(container.StandaloneTextures or NO_ART) do regions[#regions + 1] = art end
         end
     end
-    for _, name in ipairs(LEGACY_XP_BARS) do regions[#regions + 1] = _G[name] end
     return regions
 end
 
@@ -661,9 +648,10 @@ function X:OnInitialize()
     ns.OnProfile(self, "Apply")
     ns.LazyOptions(self, self.BuildOptions)
     self.info.preview = function(frame) return self:DrawPreview(frame) end
-    -- Reward data a quest was waiting for (see ns.QuestRewardXP) changes the total of completed quests.
+    -- Reward data a quest was waiting for (see ns.QuestRewardXP) changes the total of completed quests, while one of
+    -- them has no known reward: data for others (the quest log asks about every quest it shows) changes nothing.
     ns.OnQuestRewardData(function()
-        if self:IsEnabled() then self.questDirty = true; self:Render() end
+        if self:IsEnabled() and self.questAvailable == false then self.questDirty = true; self:Render() end
     end)
     local function run(fn) return function() fn(); HST:RefreshSettings() end end
     local commands = HST.xpCommands
@@ -680,11 +668,11 @@ function X:OnInitialize()
     commands.hide = function() HST:SetFeatureEnabled("XPTracker", false) end
 end
 
--- Events a client lacks are skipped (EDIT_MODE_LAYOUTS_UPDATED needs Edit Mode). The last two say the level cap changed,
--- which the maximum level rule and the bar's "MAX LEVEL" depend on.
+-- Events a client lacks are skipped. The last two say the level cap changed, which the maximum level rule and the bar's
+-- "MAX LEVEL" depend on. Edit Mode switching layouts is followed through its UpdateLayoutInfo (see X:HookLayouts).
 ns.Listen(X, { "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "UPDATE_EXHAUSTION", "QUEST_LOG_UPDATE", "PLAYER_ENTERING_WORLD",
-    "ZONE_CHANGED_NEW_AREA", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "TIME_PLAYED_MSG", "EDIT_MODE_LAYOUTS_UPDATED",
-    "ENABLE_XP_GAIN", "DISABLE_XP_GAIN", "PLAYER_MAX_LEVEL_UPDATE", "UPDATE_EXPANSION_LEVEL" }, function(self, event, ...)
+    "ZONE_CHANGED_NEW_AREA", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "TIME_PLAYED_MSG", "ENABLE_XP_GAIN",
+    "DISABLE_XP_GAIN", "PLAYER_MAX_LEVEL_UPDATE", "UPDATE_EXPANSION_LEVEL" }, function(self, event, ...)
     if event == "PLAYER_XP_UPDATE" or event == "PLAYER_LEVEL_UP" then
         if event == "PLAYER_XP_UPDATE" and (...) ~= "player" then return end
         -- Read one settled snapshot after the XP and level notifications.
@@ -693,9 +681,6 @@ ns.Listen(X, { "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "UPDATE_EXHAUSTION", "QUES
     elseif event == "QUEST_LOG_UPDATE" then
         self.questDirty = true
         return
-    elseif event == "EDIT_MODE_LAYOUTS_UPDATED" then
-        -- Switching layouts moves the bar to that layout's position.
-        return self:PlaceBar()
     elseif event == "TIME_PLAYED_MSG" then
         -- Written under the real character, known by now, never the placeholder it may have loaded as.
         HST:EnsureCharacterKey()
@@ -729,7 +714,7 @@ function X:OnListen()
     self:StartTicker()
     self:UpdateEditMode()
     self:HookLayouts()
-    self.LSM.RegisterCallback(self, "LibSharedMedia_Registered", function(_, kind, name)
+    HST.LSM.RegisterCallback(self, "LibSharedMedia_Registered", function(_, kind, name)
         if self:UsesMedia(kind, name) then self:Apply() end
     end)
     -- Turned on after logging in: nothing counted while it was off, so ask now. At login it asks once in the world.
@@ -752,9 +737,9 @@ function X:Greet()
     if not self.db.profile.locked then self:Print("XP bar unlocked: drag to move, then /hxp lock. /hxp opens settings.") end
 end
 
--- The game can switch Edit Mode layouts without saying so (a specialization change, an override layout); it redraws
--- them through UpdateLayoutInfo, and the bar follows to that layout's position. Hooks can't be removed; this one
--- checks the module state.
+-- Edit Mode redraws its layouts through UpdateLayoutInfo, both on its layouts event and when the game switches them
+-- without saying so (a specialization change, an override layout), and the bar follows to that layout's position.
+-- Hooks can't be removed; this one checks the module state.
 function X:HookLayouts()
     local manager = EditModeManagerFrame
     if self.layoutsHooked or not (manager and manager.UpdateLayoutInfo and hooksecurefunc) then return end
@@ -826,7 +811,7 @@ function X:OnUnlisten()
         self:SampleXP()
     end
     if self.ticker then self.ticker:Cancel(); self.ticker = nil end
-    self.LSM.UnregisterCallback(self, "LibSharedMedia_Registered")
+    HST.LSM.UnregisterCallback(self, "LibSharedMedia_Registered")
     self.preview, self.hovered, self.moving = false, false, false
     if self.frame then
         ns.Widgets.HideTooltip(self.frame)

@@ -131,7 +131,8 @@ function M:CreateButton()
         GameTooltip:Hide()
     end)
     button:SetScript("OnDragStop", function(b) b:SetScript("OnUpdate", nil) end)
-    -- Hidden mid-drag (the minimap or the whole UI hidden, e.g. Alt+Z): a hidden button gets no OnDragStop.
+    -- Hidden mid-drag (turned off with a middle-click, or the minimap or the whole UI hidden, e.g. Alt+Z): a hidden
+    -- button gets no OnDragStop.
     button:SetScript("OnHide", function(b) b:SetScript("OnUpdate", nil) end)
     button:SetScript("OnEnter", function(b)
         GameTooltip:SetOwner(b, "ANCHOR_LEFT")
@@ -150,8 +151,5 @@ function M:OnEnable()
 end
 
 function M:OnDisable()
-    if not self.button then return end
-    -- Turned off mid-drag (middle-click while dragging): a hidden button gets no OnDragStop.
-    self.button:SetScript("OnUpdate", nil)
-    self.button:Hide()
+    if self.button then self.button:Hide() end
 end

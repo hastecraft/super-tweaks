@@ -441,6 +441,9 @@ UIParent = CreateFrame('Frame'); UIParent:SetSize(1920, 1080)
 Minimap = CreateFrame('Frame', nil, UIParent); Minimap:SetSize(140, 140)
 GameTooltip = CreateFrame('Frame')
 function GameTooltip:SetText(text) self.text = text end
+-- Both clients fill tooltips through the tooltip data processor. Runtimes without the tooltip fixtures drop its hooks.
+Enum = { TooltipDataType = { Item = 0, Unit = 2 } }
+TooltipDataProcessor = { AddTooltipPostCall = function() end }
 DEFAULT_CHAT_FRAME = CreateFrame('Frame')
 -- The game's font objects the addon reads its default fonts from.
 for _, name in ipairs({ 'GameFontNormal', 'GameFontHighlight', 'CombatTextFont' }) do CreateFrame('Font', name) end

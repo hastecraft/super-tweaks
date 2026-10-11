@@ -218,7 +218,7 @@ function X:BuildOptions()
             enabled = toggle("enabled", "Show", 1, nil, key),
             reset = { type = "execute", name = "Reset label", order = 2, confirm = true,
                 confirmText = "Restore this label's default text, font and position?",
-                func = function() X.db.profile.texts[key] = X:CopyTable(X.defaults.profile.texts[key]); X:Apply() end },
+                func = function() X.db.profile.texts[key] = CopyTable(X.defaults.profile.texts[key]); X:Apply() end },
             template = option("input", "template", "Text", 3, { width = "full", desc = TOKENS, disabled = hidden }, key),
             font = section("Font", 4, {
                 -- An option's own disabled replaces its group's, so repeat the label check here.
@@ -310,7 +310,7 @@ function X:DrawPreview(frame)
     end
     local font = ns.Media("font", p.font, p.fontPath)
     for _, fs in ipairs(v.labels) do
-        ns.SetFont(fs, font, 11, X.Outline(p.outline))
+        ns.SetFont(fs, font, 11, ns.OutlineFlags(p.outline))
         fs:SetTextColor(0.93, 0.95, 1)
     end
     v.level:SetPoint("LEFT", 6, 0); v.level:SetText("Lv 32")

@@ -73,8 +73,8 @@ local function InventorySlot(bag)
     return slot
 end
 local function EquippedBag(bag) return GetInventoryItemID("player", InventorySlot(bag)) end
-local function ItemInfo(itemID) return (C_Item and C_Item.GetItemInfo or GetItemInfo)(itemID) end
-local function ItemInfoInstant(itemID) return (C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant)(itemID) end
+local ItemInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
+local ItemInfoInstant = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
 
 -- What items are doesn't change, so each is looked at once: whether it's a plain bag (not a quiver, ammo pouch, soul
 -- bag or profession bag), and how many slots it has.

@@ -44,7 +44,7 @@ The addon's promise is minimal performance impact: CPU per event and frame, garb
 - Many APIs return secret values (hidden values) under restrictions, for example in dungeons and raids. Call `ns.IsSecret(x)` before any truthiness test, comparison or indexing of such a value: even `x and not IsSecret(x)` already errors. `string.format` with a secret argument returns a secret string. Nothing checks this automatically, so review the order by hand.
 - The combat log is closed to addons on Forever. Combat features use `UNIT_COMBAT` and `COMBAT_TEXT_UPDATE`.
 - Tell Era and Forever apart by data, not `WOW_PROJECT_ID`: Era files nearly all materials as Trade Goods 7/0 and consumables as 0/0, and Forever files them by kind. `select(7, GetItemInfoInstant(2589))` is 0 on Era and 5 on Forever.
-- Before building a tweak, check that the game doesn't already do it. For example, Forever already flashes the taskbar on whispers, has Open All mail, shows sell prices, and can sell all junk.
+- Before building a tweak, check that the game doesn't already do it. For example, the game already flashes the taskbar on whispers, has Open All mail, shows sell prices, and can sell all junk.
 - Lua errors the game hides are logged with their stacks in the game's `Logs\General.log`.
 
 ## Releases (maintainers)

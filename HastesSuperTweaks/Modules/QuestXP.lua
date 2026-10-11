@@ -57,11 +57,7 @@ end
 
 local function QuestIDAt(index)
     -- Just the quest's ID (none for headers), without the table GetInfo makes.
-    if C_QuestLog and C_QuestLog.GetQuestIDForLogIndex then return C_QuestLog.GetQuestIDForLogIndex(index) end
-    if C_QuestLog and C_QuestLog.GetInfo then
-        local info = C_QuestLog.GetInfo(index)
-        return info and not info.isHeader and info.questID or nil
-    end
+    if C_QuestLog.GetQuestIDForLogIndex then return C_QuestLog.GetQuestIDForLogIndex(index) end
     if GetQuestLogTitle then
         local _, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(index)
         if not isHeader then return questID end
@@ -110,23 +106,6 @@ function Q:HookTitle(button)
     end)
 end
 
--- Titles set before their button was hooked (the log's first draw, if the layout hook is missing): added after the
--- fact, where the row height is already fixed, so a title that would wrap keeps its original text.
-function Q:UpdateModern()
-    local cap = self:IsEnabled() and LevelXP()
-    local pool = QuestScrollFrame and QuestScrollFrame.titleFramePool
-    if not (cap and pool and pool.EnumerateActive) then return end
-    for button in pool:EnumerateActive() do
-        local text = button.Text
-        if text and not hookedTitles[text] then
-            local before = text:GetText()
-            Decorate(text, self:Suffix(button.questID, cap))
-            -- Titles have fixed row heights here; keep the original if the longer one wraps.
-            if text.GetNumLines and text:GetNumLines() > 1 then text:SetText(before) end
-        end
-    end
-end
-
 -- Modern quest log tooltips: the reward on hover, for titles too long to show it.
 function Q:OnTitleEnter(button)
     if not self:IsEnabled() or not GameTooltip:IsOwned(button) then return end
@@ -147,7 +126,6 @@ function Q:Hook()
     end
     if QuestLogQuests_Update and not self.modernHooked then
         self.modernHooked = true
-        hooksecurefunc("QuestLogQuests_Update", function() self:UpdateModern() end)
         local pool = QuestScrollFrame and QuestScrollFrame.titleFramePool
         if QuestMapFrame and QuestMapFrame.SetFrameLayoutIndex and pool and pool.IsActive then
             hooksecurefunc(QuestMapFrame, "SetFrameLayoutIndex", function(_, frame)
@@ -156,11 +134,7 @@ function Q:Hook()
         end
         -- Blizzard announces each title's hover once its tooltip is drawn. Hooking the function instead would miss
         -- title buttons made before the hook, which keep the function they were made with.
-        if EventRegistry and EventRegistry.RegisterCallback then
-            EventRegistry:RegisterCallback("QuestMapLogTitleButton.OnEnter", function(_, button) self:OnTitleEnter(button) end, self)
-        elseif QuestMapLogTitleButton_OnEnter then
-            hooksecurefunc("QuestMapLogTitleButton_OnEnter", function(button) self:OnTitleEnter(button) end)
-        end
+        EventRegistry:RegisterCallback("QuestMapLogTitleButton.OnEnter", function(_, button) self:OnTitleEnter(button) end, self)
     end
     return self.classicHooked or self.modernHooked
 end
