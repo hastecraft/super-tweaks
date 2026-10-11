@@ -66,16 +66,22 @@ function R.info.preview(frame)
         v = {}
         frame.hstRolls = v
         v.roll = SampleRoll(frame)
-        v.roll:SetScale(0.7)
         v.select = W.Fill(v.roll, { 0.25, 0.6, 1, 0.3 }, "OVERLAY")
         v.select:SetAllPoints()
         v.caption = W.Caption(frame, "Drag the sample in Edit Mode")
         v.caption:SetPoint("BOTTOM", 0, 8)
     end
+    -- The sample and its drag fit the preview at any size: 12 px from the sides, clear of the caption below.
+    local width, height = frame:GetSize()
+    local scale = math.max(0.3, math.min(0.7, (width - 64) / 277))
+    local w, h = 277 * scale, 67 * scale
+    local dx = math.max(0, math.min(40, (width - 24 - w) / 2))
+    local dy = math.max(0, math.min(16, (height - 24 - 24 - h) / 2))
+    v.roll:SetScale(scale)
     W.Loop(frame, 4, function(t)
         local move = W.Ease(t, 0.8, 2.2)
         v.roll:ClearAllPoints()
-        v.roll:SetPoint("CENTER", frame, "CENTER", (-40 + 80 * move) / 0.7, (-18 + 32 * move) / 0.7)
+        v.roll:SetPoint("CENTER", frame, "CENTER", (-dx + 2 * dx * move) / scale, (12 - dy + 2 * dy * move) / scale)
         v.select:SetAlpha(W.Window(t, 0.3, 3.0, 0.3))
     end)
 end
