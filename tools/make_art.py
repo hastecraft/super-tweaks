@@ -187,6 +187,7 @@ LOGO_PATHS = [
 ]
 LOGO_BOX = (1904.02, 1428.883, 2985.958, 2571.116)
 LOGO_COLOR = (245, 194, 50)  # gold, close to the accent: the logo is shown untinted
+LOGO_WHITE = (246, 241, 233)  # near white, as in LogoSearch: the settings window's title bar
 
 
 def logo_mask(big, margin=0.04):
@@ -204,10 +205,10 @@ def logo_mask(big, margin=0.04):
     return mask
 
 
-def logo(size=64, margin=0.04, samples=8):
-    """The logo in gold on transparent, centered in a square."""
+def logo(size=64, margin=0.04, samples=8, color=LOGO_COLOR):
+    """The logo in gold (or `color`) on transparent, centered in a square."""
     mask = logo_mask(size * samples, margin)
-    image = Image.new('RGBA', (size, size), LOGO_COLOR + (0,))
+    image = Image.new('RGBA', (size, size), color + (0,))
     image.putalpha(mask.resize((size, size), Image.BOX))
     return image
 
@@ -235,7 +236,7 @@ def logo_off(size=64, samples=8, stroke=0.06, gap=0.04, reach=0.12):
 
 
 def logo_search(size=64, samples=8, logo_size=0.8, lens=(0.67, 0.67), radius=0.17, stroke=0.07, handle=0.085,
-                gap=0.045, color=(246, 241, 233), glass=LOGO_COLOR):
+                gap=0.045, color=LOGO_WHITE, glass=LOGO_COLOR):
     """The logo, up and left, searched by a magnifying glass at its lower right, a gap cut around the glass: the
     settings window's empty search. In color, shown untinted: the logo near white, the glass gold. Inside the lens is
     left empty: bits of logo there read as noise at small sizes."""
@@ -512,7 +513,7 @@ def page_preview(page, scorch, path):
 if __name__ == '__main__':
     ART.mkdir(exist_ok=True)
     images = {'Cog': cog(), 'GitHub': svg_icon(GITHUB_PATH), 'Heart': heart(), 'Chevron': chevron(), 'Logo': logo(),
-              'LogoOff': logo_off(), 'Search': magnifier(),
+              'LogoWhite': logo(color=LOGO_WHITE), 'LogoOff': logo_off(), 'Search': magnifier(),
               'LogoSearch': logo_search(), 'Grip': grip()}
     # Every size drawn on its own pixel grid, with fine supersampling since the pixels are few.
     rounds = {
@@ -529,6 +530,7 @@ if __name__ == '__main__':
         'GitHubSizes': lambda n: svg_icon(GITHUB_PATH, size=n, samples=16),
         'HeartSizes': lambda n: heart(n, samples=16),
         'LogoSizes': lambda n: logo(n, samples=16),
+        'LogoWhiteSizes': lambda n: logo(n, samples=16, color=LOGO_WHITE),
         'LogoOffSizes': lambda n: logo_off(n, samples=16),
         'SearchSizes': lambda n: weighted(magnifier(n, samples=16)),
         'LogoSearchSizes': lambda n: logo_search(n, samples=16),
