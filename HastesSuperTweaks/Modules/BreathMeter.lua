@@ -35,10 +35,9 @@ B.SAMPLE_SECONDS = 20
 -- A paused flag as the game gives it: a number (0 running) on some clients, a boolean on others.
 local function IsPaused(paused) return paused == true or (type(paused) == "number" and paused > 0) end
 
--- Timers running, in the order they started: { name, value, max, scale, paused, label, bar, startedAt, armed, warned,
+-- Timers running, in the order they started: { name, value, max, scale, paused, bar, startedAt, armed, warned,
 -- sampleStart }.
 local timers = {}
-B.timers = timers
 
 local function Flags(p) return ns.OutlineFlags(p.outline) end
 
