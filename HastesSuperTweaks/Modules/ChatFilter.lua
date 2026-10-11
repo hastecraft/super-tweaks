@@ -59,8 +59,7 @@ function F.info.preview(frame)
             text:SetText(line[1])
             v.lines[i] = text
         end
-        v.caption = W.Caption(frame, "Spam disappears from public channels")
-        W.Column(frame, { box, 12, v.caption })
+        W.Column(frame, { box })
     end
     W.Loop(frame, 4, function(t)
         local gone = W.Ease(t, 1.2, 1.8)

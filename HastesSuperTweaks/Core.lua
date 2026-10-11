@@ -1,4 +1,4 @@
--- Haste's Super Tweaks: opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package.
+-- Haste's Super Tweaks: opinionated quality-of-life tweaks for WoW Forever in one addon.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = LibStub("AceAddon-3.0"):NewAddon(ADDON, "AceConsole-3.0")
@@ -232,7 +232,7 @@ function HST:AboutOptions()
     end
     self.aboutOptions = { type = "group", name = "About", args = {
         about = { type = "description", order = 1, fontSize = "medium",
-            name = "Opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package." },
+            name = "Opinionated quality-of-life tweaks for WoW Forever in one addon, written to use as little CPU and memory as possible." },
         settings = card("Settings", 2, self:SettingsCommands()),
         actions = card("Quick actions", 3, {
             { "/hst clutter list", "What Sell Clutter would sell now" },

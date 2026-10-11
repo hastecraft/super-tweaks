@@ -9,7 +9,7 @@ local ReadCVar, WriteCVar, Same = ns.ReadCVar, ns.WriteCVar, ns.SameCVar
 
 local G = HST:NewFeature("GameSettings", {
     name = "Game Settings", category = "interface", order = 3.5, command = "game", enabledByDefault = false,
-    summary = "Console settings with a switch, kept at every login, and an Edit Mode backup.",
+    summary = "Switches for camera distance, nameplate range and other console settings, and an Edit Mode backup.",
     examples = { "camera", "nameplates", "weather", "actionCam", "spellQueue" },
     description = "Sets console settings players share, such as a farther camera, nameplates from farther away and less "
         .. "weather, sets them again every time you log in, and puts them back when switched off. Also backs up your "
@@ -265,5 +265,5 @@ function G.info.preview(frame)
         value:SetPoint("TOPRIGHT", -10, y)
         value:SetText(row[2])
     end
-    W.Column(frame, { panel, 10, W.Caption(frame, "Set again every time you log in") })
+    W.Column(frame, { panel })
 end

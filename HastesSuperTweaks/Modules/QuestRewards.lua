@@ -37,7 +37,7 @@ function Q.info.preview(frame)
                 v.price:SetText(Money(12575, 10))
             end
         end
-        W.Column(frame, { row, 8, W.Caption(frame, "The reward that sells for the most") })
+        W.Column(frame, { row })
     end
     W.Loop(frame, 3, function(t) v.coin:SetAlpha(0.6 + 0.4 * math.abs(math.cos(t * math.pi))) end)
 end

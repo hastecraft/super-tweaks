@@ -11,7 +11,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 local S = HST:NewFeature("CombatText", {
     name = "Better Scrolling Combat Text", category = "interface", order = 2, command = "sct", enabledByDefault = false,
-    summary = "Replaces the game's combat text and shows damage on enemy nameplates.", examples = { "textScale", { "enemyMode", "Enemy damage" }, "schoolColors", { "critPop", "Crits pop" }, { "lowHealth", "Low health warning" } },
+    summary = "Replaces the game's combat text and shows damage on enemy nameplates.", examples = { "textScale", { "enemyMode", "Enemy damage" }, "schoolColors", { "critPop", "Pop critical hits" }, { "lowHealth", "Low health warning" } },
     description = "Replaces the game's scrolling combat text with its own scroll areas for damage and healing you take and "
         .. "for notices, and shows damage on enemy nameplates. Move the areas in Edit Mode.",
 })

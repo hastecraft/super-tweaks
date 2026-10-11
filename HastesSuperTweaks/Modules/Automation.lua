@@ -234,7 +234,7 @@ function G.info.preview(frame)
         for _, node in ipairs(nodes) do
             W.Icon(v.map, "Interface\\TaxiFrame\\UI-Taxi-Icon-" .. node[3], 14, "OVERLAY"):SetPoint("CENTER", v.map, "TOPLEFT", node[1], node[2])
         end
-        W.Column(frame, { row, 12, W.Caption(frame, "The flight map opens right away") })
+        W.Column(frame, { row })
     end
     -- The flight option is picked for you, the chat gives way to the map, and the route draws itself across it.
     W.Loop(frame, 5, function(t)

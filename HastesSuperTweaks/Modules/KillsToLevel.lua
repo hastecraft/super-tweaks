@@ -37,7 +37,7 @@ function K.info.preview(frame)
         v.fill:SetPoint("TOPLEFT", 1, -1); v.fill:SetPoint("BOTTOMLEFT", 1, 1)
         v.gain = W.Text(v.scene, "GameFontNormalSmall", { 0.6, 0.6, 1 })
         v.gain:SetText("+250 XP")
-        W.Column(frame, { v.scene, 8, W.Caption(frame, "Goes down with every kill") })
+        W.Column(frame, { v.scene })
     end
     local shown
     W.Loop(frame, 4.6, function(t)

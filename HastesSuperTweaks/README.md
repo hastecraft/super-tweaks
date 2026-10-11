@@ -1,6 +1,6 @@
 # Haste's Super Tweaks
 
-Opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package.
+Opinionated quality-of-life tweaks for WoW Forever in one addon, written to use as little CPU and memory as possible.
 
 Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's 11509.
 
@@ -81,7 +81,7 @@ Search finds tweaks and settings by name, description, section, page or menu cho
 
 ### Profiles and About
 
-Profiles lets you switch, create, copy, delete and reset profiles. Profiles hold every tweak's settings; statistics are saved per character. About lists the commands and credits, with GitHub and donate links.
+Profiles lets you switch, create, copy, delete and reset profiles. Profiles hold every tweak's settings; statistics are saved per character. About lists the commands and credits. The GitHub button sits beside Profiles and About.
 
 ### Other details
 
