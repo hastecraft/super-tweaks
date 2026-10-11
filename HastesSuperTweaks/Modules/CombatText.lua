@@ -838,8 +838,9 @@ local GAME_TEXT = {
 S.TEXT_INFO_NOTICES = {}
 for _, option in pairs(GAME_TEXT) do S.TEXT_INFO_NOTICES[option] = true end
 -- WoW Forever hides those details from addons (C_CombatText.GetCurrentEventInfo returns secret values), so its notices
--- can show here but can't be handed to the game's combat text; Classic Era's GetCurrentCombatTextEventInfo doesn't.
-S.HIDES_TEXT_INFO = C_CombatText ~= nil and C_CombatText.GetCurrentEventInfo ~= nil
+-- can show here but can't be handed to the game's combat text. Classic Era has the same function without secret
+-- returns, so the client is told apart by its interface version (Forever's is 16001, Era's 11509).
+S.HIDES_TEXT_INFO = select(4, GetBuildInfo()) >= 16000
 -- Whether the game's combat text events are needed: for what you take or a notice shown here, or while replacing the
 -- game's combat text, to hand it those turned off here.
 function S:UsesGameCombatText()

@@ -22,8 +22,8 @@ function S:BuildOptions()
         return { type = "select", name = name, order = order,
             values = game and { HERE = "Here", GAME = "Game's combat text", OFF = "Off" } or { HERE = "Here", OFF = "Off" },
             sorting = game and { "HERE", "GAME", "OFF" } or { "HERE", "OFF" },
-            desc = game and (desc and desc .. " " or "") .. "Game's combat text needs the game's Show Combat Text option on."
-                or desc,
+            desc = game and (desc and desc .. " " or "") .. "Game's combat text needs the game's Show Combat Text option "
+                .. "on, and a change to or from it shows there after a /reload." or desc,
             get = function()
                 local p = S.db.profile
                 return p[key] and "HERE" or game and p.gameNotices[key] and "GAME" or "OFF"
@@ -70,7 +70,7 @@ function S:BuildOptions()
             main = Section("Combat text", 1, {
                 replaceBlizzard = toggle("replaceBlizzard", "Replace the game's combat text", 1,
                     "Stops the game's own combat text from showing what this already shows, so nothing appears twice. "
-                        .. "Turning this off puts the game's settings back."),
+                        .. "Turning this off puts the game's settings back; its notices follow after a /reload."),
                 sample = { type = "execute", name = "Play sample", order = 2,
                     desc = "Shows sample texts in every area in use.",
                     func = function() S:PlaySample() end },
