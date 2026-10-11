@@ -75,13 +75,22 @@ local function IsPetTrainer()
         and C_Trainer.GetTrainerType() == Enum.TrainerType.Pet
 end
 
+-- A service's name, kind ("available", "unavailable", "used" or "header") and rank. WoW Forever returns name, kind,
+-- texture, level, rank; Classic Era returns name, rank, kind, isExpanded.
+local KINDS = { available = true, unavailable = true, used = true, header = true }
+local function Service(index)
+    local name, a, b, _, e = GetTrainerServiceInfo(index)
+    if KINDS[a] then return name, a, e end
+    return name, b, a
+end
+
 -- What can be learned now: the last such service's index, name and cost; how many there are and their total cost.
 -- New professions (which ask first) are left out.
 function T:Learnable()
     local last, lastName, lastCost, count, total = nil, nil, 0, 0, 0
     local money = GetMoney()
     for index = 1, GetNumTrainerServices() or 0 do
-        local name, kind, _, _, rank = GetTrainerServiceInfo(index)
+        local name, kind, rank = Service(index)
         if kind == "available" then
             local cost, isProfession = GetTrainerServiceCost(index)
             cost = cost or 0
@@ -97,7 +106,7 @@ end
 -- Whether a service is still offered to learn, by name and rank.
 local function StillOffered(key)
     for index = 1, GetNumTrainerServices() or 0 do
-        local name, kind, _, _, rank = GetTrainerServiceInfo(index)
+        local name, kind, rank = Service(index)
         if kind == "available" and (name or "") .. "\1" .. (rank or "") == key then return true end
     end
     return false
