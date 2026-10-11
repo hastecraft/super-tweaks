@@ -253,8 +253,8 @@ function S:Item(itemID)
         return nil
     end
     local kind = (price or 0) > 0 and self:KindOf(itemID, classID, subclassID, equipLoc)
-    -- Qualities never sold by kind (Verdict, GearVerdict): rare and better gear and recipes, uncommon and better of the
-    -- rest. Known as false, their tooltips skip the facts lookup.
+    -- Qualities never sold by kind: rare and better gear and recipes, uncommon and better of the rest. Known as false,
+    -- their tooltips skip the facts lookup.
     if kind and quality > ((kind == "equipment" or kind == "recipes") and 2 or 1) then kind = false end
     item = false
     if kind then
@@ -437,18 +437,18 @@ function S:Context(fresh)
     self.context = ctx
     return ctx
 end
+S.requestedObjectives = {}
 function S:PrepareSale()
     local ctx = self:Context(true)
     local visit = ns.VendorSale.visit
     if self.objectiveVisit ~= visit then self.objectiveVisit, self.requestedObjectives = visit, {} end
-    self.requestedObjectives = self.requestedObjectives or {}
     for _, id in ipairs(ctx.missing) do
         if not self.requestedObjectives[id] and C_QuestLog and C_QuestLog.RequestLoadQuestByID then
             self.requestedObjectives[id] = true
             C_QuestLog.RequestLoadQuestByID(id)
         end
     end
-    return ctx.complete, ctx -- the synchronous scan can share this snapshot; each delayed action reads current state
+    return ctx.complete, ctx -- the scan shares this snapshot; each sale step asks for the facts again (see Context)
 end
 -- Your bags changing (as they do with every item sold) only changes which crates you hold: those are looked up again
 -- when next asked for, and the rest of the facts stay.
@@ -575,14 +575,13 @@ function S:Verdict(itemID, info, ctx, bag, slot)
     local item = self:Item(itemID)
     if not item or Needed(ctx, itemID, item.name) or ctx.sets[itemID] then return nil end
     if p.rxp and self:GuideStatus(itemID, ctx) == "needed" then return nil end
-    local kind, quality = item.kind, item.quality
+    local kind = item.kind
     -- Anything that opens (crates, sacks, chests) is opened, not sold; clams only go when chosen.
     if kind ~= "clams" and info and info.hasLoot then return nil end
     if kind == "equipment" then return self:GearVerdict(item, info, ctx, bag, slot) end
     -- Drinks only restore mana: without any, they're clutter at every level.
     if item.drink and p.drinks and self.NO_MANA[ctx.class] then kind = "drinks" end
-    -- Uncommon and better materials and consumables are yours to judge; recipes go up to uncommon.
-    if not p[kind] or quality > (kind == "recipes" and 2 or 1) then return nil end
+    if not p[kind] then return nil end
     local crates = ctx.crates
     if not crates then crates = self:CrateKinds(); ctx.crates = crates end
     if crates[kind] then return nil end
@@ -605,7 +604,7 @@ function S:GearVerdict(item, info, ctx, bag, slot)
     if not self:Usable(ctx.class, item) then
         if not p.gear then return nil end
         if quality <= 1 then return "gear" end
-        if quality ~= 2 or (p.professions ~= "none" and ctx.professions[ENCHANTING]) then return nil end
+        if p.professions ~= "none" and ctx.professions[ENCHANTING] then return nil end
         local bound = info and info.isBound
         if not (bound and p.boundGreens or p.anyGreens) then return nil end
         return not (bound and bag and Tradeable(bag, slot)) and "gear" or nil
@@ -633,10 +632,9 @@ function S:SalePrice(info, bag, slot, ctx)
     ctx.guided[itemID] = nil
     local category = self:Verdict(itemID, info, ctx, bag, slot)
     if not category then return nil end
+    -- Verdict only names items with a price: an item kept for its kind has one, and an Always sell item was just asked.
     local item = self:Item(itemID)
-    local price = item and item.price or select(11, ItemInfo(itemID)) or 0
-    if price <= 0 then return nil end
-    return price, category
+    return item and item.price or select(11, ItemInfo(itemID)), category
 end
 
 -- Says what sold, by category: "Sold 6 items you won't use for 1s 12c: cooking ingredients 3, gear your class can't
@@ -769,12 +767,12 @@ local function TooltipSlot(tip, itemID)
 end
 
 S.TIP_COLOR, S.KEEP_COLOR = { 0.95, 0.6, 0.25 }, { 0.45, 0.8, 0.45 }
--- Adds the tooltip line for an item; true when one was added.
+-- Adds the tooltip line for an item, if it gets one.
 function S:TooltipLine(tip, itemID)
-    if IsSecret(itemID) or type(itemID) ~= "number" or not (self:IsEnabled() and self.db.profile.tooltip) then return false end
+    if IsSecret(itemID) or type(itemID) ~= "number" or not (self:IsEnabled() and self.db.profile.tooltip) then return end
     local c, text = self.KEEP_COLOR, "Never sold: on your Never sell list"
     if not self:Keeps(itemID) then
-        if not self.db.profile.sell[itemID] and not self:Item(itemID) then return false end
+        if not self.db.profile.sell[itemID] and not self:Item(itemID) then return end
         local info, bag, slot = TooltipSlot(tip, itemID)
         local ctx = self:Context()
         local category
@@ -784,7 +782,7 @@ function S:TooltipLine(tip, itemID)
         else
             category = self:Verdict(itemID, nil, ctx)
         end
-        if not category then return false end
+        if not category then return end
         c, text = self.TIP_COLOR, (info and "Sold at vendors: " or "Vendor policy: ") .. self.CATEGORY[category].tip
         -- RestedXP's own line still says its guide uses the item.
         if category ~= "list" and self.db.profile.rxp and self:GuideStatus(itemID, ctx) == "done" then
@@ -792,7 +790,6 @@ function S:TooltipLine(tip, itemID)
         end
     end
     tip:AddLine(text, c[1], c[2], c[3], true)
-    return true
 end
 
 -- Hooks can't be removed, so the line checks the module and setting each time. The tooltip data processor (which
