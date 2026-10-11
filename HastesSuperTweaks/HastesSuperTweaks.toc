@@ -1,6 +1,6 @@
 ## Interface: 16001, 11509
 ## Title: Haste's Super Tweaks
-## Notes: Opinionated quality-of-life tweaks for WoW Forever in one addon. /hst opens settings.
+## Notes: Opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package. /hst opens settings.
 ## Author: Haste
 ## Version: 1.0.0
 ## SavedVariables: HastesSuperTweaksDB

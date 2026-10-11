@@ -1,6 +1,6 @@
 # Haste's Super Tweaks
 
-Opinionated quality-of-life tweaks for WoW Forever in one addon, written to use as little CPU and memory as possible.
+Opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package.
 
 An XP tracker, better tooltips and combat text, a compact loot window, automatic junk and clutter selling, quest and NPC shortcuts, auto-decline and more, all in one settings window. Classic Era is listed in the TOC too.
 

@@ -1,6 +1,6 @@
 # Haste's Super Tweaks
 
-Opinionated quality-of-life tweaks for WoW Forever in one addon, written to use as little CPU and memory as possible.
+Opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package.
 
 Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's 11509.
 
