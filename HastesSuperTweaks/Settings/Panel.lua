@@ -1830,7 +1830,7 @@ function P:CreateDetail(view)
     d.examplesTitle:SetText("SETTINGS")
     d.examples = {}
     d.button:SetScript("OnClick", function()
-        if d.result then return self:OpenModule(d.result.owner, d.result.path, d.result.key) end
+        if d.result then return self:OpenModule(d.result.owner, d.result.path, d.result.option) end
         local module = self.detailModule
         if HasPage(module) then return self:OpenModule(module:GetName()) end
         Flip(module)
@@ -1963,7 +1963,7 @@ function P:ExampleRow(index)
     row.swatch:SetPoint("RIGHT", -4, 0)
     row:SetScript("OnEnter", function(r) r.highlight:Show(); r.label:SetTextColor(unpack(C.bright)) end)
     row:SetScript("OnLeave", function(r) r.highlight:Hide(); r.label:SetTextColor(unpack(C.body)) end)
-    row:SetScript("OnClick", function(r) self:OpenModule(r.item.owner, r.item.path, r.item.key) end)
+    row:SetScript("OnClick", function(r) self:OpenModule(r.item.owner, r.item.path, r.item.option) end)
     return row
 end
 
@@ -2527,8 +2527,9 @@ function P:RefreshHeader()
     self:RefreshOffOverlay(module, on)
 end
 
--- Shows a settings page's content. id names it in the page cache.
-function P:ShowPage(id, group, gate, focusKey)
+-- Shows a settings page's content. id names it in the page cache. focus, a setting's option (or its key, which sections
+-- on one page can share), is scrolled to and flashed.
+function P:ShowPage(id, group, gate, focus)
     self:StopFlash()
     for _, page in pairs(self.pages) do page.content:Hide() end
     local page
@@ -2546,9 +2547,9 @@ function P:ShowPage(id, group, gate, focusKey)
     if page then self:RefreshPage() end
     self:LayoutPageView()
     self.pageArea:ScrollTo(0)
-    if page and focusKey then
+    if page and focus then
         for _, c in ipairs(page.controls) do
-            if c.key == focusKey then
+            if c.option == focus or c.key == focus then
                 self.pageArea:ScrollTo((c.top or 0) - 24)
                 self:Flash(c)
                 break
@@ -2579,9 +2580,9 @@ function P:SetMode(mode, view)
     if not list then self.tabCount, self.chipCount = 0, 0 end
 end
 
--- Opens a module's page: path selects a settings page (by default the one last shown, then the first), focusKey
--- highlights a setting.
-function P:OpenModule(key, path, focusKey)
+-- Opens a module's page: path selects a settings page (by default the one last shown, then the first), focus
+-- highlights a setting (see P:ShowPage).
+function P:OpenModule(key, path, focus)
     local module = HST:GetModule(key)
     local options = module.info.options and module.info.options()
     if not options then return self:ShowInList(module) end
@@ -2605,7 +2606,7 @@ function P:OpenModule(key, path, focusKey)
     self.tabsChange = PagesChange(options)
     self:RefreshHeader()
     local gate = function() return not module:IsEnabled() end
-    self:ShowPage(key .. "/" .. table.concat(path or {}, "/"), group, gate, focusKey)
+    self:ShowPage(key .. "/" .. table.concat(path or {}, "/"), group, gate, focus)
     self:RefreshNav()
 end
 
@@ -2815,7 +2816,7 @@ function P:ResultRow(index)
     end)
     row.switch.onEnter = function() row:GetScript("OnEnter")(row) end
     row.switch.onLeave = function() row:GetScript("OnLeave")(row) end
-    row:SetScript("OnClick", function(r) self:OpenModule(r.result.owner, r.result.path, r.result.key) end)
+    row:SetScript("OnClick", function(r) self:OpenModule(r.result.owner, r.result.path, r.result.option) end)
     return row
 end
 
@@ -2963,7 +2964,7 @@ function P:OpenCursor()
         if HasPage(row.module) then return self:OpenModule(row.module:GetName()) end
         return Flip(row.module)
     end
-    self:OpenModule(row.result.owner, row.result.path, row.result.key)
+    self:OpenModule(row.result.owner, row.result.path, row.result.option)
 end
 
 -- Empties the search box without going back (something else is about to show).
