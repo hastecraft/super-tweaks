@@ -106,6 +106,12 @@ local function RankOf(subtext)
     return tonumber(subtext:match("(%d+)"))
 end
 
+-- Whether a spellbook entry is a lower rank of its spell than the best (one without a rank number counts as lower).
+local function Lower(spell, spellID)
+    local rank = spell.rankOf[spellID]
+    return spellID ~= spell.best and not (rank and spell.rank and rank >= spell.rank)
+end
+
 -- Your spells by name: { best = spellID, rank = n, index = {spellID = spellbook index}, rankOf = {spellID = n} }.
 -- The best is the one the game doesn't call a lower rank, else the highest rank number, else the last one listed
 -- (the spellbook lists ranks lowest first).
@@ -230,8 +236,7 @@ function R:Update()
                 self.pending[spell.previous] = best
             else
                 for spellID in pairs(spell.index) do
-                    local rank = spell.rankOf[spellID]
-                    if spellID ~= best and not (rank and spell.rank and rank >= spell.rank) then self.pending[spellID] = best end
+                    if Lower(spell, spellID) then self.pending[spellID] = best end
                 end
             end
             -- Upgraded once: the game repeating that you learned this rank (loading screens can) doesn't upgrade a
@@ -277,9 +282,8 @@ function R:UpgradeAll(spells, deferred)
     for name, spell in pairs(spells) do
         if not spell.complete then waiting = true end
         for spellID in pairs(spell.index) do
-            local rank = spell.rankOf[spellID]
             self.nameOf[spellID] = name
-            if spell.complete and spellID ~= spell.best and not (rank and spell.rank and rank >= spell.rank) then swaps[spellID] = spell.best end
+            if spell.complete and Lower(spell, spellID) then swaps[spellID] = spell.best end
         end
     end
     self.upgradeAllPending = waiting
