@@ -15,14 +15,18 @@ function S:BuildOptions()
     local function apply() S:Apply() end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra, apply) end
     local function toggle(key, name, order, desc) return option("toggle", key, name, order, desc and { desc = desc }) end
-    -- A notice shown here, in the game's own combat text, or not at all.
+    -- A notice shown here, in the game's own combat text, or not at all. Where the game hides a notice's details from
+    -- addons (WoW Forever), it can't be handed to the game's combat text, so that choice isn't offered.
     local function notice(key, name, order, desc)
+        local game = not (S.HIDES_TEXT_INFO and S.TEXT_INFO_NOTICES[key])
         return { type = "select", name = name, order = order,
-            values = { HERE = "Here", GAME = "Game's combat text", OFF = "Off" }, sorting = { "HERE", "GAME", "OFF" },
-            desc = (desc and desc .. " " or "") .. "Game's combat text needs the game's Show Combat Text option on.",
+            values = game and { HERE = "Here", GAME = "Game's combat text", OFF = "Off" } or { HERE = "Here", OFF = "Off" },
+            sorting = game and { "HERE", "GAME", "OFF" } or { "HERE", "OFF" },
+            desc = game and (desc and desc .. " " or "") .. "Game's combat text needs the game's Show Combat Text option on."
+                or desc,
             get = function()
                 local p = S.db.profile
-                return p[key] and "HERE" or p.gameNotices[key] and "GAME" or "OFF"
+                return p[key] and "HERE" or game and p.gameNotices[key] and "GAME" or "OFF"
             end,
             set = function(_, value)
                 local p = S.db.profile

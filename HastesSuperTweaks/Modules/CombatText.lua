@@ -834,6 +834,12 @@ local GAME_TEXT = {
     SPELL_ACTIVE = "reactives", SPELL_AURA_START = "buffs", SPELL_AURA_START_HARMFUL = "debuffs",
     SPELL_AURA_END = "fades", SPELL_AURA_END_HARMFUL = "fades", FACTION = "reputation", HONOR_GAINED = "honor",
 }
+-- The notices whose details come from the game's combat text event (the names and amounts above).
+S.TEXT_INFO_NOTICES = {}
+for _, option in pairs(GAME_TEXT) do S.TEXT_INFO_NOTICES[option] = true end
+-- WoW Forever hides those details from addons (C_CombatText.GetCurrentEventInfo returns secret values), so its notices
+-- can show here but can't be handed to the game's combat text; Classic Era's GetCurrentCombatTextEventInfo doesn't.
+S.HIDES_TEXT_INFO = C_CombatText ~= nil and C_CombatText.GetCurrentEventInfo ~= nil
 -- Whether the game's combat text events are needed: for what you take or a notice shown here, or while replacing the
 -- game's combat text, to hand it those turned off here.
 function S:UsesGameCombatText()
@@ -1179,6 +1185,7 @@ local GAME_FRAME_EVENTS = {
 -- Whether a notice is set to show in the game's combat text.
 function S:GameShows(key)
     local p = self.db.profile
+    if self.HIDES_TEXT_INFO and self.TEXT_INFO_NOTICES[key] then return false end
     return not p[key] and p.gameNotices[key] == true
 end
 
