@@ -350,11 +350,6 @@ function W.Round(frame, radius, inset, layer, sublevel, ring)
     return Painter(pieces)
 end
 
--- A pill filling `frame`, `inset` units in from its edges. (`height` is no longer needed: the ends are measured.)
-function W.Pill(frame, height, inset, layer, sublevel)
-    return W.Round(frame, nil, inset, layer, sublevel)
-end
-
 -- A rounded control's look: its fill, and a rim a unit wide around its edge (a pill with no radius), in `layer`
 -- (BACKGROUND unless given). Returns setters for the rim and the fill.
 function W.Outline(frame, radius, rim, fill, layer)
@@ -370,27 +365,24 @@ function W.Over(over, base)
     return { base[1] + (over[1] - base[1]) * a, base[2] + (over[2] - base[2]) * a, base[3] + (over[3] - base[3]) * a, 1 }
 end
 
--- A count in a small pill, as the sidebar and the list filters show them. SetText("") or nil hides it.
+-- A count in a small pill, as the sidebar shows them. SetText("") or nil hides it, the first call included.
 local BADGE_H, BADGE_PAD = 14, 5
-function W.Badge(parent, fill, color)
+function W.Badge(parent)
     local b = CreateFrame("Frame", nil, parent)
     b:SetHeight(BADGE_H)
-    b.SetFill = W.Pill(b, BADGE_H)
-    b.label = W.Text(b, "GameFontNormalSmall", color or C.muted, "CENTER")
+    W.Round(b)(C.trackOff)
+    b.label = W.Text(b, "GameFontNormalSmall", C.muted, "CENTER")
     b.label:SetPoint("CENTER", 0, 0)
-    function b:SetColors(fillColor, textColor)
-        self.SetFill(fillColor)
-        self.label:SetTextColor(unpack(textColor))
-    end
+    b.text = false -- no text set yet
     function b:SetText(text)
         if text == self.text then return end
         self.text = text
-        self.label:SetText(text or "")
-        self:SetShown(text ~= nil and text ~= "")
+        local shown = text ~= nil and text ~= ""
+        self:SetShown(shown)
+        if not shown then return end
+        self.label:SetText(text)
         self:SetWidth(math.max(BADGE_H * 2, math.ceil(self.label:GetStringWidth()) + BADGE_PAD * 2))
     end
-    b:SetColors(fill or C.trackOff, color or C.muted)
-    b:SetText(nil)
     return b
 end
 
