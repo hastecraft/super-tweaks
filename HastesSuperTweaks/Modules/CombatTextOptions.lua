@@ -149,7 +149,7 @@ function S:BuildOptions()
                 enemyCritColor = enemyOption("color", "enemyCritColor", "Critical hit color", 7,
                     { desc = "Critical hits, whatever their school." }),
             }),
-            plates =Section("Nameplates", 2, {
+            plates = Section("Nameplates", 2, {
                 enemyTargetOnly = toggle("enemyTargetOnly", "Only your target", 1),
                 plateAnimation = option("select", "plateAnimation", "Animation", 2, {
                     values = { FOUNTAIN = "Fountain", UP = "Rise", STATIC = "Pop and fade" }, sorting = { "FOUNTAIN", "UP", "STATIC" },

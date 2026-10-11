@@ -90,8 +90,8 @@ local REDUCED = {
     BLOCK = COMBAT_TEXT_BLOCK or BLOCK or "Block", ABSORB = COMBAT_TEXT_ABSORB or ABSORB or "Absorb",
     RESIST = COMBAT_TEXT_RESIST or RESIST or "Resist",
 }
--- Part of a hit taken by a block, absorb or resist (the game doesn't say how much).
-local PARTIAL = { BLOCK_REDUCED = "-%s (blocked)", ABSORB = "-%s (absorbed)", RESIST = "-%s (resisted)" }
+-- Part of a hit on your pet taken by a block, absorb or resist (the game doesn't say how much).
+local PET_PARTIAL = { BLOCK_REDUCED = "Pet -%s (blocked)", ABSORB = "Pet -%s (absorbed)", RESIST = "Pet -%s (resisted)" }
 
 -- The game's font for its damage numbers over enemies, before this changed it.
 local GAME_DAMAGE_FONT = DAMAGE_TEXT_FONT
@@ -133,7 +133,7 @@ function S:Amount(amount)
 end
 
 ---------------------------------------------------------------------------
--- Texts: pooled frames (a font string with an icon to its left) that the layer moves every frame while any shows.
+-- Texts: pooled frames (a font string with an icon to its left) that one frame moves every frame while any shows.
 -- Each belongs to a lane: a scroll area, or an enemy's nameplate.
 ---------------------------------------------------------------------------
 -- Texts fade in from half shown, so they're seen the moment their hit arrives (unless Fade in is off: then they show
@@ -147,10 +147,8 @@ local layer, driver, ticking
 -- Free texts: on the interface's layer, and on the world's (numbers behind nameplates). Each kind keeps its own
 -- frames.
 local pool, worldPool, live = {}, {}, {}
-S.live, S.pool, S.worldPool = live, pool, worldPool
 -- Nameplates seen, by their frame: what listens to each one's unit's hits while it has one (see S:WatchPlate).
 local watchers = {}
-S.watchers = watchers
 
 -- Movement over a text's life (t from 0 to 1), from where it started.
 local function Motion(f, t)
@@ -331,7 +329,6 @@ local function Layer()
         layer = CreateFrame("Frame", nil, UIParent)
         layer:SetFrameStrata("HIGH")
         layer:SetAllPoints(UIParent)
-        S.layer = layer
     end
     return layer
 end
@@ -544,39 +541,31 @@ local function PowerColor(token)
     return color
 end
 
-function S:OnIncoming(unit, action, flags, amount, school)
-    if IsSecret(action) or IsSecret(unit) then return end
+-- What your pet takes (its combat events, with Include your pet on), marked Pet.
+function S:OnPet(action, flags, amount, school)
+    if IsSecret(action) then return end
     if IsSecret(flags) then flags = nil end
     local p, lane = self.db.profile, self:Lane("incoming")
-    local pet = unit == "pet"
-    if pet and not p.inPet then return end
     local secret = IsSecret(amount)
     if not secret and type(amount) ~= "number" then amount = 0 end
     if action == "WOUND" then
         if secret or amount > 0 then
             if not p.inDamage or (not secret and amount < p.inDamageMin) then return end
             local color = p.schoolColors and SchoolColor(school, p.damageColor) or p.damageColor
-            local fmt = p.inReduction and PARTIAL[flags] or "-%s"
-            return self:Show(lane, color, Kind(flags), nil, pet and ("Pet " .. fmt) or fmt, self:Amount(amount))
+            return self:Show(lane, color, Kind(flags), nil, p.inReduction and PET_PARTIAL[flags] or "Pet -%s", self:Amount(amount))
         end
         -- Nothing got through: a full block, absorb or resist. Without one of those it was no hit at all (the swing an
         -- on-next-swing ability like Heroic Strike takes the place of arrives so): nothing to show. Misses come as
         -- misses.
         local word = REDUCED[flags]
-        if word and p.inReduction then self:Show(lane, p.missColor, "miss", nil, pet and "Pet %s" or "%s", word) end
+        if word and p.inReduction then self:Show(lane, p.missColor, "miss", nil, "Pet %s", word) end
     elseif action == "HEAL" then
         if not p.inHeals or (not secret and (amount <= 0 or amount < p.inHealMin)) then return end
-        self:Show(lane, p.healColor, flags == "CRITICAL" and "crit" or nil, nil, pet and "Pet +%s" or "+%s", self:Amount(amount))
-    elseif action == "ENERGIZE" then
-        if pet or not p.inEnergy or (not secret and amount <= 0) then return end
-        -- The event doesn't say which power; it's colored and named for your main one.
-        local _, token = UnitPowerType("player")
-        if IsSecret(token) then token = nil end
-        self:Show(lane, PowerColor(token), nil, nil, "+%s %s", self:Amount(amount), token and _G[token] or "")
+        self:Show(lane, p.healColor, flags == "CRITICAL" and "crit" or nil, nil, "Pet +%s", self:Amount(amount))
     elseif REDUCED[action] then
-        if p.inReduction then self:Show(lane, p.missColor, "miss", nil, pet and "Pet %s" or "%s", REDUCED[action]) end
+        if p.inReduction then self:Show(lane, p.missColor, "miss", nil, "Pet %s", REDUCED[action]) end
     elseif MISSES[action] then
-        if p.inMisses then self:Show(lane, p.missColor, "miss", nil, pet and "Pet %s" or "%s", MISSES[action]) end
+        if p.inMisses then self:Show(lane, p.missColor, "miss", nil, "Pet %s", MISSES[action]) end
     end
 end
 
@@ -702,7 +691,7 @@ function S:OnEnemy(plate, unit, action, flags, amount, school)
                 or p.schoolColors and SchoolColor(school, p.enemyColor) or p.enemyColor
             return self:Show(lane, color, kind, nil, "%s", self:Amount(amount))
         end
-        -- Nothing got through: a full block, absorb or resist; without one of those, no hit at all (see S:OnIncoming).
+        -- Nothing got through: a full block, absorb or resist; without one of those, no hit at all (see S:OnPet).
         local word = REDUCED[flags]
         if word and p.enemyMisses then self:Show(lane, p.missColor, "miss", nil, "%s", word) end
     elseif p.enemyMisses and (MISSES[action] or REDUCED[action]) then
@@ -912,7 +901,6 @@ local function Reactive()
 end
 -- Which of them were usable when last looked: as a spell alert showed, and after one was used.
 local wasLit = {}
-S.wasLit = wasLit
 
 -- Whether a spell alert for this spell shows.
 local function AlertShows(name)
@@ -1105,8 +1093,7 @@ end
 ---------------------------------------------------------------------------
 -- Events: each listened to only while something shown needs it.
 ---------------------------------------------------------------------------
-local function Register(frame, event, unit, unit2)
-    if unit2 then return pcall(frame.RegisterUnitEvent, frame, event, unit, unit2) end
+local function Register(frame, event, unit)
     if unit then return pcall(frame.RegisterUnitEvent, frame, event, unit) end
     return pcall(frame.RegisterEvent, frame, event)
 end
@@ -1117,8 +1104,8 @@ function S:CreateEventFrames()
     self.events:SetScript("OnEvent", function(_, event, ...) self:OnEvent(event, ...) end)
     -- Hits on your pet, and on your target for its scroll area, come on frames of their own; on nameplates, each
     -- nameplate's own (see S:WatchPlate). Yours come in the game's combat text events.
-    self.incomingEvents = CreateFrame("Frame")
-    self.incomingEvents:SetScript("OnEvent", function(_, _, ...) self:OnIncoming(...) end)
+    self.petEvents = CreateFrame("Frame")
+    self.petEvents:SetScript("OnEvent", function(_, _, _, ...) self:OnPet(...) end)
     self.enemyEvents = CreateFrame("Frame")
     self.enemyEvents:SetScript("OnEvent", function(_, _, ...)
         if self.db.profile.enemyMode == "NAMEPLATE" then return self:OnTargetHit(...) end
@@ -1128,8 +1115,8 @@ end
 
 function S:UpdateEvents()
     self:CreateEventFrames()
-    local general, incoming, enemies = self.events, self.incomingEvents, self.enemyEvents
-    general:UnregisterAllEvents(); incoming:UnregisterAllEvents(); enemies:UnregisterAllEvents()
+    local general, pet, enemies = self.events, self.petEvents, self.enemyEvents
+    general:UnregisterAllEvents(); pet:UnregisterAllEvents(); enemies:UnregisterAllEvents()
     local on, p = self:IsEnabled(), self.db.profile
     self:WatchPlates(on and p.enemyMode == "NAMEPLATE")
     if not on then return end
@@ -1148,7 +1135,7 @@ function S:UpdateEvents()
     if p.lowMana or p.comboPoints then Register(general, "UNIT_POWER_UPDATE", "player") end
     if p.skills then Register(general, "CHAT_MSG_SKILL") end
     if p.reactives and p.reactiveHide then Register(general, "UNIT_SPELLCAST_SUCCEEDED", "player") end
-    if Taking(p) and p.inPet then Register(incoming, "UNIT_COMBAT", "pet") end
+    if Taking(p) and p.inPet then Register(pet, "UNIT_COMBAT", "pet") end
     if p.enemyMode == "NAMEPLATE" then
         Register(general, "NAME_PLATE_UNIT_ADDED")
         Register(general, "NAME_PLATE_UNIT_REMOVED")
@@ -1196,7 +1183,6 @@ end
 -- registers its frame's events again) and for combat ending, when CVars changed in combat are set. Listened to only
 -- while needed.
 local watcher = CreateFrame("Frame")
-S.watcher = watcher
 watcher:SetScript("OnEvent", function(_, event, name)
     if event == "ADDON_LOADED" then
         if name == "Blizzard_CombatText" then watcher:UnregisterEvent("ADDON_LOADED"); S:UpdateBlizzard() end
@@ -1334,7 +1320,6 @@ local GAME_NOTICE_CVARS = {
     floatingCombatTextCombatState_v2 = { "combatState" },
     floatingCombatTextLowManaHealth_v2 = { "lowHealth", "lowMana" },
 }
-S.GAME_NOTICE_CVARS = GAME_NOTICE_CVARS
 
 function S:UpdateCVars()
     if InCombatLockdown() then return watcher:RegisterEvent("PLAYER_REGEN_ENABLED") end
@@ -1535,7 +1520,7 @@ end
 
 for _, spec in ipairs(EDITORS) do
     local key = spec.key
-    local editor = { info = { name = spec.name }, area = key }
+    local editor = { info = { name = spec.name } }
     function editor:GetName() return S:GetName() end
     function editor:IsEnabled() return S:IsEnabled() and S:AreaUsed(key) end
     function editor:EditFrame() return S:AreaBox(key) end
