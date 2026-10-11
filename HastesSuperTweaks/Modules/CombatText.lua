@@ -1134,20 +1134,21 @@ function S:UpdateEvents()
     self:WatchPlates(on and p.enemyMode == "NAMEPLATE")
     if not on then return end
     if p.combatState then Register(general, "PLAYER_REGEN_DISABLED"); Register(general, "PLAYER_REGEN_ENABLED") end
-    if self:UsesGameCombatText() then Register(general, "COMBAT_TEXT_UPDATE") end
-    if p.lowHealth then Register(general, "UNIT_HEALTH", "player") end
-    if p.lowMana or p.comboPoints then Register(general, "UNIT_POWER_UPDATE", "player") end
-    if p.skills then Register(general, "CHAT_MSG_SKILL") end
-    if p.reactives and p.reactiveHide then Register(general, "UNIT_SPELLCAST_SUCCEEDED", "player") end
-    if Taking(p) then
-        -- The game's combat text is about one unit: you, unless the game set another (a vehicle).
+    if self:UsesGameCombatText() then
+        Register(general, "COMBAT_TEXT_UPDATE")
+        -- The game's combat text is about one unit: you, unless the game set another (a vehicle). The game sets it only
+        -- while its own combat text runs, so it's set here for notices as for what you take.
         local text = C_CombatText
         if text and text.GetActiveUnit and text.SetActiveUnit then
             local unit = text.GetActiveUnit()
             if not IsSecret(unit) and unit == nil then pcall(text.SetActiveUnit, "player") end
         end
-        if p.inPet then Register(incoming, "UNIT_COMBAT", "pet") end
     end
+    if p.lowHealth then Register(general, "UNIT_HEALTH", "player") end
+    if p.lowMana or p.comboPoints then Register(general, "UNIT_POWER_UPDATE", "player") end
+    if p.skills then Register(general, "CHAT_MSG_SKILL") end
+    if p.reactives and p.reactiveHide then Register(general, "UNIT_SPELLCAST_SUCCEEDED", "player") end
+    if Taking(p) and p.inPet then Register(incoming, "UNIT_COMBAT", "pet") end
     if p.enemyMode == "NAMEPLATE" then
         Register(general, "NAME_PLATE_UNIT_ADDED")
         Register(general, "NAME_PLATE_UNIT_REMOVED")
