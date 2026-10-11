@@ -27,7 +27,6 @@ Small quality-of-life modules for WoW Forever (1.60.1, interface 16001; the TOC 
 | Auto Release in Battlegrounds | Group & PvP | Releases your spirit as soon as you die in a battleground. Hold Shift to stay. |
 | Right-Click Guild Invite | Social | Invite players to your guild straight from the right-click menu on their name in chat (not shown for people already in your guild). |
 | Guild Message Popup | Social | Shows your guild's message of the day in the middle of the screen when you log in or when it changes. |
-| Flash Taskbar on Whisper | Social | Your WoW icon flashes on the taskbar when someone whispers you while you're tabbed out. |
 | Auto-Decline Battle.net Friend Requests | Auto-Decline | Turns down Battle.net friend requests and tells you who sent them. |
 | Auto-Decline Duels | Auto-Decline | Turns down duel requests, including duels to the death on Hardcore realms. You can let friends, guildmates or community members through. |
 | Auto-Decline Guild Charters | Auto-Decline | Turns down guild charters people ask you to sign. You can let friends, guildmates or community members through. |
@@ -56,7 +55,7 @@ Search is at the top, then every tweak by category. Click a category to open or 
 
 Every tweak with a switch to turn it on or off, filtered by All, On or Off. Pointing at one shows its description and preview on the right; clicking it opens its page.
 
-Tweaks with nothing to set (Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Skip NPC Chat, Quest Item Sparkle, Right-Click Guild Invite, Flash Taskbar on Whisper, Auto-Decline Battle.net Friend Requests, Minimap Button, Hide Issue Reporter) have no page. They're just a switch, in the list and in the sidebar, and clicking them turns them on or off.
+Tweaks with nothing to set (Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Skip NPC Chat, Quest Item Sparkle, Right-Click Guild Invite, Auto-Decline Battle.net Friend Requests, Minimap Button, Hide Issue Reporter) have no page. They're just a switch, in the list and in the sidebar, and clicking them turns them on or off.
 
 ### A tweak's page
 
@@ -72,7 +71,7 @@ Profiles lets you switch, create, copy, delete and reset profiles. Profiles hold
 
 ### Other details
 
-Settings that cannot apply are disabled. Font menus preview each font. A confirmation accepted after you switched profiles does nothing, since it was asked about the other profile. Profiles made on one character are listed on all of them. Closing and reopening the window returns to the page you had open. Changes take effect immediately; if one ever needs a UI reload, the bottom of the sidebar says so and offers a Reload UI button. The Loot Window's "Show on screen" shows its sample where the window opens, to drag it into place.
+Settings that cannot apply are disabled. Font menus preview each font. A confirmation accepted after you switched profiles does nothing, since it was asked about the other profile. Profiles made on one character are listed on all of them. Closing and reopening the window returns to the page you had open. Changes take effect immediately. The Loot Window's "Show on screen" shows its sample where the window opens, to drag it into place.
 
 ## Commands
 

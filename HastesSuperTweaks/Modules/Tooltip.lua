@@ -12,14 +12,15 @@ ns.Tooltip = T
 local WHITE = ns.WHITE
 local floor, max, min = math.floor, math.max, math.min
 
-T.defaults = { profile = {
+ns.Configure(T, {
     healthBar = true, barText = "VALUE", classColors = true, healthColor = { 0.2, 0.8, 0.2, 1 },
     barHeight = 8, barGap = 2, texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 10, outline = "OUTLINE",
     backgroundColor = { 0.035, 0.045, 0.06, 0.9 }, barBorderColor = { 0, 0, 0, 1 }, barBorderSize = 1,
     classBorder = true, reactionBorder = false, borderSize = 1,
     guildLine = true, guildRank = true, highlightGuild = true, guildNotes = true, officerNotes = true,
     guildColor = { 0.25, 1, 0.25, 1 }, ownGuildColor = { 0.4, 0.8, 1, 1 }, rankColor = { 0.7, 0.7, 0.7, 1 },
-} }
+}, function(m) return m:BuildOptions() end, "Apply")
+T.info.preview = function(frame) return T:DrawPreview(frame) end
 
 local IsSecret, Hex = ns.IsSecret, ns.ColorCode
 local Pixels, CreateEdges = ns.Pixels, ns.CreateEdges
@@ -281,11 +282,16 @@ function T:UpdateHealth(recolor, guid)
     bar:SetMinMaxValues(0, 1)
     local fraction = maximum > 0 and max(0, min(1, current / maximum)) or 0
     bar:SetValue(fraction)
-    local text = status
+    -- Only the text shown is put together.
+    local mode, text = p.barText, status
+    if mode == "NONE" then return end
     if not text then
-        local percent = floor(fraction * 100 + 0.5) .. "%"
-        local values = ns.ShortNumber(current, 10000) .. " / " .. ns.ShortNumber(maximum, 10000)
-        text = p.barText == "PERCENT" and percent or p.barText == "BOTH" and (values .. " (" .. percent .. ")") or values
+        if mode == "PERCENT" then
+            text = floor(fraction * 100 + 0.5) .. "%"
+        else
+            text = ns.ShortNumber(current, 10000) .. " / " .. ns.ShortNumber(maximum, 10000)
+            if mode == "BOTH" then text = text .. " (" .. floor(fraction * 100 + 0.5) .. "%)" end
+        end
     end
     bar.text:SetText(text)
 end
@@ -313,7 +319,7 @@ end
 -- what it's made from stays the same, so redrawing a tooltip puts no new text together.
 function T:FormatGuild(tip)
     local guild = self.guildName
-    if not guild then return false end
+    if not guild then return end
     local p, made = self.db.profile, self.guildText
     local color = p.highlightGuild and self.myGuild and p.ownGuildColor or p.guildColor
     local rank = p.guildRank and self.guildRank
@@ -326,9 +332,7 @@ function T:FormatGuild(tip)
         made.text = text
     end
     local line, current = ns.FindTooltipLine(tip, guild)
-    if not line or current == made.text then return false end
-    line:SetText(made.text)
-    return true
+    if line and current ~= made.text then line:SetText(made.text) end
 end
 
 -- Public and officer guild notes by player name: "Name" for your realm, "Name-Realm" for any. Roster updates only
@@ -375,25 +379,21 @@ function T:GuildNotes()
     return notes, officer
 end
 
--- Adds a note line unless the tooltip already has one with this label; returns true if it did.
 local function AddNote(tip, label, text)
-    if not text or text == "" or ns.TooltipHasLine(tip, label) then return false end
-    tip:AddDoubleLine(label, text, 0.6, 0.6, 0.6, 1, 1, 1)
-    return true
+    if text and text ~= "" then tip:AddDoubleLine(label, text, 0.6, 0.6, 0.6, 1, 1, 1) end
 end
 
--- Adds a guildmate's public note and, when your rank can read it, officer note. Returns true if it added a line.
+-- Adds a guildmate's public note and, when your rank can read it, officer note.
 -- Whether the unit can be one of your guildmates is checked before reading the roster (slow for large guilds), so
 -- mobs and strangers never trigger it; when the game can't say whether a player is in your guild, any player can be.
 function T:AddNotes(tip)
     local p, key = self.db.profile, self.rosterName
     if not (key and self.isPlayer and (p.guildNotes or p.officerNotes)) or self.myGuild == false or not IsInGuild() then
-        return false
+        return
     end
     local notes, officer = self:GuildNotes()
-    local added = p.guildNotes and AddNote(tip, "Note", notes[key])
-    if p.officerNotes and AddNote(tip, "Officer note", officer[key]) then added = true end
-    return added
+    if p.guildNotes then AddNote(tip, "Note", notes[key]) end
+    if p.officerNotes then AddNote(tip, "Officer note", officer[key]) end
 end
 
 -- GameTooltip filled in for a unit (see ns.HookUnitTooltip).
@@ -407,12 +407,10 @@ function T:OnUnitTooltip(tip, data, unit)
     -- What the bar shows depends only on the reading (see UpdateHealth), so a unit tooltip redrawn several times a
     -- second (unit frames refresh theirs) redraws nothing that didn't change.
     self.unit, self.guid = unit, guid
-    local changed = self.db.profile.guildLine and self:FormatGuild(tip)
-    if self:AddNotes(tip) then changed = true end
+    if self.db.profile.guildLine then self:FormatGuild(tip) end
+    self:AddNotes(tip)
     self:UpdateBorder()
     self:ShowBar(guid)
-    -- Resize for the longer guild line and added notes.
-    if changed then ns.FitTooltip(tip) end
 end
 
 function T:Clear()
@@ -434,13 +432,6 @@ function T:HookTooltip()
     tip:HookScript("OnHide", function() self:Clear() end)
     -- Skins restyle the border when the tooltip shows, after the unit is set.
     tip:HookScript("OnShow", function() if self.unit then self:UpdateBorder() end end)
-end
-
-function T:OnInitialize()
-    self.db = HST.db:RegisterNamespace("Tooltip", self.defaults)
-    ns.OnProfile(self, "Apply")
-    ns.LazyOptions(self, self.BuildOptions)
-    self.info.preview = function(frame) return self:DrawPreview(frame) end
 end
 
 -- Roster updates only mark the guild notes stale (see GuildNotes), and what was read about the unit shown (its rank

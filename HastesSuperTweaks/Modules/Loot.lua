@@ -52,7 +52,6 @@ local F = HST:NewFeature("FastLoot", {
         .. "Hold the auto loot key (Shift by default) to look first.",
 })
 ns.FastLoot = F
-F.modifiers = modifiers
 Configure(F, { soloBind = false, speed = "MODERATE" }, function(m)
     return ns.OnePage(m.info.name, "settings", "Settings", {
         autoLoot = { type = "toggle", name = "Auto Loot (game setting)", order = 1,
@@ -482,6 +481,7 @@ end
 local function CreateRow(window)
     local W, C = ns.Widgets, ns.Widgets.C
     local row = CreateFrame("Button", nil, window)
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp") -- either button loots, as in the game's window
     row.hover = W.Fill(row, C.hover)
     row.hover:SetAllPoints()
     row.hover:Hide()
@@ -630,6 +630,7 @@ function L:BuildWindow(parent, name)
     -- Money: its own line at the bottom; clicking it takes the money in the loot.
     local footer = CreateFrame("Button", nil, f)
     f.footer = footer
+    footer:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     footer.hover = W.Fill(footer, C.hover)
     footer.hover:SetAllPoints()
     footer.hover:Hide()
@@ -796,6 +797,7 @@ function L:Window()
         wipe(self.notices)
         f:SetScript("OnUpdate", nil)
         self:UpdateHotkey()
+        self:WatchBags()
         -- With its settings or Edit Mode open the sample comes back once loot or the auto loot list is done with it.
         if (self.settingsOpen or self.editMode) and was ~= "sample" then
             C_Timer.After(0, function()
@@ -975,6 +977,7 @@ function L:ShowManual(items, money)
     f:Raise()
     if flash then self:Flash(f) end
     self:UpdateHotkey()
+    self:WatchBags()
     -- Taking an item moves the ones below it up: the row under the mouse now holds another item, so show its tooltip.
     for _, row in ipairs(f.rows) do
         if row:IsShown() and row.hover:IsShown() then row.Enter(row) end
@@ -999,6 +1002,7 @@ function L:ShowSample(quiet)
     WindowAlpha(f, 1)
     f:Show()
     self:UpdateHotkey()
+    self:WatchBags()
 end
 
 -- The settings window previews the loot window itself; Show on screen shows the sample where the window opens, until
@@ -1020,12 +1024,7 @@ function L:PlayNoticeSample()
     if self.session and self.session.open then return end
     local items = self.samples.fast
     for i, item in ipairs(items) do
-        C_Timer.After((i - 1) * 0.4, function()
-            if not self:IsEnabled() then return end
-            local copy = {}
-            for k, v in pairs(item) do copy[k] = v end
-            self:Notify(copy)
-        end)
+        C_Timer.After((i - 1) * 0.4, function() if self:IsEnabled() then self:Notify(item) end end)
     end
     C_Timer.After(#items * 0.4, function() if self:IsEnabled() then self:NotifyMoney(self.samples.money) end end)
 end
@@ -1116,6 +1115,7 @@ function L:ShowNotices()
         for _, notice in ipairs(self.notices) do notice.y = nil end
     end
     f:Show()
+    self:WatchBags()
     self:AnimateNotices()
 end
 
@@ -1198,6 +1198,7 @@ function L:Refresh()
     self:MigrateLook()
     local f = self.window
     if not (f and f:IsShown()) then return end
+    self:WatchBags()
     if self.mode == "sample" then
         self:Layout(f, self.samples.window, true, self.db.profile, { amount = self.samples.money })
         self:Place(false)
@@ -1215,6 +1216,15 @@ function L:Refresh()
     end
 end
 
+-- Bag changes are listened to only while the window shows how many of each item you have (see L:RefreshOwned).
+function L:WatchBags()
+    local f = self.window
+    local watch = self.db.profile.ownedCount and f ~= nil and f:IsShown() and self:IsEnabled() or false
+    if watch == (self.watchingBags or false) then return end
+    self.watchingBags = watch
+    if watch then self.events:RegisterEvent("BAG_UPDATE_DELAYED") else self.events:UnregisterEvent("BAG_UPDATE_DELAYED") end
+end
+
 -- Most bag changes do not affect these rows. Only changed ownership text needs a new width/layout pass.
 function L:RefreshOwned()
     local f = self.window
@@ -1225,7 +1235,7 @@ function L:RefreshOwned()
     end
 end
 
-local EVENTS = { "LOOT_READY", "LOOT_OPENED", "LOOT_SLOT_CLEARED", "LOOT_SLOT_CHANGED", "LOOT_CLOSED", "BAG_UPDATE_DELAYED",
+local EVENTS = { "LOOT_READY", "LOOT_OPENED", "LOOT_SLOT_CLEARED", "LOOT_SLOT_CHANGED", "LOOT_CLOSED",
     "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PARTY_LOOT_METHOD_CHANGED", "GROUP_ROSTER_UPDATE" }
 -- Listened to only while a loot session lasts: away from loot, money changes with every sale and repair, and errors
 -- arrive with every ability that isn't ready.
@@ -1238,9 +1248,13 @@ local SESSION_EVENTS = { "PLAYER_MONEY", "UI_ERROR_MESSAGE" }
 function L:SyncLootFrame()
     local mine = self:IsEnabled() and not MasterLooter()
     if mine and LootFrame then
-        local open = LootFrame.isOpen
-        if open == nil then open = LootFrame:IsShown() end
-        if open then self.blizzard, self.takeOver = true, true; return end
+        -- Open, or still fading out after closing (WoW Forever's window animates away, then closes whatever loot is
+        -- open as it hides): it keeps looting until it's hidden, and its OnHide hands over.
+        if LootFrame.isOpen or LootFrame:IsShown() then
+            self.blizzard, self.takeOver = true, true
+            self:WatchLootFrameHide()
+            return
+        end
     end
     self.blizzard, self.takeOver = not mine, nil
     if not LootFrame then return end
@@ -1251,6 +1265,15 @@ function L:SyncLootFrame()
         LootFrame:RegisterEvent("LOOT_OPENED")
         LootFrame:RegisterEvent("LOOT_CLOSED")
     end
+end
+
+-- Takes over from the game's window once it has hidden (hooked once, the first time it's needed).
+function L:WatchLootFrameHide()
+    if self.lootFrameHooked then return end
+    self.lootFrameHooked = true
+    LootFrame:HookScript("OnHide", function()
+        if self.takeOver then C_Timer.After(0, function() if self.takeOver and self:IsEnabled() then self:SyncLootFrame() end end) end
+    end)
 end
 
 -- True when the open loot has nothing left in it.
@@ -1374,7 +1397,7 @@ function L:OnUnlisten()
     self:SyncLootFrame()
     self:UpdateEditMode(false)
     if self.window then self:HideWindow() end
-    self.session = nil -- its events went with the rest
+    self.session, self.watchingBags = nil, nil -- their events went with the rest
 end
 
 ---------------------------------------------------------------------------
@@ -1515,5 +1538,4 @@ L.info.livePreview = function(frame, width, height)
         v.list:SetPoint("TOP", frame, "TOP", 0, -(y + captions) / scale)
         v.off:SetPoint("TOP", frame, "TOP", 0, -(y + captions + 8))
     end
-    v.listCaption:SetShown(true)
 end

@@ -64,6 +64,15 @@ end
 
 local function Disabled(chain, info) return Resolve(Inherited(chain, "disabled"), info) and true or false end
 
+-- Whether a setting on a page (chain starting with the page) is hidden, by itself or a section it's in. The page's own
+-- `hidden` only takes away its tab (see Pages): a page opened anyway shows its settings.
+local function Hidden(chain, info)
+    for i = #chain, 2, -1 do
+        local value = chain[i].hidden
+        if value ~= nil then return Resolve(value, info) end
+    end
+end
+
 local function Sorted(args)
     local list = {}
     for key, option in pairs(args or {}) do list[#list + 1] = { key = key, option = option } end
@@ -168,12 +177,8 @@ end
 ---------------------------------------------------------------------------
 local Build = {}
 
--- Writes an option's value; options marked requiresReload are remembered until the next reload.
+-- Writes an option's value.
 local function Write(o, info, ...)
-    if o.requiresReload then
-        local before = o.get(info)
-        HST:ChangedUntilReload(o, before, (...))
-    end
     o.set(info, ...)
     P:Refresh()
 end
@@ -379,10 +384,7 @@ end
 local RELEASE_HEAD, NOTE_PAD, NOTE_GAP = 54, 12, 8
 
 -- A color as a text escape, to color part of a text.
-local function Hex(color)
-    return string.format("|cff%02x%02x%02x", math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5),
-        math.floor(color[3] * 255 + 0.5))
-end
+local Hex = ns.ColorCode
 
 -- The module a highlight or change leads to, when it names one this addon has.
 local function NoteModule(note)
@@ -706,7 +708,8 @@ end
 
 -- A titled grid of items: o.get returns a set of item IDs. Dropping an item on the grid, or clicking it while holding
 -- one, adds it (o.add(info, itemID)); right-clicking an item takes it off (o.remove(info, itemID)). Longer lists scroll
--- with the mouse wheel, a row at a time. As many columns as fit the width.
+-- with the mouse wheel, a row at a time; past either end, and for lists that fit, the wheel scrolls the page. As many
+-- columns as fit the width.
 local ITEM_SLOT, ITEM_GAP = 30, 4
 local function ItemIcon(itemID)
     local get = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
@@ -739,7 +742,12 @@ function Build.items(parent, o, chain, info, gate)
     end
     local function scroll(_, delta)
         local hidden = math.ceil((#c.list + 1) / c.columns) - rows
-        c.offset = Clamp(c.offset - delta, 0, math.max(0, hidden))
+        local offset = Clamp(c.offset - delta, 0, math.max(0, hidden))
+        if offset == c.offset then
+            local area = P.pageArea
+            return area:GetScript("OnMouseWheel")(area, delta)
+        end
+        c.offset = offset
         c:Refresh()
     end
     box:EnableMouse(true)
@@ -808,7 +816,6 @@ function Build.items(parent, o, chain, info, gate)
     end
     function c:Refresh()
         local name = Resolve(o.name, info)
-        self.tipTitle, self.tipText = name, Resolve(o.desc, info)
         self.title:SetText(name)
         self.off = IsOff(self)
         self.title:SetTextColor(unpack(self.off and C.disabled or C.text))
@@ -902,17 +909,15 @@ function P:BuildPage(group, gate)
         if parent ~= card then
             if parent ~= last then card.rows[#card.rows + 1] = parent end
             parent.buttons[#parent.buttons + 1] = c
-            c.bar = parent
         else
             card.rows[#card.rows + 1] = c
         end
-        c.card = card
     end
     local function fill(card, args, chain)
         for _, entry in ipairs(Sorted(args)) do
             local o = entry.option
             local info, path = { option = o, key = entry.key }, Extend(chain, o)
-            if Resolve(Inherited(path, "hidden"), info) then
+            if Hidden(path, info) then
                 -- skipped
             elseif o.type == "group" then
                 if o.inline then
@@ -928,7 +933,7 @@ function P:BuildPage(group, gate)
     for _, entry in ipairs(Sorted(group.args)) do
         local o = entry.option
         local info, path = { option = o, key = entry.key }, Extend({ group }, o)
-        if Resolve(Inherited(path, "hidden"), info) or IsPage(o) then
+        if Hidden(path, info) or IsPage(o) then
             -- skipped; sub-pages have tabs of their own
         elseif o.type == "group" then
             loose = nil
@@ -1078,7 +1083,7 @@ local function TextButton(parent, text, font)
         W.ShowTooltip(self, self.tipTitle, self.tipText, "ANCHOR_BOTTOM")
     end)
     b:SetScript("OnLeave", function(self)
-        self.SetHover(CLEAR); self.label:SetTextColor(unpack(self.color or C.header))
+        self.SetHover(CLEAR); self.label:SetTextColor(unpack(C.header))
         W.HideTooltip(self)
     end)
     return b
@@ -1137,14 +1142,12 @@ function P:Create()
     self:CreateTitleBar(f)
     self:CreateSidebar(f)
     local main = CreateFrame("Frame", nil, f)
-    self.main = main
     main:SetPoint("TOPLEFT", SIDEBAR + 1, -TITLE - 1)
     main:SetPoint("BOTTOMRIGHT", -1, 1)
     self:CreateOverview(main)
     self:CreatePageView(main)
     -- Resize grip: drag to resize, right-click for the default size.
     local grip = CreateFrame("Button", nil, f)
-    self.grip = grip
     grip:SetSize(18, 18)
     grip:SetPoint("BOTTOMRIGHT", -2, 2)
     grip:SetFrameLevel(self.offOverlay:GetFrameLevel() + 10) -- above the off overlay, so the window still resizes under it
@@ -1268,7 +1271,6 @@ function P:CreateTitleBar(f)
     self.titleText = title
     -- Close: a pixel-exact X.
     local close = CreateFrame("Button", nil, bar)
-    self.close = close
     close:SetSize(TITLE - 8, TITLE - 8)
     close:SetPoint("RIGHT", -4, 0)
     close.hover = W.Dot(close, TITLE - 8, { 0.8, 0.25, 0.15, 0.25 })
@@ -1293,7 +1295,7 @@ function P:CreateTitleBar(f)
     text:SetPoint("RIGHT", larger, "LEFT", -2, 0)
     local smaller = TextButton(bar, "-", "GameFontNormalLarge")
     smaller:SetPoint("RIGHT", text, "LEFT", -2, 0)
-    self.scaleText, self.scaleUp, self.scaleDown = text, larger, smaller
+    self.scaleText = text
     local tip = "Window scale. Click the percentage for 100%, or use the mouse wheel over it."
     for _, b in ipairs({ larger, text, smaller }) do
         b.tipTitle, b.tipText = "Scale", tip
@@ -1354,7 +1356,6 @@ local PIP_LIT = { C.line[1], C.line[2], C.line[3], 0.55 }
 
 function P:CreateSidebar(f)
     local sidebar = CreateFrame("Frame", nil, f)
-    self.sidebar = sidebar
     sidebar:SetPoint("TOPLEFT", 1, -TITLE - 1)
     sidebar:SetPoint("BOTTOMLEFT", 1, 1)
     sidebar:SetWidth(SIDEBAR)
@@ -1362,9 +1363,8 @@ function P:CreateSidebar(f)
     local edge = W.Fill(sidebar, C.border, "BORDER")
     edge:SetPoint("TOPRIGHT"); edge:SetPoint("BOTTOMRIGHT"); edge:SetWidth(1)
     self:CreateSearch(sidebar)
-    -- Profiles and About as small chips, pinned to the bottom under the reload notice when there is one.
+    -- Profiles and About as small chips, pinned to the bottom.
     local bottom = CreateFrame("Frame", nil, sidebar)
-    self.sidebarBottom = bottom
     bottom:SetPoint("BOTTOMLEFT", 0, 8)
     bottom:SetPoint("BOTTOMRIGHT", -1, 8)
     bottom:SetHeight(24)
@@ -1416,12 +1416,10 @@ function P:CreateSidebar(f)
     pip:SetScript("OnClick", function() self:NavClick({ kind = "notes" }) end)
     self:PaintPip()
     -- The web links (GitHub, Donate) as icons across from Profiles and About, at the right.
-    self.linkIcons = {}
     local x = -(PAD - 3)
     for i = #HST.links, 1, -1 do
         local link = HST.links[i]
         local b = CreateFrame("Button", nil, bottom)
-        self.linkIcons[i] = b
         b:SetSize(20, 20)
         b:SetPoint("BOTTOMRIGHT", x, -1)
         b.icon = W.PixelIcon(b, link.icon, 16, C.muted)
@@ -1439,23 +1437,6 @@ function P:CreateSidebar(f)
         end)
         x = x - 24
     end
-    -- Empty unless a change needs a UI reload.
-    local reload = CreateFrame("Frame", nil, sidebar)
-    self.reload = reload
-    reload:SetPoint("BOTTOMLEFT", bottom, "TOPLEFT", PAD - 4, 10)
-    reload:SetPoint("BOTTOMRIGHT", bottom, "TOPRIGHT", -PAD + 4, 10)
-    reload:SetHeight(78)
-    W.Fill(reload, { C.warning[1], C.warning[2], C.warning[3], 0.08 }):SetAllPoints()
-    W.Border(reload, { C.warning[1], C.warning[2], C.warning[3], 0.5 })
-    reload.text = W.Text(reload, "GameFontHighlightSmall", C.warning)
-    reload.text:SetPoint("TOPLEFT", 8, -8)
-    reload.text:SetPoint("TOPRIGHT", -8, -8)
-    reload.text:SetText("Some changes take effect after you reload the UI.")
-    reload.button = W.Button(reload, "Reload UI", "primary")
-    reload.button:SetPoint("BOTTOMLEFT", 8, 8)
-    reload.button:SetPoint("BOTTOMRIGHT", -8, 8)
-    reload.button:SetScript("OnClick", function() ReloadUI() end)
-    reload:Hide()
     self.navArea = W.ScrollArea(sidebar)
     self.navArea:SetPoint("TOPLEFT", 0, -56)
     self.navArea:SetPoint("BOTTOMRIGHT", bottom, "TOPRIGHT", -8, 4)
@@ -1481,7 +1462,6 @@ function P:CreateSearch(sidebar)
     clear:SetSize(18, 18)
     clear:SetPoint("RIGHT", -6, 0)
     clear.icon = W.CloseIcon(clear, 8)
-    self.clearIcon = clear.icon
     clear:SetScript("OnClick", function() e:SetText(""); e:ClearFocus() end)
     clear:SetScript("OnEnter", function() clear.icon:SetVertexColor(unpack(C.bright)) end)
     clear:SetScript("OnLeave", function() clear.icon:SetVertexColor(unpack(C.header)) end)
@@ -1679,12 +1659,6 @@ function P:PaintPip()
     pip.text:SetTextColor(unpack(pip.hovered and C.bright or open and C.accent or C.muted))
 end
 
-function P:RefreshReload()
-    local needed = HST:NeedsReload()
-    self.reload:SetShown(needed)
-    self.navArea:SetPoint("BOTTOMRIGHT", self.sidebarBottom, "TOPRIGHT", -8, needed and 100 or 4)
-end
-
 ---------------------------------------------------------------------------
 -- Overview: every module with a switch, grouped by category, and a details
 -- pane with the preview of the module under the mouse. Search results use it too.
@@ -1821,7 +1795,7 @@ function P:CreateDetail(view)
     d.examplesTitle:SetText("SETTINGS")
     d.examples = {}
     d.button:SetScript("OnClick", function()
-        if d.result then return self:OpenModule(d.result.owner, d.result.path, d.result.key) end
+        if d.result then return self:OpenModule(d.result.owner, d.result.path, d.result.option) end
         local module = self.detailModule
         if HasPage(module) then return self:OpenModule(module:GetName()) end
         Flip(module)
@@ -1954,7 +1928,7 @@ function P:ExampleRow(index)
     row.swatch:SetPoint("RIGHT", -4, 0)
     row:SetScript("OnEnter", function(r) r.highlight:Show(); r.label:SetTextColor(unpack(C.bright)) end)
     row:SetScript("OnLeave", function(r) r.highlight:Hide(); r.label:SetTextColor(unpack(C.body)) end)
-    row:SetScript("OnClick", function(r) self:OpenModule(r.item.owner, r.item.path, r.item.key) end)
+    row:SetScript("OnClick", function(r) self:OpenModule(r.item.owner, r.item.path, r.item.option) end)
     return row
 end
 
@@ -2070,13 +2044,13 @@ function P:ListHeader(key, text)
     return header
 end
 
--- Places category headers and module rows in the list; returns the content height.
+-- Places category headers and module rows in the list, which is self.listHeight high. Rows are reused in order, and
+-- a row that stays shown isn't hidden first: showing a row runs its switch's OnShow work.
 function P:LayoutModules(modules)
     local y, used = 0, 0
     for _, header in pairs(self.headers) do header:Hide() end
     -- A search's arrow-key highlight goes with it (P:PaintCursor draws it again when a search lays rows out).
-    for _, row in ipairs(self.rows) do row:Hide(); row.cursor:Hide() end
-    for _, row in ipairs(self.results) do row:Hide() end
+    for _, row in ipairs(self.rows) do row.cursor:Hide() end
     self.categoryTop = {}
     local width = self.listWidth
     for _, category in ipairs(HST.categories) do
@@ -2105,17 +2079,18 @@ function P:LayoutModules(modules)
             end
         end
     end
+    for i = used + 1, #self.rows do self.rows[i]:Hide() end
     self.listHeight = y
-    return used, y
 end
 
 function P:RefreshRows()
     for _, row in ipairs(self.rows) do
         local module = row:IsShown() and row.module
         if module then
-            -- What a row shows of its module is set once; after that only its being on or off changes.
-            local info = module.info
-            if row.drawn ~= module then
+            -- What a row shows of its module is set once; after that only its being on or off changes (its switch
+            -- slides then, not when the row is reused for another module).
+            local info, same = module.info, row.drawn == module
+            if not same then
                 row.drawn = module
                 row.label:SetText(info.name)
                 row.sub:SetText(info.unavailable or info.summary or info.description)
@@ -2128,11 +2103,11 @@ function P:RefreshRows()
                 row.switch:SetPoint("RIGHT", page and -38 or -12, 0)
             end
             local on = module:IsEnabled()
-            row.switch:SetOn(on, true)
+            row.switch:SetOn(on, same)
             row.switch.tipText = on and "On. Click to turn it off." or "Off. Click to turn it on."
         end
     end
-    -- Result rows only show in search mode (P:LayoutModules hides them for the list).
+    -- Result rows only show in search mode (P:ShowModules hides them for the list).
     if self.mode == "search" then
         for _, row in ipairs(self.results) do
             if row:IsShown() and row.result then self:PaintResult(row) end
@@ -2150,8 +2125,10 @@ function P:ShowModules()
     local view = self.overview
     view.title:SetText("Tweaks")
     self:ListTop(false)
-    for key, chip in pairs(self.filters) do chip:SetSelected(key == self.filter); chip:Show() end
+    for key, chip in pairs(self.filters) do chip:SetSelected(key == self.filter) end
     self:LayoutModules(shown)
+    for _, row in ipairs(self.results) do row:Hide() end
+    if self.moreResults then self.moreResults:Hide() end
     self:RefreshRows()
     self.list:SetContentHeight(self.listHeight + 20)
     self.detail:Show()
@@ -2506,20 +2483,23 @@ function P:RefreshHeader()
     end
     if not module then return self:RefreshOffOverlay(nil) end
     local on, info = module:IsEnabled(), module.info
-    header.toggle:SetOn(on, true)
+    -- It slides when this module is turned on or off, not when another one opens.
+    header.toggle:SetOn(on, header.module == module)
+    header.module = module
     header.toggle:SetDisabledLook(info.unavailable ~= nil)
     header.state:SetText(on and "On" or "Off")
     header.state:SetTextColor(unpack(on and C.accent or C.muted))
     local crumb = self.crumb
     if info.unavailable then
-        crumb = crumb .. "   |cfff28538" .. info.unavailable .. "|r"
+        crumb = crumb .. "   " .. Hex(C.warning) .. info.unavailable .. "|r"
     end
     header.crumb:SetText(crumb)
     self:RefreshOffOverlay(module, on)
 end
 
--- Shows a settings page's content. id names it in the page cache.
-function P:ShowPage(id, group, gate, focusKey)
+-- Shows a settings page's content. id names it in the page cache. focus, a setting's option (or its key, which sections
+-- on one page can share), is scrolled to and flashed.
+function P:ShowPage(id, group, gate, focus)
     self:StopFlash()
     for _, page in pairs(self.pages) do page.content:Hide() end
     local page
@@ -2537,9 +2517,9 @@ function P:ShowPage(id, group, gate, focusKey)
     if page then self:RefreshPage() end
     self:LayoutPageView()
     self.pageArea:ScrollTo(0)
-    if page and focusKey then
+    if page and focus then
         for _, c in ipairs(page.controls) do
-            if c.key == focusKey then
+            if c.option == focus or c.key == focus then
                 self.pageArea:ScrollTo((c.top or 0) - 24)
                 self:Flash(c)
                 break
@@ -2570,9 +2550,9 @@ function P:SetMode(mode, view)
     if not list then self.tabCount, self.chipCount = 0, 0 end
 end
 
--- Opens a module's page: path selects a settings page (by default the one last shown, then the first), focusKey
--- highlights a setting.
-function P:OpenModule(key, path, focusKey)
+-- Opens a module's page: path selects a settings page (by default the one last shown, then the first), focus
+-- highlights a setting (see P:ShowPage).
+function P:OpenModule(key, path, focus)
     local module = HST:GetModule(key)
     local options = module.info.options and module.info.options()
     if not options then return self:ShowInList(module) end
@@ -2589,21 +2569,21 @@ function P:OpenModule(key, path, focusKey)
     State().expanded[info.category] = true
     local names = {}
     local group = options
-    for _, part in ipairs(path or {}) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
+    for _, part in ipairs(path) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
     self.crumb = CategoryName(info.category) .. (#names > 0 and ("  >  " .. table.concat(names, "  >  ")) or "")
     self:SetHeader(info.name, self.crumb, info.description)
     self:BuildTabs()
     self.tabsChange = PagesChange(options)
     self:RefreshHeader()
     local gate = function() return not module:IsEnabled() end
-    self:ShowPage(key .. "/" .. table.concat(path or {}, "/"), group, gate, focusKey)
+    self:ShowPage(key .. "/" .. table.concat(path, "/"), group, gate, focus)
     self:RefreshNav()
 end
 
 -- Tabs for the open module's pages, and chips for the open page's sub-pages (those shown with its settings as they
 -- are). Returns whether which ones show changed.
 function P:BuildTabs()
-    local options, path = self.pageOptions, self.openPath or {}
+    local options, path = self.pageOptions, self.openPath
     local tabs, chips = {}, {}
     local pages = Pages(options)
     if #pages > 1 or (pages[1] and #Pages(pages[1].option) > 0) then
@@ -2753,7 +2733,7 @@ local function Highlight(name, words)
     for _, mark in ipairs(marks) do
         if mark[1] >= at then
             out[#out + 1] = name:sub(at, mark[1] - 1)
-            out[#out + 1] = "|cffffcc66" .. name:sub(mark[1], mark[2]) .. "|r"
+            out[#out + 1] = Hex(C.accent) .. name:sub(mark[1], mark[2]) .. "|r"
             at = mark[2] + 1
         end
     end
@@ -2806,7 +2786,7 @@ function P:ResultRow(index)
     end)
     row.switch.onEnter = function() row:GetScript("OnEnter")(row) end
     row.switch.onLeave = function() row:GetScript("OnLeave")(row) end
-    row:SetScript("OnClick", function(r) self:OpenModule(r.result.owner, r.result.path, r.result.key) end)
+    row:SetScript("OnClick", function(r) self:OpenModule(r.result.owner, r.result.path, r.result.option) end)
     return row
 end
 
@@ -2823,7 +2803,9 @@ function P:PaintResult(row)
     end
     if o.type == "toggle" then
         local off = not HST:GetModule(result.owner):IsEnabled() or Disabled(result.chain, { option = o, key = result.key })
-        row.switch:SetOn(o.get({ option = o, key = result.key }), true)
+        -- It slides when this setting changes, not when another search puts a different one in the row.
+        row.switch:SetOn(o.get({ option = o, key = result.key }), row.painted == result)
+        row.painted = result
         row.switch:SetDisabledLook(off)
     elseif o.type == "color" then
         local r, g, b, a = o.get({ option = o, key = result.key })
@@ -2855,9 +2837,11 @@ function P:Search(text, again)
         if All(haystack, words) then modules[#modules + 1] = module end
     end
     -- Settings whose name has every word come first, then those whose section, page or module does, then the rest.
+    -- Settings hidden for now, or on a page that is, aren't offered.
     local ranked = {}
     for i, entry in ipairs(self:SettingsIndex()) do
-        if All(entry.all, words) then
+        if All(entry.all, words)
+            and not Resolve(Inherited(entry.chain, "hidden"), { option = entry.option, key = entry.key }) then
             local rank = All(entry.lname, words) and 1 or All(entry.near, words) and 2 or 3
             ranked[#ranked + 1] = { entry = entry, rank = rank, order = i }
         end
@@ -2895,14 +2879,16 @@ function P:Search(text, again)
     self:RefreshNav()
 end
 
--- Modules that match, then matching settings.
+-- Modules that match, then matching settings: the best RESULTS of them, which a word or two more narrows down to the
+-- one you want (a one-letter search matches nearly all of the hundreds there are).
+P.RESULTS = 50
 function P:LayoutResults(modules, ranked, words)
-    local _, y = self:LayoutModules(modules)
+    self:LayoutModules(modules)
     self:RefreshRows()
-    local width = self.listWidth
+    local y, width, shown = self.listHeight, self.listWidth, math.min(#ranked, self.RESULTS)
     self.cursorRows = {}
     for _, row in ipairs(self.rows) do if row:IsShown() then self.cursorRows[#self.cursorRows + 1] = row end end
-    if #ranked > 0 then
+    if shown > 0 then
         if y > 0 then y = y + 10 end
         local header = self:ListHeader("settings", "Settings")
         header:ClearAllPoints()
@@ -2910,7 +2896,8 @@ function P:LayoutResults(modules, ranked, words)
         header:SetWidth(width)
         header:Show()
         y = y + 30
-        for i, item in ipairs(ranked) do
+        for i = 1, shown do
+            local item = ranked[i]
             local row = self:ResultRow(i)
             local result = item.entry
             row.result = result
@@ -2924,6 +2911,21 @@ function P:LayoutResults(modules, ranked, words)
             self.cursorRows[#self.cursorRows + 1] = row
             y = y + RESULT_ROW
         end
+    end
+    for i = shown + 1, #self.results do self.results[i]:Hide() end
+    local more = self.moreResults
+    if #ranked > shown then
+        if not more then
+            more = W.Text(self.list.child, "GameFontHighlightSmall", C.muted)
+            self.moreResults = more
+        end
+        more:SetText(string.format("%d more settings match. Add a word to find the one you want.", #ranked - shown))
+        more:ClearAllPoints()
+        more:SetPoint("TOPLEFT", 12, -(y + 8))
+        more:Show()
+        y = y + 30
+    elseif more then
+        more:Hide()
     end
     self.list:SetContentHeight(y + 20)
 end
@@ -2952,7 +2954,7 @@ function P:OpenCursor()
         if HasPage(row.module) then return self:OpenModule(row.module:GetName()) end
         return Flip(row.module)
     end
-    self:OpenModule(row.result.owner, row.result.path, row.result.key)
+    self:OpenModule(row.result.owner, row.result.path, row.result.option)
 end
 
 -- Empties the search box without going back (something else is about to show).
@@ -3005,10 +3007,10 @@ end
 ---------------------------------------------------------------------------
 function P:Refresh()
     if not (self.frame and self.frame:IsShown()) then return end
-    self:RefreshReload()
     if self.mode == "modules" or self.mode == "search" then
         self:RefreshRows()
-        if self.mode == "modules" and self.detailModule and not self.detail.result then self:ShowDetail(self.detailModule) end
+        -- The details pane's button says what it will do (Turn on, Turn off), so it follows the module's state.
+        if self.detailModule and not self.detail.result then self:ShowDetail(self.detailModule) end
         self:PaintNav()
     else
         if self.view == "profiles" then self.pageHeader.crumb:SetText("Active profile: " .. HST.db:GetCurrentProfile()) end
@@ -3025,7 +3027,6 @@ function HST:OpenSettings(moduleKey)
     if not P.frame then P:Create() end
     P.frame:Show()
     P.frame:Raise()
-    P:RefreshReload()
     if moduleKey then return P:OpenModule(moduleKey) end
     -- Reopened where it was left.
     if P.view == "module" and P.openModule then return P:OpenModule(P.openModule) end

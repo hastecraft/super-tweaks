@@ -187,7 +187,7 @@ function M:ScanInbox()
         end
     end
     table.sort(times)
-    me.mail = { times = times, unseen = math.max(0, (total or 0) - (shown or 0)), checked = now }
+    me.mail = { times = times, unseen = math.max(0, (total or 0) - (shown or 0)) }
 end
 
 local function Plural(n, word) return n .. " " .. word .. (n == 1 and "" or "s") end

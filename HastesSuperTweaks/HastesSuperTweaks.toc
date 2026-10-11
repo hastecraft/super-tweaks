@@ -33,7 +33,6 @@ Modules\CombatText.lua
 Modules\CombatTextOptions.lua
 Modules\BreathMeter.lua
 Modules\GuildMOTD.lua
-Modules\WhisperFlash.lua
 Modules\KillsToLevel.lua
 Modules\QuestXP.lua
 Modules\QuestSparkle.lua

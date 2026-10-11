@@ -350,11 +350,6 @@ function W.Round(frame, radius, inset, layer, sublevel, ring)
     return Painter(pieces)
 end
 
--- A pill filling `frame`, `inset` units in from its edges. (`height` is no longer needed: the ends are measured.)
-function W.Pill(frame, height, inset, layer, sublevel)
-    return W.Round(frame, nil, inset, layer, sublevel)
-end
-
 -- A rounded control's look: its fill, and a rim a unit wide around its edge (a pill with no radius), in `layer`
 -- (BACKGROUND unless given). Returns setters for the rim and the fill.
 function W.Outline(frame, radius, rim, fill, layer)
@@ -370,27 +365,24 @@ function W.Over(over, base)
     return { base[1] + (over[1] - base[1]) * a, base[2] + (over[2] - base[2]) * a, base[3] + (over[3] - base[3]) * a, 1 }
 end
 
--- A count in a small pill, as the sidebar and the list filters show them. SetText("") or nil hides it.
+-- A count in a small pill, as the sidebar shows them. SetText("") or nil hides it, the first call included.
 local BADGE_H, BADGE_PAD = 14, 5
-function W.Badge(parent, fill, color)
+function W.Badge(parent)
     local b = CreateFrame("Frame", nil, parent)
     b:SetHeight(BADGE_H)
-    b.SetFill = W.Pill(b, BADGE_H)
-    b.label = W.Text(b, "GameFontNormalSmall", color or C.muted, "CENTER")
+    W.Round(b)(C.trackOff)
+    b.label = W.Text(b, "GameFontNormalSmall", C.muted, "CENTER")
     b.label:SetPoint("CENTER", 0, 0)
-    function b:SetColors(fillColor, textColor)
-        self.SetFill(fillColor)
-        self.label:SetTextColor(unpack(textColor))
-    end
+    b.text = false -- no text set yet
     function b:SetText(text)
         if text == self.text then return end
         self.text = text
-        self.label:SetText(text or "")
-        self:SetShown(text ~= nil and text ~= "")
+        local shown = text ~= nil and text ~= ""
+        self:SetShown(shown)
+        if not shown then return end
+        self.label:SetText(text)
         self:SetWidth(math.max(BADGE_H * 2, math.ceil(self.label:GetStringWidth()) + BADGE_PAD * 2))
     end
-    b:SetColors(fill or C.trackOff, color or C.muted)
-    b:SetText(nil)
     return b
 end
 
@@ -422,12 +414,14 @@ function W.Switch(parent)
         self.SetTrack(on and C.trackOn or C.trackOff)
         self.knob:SetVertexColor(unpack(on and C.knobOn or C.knob))
     end
-    -- Only what changed is set: every settings change refreshes the page. animate slides the knob there.
+    -- Only what changed is set: every settings change refreshes the page. animate slides the knob there, except the
+    -- first time (the switch is drawn off until then).
     function s:SetOn(on, animate)
         on = on and true or false
         if on == self.on then return end
         local first = self.on == nil
         self.on = on
+        if first and not on then return end
         self:Paint()
         local x = on and KNOB_ON or KNOB_OFF
         if animate and not first and self:IsVisible() then
@@ -463,7 +457,7 @@ function W.Switch(parent)
         if self.onLeave then self.onLeave() end
         W.HideTooltip(self)
     end)
-    s:SetOn(false)
+    s:Paint()
     return s
 end
 
@@ -473,7 +467,6 @@ end
 -- for that width and returns the row's height; row:SetDisabled(off) dims it.
 ---------------------------------------------------------------------------
 local HEAD, ROW_PAD, DESC_GAP = 30, 4, 2
-W.HEAD = HEAD
 
 -- How wide a row's control is.
 function W.ControlWidth(width)
@@ -510,7 +503,6 @@ local function PlaceText(c, width, control, head)
     c.desc:SetPoint("TOPLEFT", 2, -ROW_PAD - head + DESC_GAP)
     return head + ROW_PAD * 2 + c.desc:GetStringHeight() + 4, head
 end
-W.PlaceText = PlaceText
 
 -- Sets the label and description; only text that changed is written.
 local function SetTexts(c, label, desc)
@@ -571,7 +563,6 @@ function W.ToggleRow(parent)
     function c:OnLit(lit) self.switch:SetLit(lit) end
     function c:Layout(width) return (PlaceText(self, width, SWITCH_W)) end
     function c:SetValue(on, off)
-        self.checked = on and true or false
         self.switch:SetOn(on, true)
         off = off and true or false
         if off == self.off then return end
@@ -937,7 +928,6 @@ function W.InputRow(parent, full)
     local c = NewRow(parent)
     c:EnableMouse(true)
     local e = CreateFrame("EditBox", nil, c)
-    c.edit = e
     e:SetHeight(22)
     e:SetFontObject("ChatFontNormal")
     e:SetTextInsets(11, 11, 0, 0)
@@ -974,8 +964,11 @@ function W.InputRow(parent, full)
         return height
     end
     function c:SetValue(text, off)
-        self.saved = text or ""
-        if not e:HasFocus() then e:SetText(self.saved) end
+        -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile.
+        local saved = text or ""
+        local kept = e:HasFocus() or (saved == self.saved and dirty())
+        self.saved = saved
+        if not kept then e:SetText(saved) end
         e:SetEnabled(not off)
         e:SetTextColor(unpack(off and C.disabled or C.bright))
         self.off = off
@@ -1038,7 +1031,7 @@ function W.Button(parent, text, style)
     return b
 end
 
--- A titled panel that settings rows sit in. card:Layout(width) is done by the settings window.
+-- A titled panel that settings rows sit in; the settings window lays it out (LayoutCard in Panel.lua).
 function W.Card(parent, title)
     local card = CreateFrame("Frame", nil, parent)
     W.Fill(card, C.card):SetAllPoints()
@@ -1227,7 +1220,7 @@ function W.Popup(parent, spec)
 end
 
 -- Text as this addon prints it to chat, and a line showing it.
-function W.Chat(text) return "|cffffcc66" .. ns.HST.title .. ":|r " .. text end
+function W.Chat(text) return ns.CHAT_PREFIX .. text end
 function W.ChatLine(parent, text)
     local line = W.Text(parent, "GameFontHighlightSmall", nil, "CENTER")
     line:SetWidth(242)
