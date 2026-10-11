@@ -1,6 +1,8 @@
 # Haste's Super Tweaks
 
-Small quality-of-life tweaks for WoW Forever, all in one settings window: an XP tracker, better tooltips and combat text, a compact loot window, automatic junk and clutter selling, quest and NPC shortcuts, auto-decline and more. Classic Era is listed in the TOC too.
+Opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package.
+
+An XP tracker, better tooltips and combat text, a compact loot window, automatic junk and clutter selling, quest and NPC shortcuts, auto-decline and more, all in one settings window. Classic Era is listed in the TOC too.
 
 Type `/hst` in game to open the settings. The full list of tweaks and how each behaves is in [HastesSuperTweaks/README.md](HastesSuperTweaks/README.md).
 
