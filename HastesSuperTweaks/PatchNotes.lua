@@ -15,7 +15,7 @@ local HST = ns.HST
 HST.patchNotes = {
     {
         version = "1.0.0", date = "2026-10-11",
-        summary = "First release. Opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package.",
+        summary = "First release: opinionated quality-of-life tweaks for WoW Forever in one addon.",
         new = {
             "Leveling: XP Tracker, Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Upgrade Spell Ranks and Train All.",
             "Quests & NPCs: Auto Accept & Turn In Quests, Skip NPC Chat, Quest Item Sparkle, Quest Reward Value and Hide Quest Tracker.",

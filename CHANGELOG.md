@@ -4,7 +4,7 @@ Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't
 
 ## 1.0.0 (2026-10-11)
 
-First release. Opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package.
+First release: opinionated quality-of-life tweaks for WoW Forever in one addon.
 
 ### New
 
