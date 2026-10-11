@@ -12,14 +12,15 @@ ns.Tooltip = T
 local WHITE = ns.WHITE
 local floor, max, min = math.floor, math.max, math.min
 
-T.defaults = { profile = {
+ns.Configure(T, {
     healthBar = true, barText = "VALUE", classColors = true, healthColor = { 0.2, 0.8, 0.2, 1 },
     barHeight = 8, barGap = 2, texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 10, outline = "OUTLINE",
     backgroundColor = { 0.035, 0.045, 0.06, 0.9 }, barBorderColor = { 0, 0, 0, 1 }, barBorderSize = 1,
     classBorder = true, reactionBorder = false, borderSize = 1,
     guildLine = true, guildRank = true, highlightGuild = true, guildNotes = true, officerNotes = true,
     guildColor = { 0.25, 1, 0.25, 1 }, ownGuildColor = { 0.4, 0.8, 1, 1 }, rankColor = { 0.7, 0.7, 0.7, 1 },
-} }
+}, function(m) return m:BuildOptions() end, "Apply")
+T.info.preview = function(frame) return T:DrawPreview(frame) end
 
 local IsSecret, Hex = ns.IsSecret, ns.ColorCode
 local Pixels, CreateEdges = ns.Pixels, ns.CreateEdges
@@ -439,13 +440,6 @@ function T:HookTooltip()
     tip:HookScript("OnHide", function() self:Clear() end)
     -- Skins restyle the border when the tooltip shows, after the unit is set.
     tip:HookScript("OnShow", function() if self.unit then self:UpdateBorder() end end)
-end
-
-function T:OnInitialize()
-    self.db = HST.db:RegisterNamespace("Tooltip", self.defaults)
-    ns.OnProfile(self, "Apply")
-    ns.LazyOptions(self, self.BuildOptions)
-    self.info.preview = function(frame) return self:DrawPreview(frame) end
 end
 
 -- Roster updates only mark the guild notes stale (see GuildNotes), and what was read about the unit shown (its rank
