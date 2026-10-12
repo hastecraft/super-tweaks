@@ -342,6 +342,47 @@ Section('Interface', function()
         HST:SetFeatureEnabled('MuteMountSounds', true); HST:SetFeatureEnabled('MuteMountSounds', false)
     end)
 end)
+
+Section('Elite & Rare Markers', function()
+    local N = mod('NameplateMarkers')
+    -- Eight nameplates as the game's: the unit's token, and a unit frame with the name above the health bar. Three are
+    -- mobs a quest of yours needs. The game lists the nameplates showing in a new table each time it's asked.
+    local plates = {}
+    for i = 1, 8 do
+        local token = 'nameplate' .. i
+        local plate = CreateFrame('Frame', 'NamePlate' .. i, WorldFrame)
+        plate.unitToken = token
+        local game = CreateFrame('Frame', nil, plate)
+        game.name, game.healthBar = game:CreateFontString(), CreateFrame('StatusBar', nil, game)
+        plate.UnitFrame = game
+        PLATES[token], UNITS[token], plates[i] = plate, { guid = 'Creature-' .. (10 + i), quest = i <= 3 }, plate
+    end
+    local listPlates = C_NamePlate.GetNamePlates
+    C_NamePlate.GetNamePlates = function()
+        local list = {}
+        for i = 1, #plates do list[i] = plates[i] end
+        return list
+    end
+    -- A nameplate showing (its markers are placed a frame later), and going.
+    local function show(unit) Send('NameplateMarkers', 'NAME_PLATE_UNIT_ADDED', unit); AdvanceTime(0) end
+    local function gone(unit) Send('NameplateMarkers', 'NAME_PLATE_UNIT_REMOVED', unit) end
+    for i = 1, 8 do show('nameplate' .. i) end
+    Measure('Nameplate shown and gone: a mob no quest needs', 300, function() gone('nameplate8'); show('nameplate8') end)
+    Measure('Nameplate shown and gone: a quest mob, marked', 300, function() gone('nameplate1'); show('nameplate1') end)
+    local third = UNITS.nameplate3
+    Measure('Quest progress: 8 nameplates checked again, a mark taken off or back', 100, function()
+        third.quest = not third.quest
+        Send('NameplateMarkers', 'QUEST_WATCH_UPDATE', 701); Send('NameplateMarkers', 'QUEST_LOG_UPDATE')
+    end)
+    third.quest = true
+    -- A client without the quest log's answer reads the unit's tooltip data instead.
+    N.questSource = 'tooltip'
+    Measure('Nameplate shown and gone, tooltip data: a mob no quest needs', 300, function() gone('nameplate8'); show('nameplate8') end)
+    Measure('Nameplate shown and gone, tooltip data: a quest mob, marked', 300, function() gone('nameplate1'); show('nameplate1') end)
+    N.questSource = 'game'
+    for i = 1, 8 do gone('nameplate' .. i); PLATES['nameplate' .. i], UNITS['nameplate' .. i] = nil, nil end
+    C_NamePlate.GetNamePlates = listPlates
+end)
 '''
 
 # Every tweak at once, from a cold login: what a player with everything turned on pays for the frequent events.
