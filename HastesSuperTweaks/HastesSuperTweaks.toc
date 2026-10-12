@@ -57,6 +57,7 @@ Modules\QuestRewards.lua
 Modules\QuestTracker.lua
 Modules\ChatFilter.lua
 Modules\GroupFinderWhispers.lua
+Modules\DamageMeterExtras.lua
 Modules\NameplateMarkers.lua
 Modules\ErrorFilter.lua
 Modules\GameSettings.lua
