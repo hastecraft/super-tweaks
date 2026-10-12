@@ -183,7 +183,17 @@ function HST:FixCharacterKey()
             rawset(child, "char", nil) -- AceDB rebuilds it from sv.char[key] on next use
         end
     end
+    -- The first time a character uses its surname key, it keeps the profile its shared entry had chosen (AceDB may
+    -- already have recorded the default under the new key).
     local chosen = db.sv.profileKeys[key]
+    if shared then
+        local moved = db.global.surnameKeys or {}
+        db.global.surnameKeys = moved
+        if not moved[key] then
+            moved[key] = true
+            chosen = db.sv.profileKeys[shared] or chosen
+        end
+    end
     if chosen and chosen ~= db:GetCurrentProfile() then db:SetProfile(chosen) end
     self:SaveProfileChoice()
 end
