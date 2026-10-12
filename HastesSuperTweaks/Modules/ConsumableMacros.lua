@@ -60,7 +60,7 @@ function M.info.preview(frame)
             count:SetText(({ "20", "18", "12", "5", "3", "20" })[i])
             local label = W.Text(bar, "GameFontDisableSmall", nil, "CENTER")
             label:SetPoint("TOP", slot, "BOTTOM", 0, -1)
-            label:SetText(kind.name:match("^(%S+)"))
+            label:SetText(({ "Food", "Drink", "Aid", "Heal", "Mana", "Eat" })[i])
             if i == 1 then v.food, v.count, v.icon = slot, count, "Interface\\Icons\\" .. kind.icon end
         end
         v.glow = W.Fill(v.food, { 1, 0.82, 0, 1 }, "OVERLAY")
