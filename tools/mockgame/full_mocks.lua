@@ -21,6 +21,16 @@ C_Bank = { CanViewBank = function() return false end }
 function UnitAffectingCombat() return state.combat == true end
 MailFrame = CreateFrame('Frame', 'MailFrame', UIParent); MailFrame:Hide()
 MerchantFrame = CreateFrame('Frame', 'MerchantFrame', UIParent); MerchantFrame:Hide()
+-- Chat message filters, kept per event as the game keeps them (scenarios call them themselves).
+CHAT_FILTERS = {}
+function ChatFrame_AddMessageEventFilter(event, fn)
+    CHAT_FILTERS[event] = CHAT_FILTERS[event] or {}
+    table.insert(CHAT_FILTERS[event], fn)
+end
+function ChatFrame_RemoveMessageEventFilter(event, fn)
+    local filters = CHAT_FILTERS[event] or {}
+    for i = #filters, 1, -1 do if filters[i] == fn then table.remove(filters, i) end end
+end
 state.power, state.powerMax, state.powerType = 2600, 3000, 'MANA'
 
 -- Right-click menus: Menu.ModifyMenu (the menu fixtures) with a root description to add to.

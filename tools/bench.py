@@ -535,6 +535,34 @@ Section('Social', function()
     end)
 end)
 
+Section('Chat Spam Filter (one guild muted)', function()
+    local F = mod('ChatFilter')
+    Enable({ 'ChatFilter' }, true)
+    F.db.profile.mutedGuilds = 'Horde Guard'
+    F:Apply()
+    UNITS.nameplate2 = { guid = 'Player-3', player = true, class = 'ROGUE', health = 100, maxHealth = 100, guild = 'Horde Guard' }
+    local line = 1000
+    -- A public channel message (zone channel 2), a new line each time, from sender with this GUID.
+    local function channel(text, guid)
+        line = line + 1
+        return F.Filter(nil, 'CHAT_MSG_CHANNEL', text, 'Grunt-TestRealm', '', '', '', '', 2, 0, '', 0, line, guid)
+    end
+    Measure('Muted guild: a nameplate learned', 300, function()
+        CallIn(F.learner.scripts.OnEvent, F.learner, 'NAME_PLATE_UNIT_ADDED', 'nameplate2')
+    end)
+    Measure('Muted guild: mouseover learned (not a member)', 300, function()
+        CallIn(F.learner.scripts.OnEvent, F.learner, 'UPDATE_MOUSEOVER_UNIT')
+    end)
+    Measure('Chat filter: channel message, nobody known', 300, function() channel('LFM Deadmines', 'Player-9') end)
+    Measure('Chat filter: channel message, muted guild member', 300, function() channel('LFM Deadmines', 'Player-3') end)
+    Measure('Chat filter: channel message naming a muted <Guild>', 300, function()
+        channel('<Horde Guard> is a fine guild', 'Player-9')
+    end)
+    F.db.profile.mutedGuilds = ''
+    Enable({ 'ChatFilter' }, false)
+    UNITS.nameplate2 = nil
+end)
+
 Section('Level-Up Screenshot', function()
     Measure('Level up: screenshot after the banner wait', 50, function()
         Send('LevelUpScreenshot', 'PLAYER_LEVEL_UP', 30, 0, 0, 0, 0, 0, 0, 0, 0); AdvanceTime(6)
