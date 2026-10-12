@@ -171,10 +171,11 @@ end
 -- What a string holds for a settings table that its defaults have, as the same kinds of values: a table the defaults
 -- hold is checked against it in turn, a color takes 3 or 4 numbers from 0 to 1, a list the player fills (an empty
 -- table in the defaults: items, layouts) takes plain keys and entries, and a setting that's false until it's set (a
--- position) also takes a number. Returns the copy and how many values were left out.
-local function Clean(values, defaults)
+-- position) also takes a number. A module's or the addon's own settings (top) are never such a list. Returns the copy
+-- and how many values were left out.
+local function Clean(values, defaults, top)
     local copy, left = {}, 0
-    local list = next(defaults) == nil
+    local list = not top and next(defaults) == nil
     for key, value in pairs(values) do
         local default, kept = Default(defaults, key), nil
         if list then
@@ -230,12 +231,12 @@ function HST:ReadProfileString(text)
     end
     local db = self.db
     local profile = { modules = {} }
-    profile.core, profile.left = Clean(data.core or {}, db.defaults and db.defaults.profile or {})
+    profile.core, profile.left = Clean(data.core or {}, db.defaults and db.defaults.profile or {}, true)
     for space, values in pairs(data.modules) do
         local child = type(space) == "string" and db.children and db.children[space]
         local defaults = child and child.defaults and child.defaults.profile
         if defaults and type(values) == "table" then
-            local settings, left = Clean(values, defaults)
+            local settings, left = Clean(values, defaults, true)
             profile.modules[space], profile.left = settings, profile.left + left
         else
             profile.left = profile.left + (type(values) == "table" and Count(values) or 1)
