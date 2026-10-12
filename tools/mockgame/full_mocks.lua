@@ -57,6 +57,22 @@ C_NamePlate = {
     GetNamePlateForUnit = function(unit) return PLATES[unit] end,
     GetNamePlates = function() return {} end,
 }
+-- Elite & Rare Markers' quest marks: whether a quest you have needs a unit (UNITS[token].quest), objects with a
+-- nameplate, and a unit's tooltip data (its name, and for a quest unit the quest's title and an objective still to do),
+-- built anew on every call as the game builds it.
+C_QuestLog.UnitIsRelatedToActiveQuest = function(unit) local u = UNITS[unit]; return u ~= nil and u.quest == true end
+function UnitIsGameObject(unit) local u = UNITS[unit]; return u ~= nil and u.object == true end
+Enum.TooltipDataLineType = { UnitName = 2, QuestObjective = 8, QuestTitle = 17, QuestPlayer = 18 }
+C_TooltipInfo.GetUnit = function(unit)
+    local u = UNITS[unit]
+    if not u then return nil end
+    local lines = { { type = 2, leftText = u.name or 'Kobold Vermin' }, { type = 0, leftText = 'Level 5' } }
+    if u.quest then
+        lines[3] = { type = 17, leftText = 'Kobold Camp Cleanup' }
+        lines[4] = { type = 8, leftText = ' - Kobold Vermin slain: 3/10', completed = false }
+    end
+    return { type = 2, guid = u.guid, lines = lines }
+end
 COMBAT_TEXT_INFO = {}
 C_CombatText = {
     GetCurrentEventInfo = function() return COMBAT_TEXT_INFO[1], COMBAT_TEXT_INFO[2], COMBAT_TEXT_INFO[3] end,
