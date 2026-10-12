@@ -329,6 +329,8 @@ function HST:AboutOptions()
             { "/hst mail check", "Mail expiring soon on your characters" },
             { "/hst sort", "Clean up your bags" },
             { "/hst legacy", "Open the Legacy window" },
+            { "/way [zone] <x> <y>", "Set a map pin (also /hstway)" },
+            { "/way clear", "Remove the map pin" },
         }),
         xp = card("XP Tracker", 4, {
             { "/hxp", "Open XP Tracker settings" },
@@ -394,7 +396,8 @@ function HST:Command(message)
     end
     table.sort(words)
     self:Print("/hst opens settings; /hst <tweak> opens a tweak's settings (" .. table.concat(words, ", ")
-        .. "). Also: /hst clutter list, /hst keep <item>, /hst sell <item>, /hst mail check, /hst sort, /hst legacy. XP bar commands: /hxp help.")
+        .. "). Also: /hst clutter list, /hst keep <item>, /hst sell <item>, /hst mail check, /hst sort, /hst legacy, /hst way <zone> <x> <y>. "
+        .. "XP bar commands: /hxp help.")
 end
 
 -- The About page's /hst commands: the window, then each module's settings word in alphabetical order.
