@@ -191,13 +191,15 @@ local QUALITIES = { [0] = "Poor", "Common", "Uncommon", "Rare", "Epic" }
 -- How the window looks; Reset appearance restores these.
 -- The loot to take has a background (takeBackground) and the list of what you picked up only as much of one as
 -- noticeAlpha says (none by default), so the two never look alike.
+-- Matches EllesmereUI's outline only when it's loaded: the Outline menu offers that choice only then.
 local LOOK = {
     takeBackground = true, backgroundStyle = "PAGE", backgroundColor = { 0.078, 0.066, 0.058, 0.74 }, noticeAlpha = 0,
     pageColor = { 0.33, 0.26, 0.19 }, pageAlpha = 0.5, scorchColor = { 0.59, 0.28, 0.09 }, scorchAlpha = 0.6, qualityScorch = true,
     padding = 10,
     border = false, borderColor = { 0.25, 0.21, 0.16, 1 }, borderSize = 1, qualityBorder = true, glow = false,
     iconSize = 28, spacing = 2, iconBorder = true, qualityText = true, textColor = { 0.86, 0.77, 0.65, 1 },
-    font = "", fontSize = 14, outline = "EUI", headerRule = false, closeButton = false,
+    font = "", fontSize = 14, outline = ns.AddOnLoaded("EllesmereUI") and "EUI" or "OUTLINE", headerRule = false,
+    closeButton = false,
     footerAlign = "LEFT", footerSize = 14, footerColor = { 1, 1, 1, 1 }, footerRule = false,
 }
 local defaults = {
