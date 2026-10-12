@@ -265,6 +265,43 @@ Section('Consumable Macros', function()
     state.combat = false; Send('ConsumableMacros', 'PLAYER_REGEN_ENABLED'); AdvanceTime(1)
 end)
 
+-- A hunter with a pet out and a sword and a mace: Feed Pet and both weapon macros are kept too. An addon without them
+-- (an older base) stops here, before changing anything, and these scenarios are compared as new.
+Section('Consumable Macros: hunter with a pet and two weapons', function()
+    local C = mod('ConsumableMacros')
+    assert(C.Hands and C.Pet, 'this version has no Feed Pet or weapon macros')
+    local function restart() HST:SetFeatureEnabled('ConsumableMacros', false); HST:SetFeatureEnabled('ConsumableMacros', true) end
+    UNITS.player.class, C.playerClass, UNITS.pet = 'HUNTER', nil, { level = 30, hunter = true, happiness = 3 }
+    ITEMS[2672] = { name = 'Stringy Wolf Meat', level = 0, ilvl = 5, class = 7, sub = 8 }
+    ITEMS[3731] = { name = 'Lion Meat', level = 0, ilvl = 23, class = 7, sub = 8 }
+    ITEMS[3771] = { name = 'Wild Hog Shank', level = 25, ilvl = 35, spell = 'Food' }
+    ITEMS[7964] = { name = 'Solid Sharpening Stone', level = 25, ilvl = 35, class = 7, spell = 'Sharpen Blade IV', spellID = 9900 }
+    ITEMS[7965] = { name = 'Solid Weightstone', level = 25, ilvl = 35, class = 7, spell = 'Enhance Blunt Weapon IV', spellID = 9903 }
+    ITEMS[1482], ITEMS[1483] = { name = 'Shadowfang', class = 2, sub = 7 }, { name = 'Mace', class = 2, sub = 4 }
+    PET_EATS[2672], PET_EATS[3731], PET_EATS[3771] = true, true, true
+    WIELDED[16], WIELDED[17] = 1482, 1483
+    local bags = BAGS[0]
+    BAGS[0] = { { 4540, 10 }, { 159, 20 }, { 8545, 10 }, { 929, 3 }, { 3827, 4 }, { 2672, 10 }, { 3731, 5 }, { 3771, 6 },
+        { 7964, 4 }, { 7965, 4 } }
+    for i = 11, 16 do BAGS[0][i] = { 2589, 20 } end
+    wipe(C.items); restart(); AdvanceTime(1)
+    Measure('Hunter: bags changed, same picks (Feed Pet, two weapons)', 100, function()
+        Send('ConsumableMacros', 'BAG_UPDATE_DELAYED'); AdvanceTime(0.3)
+    end)
+    Measure('Hunter: pet called, what it eats asked again', 100, function()
+        Send('ConsumableMacros', 'UNIT_PET', 'player'); AdvanceTime(0.3)
+    end)
+    Measure('Weapon swapped: weapons read again, macro check', 100, function()
+        Send('ConsumableMacros', 'PLAYER_EQUIPMENT_CHANGED', 16, true); AdvanceTime(0.3)
+    end)
+    Measure('Gear swapped (not a weapon): ignored', 300, function() Send('ConsumableMacros', 'PLAYER_EQUIPMENT_CHANGED', 5, true) end)
+    Measure('Pet happiness update, unchanged', 300, function() Send('ConsumableMacros', 'UNIT_HAPPINESS', 'pet') end)
+    -- Back to the warrior with no pet or weapons the other scenarios have.
+    UNITS.player.class, C.playerClass, UNITS.pet = 'WARRIOR', nil, nil
+    WIELDED[16], WIELDED[17], BAGS[0] = nil, nil, bags
+    wipe(C.items); restart(); AdvanceTime(1)
+end)
+
 Section('Upgrade Spell Ranks', function()
     local R = mod('SpellRanks')
     BOOK = {}
