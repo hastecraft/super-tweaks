@@ -20,6 +20,7 @@ ignore = {
 
 globals = {
     "HastesSuperTweaks_OnAddonCompartmentClick", -- TOC AddonCompartmentFunc
+    "HastesSuperTweaks_RefreshWorld",            -- Better World Refresh's key binding (Bindings.xml)
     "DAMAGE_TEXT_FONT",                          -- Better Scrolling Combat Text sets the game's world text font
     "StaticPopupDialogs",                        -- the settings window's confirmation dialogs
 }

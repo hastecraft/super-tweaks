@@ -36,6 +36,7 @@ Modules\TooltipAllies.lua
 Modules\CombatText.lua
 Modules\CombatTextOptions.lua
 Modules\BreathMeter.lua
+Modules\WorldRefresh.lua
 Modules\DruidMana.lua
 Modules\SwingTimer.lua
 Modules\GuildMOTD.lua
