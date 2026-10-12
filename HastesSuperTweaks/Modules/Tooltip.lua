@@ -1,4 +1,5 @@
--- Better Tooltips: a health bar under unit tooltips, class-colored borders, and a "<Guild> Rank" line.
+-- Better Tooltips: a health bar under unit tooltips, class-colored borders, a "<Guild> Rank" line, and the faction line
+-- in its faction's color with its emblem.
 -- Works on Blizzard's tooltip and on skinned ones (EllesmereUI and others).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -6,7 +7,8 @@ local HST = ns.HST
 local T = HST:NewFeature("Tooltip", {
     name = "Better Tooltips", category = "interface", order = 1, command = "tooltip",
     summary = "Health bars, class borders and guild info on tooltips.", examples = { "healthBar", { "barText", "Health text" }, "classBorder", { "guildLine", "Guild line" }, "guildNotes" },
-    description = "Adds a health bar under player and mob tooltips, colors the border by class, and shows guild ranks and notes.",
+    description = "Adds a health bar under player and mob tooltips, colors the border by class, shows guild ranks and "
+        .. "notes, and colors the Alliance and Horde lines.",
 })
 ns.Tooltip = T
 local WHITE = ns.WHITE
@@ -19,6 +21,7 @@ ns.Configure(T, {
     classBorder = true, reactionBorder = false, borderSize = 1,
     guildLine = true, guildRank = true, highlightGuild = true, guildNotes = true, officerNotes = true,
     guildColor = { 0.25, 1, 0.25, 1 }, ownGuildColor = { 0.4, 0.8, 1, 1 }, rankColor = { 0.7, 0.7, 0.7, 1 },
+    factionLine = true, factionIcon = true, allianceColor = { 0.3, 0.55, 1, 1 }, hordeColor = { 1, 0.2, 0.2, 1 },
 }, function(m) return m:BuildOptions() end, "Apply")
 T.info.preview = function(frame) return T:DrawPreview(frame) end
 
@@ -36,6 +39,8 @@ T.POLL, T.RECOLOR_EVERY, T.NOTES_EVERY = 0.1, 5, 15
 -- the game hides is read on every redraw. So is the guild of a player who shows none: a player just come into view
 -- may have no guild or name yet (the game is still asking the server for them), which looks the same.
 local UNKNOWN_NAME = UNKNOWNOBJECT or "Unknown"
+-- Each faction's emblem, for its tooltip line.
+local FACTION_ICONS = { Alliance = "Interface\\Icons\\PVPCurrency-Honor-Alliance", Horde = "Interface\\Icons\\PVPCurrency-Honor-Horde" }
 function T:ReadUnit(unit, guid)
     if not guid or guid ~= self.readGuid then
         self.readGuid = guid
@@ -43,6 +48,12 @@ function T:ReadUnit(unit, guid)
         if IsSecret(isPlayer) then isPlayer = nil else isPlayer = isPlayer and true or false end
         self.isPlayer, self.classColor, self.guildRead = isPlayer, nil, false
         self.guildName, self.guildRank, self.guildRealm, self.myGuild, self.rosterName = nil, nil, nil, nil, nil
+        -- Its faction: Alliance or Horde (nil for none, or when the game hides it), and that faction's name as shown.
+        local faction, factionName = UnitFactionGroup(unit)
+        if IsSecret(faction) or IsSecret(factionName) or not FACTION_ICONS[faction] or type(factionName) ~= "string" then
+            faction, factionName = nil, nil
+        end
+        self.faction, self.factionName = faction, factionName
         if isPlayer ~= false then
             local _, class = UnitClass(unit)
             self.classColor = not IsSecret(class) and class and RAID_CLASS_COLORS[class] or nil
@@ -108,7 +119,7 @@ function T:CreateFrames()
     bar.edges = CreateEdges(bar)
     bar.text = bar:CreateFontString(nil, "OVERLAY")
     bar.text:SetPoint("CENTER", bar, "CENTER", 0, 0)
-    self.shownColor, self.savedBorder, self.guildText = {}, {}, {}
+    self.shownColor, self.savedBorder, self.guildText, self.factionText = {}, {}, {}, {}
     local waited, polls = 0, 0
     bar:SetScript("OnUpdate", function(_, elapsed)
         waited = waited + elapsed
@@ -337,6 +348,25 @@ function T:FormatGuild(tip)
     if line and current ~= made.text then line:SetText(made.text) end
 end
 
+-- Rewrites the faction line ("Alliance", "Horde") in its faction's color, with its emblem after it when chosen. Only a
+-- line that is the faction's name and nothing else is, so a guild or name holding the word is left alone. The text is
+-- kept while what it's made from stays the same.
+function T:FormatFaction(tip)
+    local faction, name = self.faction, self.factionName
+    if not faction then return end
+    local p, made = self.db.profile, self.factionText
+    local color, icon = faction == "Alliance" and p.allianceColor or p.hordeColor, p.factionIcon
+    if made.name ~= name or made.color ~= color or made.icon ~= icon then
+        made.name, made.color, made.icon = name, color, icon
+        local text = Hex(color) .. name .. "|r"
+        -- The icon is as tall as the line; its border trimmed off.
+        if icon then text = text .. " |T" .. FACTION_ICONS[faction] .. ":0:0:0:0:64:64:5:59:5:59|t" end
+        made.text = text
+    end
+    local line = ns.FindTooltipLine(tip, name, true)
+    if line then line:SetText(made.text) end
+end
+
 -- Public and officer guild notes by player name: "Name" for your realm, "Name-Realm" for any (on WoW Forever, the whole
 -- name, spelled as ns.NameKey does). Roster updates only
 -- mark them stale (they arrive often, and large rosters are slow to read); a tooltip reads them again when needed, at
@@ -418,6 +448,7 @@ function T:OnUnitTooltip(tip, data, unit)
     -- second (unit frames refresh theirs) redraws nothing that didn't change.
     self.unit, self.guid = unit, guid
     if self.db.profile.guildLine then self:FormatGuild(tip) end
+    if self.db.profile.factionLine then self:FormatFaction(tip) end
     self:AddNotes(tip)
     self:UpdateBorder()
     self:ShowBar(guid)
@@ -542,6 +573,16 @@ function T:BuildOptions()
                 guildNotes = option("toggle", "guildNotes", "Show public note", 1),
                 officerNotes = option("toggle", "officerNotes", "Show officer note", 2,
                     { desc = "Only if your guild rank can read officer notes." }),
+            }),
+        } },
+        faction = { type = "group", name = "Faction", order = 4, args = {
+            faction = section("Faction line", 1, {
+                factionLine = option("toggle", "factionLine", "Color Alliance and Horde", 1, {
+                    desc = "Colors the Alliance or Horde line on tooltips by faction." }),
+                factionIcon = option("toggle", "factionIcon", "Show faction emblem", 2, { disabled = unset("factionLine"),
+                    desc = "Adds the faction's emblem after its name." }),
+                allianceColor = option("color", "allianceColor", "Alliance color", 3, { disabled = unset("factionLine") }),
+                hordeColor = option("color", "hordeColor", "Horde color", 4, { disabled = unset("factionLine") }),
             }),
         } },
     } }
