@@ -172,6 +172,42 @@ PlayerFrame:SetSize(232, 100)
 '''
 
 
+SWING_MOCKS = r'''
+PERMISSIVE_FRAMES = true
+-- WoW Forever's swing timer (Blizzard_SwingTimer): its three bars, with the methods the game starts, ends and dims a
+-- swing with. Shortened: the game's also set the bar's value, pip and time text, and fill it in an OnUpdate.
+C_SwingTimer = { EnableRangeCheck = function() end, IsTargetWithinSwingRange = function() return nil end }
+local swingBar = {}
+function swingBar:GetBackground() return self.Background end
+function swingBar:GetBorder() return self.Border end
+function swingBar:GetStatusBar() return self.StatusBar end
+function swingBar:GetStatusBarPip() return self.StatusBar.Pip end
+function swingBar:ResetSwingTimer(duration) if duration and duration > 0 then self.swingDuration = duration end end
+function swingBar:ClearSwingTimer() self.swingDuration = nil end
+function swingBar:ApplyRangePresentation()
+    local alpha = self.isOutOfRange and not self.isInEditMode and 0.4 or 1
+    self.Background:SetAlpha(alpha); self.Border:SetAlpha(alpha); self.StatusBar:SetAlpha(alpha)
+end
+function swingBar:SetOutOfRange(out)
+    if self.isOutOfRange == out then return end
+    self.isOutOfRange = out
+    self:ApplyRangePresentation()
+end
+function swingBar:SetIsInEditMode(editing) self.isInEditMode = editing; self:ApplyRangePresentation() end
+local function fill(self) return self.Fill end
+for _, hand in ipairs({ 'MainHand', 'OffHand', 'Ranged' }) do
+    local bar = CreateFrame('Frame', 'SwingTimer' .. hand .. 'Frame', UIParent)
+    for name, fn in pairs(swingBar) do bar[name] = fn end
+    bar.barTexture = 'ui-swingtimerbar-filling-' .. hand:lower()
+    bar.Background, bar.Border = bar:CreateTexture(), bar:CreateTexture()
+    bar.StatusBar = CreateFrame('StatusBar', nil, bar)
+    bar.StatusBar.Fill, bar.StatusBar.Pip = bar.StatusBar:CreateTexture(), bar.StatusBar:CreateTexture()
+    bar.StatusBar.GetStatusBarTexture = fill
+    bar.StatusBar:SetStatusBarTexture(bar.barTexture)
+end
+'''
+
+
 SETTINGS_MOCKS = r'''
 PERMISSIVE_FRAMES = true
 function ReloadUI() RELOADED = true end
