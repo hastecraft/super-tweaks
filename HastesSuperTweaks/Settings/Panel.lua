@@ -284,9 +284,12 @@ function Build.color(parent, o, chain, info, gate)
     return c
 end
 
+-- o.live: what's typed or pasted is set as it changes, with no Enter (text that buttons beside it act on).
 -- o.multiline: a box that many lines tall (true: 3) for long text.
 function Build.input(parent, o, chain, info, gate)
-    local row = o.multiline and W.TextAreaRow(parent, tonumber(o.multiline)) or W.InputRow(parent, o.width == "full")
+    local onEdit = o.live and function(text) o.set(info, text); P:RefreshPage() end or nil
+    local row = o.multiline and W.TextAreaRow(parent, tonumber(o.multiline), onEdit)
+        or W.InputRow(parent, o.width == "full", onEdit)
     local c = Bind(row, o, chain, info, gate)
     c.onCommit = function(text)
         local valid = true
