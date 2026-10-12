@@ -8,7 +8,16 @@ UNITS.target = UNITS.npc
 Enum.TooltipDataType.Item = 0
 function UnitPlayerControlled(unit) local u = UNITS[unit]; return u ~= nil and (u.player == true or u.controlled == true) end
 function UnitTokenFromGUID(guid) for _, token in ipairs({ 'mouseover', 'target', 'npc' }) do if UNITS[token] and UNITS[token].guid == guid then return token end end end
-C_Item.GetItemCount = function(item) return ITEM_COUNTS[item] or 12 end
+-- Your bags hold ITEM_COUNTS[item] (12 unless set); the bank and WoW Forever's account bank hold BANK_COUNTS[item] and
+-- ACCOUNT_COUNTS[item], counted when asked for. Forever's C_Bank has functions (Classic Era's has none).
+BANK_COUNTS, ACCOUNT_COUNTS = {}, {}
+C_Item.GetItemCount = function(item, includeBank, _, _, includeAccountBank)
+    local count = ITEM_COUNTS[item] or 12
+    if includeBank then count = count + (BANK_COUNTS[item] or 0) end
+    if includeAccountBank then count = count + (ACCOUNT_COUNTS[item] or 0) end
+    return count
+end
+C_Bank = { CanViewBank = function() return false end }
 function UnitAffectingCombat() return state.combat == true end
 MailFrame = CreateFrame('Frame', 'MailFrame', UIParent); MailFrame:Hide()
 MerchantFrame = CreateFrame('Frame', 'MerchantFrame', UIParent); MerchantFrame:Hide()

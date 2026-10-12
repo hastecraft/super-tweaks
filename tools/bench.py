@@ -181,6 +181,20 @@ Section('Tooltips', function()
         Send('Tooltip', 'GUILD_ROSTER_UPDATE', false); hover('mouseover', PLAYER)
     end)
     Script(tip, 'OnTooltipCleared'); tip.unit = nil
+    -- The game filling in its tooltip for an item (the item post-call hooks): a bag slot redraws its own five times a
+    -- second, and moving along the bags shows another item each time. Ore in the bags, bank and account bank.
+    ITEM_COUNTS[2770], BANK_COUNTS[2770], ACCOUNT_COUNTS[2770] = 4, 8, 2
+    local ORE, CLOTH = { id = 2770 }, { id = 2589 }
+    local function itemTip(data)
+        local fill = POSTCALLS[Enum.TooltipDataType.Item]
+        if fill then fill(tip, data) end
+    end
+    Measure('Item tooltip refresh: counts line, same item', 300, function() itemTip(ORE) end)
+    local n = 0
+    Measure('Item tooltip: counts line, another item each time', 300, function()
+        n = n + 1
+        itemTip(n % 2 == 0 and ORE or CLOTH)
+    end)
 end)
 
 Section('Kills to Level', function()
