@@ -5,12 +5,19 @@ The release is staged first: the addon's files are copied to a temporary folder,
 installed and zipped. The installed folder is only replaced once a complete copy of the release sits next to it and
 matches the staged files; if the swap fails, the old folder is put back.
 Migration outputs and the ZIP are verified before live changes. A write-ahead journal and verified backups let the
-complete upgrade roll back, including the install record, saved variables, ZIP and the retired former folder.
+complete upgrade roll back, including the install record, saved variables and the retired former folder. The ZIP
+(dist/ in this checkout) is written once the install is done.
+
+The install record (a copy of what was installed, which an install checks the game's folder against so it never
+overwrites changes made there), the journal and the backups are kept per game folder, outside the checkout, so every
+checkout and worktree installing into the same game shares them: on Windows in
+%LOCALAPPDATA%/HastesSuperTweaks/install/<game folder>. One install into a game folder runs at a time.
 
 WoW may be running for an ordinary update; the last line says whether /reload is enough or the game needs a restart
 (a changed TOC or XML include, or new or changed art). WoW must be closed while Haste's Simple Tweaks' saved variables
 are copied over (the game rewrites saved variables when it exits) or its folder is removed. Everything replaced is
-backed up to backups/<timestamp> first. The former folder is retired only after the replacement and migration succeed.
+backed up to backups/<timestamp> there first. The former folder is retired only after the replacement and migration
+succeed.
 
 Usage: python tools/install.py [--dry-run]
   HST_WOW_DIR=<folder>   the game folder to install into (the one holding Interface), if not the default below
@@ -42,8 +49,23 @@ REPLACED = ['HastesSimpleTweaks']  # the addon's former folder
 SAVED, DB = 'HastesSuperTweaks.lua', 'HastesSuperTweaksDB'
 OLD_SAVED, OLD_DB = 'HastesSimpleTweaks.lua', 'HastesSimpleTweaksDB'  # the addon's former name
 GAME_EXES = {'wow.exe', 'wowb.exe', 'wowt.exe', 'wowclassic.exe', 'wow-64.exe'}
-SNAPSHOT = PROJECT / '.last-installed'
-BACKUPS = PROJECT / 'backups'
+
+
+def state_folder():
+    """Where installs into this game folder keep their record, journal and backups, shared by every checkout."""
+    base = os.environ.get('LOCALAPPDATA') or os.environ.get('XDG_STATE_HOME') or Path.home() / '.local' / 'state'
+    where = os.path.normcase(str(TARGET.resolve()))
+    name = re.sub(r'[^A-Za-z0-9]+', '-', WOW.name).strip('-')[:40] or 'game'
+    return Path(base) / 'HastesSuperTweaks' / 'install' / f"{name}-{hashlib.sha256(where.encode('utf-8')).hexdigest()[:12]}"
+
+
+STATE = state_folder()
+SNAPSHOT = STATE / 'last-installed'
+BACKUPS = STATE / 'backups'
+# Where each checkout kept its own record and backups before they were shared.
+LEGACY_SNAPSHOT = PROJECT / '.last-installed'
+LEGACY_BACKUPS = PROJECT / 'backups'
+LOCK = None
 DIST = PROJECT / 'dist' / 'HastesSuperTweaks.zip'
 TOC = 'HastesSuperTweaks.toc'
 DRY = '--dry-run' in sys.argv
@@ -300,7 +322,7 @@ def closed_game_target(target):
 def validate_target(target, directory):
     """Only the installer's explicit destinations can be restored or removed by a recovery record."""
     target = target.resolve()
-    folders = [TARGET, SNAPSHOT] + [ADDONS / name for name in REPLACED]
+    folders = [TARGET, SNAPSHOT, LEGACY_SNAPSHOT] + [ADDONS / name for name in REPLACED]
     if directory and target in [path.resolve() for path in folders]:
         return target
     if not directory and target == DIST.resolve():
@@ -322,8 +344,8 @@ def remove_live(path, directory):
 class Upgrade:
     """Small write-ahead record for this installer's known destinations, with full-upgrade rollback."""
 
-    def __init__(self, backup, record=None):
-        self.path = BACKUPS / 'pending-install.json'
+    def __init__(self, backup, record=None, path=None):
+        self.path = path or BACKUPS / 'pending-install.json'
         self.backup = backup.resolve()
         self.record = record or {'version': 1, 'backup': str(self.backup), 'started': 0, 'complete': False, 'entries': []}
         self.sources = []
@@ -416,13 +438,13 @@ class Upgrade:
             print(f'Installation completed; the next run will clear its completed record at {self.path}.')
 
 
-def recover_upgrade():
-    path = BACKUPS / 'pending-install.json'
+def recover_upgrade(backups):
+    path = backups / 'pending-install.json'
     if not path.exists():
         return
     record = json.loads(path.read_text(encoding='utf-8'))
     backup = Path(record['backup']).resolve()
-    if record.get('version') != 1 or not backup.is_relative_to(BACKUPS.resolve()) or backup == BACKUPS.resolve():
+    if record.get('version') != 1 or not backup.is_relative_to(backups.resolve()) or backup == backups.resolve():
         raise InstallError(f'Invalid recovery record at {path}; review it before installing.')
     if DRY:
         raise InstallError(f'An earlier install needs recovery from {path}. Run without --dry-run to recover it.')
@@ -430,14 +452,60 @@ def recover_upgrade():
         path.unlink()
     else:
         print(f'Recovering the previous installation from {backup}.')
-        Upgrade(backup, record).rollback()
+        Upgrade(backup, record, path).rollback()
+
+
+def legacy_snapshots():
+    """The install records checkouts kept before the shared one: this checkout's, then the main checkout's."""
+    found = [LEGACY_SNAPSHOT]
+    try:
+        common = subprocess.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], cwd=PROJECT,
+                                capture_output=True, text=True)
+        if common.returncode == 0 and common.stdout.strip():
+            main = Path(common.stdout.strip()).parent / '.last-installed'
+            if main.resolve() != LEGACY_SNAPSHOT.resolve():
+                found.append(main)
+    except OSError:
+        pass
+    return found
+
+
+def unrecorded(snapshot):
+    """The first file in the installed folder that differs from the install record `snapshot`, or None."""
+    for path in TARGET.rglob('*'):
+        if path.is_file():
+            recorded = snapshot / path.relative_to(TARGET)
+            if not (recorded.is_file() and recorded.read_bytes() == path.read_bytes()):
+                return path
+    return None
+
+
+def lock_state():
+    """Holds the game folder's install lock until the process ends; raises when another install holds it."""
+    STATE.mkdir(parents=True, exist_ok=True)
+    handle = open(STATE / 'lock', 'a+b')
+    try:
+        if os.name == 'nt':
+            import msvcrt
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        raise InstallError(f'Another install into {WOW} is running; run this again when it has finished.')
+    return handle
 
 
 def install():
     if not ADDONS.is_dir():
         raise InstallError(f'No AddOns folder at {ADDONS}. Set HST_WOW_DIR to your game folder (the one holding '
                            'Interface).')
-    recover_upgrade()
+    global LOCK
+    LOCK = lock_state()  # held until the process ends
+    for backups in (LEGACY_BACKUPS, BACKUPS):
+        recover_upgrade(backups)
     # WoW only has to be closed while there is saved data to migrate or an old addon to remove.
     accounts = [a for a in (WOW / 'WTF' / 'Account').glob('*') if (a / 'SavedVariables').is_dir()]
     pending = [a for a in accounts if needs_rename(a)]
@@ -470,13 +538,13 @@ def install():
             step(f'Carrying over settings for account {account.name}: {summary}')
 
         if TARGET.exists():
-            if not SNAPSHOT.is_dir():
+            # The shared record, or one a checkout kept before there was one (an older installer may still use them).
+            snapshots = [path for path in [SNAPSHOT] + legacy_snapshots() if path.is_dir()]
+            if not snapshots:
                 sys.exit(f'{TARGET} exists but there is no record of installing it; review it first.')
-            for path in TARGET.rglob('*'):
-                if path.is_file():
-                    recorded = SNAPSHOT / path.relative_to(TARGET)
-                    if not (recorded.is_file() and recorded.read_bytes() == path.read_bytes()):
-                        sys.exit(f'{path} changed since the last install; review it first. Nothing was installed.')
+            changed = [unrecorded(snapshot) for snapshot in snapshots]
+            if all(changed):
+                sys.exit(f'{changed[0]} changed since the last install; review it first. Nothing was installed.')
         before = manifest(TARGET) if TARGET.exists() else None
         old_toc = (TARGET / TOC).read_bytes() if (TARGET / TOC).is_file() else None
         reasons = restart_reasons(before, expected, old_toc, (release / TOC).read_bytes())
@@ -500,7 +568,6 @@ def install():
                         kept = backup / 'WTF' / account.name / path.name
                         kept.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(path, kept)
-            upgrade.add(DIST, prepared_zip, False, DIST.name)
             for target in legacy:
                 upgrade.add(target, None, True, 'AddOns/' + target.name)
             for path, fingerprint in inputs.items():
@@ -509,6 +576,7 @@ def install():
             if pending or legacy:
                 require_closed(game_running())
             upgrade.commit()
+            copy_verified_file(prepared_zip, DIST, digest(prepared_zip))
 
     if running == []:
         advice = 'Start WoW; /hst opens the settings.'
