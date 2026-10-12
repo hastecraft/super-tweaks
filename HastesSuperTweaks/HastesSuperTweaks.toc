@@ -34,6 +34,7 @@ Modules\TooltipExtras.lua
 Modules\CombatText.lua
 Modules\CombatTextOptions.lua
 Modules\BreathMeter.lua
+Modules\DruidMana.lua
 Modules\GuildMOTD.lua
 Modules\KillsToLevel.lua
 Modules\QuestXP.lua
