@@ -1,4 +1,5 @@
--- Better Tooltips, extras: tooltips at the mouse, a "Target:" line on unit tooltips, and item, spell and NPC IDs.
+-- Better Tooltips, extras: tooltips at the mouse, a "Target:" line on unit tooltips, item, spell and NPC IDs, and how
+-- many of an item you have.
 -- Part of Better Tooltips (Tooltip.lua): its switch, profile and settings page are shared.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -184,4 +185,117 @@ function T:DrawPreview(frame)
     end
     if v.target then v.target:SetShown(shown) end
     v.box:SetHeight(shown and 66 or 52)
+end
+
+---------------------------------------------------------------------------
+-- How many of an item you have, on item tooltips: "You have 12 (bags 4, bank 8)". The game counts them each time, so
+-- nothing is saved: bags, then bags and bank, then on WoW Forever the account bank too, each place getting the
+-- difference. Places with none are left out, and so is the line when you have none, unless chosen. A bag slot redraws
+-- its tooltip five times a second: the counts are read each time, but the text is only put together again when one
+-- changed.
+---------------------------------------------------------------------------
+T.defaults.profile.itemCounts, T.defaults.profile.itemCountsNone = true, false
+
+local ItemCount = C_Item and C_Item.GetItemCount or GetItemCount
+-- Only WoW Forever's C_Bank has functions, and an account bank to count; Classic Era counts bags and the bank.
+local ACCOUNT_BANK = C_Bank ~= nil and C_Bank.CanViewBank ~= nil
+local COUNT_LABEL = "You have"
+
+-- The text last put together, and what from: the item and its three counts (counts are never hidden values).
+local counted = {}
+local function CountText(id)
+    local bags, banked = ItemCount(id), ItemCount(id, true)
+    local all = ACCOUNT_BANK and ItemCount(id, true, false, true, true) or banked
+    if all <= 0 then return T.db.profile.itemCountsNone and "0" or nil end
+    if id ~= counted.id or bags ~= counted.bags or banked ~= counted.banked or all ~= counted.all then
+        counted.id, counted.bags, counted.banked, counted.all = id, bags, banked, all
+        local bank, account = banked - bags, all - banked
+        local text = bags > 0 and ("bags " .. bags) or nil
+        if bank > 0 then text = (text and text .. ", " or "") .. "bank " .. bank end
+        if account > 0 then text = (text and text .. ", " or "") .. "account " .. account end
+        counted.text = all .. " (" .. text .. ")"
+    end
+    return counted.text
+end
+
+-- On the game's tooltip and the one a clicked link opens, as the IDs.
+local function CountLine(tip, data)
+    if (tip ~= GameTooltip and tip ~= ItemRefTooltip) or not (T:IsEnabled() and T.db.profile.itemCounts) then return end
+    local id = data and data.id
+    if IsSecret(id) or type(id) ~= "number" then return end
+    local text = CountText(id)
+    if text then tip:AddDoubleLine(COUNT_LABEL, text, ID_COLOR[1], ID_COLOR[2], ID_COLOR[3], 1, 1, 1) end
+end
+
+-- Item tooltips are hooked only once the line is on, so they cost nothing until then. That's checked as Better
+-- Tooltips' own tooltip hooks go in (a frame after it's first on) and whenever it applies its settings: when it's
+-- turned on again, a setting changes or another profile is chosen.
+local countsHooked
+local function HookCounts()
+    if countsHooked or not (T.hooked and T:IsEnabled() and T.db.profile.itemCounts) then return end
+    countsHooked = true
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, CountLine)
+end
+local HookTooltip, Apply = T.HookTooltip, T.Apply
+function T:HookTooltip() HookTooltip(self); HookCounts() end
+function T:Apply() Apply(self); HookCounts() end
+
+-- Its settings: an Item counts section on the Extras page.
+local BuildWithoutCounts = T.BuildOptions
+function T:BuildOptions()
+    local options = BuildWithoutCounts(self)
+    local function profile() return T.db.profile end
+    options.args.extras.args.counts = ns.Section("Item counts", 3, {
+        itemCounts = ns.Option(profile, "toggle", "itemCounts", "Show how many you have", 1, {
+            desc = "Adds to item tooltips how many you have, and where: in your "
+                .. (ACCOUNT_BANK and "bags, bank and account bank." or "bags and bank.") }, HookCounts),
+        itemCountsNone = ns.Option(profile, "toggle", "itemCountsNone", "Also when you have none", 2, {
+            disabled = function() return not T.db.profile.itemCounts end,
+            desc = "Says You have 0 rather than leaving the line out." }),
+    })
+    return options
+end
+
+-- The settings preview gets an item tooltip with the line, under the player's.
+local COUNT_SAMPLE = ACCOUNT_BANK and "14 (bags 4, bank 8, account 2)" or "12 (bags 4, bank 8)"
+local ITEM_TIP_HEIGHT = 38
+local DrawWithoutCounts = T.DrawPreview
+function T:DrawPreview(frame)
+    DrawWithoutCounts(self, frame)
+    local v, p = frame.hstTip, self.db.profile
+    if not v then return end
+    local shown = p.itemCounts
+    if shown and not v.item then
+        local W = ns.Widgets
+        v.item = W.Panel(frame, 150, ITEM_TIP_HEIGHT)
+        local name = W.Text(v.item, "GameFontNormal", { 1, 1, 1 })
+        name:SetPoint("TOPLEFT", 8, -7)
+        name:SetText("Linen Cloth")
+        local label = W.Text(v.item, "GameFontHighlightSmall", ID_COLOR)
+        label:SetPoint("TOPLEFT", 8, -21)
+        label:SetText(COUNT_LABEL)
+        local count = W.Text(v.item, "GameFontHighlightSmall", nil, "RIGHT")
+        count:SetPoint("TOPRIGHT", -8, -21)
+        count:SetText(COUNT_SAMPLE)
+        v.item:SetWidth(math.max(150, label:GetStringWidth() + count:GetStringWidth() + 28))
+    end
+    if not v.item then return end
+    -- It goes under the player's tooltip and its health bar (as the preview sizes the bar), the two centered together,
+    -- laid out again only when that changes.
+    local top, gap
+    if shown then
+        gap = 6 + (p.healthBar and (math.min(p.barGap, 4) + 2 * p.barBorderSize + math.min(p.barHeight, 14)) or 0)
+        top = (ns.Widgets.PREVIEW_HEIGHT - v.box:GetHeight() - gap - ITEM_TIP_HEIGHT) / 2
+    end
+    if top == v.itemTop and gap == v.itemGap then return end
+    v.itemTop, v.itemGap = top, gap
+    v.item:SetShown(shown)
+    v.box:ClearAllPoints()
+    if shown then
+        v.box:SetPoint("TOP", 0, -top)
+        v.item:ClearAllPoints()
+        v.item:SetPoint("TOP", v.box, "BOTTOM", 0, -gap)
+    else
+        v.box:SetPoint("CENTER", 0, 6) -- where it sits alone
+    end
 end
