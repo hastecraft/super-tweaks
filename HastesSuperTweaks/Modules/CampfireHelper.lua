@@ -282,22 +282,20 @@ function C:CreateCampfire()
     self.campfire = d
     local f = d.frame
     f:SetFrameStrata("MEDIUM")
-    f:EnableMouse(false)
-    d.mouse = false
     SetShown(d, false)
-    -- Takes the mouse only once the buffs ended: a click puts the reminder away.
+    -- Hovering shows what it's counting; clicks pass through to the world, except once the buffs ended, when a click
+    -- puts the reminder away.
+    f:SetScript("OnEnter", function() self:ShowTooltip(f) end)
+    f:SetScript("OnLeave", function() ns.Widgets.HideTooltip(f) end)
     f:SetScript("OnMouseUp", function()
+        if self.state ~= "ended" then return end
         self.ended = false
+        ns.Widgets.HideTooltip(f)
         self:Refresh()
     end)
-    f:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(f, "ANCHOR_TOP")
-        GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
-        GameTooltip:AddLine("Your camp buffs ended. Sit by a campfire for " .. Span(60) .. " for new ones.", 1, 1, 1, true)
-        GameTooltip:AddLine("Click to put this away.", 0.6, 0.6, 0.6, true)
-        GameTooltip:Show()
-    end)
-    f:SetScript("OnLeave", function() ns.Widgets.HideTooltip(f) end)
+    f:SetMouseMotionEnabled(true)
+    f:SetMouseClickEnabled(false)
+    d.clicks = false
     self:Place()
 end
 
@@ -366,9 +364,41 @@ function C:Refresh(now)
         self.tickDue = now + delay
         C_Timer.After(delay, self.onTick)
     end
-    local mouse = state == "ended" and not self.editMode
-    if d.mouse ~= mouse then d.mouse = mouse; f:EnableMouse(mouse) end
+    self.state = state
+    local clicks = state == "ended" and not self.editMode
+    if d.clicks ~= clicks then d.clicks = clicks; f:SetMouseClickEnabled(clicks) end
     SetShown(d, true)
+end
+
+-- The campfire's tooltip: what it's counting down and what to do, then your own fire and Boosted Rest.
+local WHITE, GREY = { 1, 1, 1 }, { 0.6, 0.6, 0.6 }
+local function Line(text, color) GameTooltip:AddLine(text, color[1], color[2], color[3], true) end
+function C:ShowTooltip(owner)
+    local state, now = self.state, GetTime()
+    local b, w = self.benefits, self.welcome
+    GameTooltip:SetOwner(owner, "ANCHOR_TOP")
+    if state == "buffs" then
+        GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
+        Line("Your camp buffs last " .. Span(b.ends - now) .. " more.", WHITE)
+        for _, name in pairs(self.campBuffs) do Line(name, GREY) end
+        Line("You can't get new ones until they end.", GREY)
+    elseif state == "sitting" then
+        GameTooltip:SetText(SpellName(WELCOMING[2], "Welcoming Campfire"))
+        Line("Keep sitting: camp buffs in " .. Span(w.ends - now) .. ".", WHITE)
+        Line("Stand up or walk away before then and you get none.", GREY)
+    elseif state == "nearby" then
+        GameTooltip:SetText(SpellName(NEARBY, "Campfire Nearby"))
+        Line("Sit down near the fire for " .. Span(60) .. " to get camp buffs for an hour.", WHITE)
+    else
+        GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
+        Line("Your camp buffs ended. Sit by a campfire for " .. Span(60) .. " for new ones.", WHITE)
+        Line("Click to put this away.", GREY)
+    end
+    local fire = self.db.char.fireEnds and self.db.char.fireEnds - Clock() or 0
+    if fire > 0 then Line("Your campfire burns for " .. Span(fire) .. " more.", GREY) end
+    local r = self.boosted
+    if r.on then Line(SpellName(BOOSTED_REST, "Boosted Rest") .. ": " .. Span(r.ends - now) .. " left.", GREY) end
+    GameTooltip:Show()
 end
 
 ---------------------------------------------------------------------------
