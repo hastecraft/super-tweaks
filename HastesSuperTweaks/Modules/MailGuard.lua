@@ -101,11 +101,19 @@ local trusted = {} -- sender -> true or false, this mailbox visit
 
 local function Realm(realm) return realm and (realm:gsub("[%s%-']", ""):lower()) or nil end
 
--- Whether a sender is one of your characters on this realm (as Mail Expiry & Alt List keeps them).
+-- Whether a sender is one of your characters on this realm (as Mail Expiry & Alt List keeps them). On WoW Forever,
+-- where names are unique across the region and the dash comes before a surname, the whole name decides.
 local function OwnCharacter(sender)
     local helper = ns.MailHelper
     local characters = helper and helper.db and helper.db.global.characters
     if not characters then return false end
+    if ns.RegionalNames() then
+        local key = ns.NameKey(sender)
+        for _, character in pairs(characters) do
+            if character.name and ns.NameKey(character.name) == key then return true end
+        end
+        return false
+    end
     local name, realm = sender:match("^([^%-]+)%-(.+)$")
     name, realm = name or sender, Realm(realm) or Realm(GetRealmName())
     for _, character in pairs(characters) do
