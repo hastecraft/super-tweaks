@@ -20,7 +20,7 @@ ns.NameplateComboPoints = C
 
 -- Rogues have combo points, and druids in Cat Form; no other class does.
 local CLASSES = { ROGUE = true, DRUID = true }
-local _, CLASS = UnitClass("player")
+local CLASS = select(2, UnitClass("player"))
 if not IsSecret(CLASS) and type(CLASS) == "string" and not CLASSES[CLASS] then
     C.info.unavailable = "Only rogues and druids have combo points."
 end
@@ -29,11 +29,8 @@ local COMBO = Enum and Enum.PowerType and Enum.PowerType.ComboPoints or 4
 local ENERGY = Enum and Enum.PowerType and Enum.PowerType.Energy or 3
 local MOST = 10 -- pips a row can hold (both classes can have 5 at most)
 local SHAPES = { ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask", SQUARE = ns.WHITE }
-local SHAPE_NAMES, SHAPE_ORDER = { ROUND = "Round", SQUARE = "Square" }, { "ROUND", "SQUARE" }
 -- Where a row sits on the health bar: its point, the bar's point, and the gap between them.
 local PLACES = { BELOW = { "TOP", "BOTTOM", -2 }, ON = { "CENTER", "CENTER", 0 }, ABOVE = { "BOTTOM", "TOP", 2 } }
-local PLACE_NAMES = { BELOW = "Below the health bar", ON = "On the health bar", ABOVE = "Above the health bar" }
-local PLACE_ORDER = { "BELOW", "ON", "ABOVE" }
 
 ns.Configure(C, {
     shape = "ROUND", size = 10, spacing = 3, empty = true, position = "BELOW", x = 0, y = 0,
@@ -356,10 +353,13 @@ function C:BuildOptions()
     local function profile() return C.db.profile end
     local function refresh() C:Refresh() end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra, refresh) end
+    local shapes = { values = { ROUND = "Round", SQUARE = "Square" }, sorting = { "ROUND", "SQUARE" } }
+    local places = { values = { BELOW = "Below the health bar", ON = "On the health bar", ABOVE = "Above the health bar" },
+        sorting = { "BELOW", "ON", "ABOVE" } }
     return { name = C.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             look = ns.Section("Look", 1, {
-                shape = option("select", "shape", "Shape", 1, { values = SHAPE_NAMES, sorting = SHAPE_ORDER }),
+                shape = option("select", "shape", "Shape", 1, shapes),
                 size = option("range", "size", "Size", 2, { min = 4, max = 24, step = 1 }),
                 spacing = option("range", "spacing", "Space between", 3, { min = 0, max = 12, step = 1 }),
                 empty = option("toggle", "empty", "Show empty points", 4,
@@ -368,7 +368,7 @@ function C:BuildOptions()
             place = ns.Section("Place", 2, {
                 help = { type = "description", order = 0, name = "They show on your target's nameplate, so turn on "
                     .. "enemy nameplates to see them." },
-                position = option("select", "position", "Position", 1, { values = PLACE_NAMES, sorting = PLACE_ORDER }),
+                position = option("select", "position", "Position", 1, places),
                 x = option("range", "x", "Move left or right", 2, { min = -60, max = 60, step = 1 }),
                 y = option("range", "y", "Move up or down", 3, { min = -40, max = 40, step = 1 }),
             }),
