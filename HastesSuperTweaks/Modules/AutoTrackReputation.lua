@@ -50,17 +50,14 @@ end)
 ---------------------------------------------------------------------------
 A.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
 local BAR_W = 220
--- The bar before and after: the faction, its progress as the game writes it, how full the bar is, and the game's color
--- for its standing (Friendly, then Neutral).
-local SHOWN = {
-    { "Stormwind", "2100 / 3000", 0.70, { 0, 0.6, 0.1 } },
-    { "Timbermaw Hold", "1250 / 6000", 0.21, { 0.9, 0.7, 0 } },
-}
 function A.info.preview(frame)
     local W = ns.Widgets
     local v = frame.hstRep
     if not v then
-        v = {}
+        -- The bar before and after: the faction, its progress as the game writes it, how full the bar is, and the
+        -- game's color for its standing (Friendly, then Neutral).
+        v = { shown = { { "Stormwind", "2100 / 3000", 0.70, { 0, 0.6, 0.1 } },
+            { "Timbermaw Hold", "1250 / 6000", 0.21, { 0.9, 0.7, 0 } } } }
         frame.hstRep = v
         v.line = W.Text(frame, "GameFontHighlightSmall", { 0.5, 0.5, 1 }, "CENTER")
         v.line:SetWidth(242)
@@ -79,7 +76,7 @@ function A.info.preview(frame)
         local after = t >= 1.6
         if after ~= shown then
             shown = after
-            local faction = SHOWN[after and 2 or 1]
+            local faction = v.shown[after and 2 or 1]
             v.label:SetText(faction[1] .. " " .. faction[2])
             v.fill:SetWidth((BAR_W - 2) * faction[3])
             v.fill:SetColorTexture(faction[4][1], faction[4][2], faction[4][3], 1)
@@ -93,21 +90,9 @@ end
 ---------------------------------------------------------------------------
 -- Reading the game's reputation chat lines
 ---------------------------------------------------------------------------
--- The lines, by their names among the game's strings (in its language), and which way each goes. Lines with a bonus
--- start like the plain one in English, so they're read by it; the first two are also given in English for a client
--- without them.
-local LINES = {
-    { "FACTION_STANDING_INCREASED", 1, "Reputation with %s increased by %d." },
-    { "FACTION_STANDING_DECREASED", -1, "Reputation with %s decreased by %d." },
-    { "FACTION_STANDING_INCREASED_ACCOUNT_WIDE", 1 }, { "FACTION_STANDING_DECREASED_ACCOUNT_WIDE", -1 },
-    { "FACTION_STANDING_INCREASED_ACH_BONUS", 1 }, { "FACTION_STANDING_INCREASED_BONUS", 1 },
-    { "FACTION_STANDING_INCREASED_DOUBLE_BONUS", 1 },
-    { "FACTION_STANDING_INCREASED_GENERIC", 1 }, { "FACTION_STANDING_DECREASED_GENERIC", -1 },
-}
-
--- A Lua pattern for one of those lines, and which of its captures is the faction's name (the other, if any, is the
--- amount). Some languages number their "%s" and "%d" ("%2$d"), so the two can come in either order; "%.1f" (a bonus)
--- is matched but not read.
+-- A Lua pattern for one of the game's reputation lines ("Reputation with %s increased by %d."), and which of its
+-- captures is the faction's name (the other, if any, is the amount). Some languages number their "%s" and "%d"
+-- ("%2$d"), so the two can come in either order; "%.1f" (a bonus) is matched but not read.
 local function Pattern(format)
     format = format:gsub("%%%d+%$", "%%")
     local nameAt, captures = 1, 0
@@ -129,7 +114,17 @@ local patterns
 local function Parse(text)
     if not patterns then
         patterns = {}
-        for _, line in ipairs(LINES) do
+        -- The lines, by their names among the game's strings (in its language), and which way each goes. Lines with a
+        -- bonus start like the plain one in English, so they're read by it; the first two are also given in English
+        -- for a client without them.
+        for _, line in ipairs({
+            { "FACTION_STANDING_INCREASED", 1, "Reputation with %s increased by %d." },
+            { "FACTION_STANDING_DECREASED", -1, "Reputation with %s decreased by %d." },
+            { "FACTION_STANDING_INCREASED_ACCOUNT_WIDE", 1 }, { "FACTION_STANDING_DECREASED_ACCOUNT_WIDE", -1 },
+            { "FACTION_STANDING_INCREASED_ACH_BONUS", 1 }, { "FACTION_STANDING_INCREASED_BONUS", 1 },
+            { "FACTION_STANDING_INCREASED_DOUBLE_BONUS", 1 },
+            { "FACTION_STANDING_INCREASED_GENERIC", 1 }, { "FACTION_STANDING_DECREASED_GENERIC", -1 },
+        }) do
             local format = _G[line[1]] or line[3]
             if type(format) == "string" and format ~= "" then
                 local pattern, nameAt = Pattern(format)
