@@ -14,6 +14,27 @@ local HST = ns.HST
 -- it a link to that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "1.2.0", date = "2026-10-12",
+        summary = "Easier settings pages, and Hide Issue Reporter now starts off.",
+        highlights = {
+            { "Pages with sub-pages have an Overview button, so picking a sub-page never strands you away from the page's own settings.",
+                title = "Find your way back", module = "CombatText", path = { "notices" } },
+        },
+        new = {
+            { "Settings pages with sub-pages, such as Better Scrolling Combat Text's Notices and XP Tracker's Text labels, start their row of buttons with Overview, to get back to the page's own settings.",
+                module = "CombatText", path = { "notices" } },
+        },
+        changed = {
+            { "Hide Issue Reporter now starts off. If you never changed it, the Issue Reporter button shows again; turn the tweak on to hide it.",
+                module = "HideIssueReporter" },
+        },
+        fixed = {
+            { "Fast Loot: without EllesmereUI, the Outline setting shows Outline instead of an empty choice.",
+                module = "FastLoot", path = { "items" }, setting = "outline" },
+            { "Consumable Macros: the preview's labels fit under their buttons.", module = "ConsumableMacros" },
+        },
+    },
+    {
         version = "1.1.0", date = "2026-10-11",
         summary = "A welcome for new players, and friendlier defaults.",
         highlights = {

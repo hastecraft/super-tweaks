@@ -2,6 +2,27 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 1.2.0 (2026-10-12)
+
+Easier settings pages, and Hide Issue Reporter now starts off.
+
+### Find your way back
+
+Pages with sub-pages have an Overview button, so picking a sub-page never strands you away from the page's own settings.
+
+### New
+
+- Settings pages with sub-pages, such as Better Scrolling Combat Text's Notices and XP Tracker's Text labels, start their row of buttons with Overview, to get back to the page's own settings.
+
+### Changed
+
+- Hide Issue Reporter now starts off. If you never changed it, the Issue Reporter button shows again; turn the tweak on to hide it.
+
+### Fixed
+
+- Fast Loot: without EllesmereUI, the Outline setting shows Outline instead of an empty choice.
+- Consumable Macros: the preview's labels fit under their buttons.
+
 ## 1.1.0 (2026-10-11)
 
 A welcome for new players, and friendlier defaults.
