@@ -621,6 +621,18 @@ function S:GearVerdict(item, info, ctx, bag, slot)
     return nil
 end
 
+-- Keep new appearances: gear whose look you haven't collected stays, for this character ("player") or any of yours
+-- ("account"), as Appearance Collector judges looks (Modules/Appearances.lua), whether that tweak is on or not. Why it
+-- stays (the look's state), or nil. Only the gear categories can have a look; your Always sell list still sells.
+local GEAR = Set("gear", "lighter", "oldGear")
+function S:KeepsLook(itemID, link)
+    local keep, looks = self.db.profile.looks, ns.Appearances
+    if keep == "off" or not looks:Available() then return nil end
+    local state = looks:State(link or itemID)
+    if state == looks.NEW or state == looks.WAITING or state == looks.ALT and keep == "account" then return state end
+    return nil
+end
+
 ---------------------------------------------------------------------------
 -- Selling (ns.VendorSale asks; see Automation.lua)
 ---------------------------------------------------------------------------
@@ -630,6 +642,7 @@ function S:Limit() return self.db.profile.buyback and 12 or nil end
 
 -- The clutter-specific policy and unit price. VendorSale checks locks, exclusions and quest-item flags first. With
 -- quests hidden (see Objectives) nothing sells, which a vendor visit's scan says once, if there's clutter to keep.
+-- Gear kept for its look answers nil, then its category and why (see S:KeepsLook), for its tooltip.
 local HIDDEN = "Clutter is kept while quests are under collapsed headers in your quest log, since what they need can't "
     .. "be seen. Expand the headers to sell it."
 function S:SalePrice(info, bag, slot, ctx)
@@ -640,6 +653,8 @@ function S:SalePrice(info, bag, slot, ctx)
     ctx.guided[itemID] = nil
     local category = self:Verdict(itemID, info, ctx, bag, slot)
     if not category then return nil end
+    local look = GEAR[category] and self:KeepsLook(itemID, info.hyperlink)
+    if look then return nil, category, look end
     if ctx.hidden then
         if scan then ns.VendorSale:TellOnce(HIDDEN) end
         return nil
@@ -782,26 +797,34 @@ local function TooltipSlot(tip, itemID)
 end
 
 S.TIP_COLOR, S.KEEP_COLOR = { 0.95, 0.6, 0.25 }, { 0.45, 0.8, 0.45 }
--- Adds the tooltip line for an item, if it gets one.
-function S:TooltipLine(tip, itemID)
+-- What gear kept for its look says, by why it's kept (see S:KeepsLook).
+S.LOOK_TIPS = { new = "Kept: a look you haven't collected", waiting = "Kept: a look you haven't collected",
+    alt = "Kept: a look another of your characters can learn" }
+-- Adds the tooltip line for an item, if it gets one. link is the tooltip's item link, when it has one.
+function S:TooltipLine(tip, itemID, link)
     if IsSecret(itemID) or type(itemID) ~= "number" or not (self:IsEnabled() and self.db.profile.tooltip) then return end
     local c, text = self.KEEP_COLOR, "Never sold: on your Never sell list"
     if not self:Keeps(itemID) then
         if not self.db.profile.sell[itemID] and not self:Item(itemID) then return end
         local info, bag, slot = TooltipSlot(tip, itemID)
         local ctx = self:Context()
-        local category
+        local category, look
         if info then
             local _
-            _, category = ns.VendorSale:Price(self, info, bag, slot)
+            _, category, look = ns.VendorSale:Price(self, info, bag, slot)
         elseif not ctx.hidden then
             category = self:Verdict(itemID, nil, ctx)
+            if GEAR[category] then look = self:KeepsLook(itemID, not IsSecret(link) and link or nil) end
         end
         if not category then return end
-        c, text = self.TIP_COLOR, (info and "Sold at vendors: " or "Vendor policy: ") .. self.CATEGORY[category].tip
-        -- RestedXP's own line still says its guide uses the item.
-        if category ~= "list" and self.db.profile.rxp and self:GuideStatus(itemID, ctx) == "done" then
-            text = text .. " (that part of the guide is done)"
+        if look then
+            text = self.LOOK_TIPS[look]
+        else
+            c, text = self.TIP_COLOR, (info and "Sold at vendors: " or "Vendor policy: ") .. self.CATEGORY[category].tip
+            -- RestedXP's own line still says its guide uses the item.
+            if category ~= "list" and self.db.profile.rxp and self:GuideStatus(itemID, ctx) == "done" then
+                text = text .. " (that part of the guide is done)"
+            end
         end
     end
     tip:AddLine(text, c[1], c[2], c[3], true)
@@ -813,7 +836,7 @@ local function HookTooltips()
     if S.tooltipHooked then return end
     S.tooltipHooked = true
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tip, data)
-        if tip == GameTooltip and data then S:TooltipLine(tip, data.id) end
+        if tip == GameTooltip and data then S:TooltipLine(tip, data.id, data.hyperlink) end
     end)
 end
 
@@ -824,11 +847,13 @@ S.DEFAULTS = {
     summary = true, itemized = true, buyback = false, tooltip = true, professions = "all", levels = 20,
     cooking = true, parts = true, reagents = true, drinks = true, clams = false, gear = true, lighter = true, boundGreens = true,
     anyGreens = false, oldGear = true, food = true, potions = true, cloth = false, leather = true, herbs = true,
-    metal = true, devices = true, recipes = false, rxp = true, rxpDone = true,
+    metal = true, devices = true, recipes = false, rxp = true, rxpDone = true, looks = "player",
     keep = {}, sell = {},
 }
 S.KEEP_CHOICES = { all = "All your professions", crafting = "Crafting and gathering only", none = "None" }
 S.KEEP_ORDER = { "all", "crafting", "none" }
+S.LOOK_CHOICES = { player = "For this character", account = "For any character", off = "Off" }
+S.LOOK_ORDER = { "player", "account", "off" }
 
 ns.Configure(S, S.DEFAULTS, function(m)
     local function profile() return m.db.profile end
@@ -881,6 +906,11 @@ ns.Configure(S, S.DEFAULTS, function(m)
                 anyGreens = toggle("anyGreens", "And green gear that isn't bound", 4,
                     "Even green gear that could still go to the auction house or an alt.",
                     { disabled = gearOff }),
+                looks = ns.Option(profile, "select", "looks", "Keep new appearances", 5, {
+                    values = S.LOOK_CHOICES, sorting = S.LOOK_ORDER, hidden = not ns.Appearances:Available(),
+                    desc = "Keeps gear whose look you haven't collected yet, such as green gear you haven't worn. For "
+                        .. "any character also keeps looks only another of your characters can learn, such as plate on "
+                        .. "a Mage. Appearance Collector marks them. Sell Junk's greys still sell." }),
             }),
             outleveled = ns.Section("Outleveled", 4, {
                 oldGear = toggle("oldGear", "White gear", 1,

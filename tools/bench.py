@@ -645,6 +645,71 @@ Section('Auto-Decline', function()
 end)
 '''
 
+# Appearance Collector, and Sell Clutter keeping gear for its look, in a runtime of their own (the automation and clutter
+# mocks, with WoW Forever's appearance collection, the game's combined bags and its vendor window).
+APPEARANCES = r'''
+-- An addon without Appearance Collector (an older base) stops here, so it reports none of these scenarios.
+mod('Appearances')
+local function fire(key, event, ...) return Send(key, event, ...) end
+Only({ 'Appearances' })
+state.class, state.level = 'WARRIOR', 30
+-- A leveling character's bags: four 16-slot bags' worth of meat, cloth, food, potions and gear. Looks 1 and 2 are
+-- new, 3 you have, 4 only another of your characters can learn.
+ITEMS[101] = { name = 'Stringy Wolf Meat', class = 7, sub = 8, price = 4 }
+ITEMS[103] = { name = 'Linen Cloth', class = 7, sub = 5, price = 13 }
+ITEMS[104] = { name = 'Plate Chestpiece', class = 4, sub = 4, equipLoc = 'INVTYPE_CHEST', price = 400, level = 20, look = 3 }
+ITEMS[109] = { name = 'Leather Vest', class = 4, sub = 2, equipLoc = 'INVTYPE_CHEST', price = 80, level = 10, look = 1 }
+ITEMS[110] = { name = 'Tough Jerky', class = 0, sub = 5, price = 1, level = 1 }
+ITEMS[111] = { name = 'Worn Shortsword', class = 2, sub = 7, equipLoc = 'INVTYPE_WEAPON', price = 30, level = 5, look = 2 }
+ITEMS[112] = { name = 'Minor Healing Potion', class = 0, sub = 1, price = 5, level = 1 }
+ITEMS[113] = { name = 'Apprentice Robe', class = 4, sub = 1, equipLoc = 'INVTYPE_ROBE', price = 20, level = 1, look = 4 }
+LOOKS[1], LOOKS[2] = { player = true, account = true }, { player = true, account = true }
+LOOKS[3], LOOKS[4] = { known = true, look = true, player = true, account = true }, { account = true }
+local kinds = { 101, 103, 104, 109, 110, 112, 111, 113 }
+BAG_SIZE = 64
+BAGS = {}
+-- The bag slots, made once and put back, so the scenarios themselves allocate nothing.
+local SLOTS = {}
+for slot = 1, 64 do SLOTS[slot] = Slot(kinds[slot % #kinds + 1], 1); BAGS[slot] = SLOTS[slot] end
+local function refill() for slot = 1, 64 do BAGS[slot] = SLOTS[slot] end end
+local bags, vest, meat = ContainerFrameCombinedBags, Slot(109, 1), Slot(101, 1)
+MERCHANT = { 109, 111, 104, 113, 101, 103, 110, 112, 109, 111 }
+BUYBACK = { 101, 103, 104, 109, 110, 111, 112, 113, 101, 103, 104, 109 }
+state.quests = {}
+bags:UpdateItems()
+Section('Appearance Collector (64 bag slots, 24 gear)', function()
+    Measure('Bags drawn, nothing changed (looks already read)', 300, function() bags:UpdateItems() end)
+    Measure('Bags drawn, one slot now new gear or meat', 300, function()
+        BAGS[1] = BAGS[1] == vest and meat or vest
+        bags:UpdateItems()
+    end)
+    refill(); bags:UpdateItems()
+    Measure('Collection changed: every mark checked again', 100, function()
+        Dispatch('TRANSMOG_COLLECTION_SOURCE_ADDED', 3); RunTimers()
+    end)
+    Measure('Vendor page drawn: 10 items and the last one sold', 300, function() MerchantFrame_UpdateMerchantInfo() end)
+    Measure('Buyback tab drawn: 12 items', 300, function() MerchantFrame_UpdateBuybackInfo() end)
+    Measure('Item tooltip: gear with a new look', 300, function() HoverItem(109) end)
+    Measure('Item tooltip: not gear', 300, function() HoverItem(101) end)
+    HST:SetFeatureEnabled('Appearances', false)
+    Measure('Appearance Collector off: bags drawn', 300, function() bags:UpdateItems() end)
+    HST:SetFeatureEnabled('Appearances', true)
+end)
+Section('Sell Clutter keeping new appearances (with Sell Junk and Appearance Collector on)', function()
+    Only({ 'SellJunk', 'SellClutter', 'Appearances' })
+    Measure('Vendor visit: 64 slots scanned, 16 gear kept, first sale + close', 50, function()
+        fire('SellJunk', 'MERCHANT_SHOW'); fire('SellClutter', 'MERCHANT_SHOW')
+        RunTimers()
+        fire('SellJunk', 'MERCHANT_CLOSED'); fire('SellClutter', 'MERCHANT_CLOSED')
+        RunTimers()
+        refill()
+    end)
+    Measure('Item tooltip: clutter kept for its look', 300, function() HoverItem(109) end)
+    HST:SetFeatureEnabled('Appearances', false)
+    Measure('Item tooltip: clutter kept for its look, Appearance Collector off', 300, function() HoverItem(109) end)
+end)
+'''
+
 STARTUP_SETTINGS = r'''
 Section('Startup and settings (one cold run, then warmed navigation)', function()
     Measure('ADDON_LOADED + PLAYER_LOGIN: cold initialization', 1, function()
@@ -730,6 +795,7 @@ def main():
     runtime(full, EVERYTHING, start=False)
     runtime(mock('combattext_mocks.lua'), COMBAT_TEXT)
     runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua'), AUTOMATION)
+    runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + mock('appearance_mocks.lua'), APPEARANCES)
     runtime(full, STARTUP_SETTINGS, start=False)
     runtime(mock('bags_mocks.lua'), BAGS)
     runtime(BREATH_MOCKS, BREATH)

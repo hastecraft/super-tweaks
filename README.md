@@ -37,7 +37,7 @@ Greys are sold at any vendor. Sell Clutter also sells the items you collect whil
 - gear your class can't use
 - food, potions and white gear you've outleveled
 
-It keeps quest items, items your RestedXP guide needs, equipment sets, profession tools, expensive materials and anything that opens. Item tooltips say what will be sold, and `/hst clutter list` shows the full list before you reach a vendor.
+It keeps quest items, items your RestedXP guide needs, equipment sets, profession tools, expensive materials, anything that opens and gear whose look you haven't collected. Item tooltips say what will be sold, and `/hst clutter list` shows the full list before you reach a vendor.
 
 ### Better Scrolling Combat Text
 
@@ -53,7 +53,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 **Loot and vendors:** Loot Window, Movable Loot Rolls, Fast Loot, Sell Junk, Sell Clutter, Repair Automatically (guild funds optional), Restock at Vendors (ammo, reagents and poisons, up to a gold limit per visit).
 
-**Items and mail:** Consumable Macros (always your best food, drink, bandage and potion), Mail Expiry & Alt List, Mail Gold Guard (marks gold mailed by strangers so Open All skips it), Auto-Equip Bags, Bag Tweaks.
+**Items and mail:** Consumable Macros (always your best food, drink, bandage and potion), Mail Expiry & Alt List, Mail Gold Guard (marks gold mailed by strangers so Open All skips it), Auto-Equip Bags, Bag Tweaks, Appearance Collector (marks gear whose look you haven't collected).
 
 **Group and PvP:** Auto Accept Summons, Auto Accept Resurrection, Auto Release in Battlegrounds, Group Finder Whispers (class, level and race beside each whisper, with click-to-invite).
 
