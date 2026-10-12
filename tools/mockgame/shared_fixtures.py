@@ -67,7 +67,31 @@ function UnitClassification(unit) return u(unit) and u(unit).classification or "
 function issecretvalue(value) return SECRET == true and type(value) == 'number' end
 function AbbreviateNumbers(value) return 'abbr' .. tostring(value) end
 CurveConstants = { ScaleTo100 = 'ScaleTo100' }
-function UnitHealthPercent(unit, _, curve) assert(curve == 'ScaleTo100'); return u(unit).health / u(unit).maxHealth * 100 end
+-- Color curves: colors at points, blended in a straight line between them. Evaluated, one gives a new color table, as
+-- the game's do (GetRGBA is the game's ColorMixin, Lua code: not counted).
+Enum.LuaCurveType = { Linear = 0 }
+local Curve, Color = {}, {}
+Curve.__index, Color.__index = Curve, Color
+function Curve:SetType(kind) self.kind = kind end
+function Curve:AddPoint(x, color) self[#self + 1] = { x = x, color = color } end
+function Color:GetRGBA() return self.r, self.g, self.b, self.a end
+C_CurveUtil = { CreateColorCurve = function() return setmetatable({}, Curve) end }
+local function Evaluate(curve, x)
+    for i = 2, #curve do
+        local from, to = curve[i - 1], curve[i]
+        if x <= to.x or i == #curve then
+            local t, c, d = math.max(0, math.min(1, (x - from.x) / (to.x - from.x))), from.color, to.color
+            return setmetatable({ r = c.r + (d.r - c.r) * t, g = c.g + (d.g - c.g) * t, b = c.b + (d.b - c.b) * t,
+                a = c.a + (d.a - c.a) * t }, Color)
+        end
+    end
+end
+function UnitHealthPercent(unit, _, curve)
+    local fraction = u(unit).health / u(unit).maxHealth
+    if curve == 'ScaleTo100' then return fraction * 100 end
+    assert(getmetatable(curve) == Curve, 'not a curve')
+    return Evaluate(curve, fraction)
+end
 '''
 
 SIMPLE_MOCKS = r'''

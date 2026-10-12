@@ -181,6 +181,46 @@ Section('Tooltips', function()
         Send('Tooltip', 'GUILD_ROSTER_UPDATE', false); hover('mouseover', PLAYER)
     end)
     Script(tip, 'OnTooltipCleared'); tip.unit = nil
+    -- A tooltip naming its unit by a token the game sends health events for (your target here) is followed by them
+    -- instead of polled. Each scenario is a second of the bar's frames (its poll, when it has one) with the events of
+    -- that second, so polling and events compare.
+    local function barSecond()
+        for _ = 1, 64 do
+            local poll = rawget(T.bar, 'scripts').OnUpdate
+            if poll then CallIn(poll, T.bar, FRAME) end
+        end
+    end
+    local function hurt() UNITS.target.health = UNITS.target.health == 50 and 49 or 50 end
+    UNIT_DATA.target = { guid = UNITS.target.guid }
+    Measure('Tooltip refresh: your target', 300, function() hover('target', NPC) end)
+    Measure('Tooltip on your target: a second, health unchanged', 100, barSecond)
+    Measure('Tooltip on your target: a second, health changed once', 100, function()
+        hurt(); Dispatch('UNIT_HEALTH', 'target'); barSecond()
+    end)
+    Measure('Tooltip on your target: a second, tapped by others or not', 100, function()
+        UNITS.target.tapped = not UNITS.target.tapped
+        Dispatch('UNIT_FACTION', 'target'); barSecond()
+    end)
+    UNITS.target.tapped = nil
+    Measure('Tooltip on your target: a second after targeting it again', 100, function()
+        Dispatch('PLAYER_TARGET_CHANGED'); barSecond()
+    end)
+    Measure('Tooltip switched: a mob (polled), then your target (events)', 100, function()
+        hover('npc', NPC); hover('target', NPC)
+    end)
+    T.db.profile.colorBy = 'HEALTH'; T:Apply()
+    Measure('Tooltip on your target, by health: a second, health changed once', 100, function()
+        hurt(); Dispatch('UNIT_HEALTH', 'target'); barSecond()
+    end)
+    SECRET = true
+    Measure('Tooltip on your target, by health: a second, hidden health changed once', 100, function()
+        hurt(); Dispatch('UNIT_HEALTH', 'target'); barSecond()
+    end)
+    hover('npc', NPC)
+    Measure('Tooltip health poll, by health: hidden health values', 300, function() Script(T.bar, 'OnUpdate', T.POLL) end)
+    SECRET = false
+    T.db.profile.colorBy = nil; T:Apply()
+    Script(tip, 'OnTooltipCleared'); blizzardHideTooltip(tip); tip.shown = true; tip.unit = nil
     -- The game filling in its tooltip for an item (the item post-call hooks): a bag slot redraws its own five times a
     -- second, and moving along the bags shows another item each time. Ore in the bags, bank and account bank.
     ITEM_COUNTS[2770], BANK_COUNTS[2770], ACCOUNT_COUNTS[2770] = 4, 8, 2
