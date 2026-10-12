@@ -1,6 +1,6 @@
 """Draws the addon's own art (white or grey on transparent, tinted in game) as 32-bit TGA files: icons, each also
 drawn pixel for pixel at every small size (the disc's halves and quarters round the settings window's pills and
-corners), and the Loot Window's burnt page background.
+corners), the Loot Window's burnt page background, and Campfire Helper's fire (in color), ring and glow.
 
 Usage: python tools/make_art.py [icons-preview.png [page-preview.png]]
 """
@@ -509,6 +509,164 @@ def page_preview(page, scorch, path):
     print(f'Preview: {path}')
 
 
+FIRE_FRAMES, FIRE_COLUMNS, FIRE_SIZE = 16, 4, 64
+
+
+def _ramp(stops, t):
+    t = min(1.0, max(0.0, t))
+    for (t0, c0), (t1, c1) in zip(stops, stops[1:]):
+        if t <= t1:
+            k = (t - t0) / (t1 - t0) if t1 > t0 else 0
+            return tuple(c0[i] + (c1[i] - c0[i]) * k for i in range(4))
+    return stops[-1][1]
+
+
+# Flame heat to color: dark red edges, orange body, yellow then near white core.
+FLAME_RAMP = [(0.0, (150, 20, 5, 0)), (0.12, (190, 40, 8, 150)), (0.3, (240, 95, 15, 235)), (0.55, (255, 165, 35, 255)),
+              (0.8, (255, 215, 80, 255)), (1.0, (255, 245, 190, 255))]
+
+
+def campfire_fire(frames=FIRE_FRAMES, columns=FIRE_COLUMNS, size=FIRE_SIZE, samples=3):
+    """A burning campfire as a looping flipbook (frames in rows of `columns`, left to right, top down): crossed logs
+    with glowing embers and three flickering tongues of flame with sparks rising. In color; the game draws it as is.
+    Every motion is a whole number of cycles per loop, so the last frame runs into the first."""
+    rng = random.Random(11)
+    rows = (frames + columns - 1) // columns
+    atlas = Image.new('RGBA', (columns * size, rows * size))
+    # Tongues: center x, height, base half-width, flicker phase, flicker cycles per loop.
+    tongues = [(0.0, 0.64, 0.13, 0.0, 2), (-0.12, 0.42, 0.09, 1.7, 3), (0.13, 0.47, 0.09, 3.9, 3),
+               (-0.05, 0.34, 0.08, 5.1, 4), (0.06, 0.52, 0.07, 2.6, 2)]
+    # Sway: (amplitude, waves along the height, cycles per loop, phase).
+    sway = [(0.045, 1.6, 1, 0.3), (0.025, 3.1, 2, 2.1), (0.012, 5.3, 3, 4.4)]
+    # Erosion noise moving up the flame: (strength, x frequency, y frequency, cycles per loop, phase).
+    erosion = [(0.22, 9.0, 7.0, 2, 0.0), (0.14, 17.0, 13.0, 3, 1.3), (0.08, 29.0, 23.0, 4, 2.9)]
+    sparks = [(rng.uniform(-0.18, 0.18), rng.random(), rng.uniform(0.6, 1.4), rng.randint(1, 2)) for _ in range(5)]
+    base = 0.30  # flames start this far up from the bottom (in frame heights), over the logs
+    logs = [(-0.42, 0.17, 0.62, 0.055, (118, 74, 42)), (0.42, 0.17, 0.62, 0.055, (100, 62, 35)),
+            (0.0, 0.12, 0.5, 0.05, (88, 55, 31))]  # angle, y, length, radius, color; drawn in order
+    stones = [(-0.33, 0.07, 0.07, 0.045), (-0.17, 0.045, 0.07, 0.04), (0.0, 0.04, 0.07, 0.04), (0.17, 0.045, 0.07, 0.04),
+              (0.33, 0.07, 0.07, 0.045)]  # x, y, half width, half height
+
+    def log_color(x, y):
+        """The logs, under the fire: (r, g, b, a) or None."""
+        hit = None
+        for sx0, sy0, rx, ry in stones:
+            d = ((x - sx0) / rx) ** 2 + ((y - sy0) / ry) ** 2
+            if d <= 1:
+                grey = 70 + 40 * (1 - d) + 25 * max(0.0, (y - sy0) / ry)
+                hit = (grey, grey * 0.95, grey * 0.9, 255)
+        for angle, cy, length, radius, color in logs:
+            ca, sa = math.cos(angle), math.sin(angle)
+            u, v = (x * ca + (y - cy) * sa), (-x * sa + (y - cy) * ca)
+            if abs(u) <= length / 2 and abs(v) <= radius:
+                shade = 0.7 + 0.3 * (v / radius)  # lit from above
+                if abs(v) > radius * 0.75 or abs(u) > length / 2 - 0.012:
+                    shade *= 0.55  # dark rim
+                elif abs(u) > length / 2 - 0.04:
+                    shade *= 1.45  # end grain
+                elif 0.5 + 0.5 * math.sin(u * 70 + v * 25) > 0.85:
+                    shade *= 0.8  # bark
+                c = tuple(min(255, ch * shade) for ch in color)
+                hit = c + (255,)
+        return hit
+
+    for f in range(frames):
+        t = f / frames
+        tau = 2 * math.pi * t
+        frame = Image.new('RGBA', (size, size))
+        for py in range(size):
+            for px in range(size):
+                acc = [0.0, 0.0, 0.0, 0.0]
+                for sy in range(samples):
+                    for sx in range(samples):
+                        x = (px + (sx + 0.5) / samples) / size - 0.5
+                        y = 1 - (py + (sy + 0.5) / samples) / size  # 0 at the bottom
+                        color = (0, 0, 0, 0)
+                        # Ground glow under the logs.
+                        g = max(0.0, 1 - math.hypot(x / 0.36, (y - 0.15) / 0.11))
+                        if g > 0:
+                            color = (255, 110, 25, 200 * g ** 1.5)
+                        lc = log_color(x, y)
+                        if lc:
+                            # Embers glow on the logs near the fire's base.
+                            heat = max(0.0, 1 - math.hypot(x / 0.2, (y - 0.2) / 0.08)) * (0.8 + 0.2 * math.sin(tau * 2 + x * 40))
+                            lc = tuple(lc[i] + ((255, 120, 30)[i] - lc[i]) * heat * 0.8 for i in range(3)) + (255,)
+                            color = lc
+                        # Flames.
+                        fy = y - base
+                        heat = 0.0
+                        if fy > -0.06:
+                            h = max(0.0, fy)
+                            dx = sum(a * math.sin(w * h * 2 * math.pi - c * tau + ph) for a, w, c, ph in sway) * h / 0.6
+                            fx = x - dx
+                            for cx, height, width, ph, cycles in tongues:
+                                top = height * (1 + 0.12 * math.sin(cycles * tau + ph))
+                                if fy >= top:
+                                    continue
+                                k = max(0.0, fy) / top
+                                # Teardrop: widest a little above the base, a point at the top, rounded at the bottom.
+                                half = width * (1 - k) ** 0.75 * (1 + 0.6 * k) if fy >= 0 else width * math.sqrt(max(0.0, 1 - (fy / 0.06) ** 2))
+                                if half <= 0:
+                                    continue
+                                d = 1 - abs(fx - cx) / half
+                                if d <= 0:
+                                    continue
+                                heat = max(heat, d ** 0.8 * (1 - k ** 3) * (1.0 if fy >= 0 else 0.9))
+                            if heat > 0:
+                                n = sum(s * (0.5 + 0.5 * math.sin(fx * fxq + (fy * fyq - c * tau) + ph)
+                                             * math.sin(fy * fyq * 0.7 - c * tau + ph * 1.7)) for s, fxq, fyq, c, ph in erosion)
+                                heat = heat * 1.05 * max(0.0, 1 - (x / 0.3) ** 2) - n * (0.4 + fy * 1.4)
+                        if heat > 0:
+                            fc = _ramp(FLAME_RAMP, heat)
+                            a = fc[3] / 255
+                            color = tuple(color[i] * (1 - a) + fc[i] * a for i in range(3)) + (max(color[3], fc[3]),)
+                        # Sparks rising.
+                        for sx0, ph, speed, cycles in sparks:
+                            life = (t * cycles * speed + ph) % 1.0
+                            spx = sx0 + 0.05 * math.sin(life * 9 + ph * 6)
+                            spy = base + 0.25 + life * 0.62
+                            r = 0.016 * (1 - life)
+                            if r > 0 and (x - spx) ** 2 + (y - spy) ** 2 < r * r:
+                                sa = 255 * (1 - life) ** 0.6
+                                a = sa / 255
+                                color = tuple(color[i] * (1 - a) + (255, 200, 90)[i] * a for i in range(3)) + (max(color[3], sa),)
+                        for i in range(4):
+                            acc[i] += color[i]
+                n = samples * samples
+                frame.putpixel((px, py), tuple(round(min(255, c / n)) for c in acc))
+        atlas.paste(frame, ((f % columns) * size, (f // columns) * size))
+    return atlas
+
+
+def campfire_ring(size=128, stroke=0.13, samples=8):
+    """A ring touching the square's edges, white: the campfire timer's track and its countdown (the game sweeps it)."""
+    r = size / 2
+    inner = r * (1 - 2 * stroke)
+    image = Image.new('RGBA', (size, size))
+    for py in range(size):
+        for px in range(size):
+            hits = 0
+            for sy in range(samples):
+                for sx in range(samples):
+                    d = math.hypot(px + (sx + 0.5) / samples - r, py + (sy + 0.5) / samples - r)
+                    if inner < d <= r:
+                        hits += 1
+            image.putpixel((px, py), (255, 255, 255, round(255 * hits / samples ** 2)))
+    return image
+
+
+def campfire_glow(size=128):
+    """A soft round glow, white, fading to nothing at the edges: the campfire's warm light, tinted in game."""
+    image = Image.new('RGBA', (size, size))
+    r = size / 2
+    for py in range(size):
+        for px in range(size):
+            d = math.hypot(px + 0.5 - r, py + 0.5 - r) / r
+            a = max(0.0, 1 - d) ** 2
+            image.putpixel((px, py), (255, 255, 255, round(255 * a)))
+    return image
+
+
 if __name__ == '__main__':
     ART.mkdir(exist_ok=True)
     images = {'Cog': cog(), 'GitHub': svg_icon(GITHUB_PATH), 'Heart': heart(), 'Chevron': chevron(), 'Logo': logo(),
@@ -539,6 +697,10 @@ if __name__ == '__main__':
         print(f'Wrote {ART / (name + ".tga")} (1024x32)')
     for name, image in images.items():
         image.save(ART / f'{name}.tga')  # uncompressed 32-bit with alpha
+        print(f'Wrote {ART / (name + ".tga")} ({image.size[0]}x{image.size[1]})')
+    campfire = {'CampfireFire': campfire_fire(), 'CampfireRing': campfire_ring(), 'CampfireGlow': campfire_glow()}
+    for name, image in campfire.items():
+        image.save(ART / f'{name}.tga')
         print(f'Wrote {ART / (name + ".tga")} ({image.size[0]}x{image.size[1]})')
     page, scorch = burnt_page()
     for name, image in {'LootPage': page, 'LootScorch': scorch}.items():
