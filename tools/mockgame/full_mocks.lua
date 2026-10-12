@@ -21,6 +21,9 @@ C_Bank = { CanViewBank = function() return false end }
 function UnitAffectingCombat() return state.combat == true end
 MailFrame = CreateFrame('Frame', 'MailFrame', UIParent); MailFrame:Hide()
 MerchantFrame = CreateFrame('Frame', 'MerchantFrame', UIParent); MerchantFrame:Hide()
+-- Your group: state.groupSize players, you included.
+function GetNumGroupMembers() return state.groupSize or 0 end
+function GetNumSubgroupMembers() return math.max(0, (state.groupSize or 0) - 1) end
 -- Chat message filters, kept per event as the game keeps them (scenarios call them themselves).
 CHAT_FILTERS = {}
 function ChatFrame_AddMessageEventFilter(event, fn)
