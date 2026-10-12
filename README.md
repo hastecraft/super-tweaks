@@ -18,7 +18,7 @@ An XP bar with rested XP, XP from completed quests, XP per hour and time to leve
 
 ![Better Tooltips](https://media.forgecdn.net/attachments/description/1739405/description_00ec91f5-0e25-48bc-8ced-36b93ed4bb32.png)
 
-A health bar under unit tooltips, borders in class colors, guild ranks and notes, and who the unit is targeting. Item tooltips say how many you have in your bags and banks. Item, spell and NPC IDs are optional. Works with tooltip styles from other addons.
+A health bar under unit tooltips (in class colors, or green to red by health), borders in class colors, guild ranks and notes, and who the unit is targeting. Item tooltips say how many you have in your bags and banks. Item, spell and NPC IDs are optional. Works with tooltip styles from other addons.
 
 ### Loot Window and Fast Loot
 
