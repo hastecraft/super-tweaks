@@ -344,6 +344,39 @@ Section('Level-Up Screenshot', function()
     end)
 end)
 
+Section('Battleground Alerts', function()
+    local B, queue = mod('BattlegroundAlerts'), { status = 'queued', map = 'Warsong Gulch' }
+    BATTLEFIELDS[1] = queue
+    local function status() Send('BattlegroundAlerts', 'UPDATE_BATTLEFIELD_STATUS', 1) end
+    Measure('Battleground queue update, no invite', 300, status)
+    PVPReadyDialog:Show()
+    Measure('Battleground invite: popped, then entered', 100, function()
+        queue.status, queue.expires = 'confirm', state.time + 80; status()
+        queue.status = 'active'; status()
+    end)
+    -- An invite's last 25 seconds: the countdown ticking, with both reminders, until it's gone.
+    Measure('Battleground invite: last 25 seconds, two reminders', 20, function()
+        queue.status, queue.expires = 'confirm', state.time + 25; status()
+        AdvanceTime(25)
+        queue.status = 'queued'; status()
+    end)
+    queue.status, queue.expires = 'confirm', state.time + 100000; status()
+    Measure('Battleground invite up: one-second tick', 300, function() AdvanceTime(1) end)
+    queue.status = 'active'; status()
+    PVPReadyDialog:Hide()
+    state.instanceType, B.db.profile.gatesWarning = 'pvp', true
+    Measure('Battleground gates: countdown, warning and opening', 50, function()
+        Send('BattlegroundAlerts', 'START_TIMER', 0, 60, 120); AdvanceTime(60)
+    end)
+    local reward = { currencyType = 1792, quantityChanged = 214 }
+    Measure('Battleground over: result line with honor', 50, function()
+        Send('BattlegroundAlerts', 'PVP_MATCH_COMPLETE', 1, 1122)
+        Send('BattlegroundAlerts', 'POST_MATCH_CURRENCY_REWARD_UPDATE', reward)
+        AdvanceTime(2)
+    end)
+    state.instanceType, B.db.profile.gatesWarning, BATTLEFIELDS[1] = 'none', false, nil
+end)
+
 Section('Interface', function()
     Measure('Quest Item Sparkle: loading screen check', 300, function() Send('QuestSparkle', 'PLAYER_ENTERING_WORLD', false, false) end)
     Measure('Hide Issue Reporter: game moves the button back', 300, function() PTR_IssueReporter:SetParent(UIParent) end)

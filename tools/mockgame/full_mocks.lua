@@ -149,3 +149,21 @@ function EditModeManagerFrame:IsSnapEnabled() return true end
 Enum.EventToastEventType = { LevelUp = 1 }
 EventToastManagerFrame = CreateFrame('Frame', 'EventToastManagerFrame', UIParent)
 function EventToastManagerFrame:DisplayToast() end
+
+-- Battleground Alerts: battleground queues (BATTLEFIELDS[i]: status, map, and for an invite the time it runs out), the
+-- game's invite window, the gate countdown's timer type, the alert sounds, and a match's rewards (a new table each
+-- call, as the game's).
+BATTLEFIELDS = {}
+function GetMaxBattlefieldID() return 2 end
+function GetBattlefieldStatus(i) local b = BATTLEFIELDS[i]; if b then return b.status, b.map end; return 'none' end
+function GetBattlefieldPortExpiration(i)
+    local b = BATTLEFIELDS[i]
+    return b and b.expires and math.max(0, math.floor(b.expires - state.time)) or 0
+end
+function GetBattlefieldArenaFaction() return 1 end
+PVPReadyDialog = CreateFrame('Frame', 'PVPReadyDialog', UIParent)
+PVPReadyDialog:Hide()
+Enum.StartTimerType = { PvPBeginTimer = 0 }
+SOUNDKIT.PVP_THROUGH_QUEUE, SOUNDKIT.READY_CHECK = 8459, 8960
+C_PvP = { GetPostMatchCurrencyRewards = function() return { { currencyType = 1792, quantityChanged = 214 } } end }
+C_CurrencyInfo.GetCurrencyInfo = function() return { name = 'Honor' } end
