@@ -23,7 +23,7 @@ local LOWERCASE = { issecretvalue = true, securecallfunction = true, securecall 
 -- Blizzard's tables of functions that aren't C_ namespaces. Data tables (Enum, SOUNDKIT) and the fixtures' own
 -- tables stay out: some hold the addon's callbacks.
 local API_TABLES = { 'Menu', 'MenuUtil', 'TooltipDataProcessor', 'EventRegistry', 'Settings', 'PixelUtil', 'CombatTextUtil',
-    'UnitPopupSharedUtil', 'ColorPickerFrame', 'QuestieLoader', 'EllesmereUI' }
+    'UnitPopupSharedUtil', 'ColorPickerFrame', 'QuestieLoader', 'EllesmereUI', 'UIModeUtil' }
 -- Frame fields holding the mock's own bookkeeping rather than Blizzard tables.
 local INTERNAL = { scripts = true, events = true, points = true, callbacks = true, benchPoints = true, template = true,
     parent = true, color = true, allPoints = true, clamp = true, slice = true, unitLists = true }
