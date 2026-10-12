@@ -128,6 +128,26 @@ function BNGetNumFriends() return 0 end
 function BNGetNumFriendInvites() return 0 end
 function GetNextPendingInviteConfirmation() return nil end
 
+-- Reputation, as WoW Forever has it: two factions, one of them on the reputation bar; like the game's, every call
+-- that gives a faction's data makes a new table.
+FACTIONS = { { factionID = 72, name = 'Stormwind', reaction = 5 }, { factionID = 576, name = 'Timbermaw Hold', reaction = 4 } }
+state.watchedFaction = 72
+local function factionByID(id) for _, f in ipairs(FACTIONS) do if f.factionID == id then return f end end end
+local function factionData(f)
+    if not f then return nil end
+    return { factionID = f.factionID, name = f.name, reaction = f.reaction, isHeader = false, isHeaderWithRep = false,
+        isWatched = f.factionID == state.watchedFaction }
+end
+C_Reputation = {
+    GetNumFactions = function() return #FACTIONS end,
+    GetFactionDataByIndex = function(i) return factionData(FACTIONS[i]) end,
+    GetFactionDataByID = function(id) return factionData(factionByID(id)) end,
+    GetWatchedFactionData = function() return factionData(factionByID(state.watchedFaction)) end,
+    SetWatchedFactionByID = function(id) state.watchedFaction = id end,
+    IsMajorFaction = function() return false end,
+}
+FACTION_STANDING_INCREASED, FACTION_STANDING_DECREASED = 'Reputation with %s increased by %d.', 'Reputation with %s decreased by %d.'
+
 -- Blizzard frames tweaks hook: the beta client's Issue Reporter, Edit Mode, the level-up toast.
 PTR_IssueReporter = CreateFrame('Frame', 'PTR_IssueReporter', UIParent)
 PTR_IssueReporter.Data = { IsLoaded = true }

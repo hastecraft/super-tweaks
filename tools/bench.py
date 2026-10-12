@@ -330,6 +330,22 @@ Section('Level-Up Screenshot', function()
     end)
 end)
 
+Section('Auto-Track Reputation', function()
+    HST:SetFeatureEnabled('AutoTrackReputation', true)
+    -- A reputation gain as the game reports it: the faction's new standing, the chat line, then the next frame.
+    local standing = 1000
+    local function gain()
+        standing = standing + 25
+        Send('AutoTrackReputation', 'FACTION_STANDING_CHANGED', 576, standing)
+        Send('AutoTrackReputation', 'CHAT_MSG_COMBAT_FACTION_CHANGE', Chat('Reputation with Timbermaw Hold increased by 25.', ''))
+        AdvanceTime(0)
+    end
+    gain()
+    Measure('Reputation gained: bar switched to that faction', 100, function() state.watchedFaction = 72; gain() end)
+    Measure('Reputation gained: faction already on the bar', 100, gain)
+    HST:SetFeatureEnabled('AutoTrackReputation', false)
+end)
+
 Section('Interface', function()
     Measure('Quest Item Sparkle: loading screen check', 300, function() Send('QuestSparkle', 'PLAYER_ENTERING_WORLD', false, false) end)
     Measure('Hide Issue Reporter: game moves the button back', 300, function() PTR_IssueReporter:SetParent(UIParent) end)
