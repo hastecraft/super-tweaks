@@ -101,7 +101,7 @@ MANA = 'Mana'
 function UnitIsUnit(a, b) return a == b end
 function BreakUpLargeNumbers(n) return tostring(n) end
 
--- Auto-Equip Bags: no bags in the bag slots, nothing on the cursor.
+-- Auto-Equip Bags: no bags in the bag slots, nothing on the cursor. Weapons are in WIELDED (items_mocks.lua).
 NUM_BAG_SLOTS = 4
 Enum.ItemClass.Container, Enum.ItemClass.Quiver = 1, 11
 Enum.ItemContainerSubclass = { Bag = 0 }
@@ -112,7 +112,7 @@ C_Container.GetContainerNumFreeSlots = function(bag)
     return free, 0
 end
 C_Container.PickupContainerItem = function() end
-function GetInventoryItemID() return nil end
+function GetInventoryItemID(_, slot) return WIELDED[slot] end
 function PutItemInBag() end
 C_Item.GetItemInfoInstant = function(id)
     local i = ITEMS[id]

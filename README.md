@@ -53,7 +53,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 **Loot and vendors:** Loot Window, Movable Loot Rolls, Fast Loot, Sell Junk, Sell Clutter, Repair Automatically (guild funds optional), Restock at Vendors (ammo, reagents and poisons, and the vendor reagents your tracked recipes need, up to a gold limit per visit).
 
-**Items and mail:** Consumable Macros (always your best food, drink, bandage and potion), Mail Expiry & Alt List, Mail Gold Guard (marks gold mailed by strangers so Open All skips it), Auto-Equip Bags, Bag Tweaks, Appearance Collector (marks gear whose look you haven't collected).
+**Items and mail:** Consumable Macros (always your best food, drink, bandage and potion, plus Feed Pet and weapon stones, oils and poisons), Mail Expiry & Alt List, Mail Gold Guard (marks gold mailed by strangers so Open All skips it), Auto-Equip Bags, Bag Tweaks, Appearance Collector (marks gear whose look you haven't collected).
 
 **Group and PvP:** Auto Accept Summons, Auto Accept Resurrection, Auto Release in Battlegrounds, Battleground Alerts (a countdown to enter, a gates alert and the match result in chat), Group Finder Whispers (class, level and race beside each whisper, with click-to-invite), Damage Meter Extras (a chat line summing up each fight, Report on the game's damage meter, and death notices with the killing blow).
 
