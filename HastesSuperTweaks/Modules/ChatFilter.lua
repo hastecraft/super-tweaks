@@ -145,18 +145,19 @@ function F:Learn(unit)
     return members[guid]
 end
 
--- Whether a message (lowercased) is from a member of a muted guild, or names one as <Guild>.
+-- Why a message (lowercased) is muted: "named" when it names a muted guild as <Guild>, "member" when it's from one of
+-- a muted guild's members; nil when it isn't.
 local function Muted(guid, text)
     for i = 1, #mutedTags do
-        if find(text, mutedTags[i], 1, true) then return true end
+        if find(text, mutedTags[i], 1, true) then return "named" end
     end
-    if not guid then return false end
+    if not guid then return nil end
     local guild = F.db.global.guildMembers[guid]
     if not guild and UnitTokenFromGUID then
         local unit = UnitTokenFromGUID(guid)
         if not IsSecret(unit) and unit then guild = F:Learn(unit) end
     end
-    return guild ~= nil and muted[guild] == true
+    if guild and muted[guild] then return "member" end
 end
 
 -- The chat line last looked at, and whether it was hidden; your GUID, read as the filter is put on.
@@ -173,10 +174,13 @@ local function Filter(_, event, text, sender, _, _, _, _, zoneChannel, _, _, _, 
         and (IsSecret(zoneChannel) or not zoneChannel or zoneChannel == 0) then return false end
     if IsSecret(guid) then guid = nil end
     local lowerText = lower(text)
-    if not Spam(lowerText) and not (muting and Muted(guid, lowerText)) then return false end
-    -- You, your friends and your guildmates are never hidden (only asked about once a message matches).
+    local spam = Spam(lowerText)
+    local mutedBy = not spam and muting and Muted(guid, lowerText) or nil
+    if not spam and not mutedBy then return false end
+    -- You, your friends and your guildmates are never hidden (only asked about once a message matches). A muted
+    -- guild's member isn't one of your guildmates, so your guild roster isn't gone through for them.
     if guid and guid == me then return false end
-    if ns.IsFrom(sender, guid, true, true, false) then return false end
+    if ns.IsFrom(sender, guid, true, mutedBy ~= "member", false) then return false end
     lastHidden = true
     F.hidden = F.hidden + 1
     return true
@@ -214,6 +218,7 @@ function F:Apply()
         if not learner then
             learner = CreateFrame("Frame")
             learner:SetScript("OnEvent", OnLearn)
+            self.learner = learner
         end
         for event in pairs(LEARN) do learner:RegisterEvent(event) end
     elseif learner then
