@@ -330,6 +330,39 @@ Section('Level-Up Screenshot', function()
     end)
 end)
 
+Section('Campfire Helper', function()
+    local UPDATED, ADDED, REMOVED = { updatedAuraInstanceIDs = { 7 } }, { addedAuras = { {} } }, { removedAuraInstanceIDs = { 8 } }
+    local LOST = { removedAuraInstanceIDs = { 103 } }
+    Measure('Campfire Helper: aura refreshed, none gained or lost', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', UPDATED) end)
+    Measure('Campfire Helper: aura gained, not a camp one', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED) end)
+    Measure('Campfire Helper: a spell cast, not a campfire', 300, function()
+        Send('CampfireHelper', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-1', 78, 0)
+    end)
+    Measure('Campfire Helper: aura changes in combat', 300, function()
+        state.combat = true; Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); state.combat = false
+    end)
+    -- Camp buffs with three camp object buffs, one lost early, then all gone.
+    local benefits = { auraInstanceID = 100, spellId = 1229741, name = 'Camp Benefits', duration = 3600 }
+    local buffs = {}
+    for i = 1, 3 do buffs[i] = { auraInstanceID = 100 + i, spellId = 1300000 + i, name = 'Camp Buff ' .. i, duration = 3600 } end
+    Measure('Campfire Helper: camp buffs land (+1 s), one ends early, all end', 20, function()
+        local ends = GetTime() + 3600
+        benefits.expirationTime = ends
+        PLAYER_AURAS[1229741], PLAYER_BUFFS[1] = benefits, benefits
+        for i = 1, 3 do buffs[i].expirationTime = ends; PLAYER_BUFFS[i + 1] = buffs[i] end
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); AdvanceTime(1)
+        PLAYER_BUFFS[4] = nil
+        Send('CampfireHelper', 'UNIT_AURA', 'player', LOST)
+        PLAYER_AURAS[1229741] = nil; wipe(PLAYER_BUFFS)
+        Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
+        benefits.auraInstanceID = benefits.auraInstanceID + 10
+    end)
+    Measure('Campfire Helper: campfire lit (+0.2 s)', 20, function()
+        mod('CampfireHelper').litAt = nil
+        Send('CampfireHelper', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-2', 1229736, 0); AdvanceTime(0.2)
+    end)
+end)
+
 Section('Interface', function()
     Measure('Quest Item Sparkle: loading screen check', 300, function() Send('QuestSparkle', 'PLAYER_ENTERING_WORLD', false, false) end)
     Measure('Hide Issue Reporter: game moves the button back', 300, function() PTR_IssueReporter:SetParent(UIParent) end)

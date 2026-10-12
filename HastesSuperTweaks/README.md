@@ -14,6 +14,7 @@ Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's
 | Screenshot Level-Ups | Leveling | Takes a screenshot each time you level up, once the "Level N" banner is on screen. |
 | Upgrade Spell Ranks | Leveling | When you learn a new rank of a spell, your action bars get it in place of the old one. Lower ranks you put on a bar on purpose are left alone. |
 | Train All | Leveling | Adds a Train All button to trainers that learns everything they teach you that you can afford, one at a time, and names the new spells your class trainer has for you each time you level up. |
+| Campfire Helper | Leveling | WoW Forever only. Times the campfire you light and warns a minute before it goes out, says how long to keep sitting until the camp buffs land (and when you moved too soon, or still have camp buffs that keep a campfire from giving new ones), names the camp buffs you got and warns when one ends early, and says 5 minutes before your camp buffs end, when they have, and when Boosted Rest is over. `/hst camp check` shows every camp timer. |
 | Auto Accept & Turn In Quests | Quests & NPCs | Accepts quests and turns them in for you when you talk to quest givers. Hold Shift to do it yourself. |
 | Skip NPC Chat | Quests & NPCs | Opens flight maps, bank, vendor and trainer windows right away when that's all an NPC has to offer. Hold Shift to see the chat. |
 | Quest Item Sparkle | Quests & NPCs | Keeps the sparkle on quest items and objects you can loot or use in the world, even with the game's outlines turned off, by turning on the game's `outlineModeShowLootEffectWhenDisabled` option each time you enter the world. Turning it off puts the option back. |
@@ -92,6 +93,7 @@ Settings that cannot apply are disabled. Font menus preview each font. A confirm
 - `/hst`: settings window. `/hst help`: command list.
 - `/hst xp`, `/hst tooltip`, `/hst sct`, `/hst breath`, `/hst ranks`, `/hst macros`, `/hst mail`, `/hst clutter`: XP Tracker, Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Upgrade Spell Ranks, Consumable Macros, Mail Expiry & Alt List and Sell Clutter Automatically settings. Any module's internal name works too, for example `/hst guildmotd`.
 - `/hst train`, `/hst tracker`, `/hst rolls`, `/hst restock`, `/hst mailguard`, `/hst bags`, `/hst spam`, `/hst game`: Train All, Hide Quest Tracker, Movable Loot Rolls, Restock at Vendors, Mail Gold Guard, Bag Tweaks, Chat Spam Filter and Game Settings settings.
+- `/hst camp`: Campfire Helper settings. `/hst camp check`: your campfire, when you can light another, your camp buffs and Boosted Rest.
 - `/hst keep <item>`, `/hst sell <item>`: put an item on Sell Clutter's Never sell or Always sell list (shift-click it into the chat line); again takes it off. `/hst clutter list`: what Sell Clutter would sell right now.
 - `/hst sort`: clean up your bags (the game's Clean Up Bags).
 
@@ -119,6 +121,7 @@ What each module does in unusual situations, and what the game doesn't let addon
 - Quest XP in Quest Log and the XP bar's quest shading use the game's reward when it's above 0, else Questie's estimate (marked "~"). Forever reports 0 XP for every quest in the log, so without Questie no quest XP shows. Titles update the next time the log redraws; forcing a redraw could taint the quest log.
 - Upgrade Spell Ranks only acts on a rank you just learned, and only out of combat with nothing on your cursor (a rank learned in combat goes on your bars when it ends). Macros and items are never changed, and a button is never swapped down. Ranks learned while it's off aren't caught up; use "Upgrade all buttons now".
 - Train All learns one thing at a time, the last one listed first, and waits for the trainer to confirm each; it stops when you leave the trainer, when combat starts, or when the trainer doesn't teach one. New professions (which ask you first) and pet training are left to you, and so is anything the trainer's filter hides. The level-up line reads your spellbook, which lists the spells you haven't learned with the level they come at; a spell it doesn't list there isn't named.
+- Campfire Helper goes by your own casts and auras, since the game has no campfire API: lighting a Basic, Journeyman or Expert Campfire Kit, Welcoming Campfire (the minute you sit), Camp Benefits (the camp buffs' hour) and Boosted Rest. The fire's 15 minutes are timed from when you light it, so a fire you pack up or that burns out early isn't noticed, and other players' fires aren't timed. Camp buffs are the buffs that last as long as Camp Benefits and end with it. Auras are hidden from addons in combat, so what changed then is said once combat ends.
 
 ### Quests, NPCs and group
 
