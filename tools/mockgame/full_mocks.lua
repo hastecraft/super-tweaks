@@ -129,6 +129,18 @@ C_EquipmentSet = { GetEquipmentSetIDs = function() return {} end, GetItemIDs = f
 function GetProfessions() return nil end
 function GetProfessionInfo() return nil end
 C_QuestLog.GetQuestObjectives = function() return {} end
+-- Quest Progress Sounds: quest objectives by quest ID (QUEST_OBJECTIVES[questID]: whether each is done, in order; a
+-- quest not listed has one, not done, as most quests have while leveling), titles, the sounds it plays by default.
+QUEST_OBJECTIVES = {}
+local ONE_TO_DO = { false }
+C_QuestLog.GetNumQuestObjectives = function(id) return #(QUEST_OBJECTIVES[id] or ONE_TO_DO) end
+function GetQuestObjectiveInfo(id, i)
+    local finished = (QUEST_OBJECTIVES[id] or ONE_TO_DO)[i]
+    return 'Kobold Vermin slain', 'monster', finished, finished and 8 or 3, 8
+end
+C_QuestLog.GetLogIndexForQuestID = function(id) for i, q in ipairs(state.quests) do if q.questID == id then return i end end end
+C_QuestLog.GetTitleForQuestID = function(id) for _, q in ipairs(state.quests) do if q.questID == id then return q.title end end end
+SOUNDKIT.MAP_PING, SOUNDKIT.IG_QUEST_LIST_COMPLETE = 3175, 878
 C_TooltipInfo.GetBagItem = function() return { lines = {} } end
 Enum.PlayerInteractionType = { Merchant = 5 }
 C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function() return false end }
