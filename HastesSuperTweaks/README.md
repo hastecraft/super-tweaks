@@ -35,6 +35,7 @@ Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's
 | Auto Accept Resurrection | Group & PvP | Accepts resurrections from other players as soon as the game allows. Hold Shift to answer them yourself. |
 | Auto Release in Battlegrounds | Group & PvP | Releases your spirit as soon as you die in a battleground. Hold Shift to stay. |
 | Group Finder Whispers | Group & PvP | While you're listed in the Group Finder, whispers show the sender's class (in its color), level and race, and a small list of who whispered you lets you invite them with a click. |
+| Damage Meter Extras | Group & PvP | Reads the game's damage meter, which has no reports or summaries of its own. When a fight ends, one chat line sums it up: its name and length, your damage and DPS, your place in the group, and your healing, damage taken and interrupts (the group's top 3 too, if you like). Each meter window's settings menu gets Report, which posts what that window shows, top 5 or 10, to say, party, raid, instance or guild chat. And chat says when you or a group member dies, with what dealt the killing blow and a link to the death recap. |
 | Right-Click Guild Invite | Social | Invite players to your guild straight from the right-click menu on their name in chat (not shown for people already in your guild). |
 | Guild Message Popup | Social | Shows your guild's message of the day in the middle of the screen when you log in or when it changes. |
 | Chat Spam Filter | Social | Hides messages in trade, general and other public channels that match your word lists: gold selling, boosting, guild recruitment and words of your own. Whispers, group and guild chat, and your friends and guildmates, are never hidden. |
@@ -91,7 +92,7 @@ Settings that cannot apply are disabled. Font menus preview each font. A confirm
 
 - `/hst`: settings window. `/hst help`: command list.
 - `/hst xp`, `/hst tooltip`, `/hst sct`, `/hst breath`, `/hst ranks`, `/hst macros`, `/hst mail`, `/hst clutter`: XP Tracker, Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Upgrade Spell Ranks, Consumable Macros, Mail Expiry & Alt List and Sell Clutter Automatically settings. Any module's internal name works too, for example `/hst guildmotd`.
-- `/hst train`, `/hst tracker`, `/hst rolls`, `/hst restock`, `/hst mailguard`, `/hst bags`, `/hst spam`, `/hst game`: Train All, Hide Quest Tracker, Movable Loot Rolls, Restock at Vendors, Mail Gold Guard, Bag Tweaks, Chat Spam Filter and Game Settings settings.
+- `/hst train`, `/hst tracker`, `/hst rolls`, `/hst restock`, `/hst mailguard`, `/hst bags`, `/hst meter`, `/hst spam`, `/hst game`: Train All, Hide Quest Tracker, Movable Loot Rolls, Restock at Vendors, Mail Gold Guard, Bag Tweaks, Damage Meter Extras, Chat Spam Filter and Game Settings settings.
 - `/hst keep <item>`, `/hst sell <item>`: put an item on Sell Clutter's Never sell or Always sell list (shift-click it into the chat line); again takes it off. `/hst clutter list`: what Sell Clutter would sell right now.
 - `/hst sort`: clean up your bags (the game's Clean Up Bags).
 
@@ -130,6 +131,7 @@ What each module does in unusual situations, and what the game doesn't let addon
 - Auto Accept Resurrection waits out the corpse recovery delay, then checks the offer, Shift and the combat setting again. Hardcore realms offer no resurrection.
 - Auto Release in Battlegrounds doesn't release while a soulstone, Reincarnation or someone's resurrection is available, and releases after a `/reload` while dead.
 - Group Finder Whispers is on only while you (or your group) have a Group Finder listing. The level shows when the game knows it for the sender. Whispers the game hides from addons (in dungeons and raids, where chat is restricted) aren't tagged.
+- Damage Meter Extras reads the game's damage meter (Options › Advanced) and does nothing while the game says the meter isn't available; Classic Era has none. The game hides the meter's numbers from addons during combat, so a fight is read once you're out of combat and they show again (dying ends it for you), and Report is greyed out in combat. Fights shorter than the Shortest fight setting, or with no damage or healing from you, get no summary. Group members' deaths during combat are listed once it ends, the first five in full and the rest by name; your own comes as you die. Report posts what the window shows, with its numbers in full, at most once every five seconds; where the game refuses chat from addons (during boss fights), it puts the report on one line in your chat box instead, for you to post with Enter.
 
 ### Loot and vendors
 

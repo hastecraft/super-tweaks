@@ -100,7 +100,7 @@ function D.info.preview(frame)
         v.none = W.Caption(frame, "Turn on a part of this tweak to see it here.")
         -- The meter window's cog menu, with Report's submenu beside it.
         v.row = CreateFrame("Frame", nil, frame)
-        v.menu = MenuPanel(v.row, { "Reset All Combat Sessions", "Report" })
+        v.menu = MenuPanel(v.row, { DAMAGE_METER_RESET_ALL_SESSIONS or "Reset All Sessions", "Report" })
         v.menu:SetPoint("TOPLEFT")
         W.Chevron(v.menu, 8, { 0.85, 0.85, 0.85 }):SetPoint("RIGHT", v.menu, "TOPRIGHT", -8, -4 - 1.5 * ROW)
         v.sub = MenuPanel(v.row, { "Say", "Party", "Raid", "Guild" })
@@ -220,10 +220,9 @@ local function Entry(sources, i)
     return source
 end
 
-local function IsMe(source)
-    local me = source.isLocalPlayer
-    return not IsSecret(me) and me == true
-end
+-- The meter never hides whether a source is you, its class or its death recap (isLocalPlayer, classFilename and
+-- deathRecapID are NeverSecret); names and amounts it hides in combat.
+local function IsMe(source) return source.isLocalPlayer == true end
 
 -- A session of the fight (by its ID, else the current one) for a meter type, and its sources.
 local function Read(fightID, kind)
@@ -246,10 +245,10 @@ local function MyAmount(fightID, kind)
     return mine and Num(mine.totalAmount) or 0
 end
 
--- A name in its class color (the meter always says the class).
+-- A name in its class color.
 local function ClassName(source, name)
     local class = source.classFilename
-    local color = not IsSecret(class) and type(class) == "string" and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+    local color = type(class) == "string" and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
     if color then return ns.ColorCode(color) .. name .. "|r" end
     return name
 end
@@ -566,8 +565,8 @@ local function ReportLines(window, count)
     elseif sessionID then session = meter.GetCombatSessionFromID(sessionID, kind) end
     local sources = Sources(session)
     if not (sources and #sources > 0) then return nil end
-    local total = Num(session.totalAmount) or 0
-    local lines = { TYPE_NAMES[kind] .. ": " .. SessionTitle(sessionType, sessionID, session) }
+    local total, title = Num(session.totalAmount) or 0, SessionTitle(sessionType, sessionID, session)
+    local lines = { TYPE_NAMES[kind] .. (title ~= "" and (": " .. title) or "") }
     for i = 1, min(count, #sources) do
         local source = Entry(sources, i)
         if source then
@@ -662,8 +661,8 @@ local GROUP_EVENTS = { "PLAYER_DEAD", "GROUP_JOINED", "GROUP_LEFT" }
 
 function D:OnEvent(event, a, b)
     if event == METER_EVENT then
-        -- Sent twice per update and meter type: for the current session and (session 0) for overall, read here.
-        if a == DEATHS and b == 0 and not self.scanQueued then
+        -- Sent twice per update and meter type (for the current session and overall): deaths only, looked at once.
+        if a == DEATHS and not self.scanQueued then
             self.scanQueued = true
             C_Timer.After(1, ScanSoon)
         end
