@@ -239,7 +239,7 @@ Section('Quest Item Button', function()
     state.combat = false; Send('QuestItemButton', 'PLAYER_REGEN_ENABLED')
     Enable({ 'QuestItemButton' }, false)
     torch.item, torch.distance, rope.item, rope.distance, TARGET_RIGHT = nil, nil, nil, nil, nil
-    BAGS[1] = bag
+    ITEM_COUNTS[6001], ITEM_COUNTS[6002], BAGS[1] = nil, nil, bag
 end)
 
 Section('Loot', function()

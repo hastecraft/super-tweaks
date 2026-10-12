@@ -412,7 +412,7 @@ function dropdown:Pick(data)
     error('dropdown has no entry ' .. tostring(data))
 end
 -- Cooldown frames: the swipe they're showing (start and duration), or none once cleared.
-local cooldown = { SetDrawEdge = noop, SetDrawSwipe = noop, SetHideCountdownNumbers = noop }
+local cooldown = { SetDrawEdge = noop }
 function cooldown:SetCooldown(start, duration) self.start, self.duration = start, duration end
 function cooldown:Clear() self.start, self.duration = nil, nil end
 -- Every table of widget methods (frames, templates, animations), for the benchmark's widget call counts.

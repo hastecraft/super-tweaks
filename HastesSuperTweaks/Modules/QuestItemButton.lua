@@ -198,7 +198,7 @@ end
 
 -- The quest whose item the button should hold, that item's link and its icon, or nil when no quest has one.
 function Q:Pick()
-    best.questID = nil
+    best.questID, best.link, best.texture = nil, nil, nil
     local followed = Followed and Followed()
     if IsSecret(followed) or type(followed) ~= "number" then followed = 0 end
     local shown = QL.GetNumQuestLogEntries()
