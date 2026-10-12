@@ -513,6 +513,7 @@ def install():
     legacy = [ADDONS / name for name in REPLACED if (ADDONS / name).exists()]
     if pending or legacy:
         require_closed(running)
+    zip_error = None
     stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
     recover_folder(TARGET, BACKUPS / f'{stamp}-interrupted' / 'AddOns' / TARGET.name)
     recover_folder(SNAPSHOT, BACKUPS / f'{stamp}-interrupted' / SNAPSHOT.name)
@@ -576,7 +577,11 @@ def install():
             if pending or legacy:
                 require_closed(game_running())
             upgrade.commit()
-            copy_verified_file(prepared_zip, DIST, digest(prepared_zip))
+            # The ZIP is a build output, not part of the install: failing to write it leaves the install done.
+            try:
+                copy_verified_file(prepared_zip, DIST, digest(prepared_zip))
+            except (OSError, InstallError) as error:
+                zip_error = error
 
     if running == []:
         advice = 'Start WoW; /hst opens the settings.'
@@ -585,6 +590,8 @@ def install():
     else:
         advice = '/reload in game to apply.'
     print(f'Dry run complete; nothing changed. Installing would need: {advice}' if DRY else f'Done. {advice}')
+    if zip_error:
+        sys.exit(f'The addon was installed, but the release ZIP at {DIST} could not be written: {zip_error}')
 
 
 def main():
