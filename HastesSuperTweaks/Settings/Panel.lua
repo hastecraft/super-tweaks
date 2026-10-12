@@ -2674,7 +2674,8 @@ function P:OpenModule(key, path, focus)
 end
 
 -- Tabs for the open module's pages, and chips for the open page's sub-pages (those shown with its settings as they
--- are). Returns whether which ones show changed.
+-- are), led by an Overview chip for the page's own settings so there's always a way back to them. Returns whether
+-- which ones show changed.
 function P:BuildTabs()
     local options, path = self.pageOptions, self.openPath
     local tabs, chips = {}, {}
@@ -2686,13 +2687,19 @@ function P:BuildTabs()
             b:SetText(Resolve(page.option.name, {}))
             b:SetSelected(path[1] == page.key)
             tabs[i] = page.key
-            if path[1] == page.key then
-                for j, sub in ipairs(Pages(page.option)) do
-                    local chip = self:TabButton(self.chips, j, true)
+            local subs = path[1] == page.key and Pages(page.option)
+            if subs and #subs > 0 then
+                local overview = self:TabButton(self.chips, 1, true)
+                overview.path = b.path
+                overview:SetText("Overview")
+                overview:SetSelected(path[2] == nil)
+                chips[1] = ""
+                for j, sub in ipairs(subs) do
+                    local chip = self:TabButton(self.chips, j + 1, true)
                     chip.path = { page.key, sub.key }
                     chip:SetText(Resolve(sub.option.name, {}))
                     chip:SetSelected(path[2] == sub.key)
-                    chips[j] = sub.key
+                    chips[j + 1] = sub.key
                 end
             end
         end
