@@ -23,7 +23,8 @@ ns.GameSettings = G
 local FOREVER = C_GameRules ~= nil and C_GameRules.GetForeverExperiencePreset ~= nil
 
 -- The settings, each a switch (key) and the console setting it holds: at a fixed value (on), or at its slider's
--- (value, with its range) or menu's (value, with values and sorting) value. Two settings with one key share its switch.
+-- (value, with its range) or menu's (value, with values and sorting) value. Two settings with one key share its switch,
+-- which the first one names.
 -- Sound in Background and Error Speech aren't here: WoW Forever's own Options > Audio has them.
 G.SETTINGS = {
     { key = "camera", cvar = "cameraDistanceMaxZoomFactor", name = "Farther camera", value = "cameraZoom",
@@ -40,9 +41,9 @@ G.SETTINGS = {
         valueName = "Milliseconds", min = 0, max = 400, step = 10, section = "combat",
         desc = "How early, in milliseconds, you can press your next spell or ability before the current one finishes. "
             .. "The game's default is 400; lower is more precise, around your latency plus 100 is common." },
-    -- Settings the game's interface reads but its options don't show (check: G:Unusable says when this client can't
-    -- use one; forever: why only WoW Forever can). Casting on key press isn't here: it's the game's default already,
-    -- and the game guards that setting (ActionButtonUseKeyDown is secure).
+    -- Settings the game uses but its options don't show (check: G:Unusable says when this client can't use one;
+    -- forever: why only WoW Forever can). Casting on key press isn't here: it's the game's default already, and the
+    -- game guards that setting (ActionButtonUseKeyDown is secure).
     { key = "threat", cvar = "threatShowNumeric", on = "1", name = "Threat percentage", section = "combat", check = true,
         desc = "Shows your threat as a percentage above your target's frame, colored like its threat glow. The game's "
             .. "options don't offer it." },
