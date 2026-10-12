@@ -61,7 +61,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 **Auto-decline:** Battle.net friend requests, duels, guild charters, join requests, party invites and shared quests. Friends, guildmates and community members can be let through.
 
-**Interface:** Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Elite & Rare Markers (dragons on nameplates and a rare alert), Error Message Filter, Minimap Button, Game Settings (camera distance, nameplate range, spell queue window and more, reapplied at login, plus Edit Mode layout backups), Hide Issue Reporter.
+**Interface:** Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Better World Refresh (a countdown bar for WoW Forever's world refresh, with alerts and an automatic refresh at a safe moment), Elite & Rare Markers (dragons on nameplates and a rare alert), Error Message Filter, Minimap Button, Game Settings (camera distance, nameplate range, spell queue window and more, reapplied at login, plus Edit Mode layout backups), Hide Issue Reporter.
 
 **Sound:** Mute Mount Sounds, Mute Custom Sounds (rain, spell fizzle, or any sound file ID).
 

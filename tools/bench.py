@@ -342,6 +342,26 @@ Section('Interface', function()
         HST:SetFeatureEnabled('MuteMountSounds', true); HST:SetFeatureEnabled('MuteMountSounds', false)
     end)
 end)
+
+-- Better World Refresh with a refresh waiting ten minutes: its one-second tick reads the time left and, refreshing by
+-- itself, checks whether it's safe; out of combat it counts down a 5-second notice, refreshes and is done.
+Section('Better World Refresh', function()
+    local W = mod('WorldRefresh')
+    HST:SetFeatureEnabled('WorldRefresh', true)
+    state.evictionWait = 600
+    Send('WorldRefresh', 'SHARD_TRANSFER_IMMINENT')
+    state.combat = true
+    Measure('World refresh: one-second tick, waiting out a fight', 100, function() AdvanceTime(1) end)
+    state.combat = false
+    W.db.profile.autoRefresh = 'off'
+    Measure('World refresh: one-second tick, counting down', 100, function() AdvanceTime(1) end)
+    W.db.profile.autoRefresh = 'safe'
+    Measure('World refresh: notice to done (alerts, 5 s notice, refresh)', 50, function()
+        Send('WorldRefresh', 'SHARD_TRANSFER_IMMINENT'); AdvanceTime(6); Send('WorldRefresh', 'SHARD_TRANSFER')
+    end)
+    state.evictionWait = 0
+    HST:SetFeatureEnabled('WorldRefresh', false)
+end)
 '''
 
 # Every tweak at once, from a cold login: what a player with everything turned on pays for the frequent events.
