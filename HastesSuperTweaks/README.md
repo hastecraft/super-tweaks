@@ -14,6 +14,7 @@ Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's
 | Screenshot Level-Ups | Leveling | Takes a screenshot each time you level up, once the "Level N" banner is on screen. |
 | Upgrade Spell Ranks | Leveling | When you learn a new rank of a spell, your action bars get it in place of the old one. Lower ranks you put on a bar on purpose are left alone. |
 | Train All | Leveling | Adds a Train All button to trainers that learns everything they teach you that you can afford, one at a time, and names the new spells your class trainer has for you each time you level up. |
+| Legacy Tracker | Leveling | For WoW Forever's Legacy System: when a challenge completes, says in chat how many Legacy points it gave and how many you have to spend, and when you log in with points to spend, says how many, with your points earned, the season's cap and your next reward. Click the challenge to see it in the Legacy window, or Open Legacy to spend your points; `/hst legacy` opens the window too. |
 | Auto Accept & Turn In Quests | Quests & NPCs | Accepts quests and turns them in for you when you talk to quest givers. Hold Shift to do it yourself. |
 | Skip NPC Chat | Quests & NPCs | Opens flight maps, bank, vendor and trainer windows right away when that's all an NPC has to offer. Hold Shift to see the chat. |
 | Quest Item Sparkle | Quests & NPCs | Keeps the sparkle on quest items and objects you can loot or use in the world, even with the game's outlines turned off, by turning on the game's `outlineModeShowLootEffectWhenDisabled` option each time you enter the world. Turning it off puts the option back. |
@@ -94,6 +95,7 @@ Settings that cannot apply are disabled. Font menus preview each font. A confirm
 - `/hst train`, `/hst tracker`, `/hst rolls`, `/hst restock`, `/hst mailguard`, `/hst bags`, `/hst spam`, `/hst game`: Train All, Hide Quest Tracker, Movable Loot Rolls, Restock at Vendors, Mail Gold Guard, Bag Tweaks, Chat Spam Filter and Game Settings settings.
 - `/hst keep <item>`, `/hst sell <item>`: put an item on Sell Clutter's Never sell or Always sell list (shift-click it into the chat line); again takes it off. `/hst clutter list`: what Sell Clutter would sell right now.
 - `/hst sort`: clean up your bags (the game's Clean Up Bags).
+- `/hst legacy`: open or close the Legacy window (WoW Forever).
 
 XP bar commands use `/hxp`:
 
@@ -119,6 +121,7 @@ What each module does in unusual situations, and what the game doesn't let addon
 - Quest XP in Quest Log and the XP bar's quest shading use the game's reward when it's above 0, else Questie's estimate (marked "~"). Forever reports 0 XP for every quest in the log, so without Questie no quest XP shows. Titles update the next time the log redraws; forcing a redraw could taint the quest log.
 - Upgrade Spell Ranks only acts on a rank you just learned, and only out of combat with nothing on your cursor (a rank learned in combat goes on your bars when it ends). Macros and items are never changed, and a button is never swapped down. Ranks learned while it's off aren't caught up; use "Upgrade all buttons now".
 - Train All learns one thing at a time, the last one listed first, and waits for the trainer to confirm each; it stops when you leave the trainer, when combat starts, or when the trainer doesn't teach one. New professions (which ask you first) and pet training are left to you, and so is anything the trainer's filter hides. The level-up line reads your spellbook, which lists the spells you haven't learned with the level they come at; a spell it doesn't list there isn't named.
+- Legacy Tracker reads the Legacy System's own numbers: points earned are its reward track's renown, points to spend the currency its trees share, and challenges are achievements. A challenge's line comes a couple of seconds after its toast, once the game has sent the points, and counts what arrived, so a challenge that gave none says nothing. The login reminder waits for the game to send your Legacy trees, for up to about 20 seconds. The Legacy window stays locked until you've earned a point, and addons can't open windows in combat, so the links and `/hst legacy` say so instead. Classic Era has no Legacy System.
 
 ### Quests, NPCs and group
 
