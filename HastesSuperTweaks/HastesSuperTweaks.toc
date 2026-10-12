@@ -58,5 +58,6 @@ Modules\QuestTracker.lua
 Modules\ChatFilter.lua
 Modules\GroupFinderWhispers.lua
 Modules\NameplateMarkers.lua
+Modules\NameplateComboPoints.lua
 Modules\ErrorFilter.lua
 Modules\GameSettings.lua
