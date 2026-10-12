@@ -9,20 +9,52 @@ local R = HST:NewFeature("HideIssueReporter", {
 })
 ns.HideIssueReporter = R
 
--- Settings preview: a screenshot of the button this module hides, fading away.
+-- Settings preview: the button this module hides, built from the reporter's own art (Blizzard_PTRFeedback), fading
+-- away: a marble box titled Issue Reporter with the info button on its corner, and the bug button under it.
+local function Marble(frame)
+    local art = frame:CreateTexture(nil, "ARTWORK")
+    art:SetAllPoints()
+    art:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble", true, true)
+    art:SetHorizTile(true)
+    art:SetVertTile(true)
+end
+local function WatermarkBorder(frame)
+    if not BackdropTemplateMixin then return end
+    local border = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    border:SetPoint("TOPLEFT", -4, 4)
+    border:SetPoint("BOTTOMRIGHT", 4, -4)
+    border:SetBackdrop({ edgeFile = "Interface\\DialogFrame\\UI-DialogBox-TestWatermark-Border", tileEdge = true, edgeSize = 16 })
+end
+
 function R.info.preview(frame)
     local W = ns.Widgets
-    local shot = frame.hstShot
-    if not shot then
-        shot = CreateFrame("Frame", nil, frame)
-        frame.hstShot = shot
-        shot:SetSize(88, 88)
-        local art = shot:CreateTexture(nil, "ARTWORK")
-        art:SetAllPoints()
-        art:SetTexture("Interface\\AddOns\\HastesSuperTweaks\\Art\\IssueReporter")
-        W.Column(frame, { shot })
+    local button = frame.hstReporter
+    if not button then
+        button = CreateFrame("Frame", nil, frame)
+        frame.hstReporter = button
+        button:SetSize(88, 82)
+        local title = CreateFrame("Frame", nil, button)
+        title:SetSize(78, 32)
+        title:SetPoint("TOP")
+        Marble(title)
+        WatermarkBorder(title)
+        local text = W.Text(title, "GameFontNormal", nil, "CENTER")
+        text:SetPoint("CENTER")
+        text:SetText("Issue\nReporter")
+        local corner = CreateFrame("Frame", nil, title) -- above the border
+        corner:SetSize(20, 20)
+        corner:SetPoint("CENTER", title, "TOPLEFT")
+        corner:SetFrameLevel(title:GetFrameLevel() + 2)
+        W.Icon(corner, "Interface\\FriendsFrame\\InformationIcon", 20):SetPoint("CENTER")
+        local bug = CreateFrame("Frame", nil, button)
+        bug:SetSize(44, 44)
+        bug:SetPoint("TOP", title, "BOTTOM", 0, -6)
+        Marble(bug)
+        WatermarkBorder(bug)
+        W.Icon(bug, "Interface\\HelpFrame\\HelpIcon-Bug", 44, "OVERLAY"):SetPoint("CENTER")
+        W.Column(frame, { button })
     end
-    W.Loop(frame, 4, function(t) shot:SetAlpha(1 - W.Window(t, 1.0, 3.6, 0.4)) end)
+    W.Loop(frame, 4, function(t) button:SetAlpha(1 - W.Window(t, 1.0, 3.6, 0.4)) end)
 end
 
 -- Hiding an ancestor suppresses rendering and mouse input without a Show/Hide hook.
