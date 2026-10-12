@@ -64,6 +64,7 @@ Modules\AutoTrackReputation.lua
 Modules\QuestRewards.lua
 Modules\QuestTracker.lua
 Modules\QuestSounds.lua
+Modules\QuestItemButton.lua
 Modules\ChatFilter.lua
 Modules\GroupFinderWhispers.lua
 Modules\BattlegroundAlerts.lua

@@ -276,3 +276,35 @@ C_Roleset = {
 UIModeUtil = { IsModeActive = function() return false end }
 QuickKeybindFrame = CreateFrame('Button', 'QuickKeybindFrame', UIParent)
 QuickKeybindFrame:Hide()
+
+-- Quest Item Button: quests' items (state.quests[i].item = { link, icon, range, start, duration }; range is 1 in range,
+-- 0 out of it, nil when the game can't tell), how far each quest is (q.distance), whether you watch it (q.watched),
+-- the quest areas you're in (QUEST_AREAS[questID]), the quest you follow on the map (FOLLOWED), whether your target is
+-- right for the item (TARGET_RIGHT) and the key set for the button (BOUND_KEY). Links and icons are the fixtures' own
+-- strings, so the mocks allocate nothing.
+local function quest(id) for i, q in ipairs(state.quests) do if q.questID == id then return q, i end end end
+local function special(i) local q = state.quests[i]; return q and q.item end
+function GetQuestLogSpecialItemInfo(i)
+    local item = special(i)
+    if item then return item.link, item.icon, 0, item.whenComplete == true end
+end
+function GetQuestLogSpecialItemCooldown(i) local item = special(i); if item then return item.start or 0, item.duration or 0, 1 end end
+function IsQuestLogSpecialItemInRange(i) local item = special(i); return item and item.range end
+C_QuestLog.GetLogIndexForQuestID = function(id) local _, i = quest(id); return i end
+C_QuestLog.GetDistanceSqToQuest = function(id) local q = quest(id); if q and q.distance then return q.distance, true end end
+C_QuestLog.GetQuestWatchType = function(id) local q = quest(id); if q and q.watched then return 1 end end
+C_QuestLog.GetTitleForQuestID = function(id) local q = quest(id); return q and q.title end
+QUEST_AREAS, FOLLOWED = {}, 0
+C_Minimap = { IsInsideQuestBlob = function(id) return QUEST_AREAS[id] == true end }
+C_SuperTrack = { GetSuperTrackedQuestID = function() return FOLLOWED end }
+C_QuestItemUse = { CanUseQuestItemOnObject = function(location) return TARGET_RIGHT == true and location.bagID ~= nil end }
+local location = {}
+location.__index = location
+function location:SetBagAndSlot(bag, slot) self.bagID, self.slotIndex = bag, slot end
+ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot)
+    local l = setmetatable({}, location)
+    l:SetBagAndSlot(bag, slot)
+    return l
+end }
+function GetBindingKey() return BOUND_KEY end
+function GetBindingText(key) return key end
