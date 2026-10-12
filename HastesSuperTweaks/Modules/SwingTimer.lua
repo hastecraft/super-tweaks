@@ -92,7 +92,10 @@ local function Swinging(frame)
 end
 local function InEditMode(frame) return frame.isInEditMode == true end
 -- As the game's IsOutOfRange: dimmed for range, and never in Edit Mode.
-local function OutOfRange(frame) return frame.isOutOfRange == true and frame.isInEditMode ~= true end
+local function OutOfRange(frame)
+    local out = frame.isOutOfRange
+    return not IsSecret(out) and out == true and frame.isInEditMode ~= true
+end
 
 -- A bar hides by its art, fill and text going see-through, as the game dims them out of range. The alpha the game gave
 -- them is kept to put back.
@@ -150,12 +153,16 @@ function S:CheckIdle(bar)
     if GetTime() - bar.endedAt >= self.HIDE_AFTER - 0.01 then Hide(bar) end
 end
 
--- The game set a bar's look for range (or for Edit Mode): the fill follows, and a hidden bar stays hidden, keeping the
--- alpha the game just gave its parts to put back.
+-- The game set a bar's look for range (or for Edit Mode), its parts' alpha included: the fill follows, and a hidden bar
+-- stays hidden, keeping that alpha to put back. In Edit Mode it shows, as the game just left it.
 function S:OnRange(bar)
     if bar.hidden then
-        bar.alpha = bar.statusBar:GetAlpha()
-        SetPartsAlpha(bar, 0)
+        if InEditMode(bar.frame) then
+            bar.hidden = false
+        else
+            bar.alpha = bar.statusBar:GetAlpha()
+            SetPartsAlpha(bar, 0)
+        end
     end
     self:Style(bar)
 end
