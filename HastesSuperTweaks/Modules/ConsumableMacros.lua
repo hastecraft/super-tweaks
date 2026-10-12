@@ -423,7 +423,7 @@ function M:Hands()
         for slot in pairs(HANDS) do
             local itemID = GetInventoryItemID("player", slot)
             local classID, subclassID
-            if not IsSecret(itemID) and itemID then classID, subclassID = select(6, ItemInfoInstant(itemID)) end
+            if itemID then classID, subclassID = select(6, ItemInfoInstant(itemID)) end
             hands[slot] = classID == WEAPON and subclassID or false
         end
     end
