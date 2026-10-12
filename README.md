@@ -47,7 +47,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 ## All tweaks
 
-**Leveling:** XP Tracker, Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Upgrade Spell Ranks (new ranks replace old ones on your bars), Train All, Legacy Tracker (Legacy points from each challenge, and a reminder to spend them).
+**Leveling:** XP Tracker, Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Upgrade Spell Ranks (new ranks replace old ones on your bars), Train All, Legacy Tracker (Legacy points from each challenge, and a reminder to spend them), Auto-Track Reputation (the reputation bar follows the faction you just gained reputation with).
 
 **Quests and NPCs:** Auto Accept & Turn In Quests, Skip NPC Chat, Quest Item Sparkle, Quest Reward Value (marks the reward that sells for the most), Hide Quest Tracker (in dungeons, PvP, combat or always).
 
