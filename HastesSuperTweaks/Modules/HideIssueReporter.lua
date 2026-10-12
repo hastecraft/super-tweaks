@@ -3,7 +3,7 @@
 local ADDON, ns = ...
 local HST = ns.HST
 local R = HST:NewFeature("HideIssueReporter", {
-    name = "Hide Issue Reporter", category = "interface", order = 4,
+    name = "Hide Issue Reporter", category = "interface", order = 4, enabledByDefault = false,
     summary = "Hides the beta client's Issue Reporter button.",
     description = "Removes the Issue Reporter button that the beta client puts on your screen.",
 })
