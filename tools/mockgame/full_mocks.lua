@@ -140,3 +140,36 @@ function EditModeManagerFrame:IsSnapEnabled() return true end
 Enum.EventToastEventType = { LevelUp = 1 }
 EventToastManagerFrame = CreateFrame('Frame', 'EventToastManagerFrame', UIParent)
 function EventToastManagerFrame:DisplayToast() end
+
+-- Waypoint Command: a few maps (you're in Elwynn Forest), the game's map pin and what it super tracks, and the in-world
+-- marker, whose distance text the game sets as the distance changes. You run at 7 yards a second.
+MAPS = {
+    [947] = { mapID = 947, name = 'Azeroth', mapType = 1, parentMapID = 0 },
+    [1415] = { mapID = 1415, name = 'Eastern Kingdoms', mapType = 2, parentMapID = 947 },
+    [1429] = { mapID = 1429, name = 'Elwynn Forest', mapType = 3, parentMapID = 1415 },
+    [1436] = { mapID = 1436, name = 'Westfall', mapType = 3, parentMapID = 1415 },
+    [1437] = { mapID = 1437, name = 'Wetlands', mapType = 3, parentMapID = 1415 },
+}
+C_Map = {
+    GetBestMapForUnit = function() return 1429 end,
+    GetFallbackWorldMapID = function() return 947 end,
+    GetMapInfo = function(id) return MAPS[id] end,
+    GetMapChildrenInfo = function(id)
+        local children = {}
+        for _, info in pairs(MAPS) do if info.mapID ~= id then children[#children + 1] = info end end
+        return children
+    end,
+    CanSetUserWaypointOnMap = function(id) return MAPS[id] ~= nil and MAPS[id].mapType >= 2 end,
+    SetUserWaypoint = function(point) state.waypoint = point; return true end,
+    ClearUserWaypoint = function() state.waypoint = nil end,
+    HasUserWaypoint = function() return state.waypoint ~= nil end,
+    GetUserWaypointHyperlink = function() if state.waypoint then return '|Hworldmap:1436:5600:4700|h[Map Pin Location]|h' end end,
+}
+C_SuperTrack = { SetSuperTrackedUserWaypoint = function(on) state.superTracked = on end }
+UiMapPoint = { CreateFromCoordinates = function(mapID, x, y) return { uiMapID = mapID, position = { x = x, y = y } } end }
+C_Navigation = { GetDistance = function() return 88 end }
+function GetUnitSpeed() return 7, 7, 4.5, 4.72 end
+IN_GAME_NAVIGATION_RANGE = '%s yds'
+SuperTrackedFrame = CreateFrame('Frame', 'SuperTrackedFrame', UIParent)
+SuperTrackedFrame.DistanceText = SuperTrackedFrame:CreateFontString()
+SOUNDKIT.UI_MAP_WAYPOINT_SUPER_TRACK_ON, SOUNDKIT.UI_MAP_WAYPOINT_REMOVE = 166011, 166009

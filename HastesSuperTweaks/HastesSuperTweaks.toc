@@ -60,3 +60,4 @@ Modules\GroupFinderWhispers.lua
 Modules\NameplateMarkers.lua
 Modules\ErrorFilter.lua
 Modules\GameSettings.lua
+Modules\Waypoints.lua

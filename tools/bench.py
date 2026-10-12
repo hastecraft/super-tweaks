@@ -341,6 +341,12 @@ Section('Interface', function()
     Measure('Mute Mount Sounds: turned on, then off', 20, function()
         HST:SetFeatureEnabled('MuteMountSounds', true); HST:SetFeatureEnabled('MuteMountSounds', false)
     end)
+    -- The game sets the in-world marker's distance each time it changes by a yard, several times a second as you move.
+    if HST:GetModule('Waypoints', true) then
+        local distance = SuperTrackedFrame.DistanceText
+        Measure('Waypoint Command: marker distance changes (time to arrive)', 300, function() distance:SetText('88 yds') end)
+        Measure('Waypoint Command: /hst way Westfall 56 47', 100, function() HST.commands.way('Westfall 56 47') end)
+    end
 end)
 '''
 
