@@ -53,6 +53,7 @@ Modules\MailGuard.lua
 Modules\BagTweaks.lua
 Modules\Restock.lua
 Modules\Trainer.lua
+Modules\LegacyTracker.lua
 Modules\QuestRewards.lua
 Modules\QuestTracker.lua
 Modules\ChatFilter.lua
