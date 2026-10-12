@@ -308,3 +308,12 @@ ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot)
 end }
 function GetBindingKey() return BOUND_KEY end
 function GetBindingText(key) return key end
+
+-- Aura Sounds: the game takes a sound for an aura and gives it an ID; no addon restriction is active.
+Enum.UnitAuraSoundTrigger = { Added = 0, ApplicationsIncreased = 1, Removed = 2 }
+Enum.AddOnRestrictionType = { Combat = 0, Encounter = 1, ChallengeMode = 2, PvPMatch = 3, Map = 4, Chat = 5 }
+C_UnitAuras = {
+    AddAuraSound = function() state.auraSounds = (state.auraSounds or 0) + 1; return state.auraSounds end,
+    RemoveAuraSound = function() end,
+}
+C_RestrictedActions = { IsAddOnRestrictionActive = function() return false end }

@@ -705,6 +705,20 @@ Section('Damage Meter Extras', function()
     end, nil, MeterMenu)
     state.raidGroup = false; fire('GROUP_LEFT', 1, 'Party-1')
 end)
+
+-- Aura Sounds does its work when its sounds change: a warrior's Battle Shout preset, its 7 ranks handed to the game
+-- and taken back. While you play the game plays them; nothing runs in the addon.
+Section('Aura Sounds', function()
+    Measure('Aura Sounds: turned on, then off', 20, function()
+        HST:SetFeatureEnabled('AuraSounds', true); HST:SetFeatureEnabled('AuraSounds', false)
+    end)
+    HST:SetFeatureEnabled('AuraSounds', true)
+    Measure('Aura Sounds: settings changed in combat, applied as it ends', 20, function()
+        state.combat = true; mod('AuraSounds'):Sync(); state.combat = false
+        Send('AuraSounds', 'PLAYER_REGEN_ENABLED'); AdvanceTime(0.1)
+    end)
+    HST:SetFeatureEnabled('AuraSounds', false)
+end)
 '''
 
 # Every tweak at once, from a cold login: what a player with everything turned on pays for the frequent events.
