@@ -338,6 +338,7 @@ function HST:AboutOptions()
             { "/hst mail check", "Mail expiring soon on your characters" },
             { "/hst sort", "Clean up your bags" },
             { "/hst legacy", "Open the Legacy window" },
+            { "/hst refresh now", "Refresh the world now, when a refresh is waiting" },
             { "/way [zone] <x> <y>", "Set a map pin (also /hstway)" },
             { "/way clear", "Remove the map pin" },
         }),
@@ -405,7 +406,7 @@ function HST:Command(message)
     end
     table.sort(words)
     self:Print("/hst opens settings; /hst <tweak> opens a tweak's settings (" .. table.concat(words, ", ")
-        .. "). Also: /hst clutter list, /hst keep <item>, /hst sell <item>, /hst mail check, /hst sort, /hst legacy, /hst way <zone> <x> <y>. "
+        .. "). Also: /hst clutter list, /hst keep <item>, /hst sell <item>, /hst mail check, /hst sort, /hst legacy, /hst refresh now, /hst way <zone> <x> <y>. "
         .. "XP bar commands: /hxp help.")
 end
 
