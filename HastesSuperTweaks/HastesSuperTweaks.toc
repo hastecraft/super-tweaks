@@ -18,6 +18,7 @@ Libs\AceConsole-3.0\AceConsole-3.0.xml
 Libs\AceDB-3.0\AceDB-3.0.xml
 
 Core.lua
+ProfileStrings.lua
 PatchNotes.lua
 Media.lua
 Settings\Widgets.lua
