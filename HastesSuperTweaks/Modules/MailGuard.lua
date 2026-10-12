@@ -168,7 +168,8 @@ local function Attachments(index)
 end
 local function Signature(index)
     local _, _, sender, subject, money, cod, _, items = GetInboxHeaderInfo(index)
-    return { index = index, count = GetInboxNumItems(), sender = sender, subject = subject, money = money, cod = cod,
+    local count, total = GetInboxNumItems()
+    return { index = index, count = count, total = total, sender = sender, subject = subject, money = money, cod = cod,
         items = items, attachments = Attachments(index) }
 end
 local function Matches(index, mail)
@@ -176,11 +177,14 @@ local function Matches(index, mail)
     return sender == mail.sender and subject == mail.subject and money == mail.money and cod == mail.cod
         and items == mail.items and Attachments(index) == mail.attachments
 end
--- The mail's index now: where it was while the inbox holds as many mails as then, or else the one mail like it. Nil
--- when it's gone; nil and true when more than one mail is like it, and which one it is can't be told.
+-- The mail's index now: where it was while the inbox holds as many mails as then (loaded and in all: with more mail
+-- than the inbox loads, taking one loads the next and keeps the loaded count), or else the one mail like it. Nil when
+-- it's gone; nil and true when more than one mail is like it, and which one it is can't be told.
 local function Find(mail)
-    local count = GetInboxNumItems()
-    if count == mail.count and mail.index <= count and Matches(mail.index, mail) then return mail.index end
+    local count, total = GetInboxNumItems()
+    if count == mail.count and total == mail.total and mail.index <= count and Matches(mail.index, mail) then
+        return mail.index
+    end
     local found
     for index = 1, count do
         if Matches(index, mail) then
