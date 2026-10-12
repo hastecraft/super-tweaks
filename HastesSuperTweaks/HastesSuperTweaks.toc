@@ -70,6 +70,7 @@ Modules\GroupFinderWhispers.lua
 Modules\BattlegroundAlerts.lua
 Modules\DamageMeterExtras.lua
 Modules\NameplateMarkers.lua
+Modules\NameplateComboPoints.lua
 Modules\ErrorFilter.lua
 Modules\GameSettings.lua
 Modules\Waypoints.lua

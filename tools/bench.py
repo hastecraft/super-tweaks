@@ -888,6 +888,72 @@ Section('Better Scrolling Combat Text (nameplate numbers on)', function()
 end)
 '''
 
+# Combo Points on Nameplates, in a runtime of its own: a rogue, then a druid (the main runtime's player is a warrior,
+# who has no combo points), with eight nameplates up and your target's points on its nameplate.
+COMBO_POINTS = r'''
+local key = HST:GetModule('NameplateComboPoints'):GetName()
+Only({ key })
+for i = 1, 8 do
+    PLATES['nameplate' .. i], UNITS['nameplate' .. i] = NamePlate(i), { hostile = true }
+    Dispatch('NAME_PLATE_UNIT_ADDED', 'nameplate' .. i)
+end
+-- Targets nameplate i's mob (none without i).
+local function target(i)
+    UNITS.target, PLATES.target = i and UNITS['nameplate' .. i], i and PLATES['nameplate' .. i]
+    Dispatch('PLAYER_TARGET_CHANGED')
+end
+local function plates()
+    Dispatch('NAME_PLATE_UNIT_REMOVED', 'nameplate5'); Dispatch('NAME_PLATE_UNIT_ADDED', 'nameplate5')
+end
+state.combo = 1
+target(1)
+Section('Combo Points on Nameplates (a rogue)', function()
+    local n = 0
+    Measure('Combo points: a point gained, or all spent (1 to 5)', 300, function()
+        n = n % 5 + 1; state.combo = n
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'COMBO_POINTS')
+    end)
+    Measure('Combo points: your energy changed', 300, function() Dispatch('UNIT_POWER_UPDATE', 'player', 'ENERGY') end)
+    Measure('Combo points: another nameplate removed and added', 300, plates)
+    Measure("Combo points: your target's nameplate removed and added (+ a frame)", 100, function()
+        Dispatch('NAME_PLATE_UNIT_REMOVED', 'nameplate1'); Dispatch('NAME_PLATE_UNIT_ADDED', 'nameplate1'); AdvanceTime(0)
+    end)
+    local t = 1
+    Measure('Combo points: target changed between two mobs with points', 300, function() t = 3 - t; target(t) end)
+    Measure('Combo points: points moved to another target', 300, function() Dispatch('COMBO_TARGET_CHANGED') end)
+    state.combo = SECRET
+    Measure('Combo points: count hidden from addons, a point gained', 300, function()
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'COMBO_POINTS')
+    end)
+    state.combo = 0; Dispatch('UNIT_POWER_UPDATE', 'player', 'COMBO_POINTS')
+    Measure('Combo points: none on your target, power events', 300, function()
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'COMBO_POINTS'); Dispatch('UNIT_POWER_UPDATE', 'player', 'ENERGY')
+    end)
+    target(nil)
+    Measure('Combo points: no target, another nameplate removed and added', 300, plates)
+end)
+Section('Combo Points on Nameplates (a druid)', function()
+    HST:SetFeatureEnabled(key, false)
+    PLAYER_CLASS[1], PLAYER_CLASS[2], state.powerType = 'Druid', 'DRUID', 0
+    HST:SetFeatureEnabled(key, true)
+    state.combo = 2
+    target(1)
+    Measure('Combo points, druid out of Cat Form: mana, target and nameplate events', 300, function()
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'MANA'); target(1); plates()
+    end)
+    Measure('Combo points, druid: into Cat Form and out (points shown, then hidden)', 100, function()
+        state.powerType = 3; Dispatch('UNIT_DISPLAYPOWER', 'player')
+        state.powerType = 0; Dispatch('UNIT_DISPLAYPOWER', 'player')
+    end)
+end)
+Section('Combo Points on Nameplates off', function()
+    HST:SetFeatureEnabled(key, false)
+    Measure('Combo points off: power, target and nameplate events', 300, function()
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'COMBO_POINTS'); Dispatch('UNIT_DISPLAYPOWER', 'player'); target(1); plates()
+    end)
+end)
+'''
+
 # Selling, quest and group automation, and auto-decline, in a runtime of their own (on the automation mocks).
 AUTOMATION = r'''
 local S = HST:GetModule('SellClutter')
@@ -1211,6 +1277,7 @@ def main():
     runtime(full, MAIN)
     runtime(full, EVERYTHING, start=False)
     runtime(mock('combattext_mocks.lua'), COMBAT_TEXT)
+    runtime(mock('combattext_mocks.lua') + mock('combopoints_mocks.lua'), COMBO_POINTS)
     runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua'), AUTOMATION)
     runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + mock('appearance_mocks.lua'), APPEARANCES)
     runtime(full, STARTUP_SETTINGS, start=False)

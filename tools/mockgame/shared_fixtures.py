@@ -158,6 +158,10 @@ DRUID_MOCKS = r'''
 PERMISSIVE_FRAMES = true
 -- A druid in cat form: energy shown (power type 3), mana (0) kept under it.
 function UnitClass() return 'Druid', 'DRUID', 11 end
+-- Combo Points on Nameplates runs for druids too: no target here.
+UnitExists = UnitExists or function() return false end
+C_NamePlate = C_NamePlate or { GetNamePlateForUnit = function() return nil end }
+GetComboPoints = GetComboPoints or function() return 0 end
 Enum.PowerType = { Mana = 0, Rage = 1, Energy = 3 }
 state.powerType, state.mana, state.maxMana = 3, 1860, 3000
 function UnitPowerType() if state.powerType == 0 then return 0, 'MANA' end; return 3, 'ENERGY' end
