@@ -248,3 +248,19 @@ IN_GAME_NAVIGATION_RANGE = '%s yds'
 SuperTrackedFrame = CreateFrame('Frame', 'SuperTrackedFrame', UIParent)
 SuperTrackedFrame.DistanceText = SuperTrackedFrame:CreateFontString()
 SOUNDKIT.UI_MAP_WAYPOINT_SUPER_TRACK_ON, SOUNDKIT.UI_MAP_WAYPOINT_REMOVE = 166011, 166009
+
+-- Campfire Helper: your auras by spell ID (PLAYER_AURAS) and in buff order (PLAYER_BUFFS), WoW Forever's camp spells,
+-- and the campfire kits with the spells they cast.
+PLAYER_AURAS, PLAYER_BUFFS = {}, {}
+C_UnitAuras = {
+    GetPlayerAuraBySpellID = function(id) return PLAYER_AURAS[id] end,
+    GetBuffDataByIndex = function(_, index) return PLAYER_BUFFS[index] end,
+    GetAuraDataByAuraInstanceID = function(_, id)
+        for _, aura in ipairs(PLAYER_BUFFS) do if aura.auraInstanceID == id then return aura end end
+    end,
+}
+C_Spell.DoesSpellExist = function() return true end
+ITEMS[279981] = { name = 'Basic Campfire Kit', spell = 'Basic Campfire Kit' }
+ITEMS[279961] = { name = 'Journeyman Campfire Kit', spell = 'Journeyman Campfire Kit' }
+ITEMS[279974] = { name = 'Expert Campfire Kit', spell = 'Expert Campfire Kit' }
+C_Item.GetItemCooldown = C_Item.GetItemCooldown or function() return 0, 0, true end
