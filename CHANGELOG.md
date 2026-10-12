@@ -2,6 +2,27 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 1.2.1 (2026-10-12)
+
+Fixes for surnames and friend requests on WoW Forever.
+
+### Every character is its own
+
+On WoW Forever, characters who share a first name no longer share XP Tracker, mail and Game Settings data. Each starts from what was saved before and keeps its own from then on.
+
+### Changed
+
+- XP Tracker: the EUI / Inter preset is gone, since it needs EllesmereUI and the Inter font, which most players don't have. Your current look doesn't change.
+
+### Fixed
+
+- On WoW Forever, characters with the same first name no longer share XP Tracker times, Guild Message Popup's last message, Game Settings' saved settings and Mail Expiry & Alt List's records.
+- On WoW Forever, surnames are recognized: Auto-Decline's "Let through" friends, Mail Gold Guard's own characters, guild notes on tooltips and Right-Click Guild Invite all match "First Surname", and the tooltip's target line shows it.
+- Mail Expiry & Alt List lists your alts by the full name the To: field takes. On WoW Forever, each alt reappears once you log in on it.
+- Auto-Decline Battle.net Friend Requests no longer turns down in-game friend requests on WoW Forever.
+- Better Scrolling Combat Text: combo point notices keep up when you switch targets.
+- Hide Issue Reporter is unavailable outside the beta and test clients, where there's no Issue Reporter to hide.
+
 ## 1.2.0 (2026-10-12)
 
 Easier settings pages, and Hide Issue Reporter now starts off.
