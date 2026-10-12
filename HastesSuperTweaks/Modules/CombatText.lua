@@ -1049,6 +1049,18 @@ end
 
 local MANA = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 local COMBO = Enum and Enum.PowerType and Enum.PowerType.ComboPoints or 14
+local function ComboPoints()
+    if GetComboPoints then return GetComboPoints("player", "target") end
+    return UnitPower("player", COMBO)
+end
+
+-- Combo points belong to a target: the count gains are measured from is read again when the target changes, and on
+-- WoW Forever when points move to a new target (COMBO_TARGET_CHANGED, with no power event), without a notice.
+function S:ReadComboPoints()
+    local points = ComboPoints()
+    self.comboPoints = not IsSecret(points) and type(points) == "number" and points or nil
+end
+
 function S:OnPower(token)
     local p = self.db.profile
     if IsSecret(token) then return end
@@ -1066,8 +1078,7 @@ function S:OnPower(token)
             self.lowMana = nil
         end
     elseif token == "COMBO_POINTS" and p.comboPoints then
-        local points
-        if GetComboPoints then points = GetComboPoints("player", "target") else points = UnitPower("player", COMBO) end
+        local points = ComboPoints()
         if IsSecret(points) or type(points) ~= "number" then return end
         local before = self.comboPoints or 0
         self.comboPoints = points
@@ -1144,6 +1155,11 @@ function S:UpdateEvents()
     end
     if p.lowHealth then Register(general, "UNIT_HEALTH", "player") end
     if p.lowMana or p.comboPoints then Register(general, "UNIT_POWER_UPDATE", "player") end
+    if p.comboPoints then
+        Register(general, "PLAYER_TARGET_CHANGED")
+        Register(general, "COMBO_TARGET_CHANGED") -- WoW Forever only; Register skips events a client doesn't have
+        self:ReadComboPoints()
+    end
     if p.skills then Register(general, "CHAT_MSG_SKILL") end
     if Taking(p) and p.inPet then Register(pet, "UNIT_COMBAT", "pet") end
     if p.enemyMode == "NAMEPLATE" then
@@ -1160,6 +1176,7 @@ function S:OnEvent(event, ...)
     if event == "NAME_PLATE_UNIT_REMOVED" then return self:OnPlateRemoved(...) end
     if event == "UNIT_HEALTH" then return self:CheckLowHealth() end
     if event == "UNIT_POWER_UPDATE" then return self:OnPower(select(2, ...)) end
+    if event == "PLAYER_TARGET_CHANGED" or event == "COMBO_TARGET_CHANGED" then return self:ReadComboPoints() end
     if event == "CHAT_MSG_SKILL" then return self:OnSkill(...) end
     if event == "UNIT_SPELLCAST_SUCCEEDED" then return self:OnCast(select(3, ...)) end
     if event == "PLAYER_REGEN_DISABLED" then
