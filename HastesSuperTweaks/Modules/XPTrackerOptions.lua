@@ -101,13 +101,7 @@ function X:BuildOptions()
                 "In combat, the bar shows no tooltip, stays faded with Mouseover only, and lets clicks pass through."),
         }),
         presets = section("Presets", 3, {
-            eui = { type = "execute", name = "EUI / Inter", order = 1, confirm = true,
-                desc = "Inter Semi Bold font, EUI Atrocity texture, 600 x 24 size, 1 px border and padding, 10 divisions.",
-                func = function()
-                    local p = X.db.profile; p.font, p.fontPath, p.texture, p.texturePath = "Inter Semi Bold", "", "EUI: Atrocity", ""
-                    p.width, p.height, p.border, p.padding, p.ticks = 600, 24, 1, 1, 10; X:Apply()
-                end },
-            minimal = { type = "execute", name = "Minimal", order = 2, confirm = true,
+            minimal = { type = "execute", name = "Minimal", order = 1, confirm = true,
                 desc = "Solid texture, 16 px height, no divisions or spark.",
                 func = function()
                     local p = X.db.profile; p.texture, p.texturePath, p.height, p.ticks, p.spark = "Solid", "", 16, 0, false; X:Apply()
