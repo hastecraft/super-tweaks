@@ -2,8 +2,8 @@
 -- and more) in combat, out of combat, in dungeons and raids, or always. It uses the game's own groups of frames
 -- (rolesets): the game tags its frames with one (roleset="actionBars" in its XML, Frame:SetRolesets in Lua), and
 -- C_Roleset.ApplyRolesetFilters hides every frame of the groups it's given in one call, protected frames included.
--- Blizzard uses it to hide most of the interface in pet battles and minigame scenes (Blizzard_UIModes); its filter is
--- kept, and this one's groups are added to it.
+-- Blizzard uses it in pet battles and minigame scenes (Blizzard_UIModes); its filter is kept, and this one's groups are
+-- added to it.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -34,9 +34,9 @@ H.RULES = {
 }
 
 -- The parts: each is the game's group (roleset) named by its key, with the rules that make sense for it. What each
--- covers is what WoW Forever 1.60.1 tags. Left out: the Cooldown Manager and the swing timer (Edit Mode already shows
--- them only in combat), the combined bags (a window you open), the PvP scoreboard, and the debug tools tagged
--- "alwaysIncluded", which no filter hides.
+-- covers is what WoW Forever 1.60.1 tags. Left out: the Cooldown Manager and the swing timer (Edit Mode can already
+-- show them only in combat, or hide them), the combined bags (a window you open), the PvP scoreboard, and the debug
+-- tools tagged "alwaysIncluded", which filters leave alone.
 H.GROUPS = {
     { key = "actionBars", name = "Action bars", section = "bars",
         rules = { "show", "noncombat", "combat", "instance", "always" },
