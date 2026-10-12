@@ -355,6 +355,9 @@ Section('Damage Meter Extras', function()
         fire('ADDON_RESTRICTION_STATE_CHANGED', COMBAT, STATE.Inactive)
     end
     Measure('Damage meter: fight ends, solo (summary line)', 100, fight)
+    METER.duration = 5
+    Measure('Damage meter: short fight ends, solo (no summary)', 100, fight)
+    METER.duration = 42
     M.db.profile.top = true
     state.raidGroup = true; fire('GROUP_JOINED', 1, 'Party-1')
     Measure('Damage meter: fight ends in a group (summary, top 3, deaths read)', 100, fight)

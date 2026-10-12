@@ -293,10 +293,11 @@ function D:Summarize()
     if not Available() then return end
     local p = self.db.profile
     -- The current session keeps the fight until the next one starts; should the meter have moved on already, the
-    -- newest session it lists is the fight.
-    local newest, newestID = Listed(nil)
-    local fightID, duration = nil, Num(meter.GetSessionDurationSeconds and meter.GetSessionDurationSeconds(CURRENT))
+    -- newest session it lists is the fight. Short fights stop here.
+    local fightID, newest, newestID
+    local duration = Num(meter.GetSessionDurationSeconds and meter.GetSessionDurationSeconds(CURRENT))
     if not (duration and duration > 0) then
+        newest, newestID = Listed(nil)
         if not newestID then return end
         fightID, duration = newestID, Num(newest.durationSeconds)
     end
@@ -308,7 +309,7 @@ function D:Summarize()
     local healing = MyAmount(fightID, TYPES.HealingDone)
     if damage <= 0 and healing <= 0 then return end
     wipe(parts)
-    parts[1] = FightName(fightID, newest, duration)
+    parts[1] = FightName(fightID, newest or Listed(nil), duration)
     parts[#parts + 1] = Clock(duration)
     local count, total = sources and #sources or 0, session and Num(session.totalAmount)
     if damage > 0 then
