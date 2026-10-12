@@ -14,6 +14,30 @@ local HST = ns.HST
 -- it a link to that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "1.2.1", date = "2026-10-12",
+        summary = "Fixes for surnames and friend requests on WoW Forever.",
+        highlights = {
+            { "On WoW Forever, characters who share a first name no longer share XP Tracker, mail and Game Settings data. Each starts from what was saved before and keeps its own from then on.",
+                title = "Every character is its own" },
+        },
+        changed = {
+            { "XP Tracker: the EUI / Inter preset is gone, since it needs EllesmereUI and the Inter font, which most players don't have. Your current look doesn't change.",
+                module = "XPTracker", path = { "general" } },
+        },
+        fixed = {
+            "On WoW Forever, characters with the same first name no longer share XP Tracker times, Guild Message Popup's last message, Game Settings' saved settings and Mail Expiry & Alt List's records.",
+            "On WoW Forever, surnames are recognized: Auto-Decline's \"Let through\" friends, Mail Gold Guard's own characters, guild notes on tooltips and Right-Click Guild Invite all match \"First Surname\", and the tooltip's target line shows it.",
+            { "Mail Expiry & Alt List lists your alts by the full name the To: field takes. On WoW Forever, each alt reappears once you log in on it.",
+                module = "MailHelper" },
+            { "Auto-Decline Battle.net Friend Requests no longer turns down in-game friend requests on WoW Forever.",
+                module = "BlockFriendRequests" },
+            { "Better Scrolling Combat Text: combo point notices keep up when you switch targets.",
+                module = "CombatText", path = { "notices" }, setting = "comboPoints" },
+            { "Hide Issue Reporter is unavailable outside the beta and test clients, where there's no Issue Reporter to hide.",
+                module = "HideIssueReporter" },
+        },
+    },
+    {
         version = "1.2.0", date = "2026-10-12",
         summary = "Easier settings pages, and Hide Issue Reporter now starts off.",
         highlights = {
