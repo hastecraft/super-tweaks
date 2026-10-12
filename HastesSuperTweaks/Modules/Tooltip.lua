@@ -13,7 +13,7 @@ local WHITE = ns.WHITE
 local floor, max, min = math.floor, math.max, math.min
 
 ns.Configure(T, {
-    healthBar = true, barText = "VALUE", classColors = true, healthColor = { 0.2, 0.8, 0.2, 1 },
+    healthBar = true, barText = "VALUE", colorBy = "CLASS", healthColor = { 0.2, 0.8, 0.2, 1 },
     barHeight = 8, barGap = 2, texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 10, outline = "OUTLINE",
     backgroundColor = { 0.035, 0.045, 0.06, 0.9 }, barBorderColor = { 0, 0, 0, 1 }, barBorderSize = 1,
     classBorder = true, reactionBorder = false, borderSize = 1,
@@ -22,12 +22,53 @@ ns.Configure(T, {
 }, function(m) return m:BuildOptions() end, "Apply")
 T.info.preview = function(frame) return T:DrawPreview(frame) end
 
+-- Profiles from before the Color choice turned class colors off with classColors = false: that's One color now.
+function T:Migrate()
+    local p = self.db.profile
+    if p.classColors == nil then return end
+    if p.classColors == false then p.colorBy = "CUSTOM" end
+    p.classColors = nil
+end
+local Initialize = T.OnInitialize
+function T:OnInitialize()
+    Initialize(self)
+    self:Migrate()
+end
+
 local IsSecret, Hex = ns.IsSecret, ns.ColorCode
 local Pixels, CreateEdges = ns.Pixels, ns.CreateEdges
--- The health bar reads the unit's health every POLL seconds while it shows, and what colors it (whether a mob is
--- tapped, its reaction) every RECOLOR_EVERY readings. Guild notes are read from the roster at most every NOTES_EVERY
--- seconds.
+-- The health bar follows its unit by the game's health events when the tooltip names it by a token they come with (see
+-- HANDOFF). Otherwise (the mouseover) it reads the unit's health every POLL seconds while it shows, and what colors it
+-- (whether a mob is tapped, its reaction) every RECOLOR_EVERY readings. Guild notes are read from the roster at most
+-- every NOTES_EVERY seconds.
 T.POLL, T.RECOLOR_EVERY, T.NOTES_EVERY = 0.1, 5, 15
+
+-- Unit tokens the game sends health events for, each with the event after which it may name another unit (true for
+-- "player", which never does). Other tokens ("mouseover", soft targets) are false: their units are polled. Worked out
+-- once per token.
+local HANDOFF = setmetatable({}, { __index = function(list, token)
+    local event = false
+    if token == "player" then
+        event = true
+    elseif token == "target" then
+        event = "PLAYER_TARGET_CHANGED"
+    elseif token == "focus" then
+        event = "PLAYER_FOCUS_CHANGED"
+    elseif token:find("^nameplate%d+$") then
+        event = "NAME_PLATE_UNIT_REMOVED"
+    elseif token:find("^party%d$") or token:find("^raid%d+$") then
+        event = "GROUP_ROSTER_UPDATE"
+    end
+    list[token] = event
+    return event
+end })
+
+-- Colored by health: red when low, yellow at half, green when full, blended in between. While the game hides health,
+-- it colors the bar itself through a curve with the same three points (see SecretHealthColor).
+local function HealthColor(fraction)
+    if fraction < 0.5 then return 1, fraction * 2, 0, 1 end
+    return (1 - fraction) * 2, 1, 0, 1
+end
 
 -- Reads what stays the same about the unit a tooltip shows: whether it's a player (nil when the game hides that),
 -- its class color, guild, rank, whether it's in your guild (nil when that can't be told) and its name in the guild
@@ -108,12 +149,14 @@ function T:CreateFrames()
     bar.text:SetPoint("CENTER", bar, "CENTER", 0, 0)
     self.shownColor, self.savedBorder, self.guildText = {}, {}, {}
     local waited, polls = 0, 0
-    bar:SetScript("OnUpdate", function(_, elapsed)
+    self.poll = function(_, elapsed)
         waited = waited + elapsed
         if waited < self.POLL then return end
         waited, polls = 0, polls + 1
         self:UpdateHealth(polls % self.RECOLOR_EVERY == 0)
-    end)
+    end
+    bar:SetScript("OnUpdate", self.poll)
+    bar:SetScript("OnEvent", function(_, event, token) self:OnHealthEvent(event, token) end)
     -- Drawn over tooltip skins that replace Blizzard's border.
     self.overlay = CreateFrame("Frame", nil, tip)
     self.overlay:SetAllPoints(tip)
@@ -122,6 +165,7 @@ function T:CreateFrames()
 end
 
 function T:Apply()
+    self:Migrate() -- a profile switched to may be from before the Color choice
     if not (self.bar and self:IsEnabled()) then return end
     local p, bar, tip = self.db.profile, self.bar, GameTooltip
     local px = Pixels(bar, p.barBorderSize)
@@ -132,7 +176,9 @@ function T:Apply()
     bar:SetHeight(p.barHeight)
     bar:SetFrameLevel(tip:GetFrameLevel() + 2)
     bar:SetStatusBarTexture(ns.Media("statusbar", p.texture))
-    wipe(self.shownColor) -- colored again with the new texture
+    -- Colored again with the new texture, and redrawn: colored by health, the color comes with the reading.
+    wipe(self.shownColor)
+    self.shownCurrent = nil
     bar.background:SetVertexColor(unpack(p.backgroundColor))
     bar.edges:Layout(bar, px, true)
     bar.edges:SetColor(unpack(p.barBorderColor))
@@ -224,7 +270,42 @@ function T:ShowBar(guid)
         self:UpdateHealth(true, guid)
     else
         self.bar:Hide()
+        self:Watch(nil)
     end
+end
+
+-- Follows the unit shown by the health events of its token, one HANDOFF says the game sends them for, or by polling it
+-- (token nil). The events are registered on the bar and kept while a unit frame redraws its tooltip (cleared, then
+-- filled in again with the same unit); the tooltip hiding or showing another unit drops them.
+function T:Watch(token)
+    local old, bar = self.watched, self.bar
+    if token == old then return end
+    self.watched = token
+    if not token then
+        bar:UnregisterAllEvents()
+        bar:SetScript("OnUpdate", self.poll)
+        return
+    end
+    bar:RegisterUnitEvent("UNIT_HEALTH", token)
+    bar:RegisterUnitEvent("UNIT_MAXHEALTH", token)
+    bar:RegisterUnitEvent("UNIT_FACTION", token) -- reaction, and a mob becoming tapped
+    local before, after = old and HANDOFF[old], HANDOFF[token]
+    if before ~= after then
+        if type(before) == "string" then bar:UnregisterEvent(before) end
+        if type(after) == "string" then bar:RegisterEvent(after) end
+    end
+    if not old then bar:SetScript("OnUpdate", nil) end
+end
+
+-- The unit shown changed health or what colors it, or its token may name another unit now (a new target or focus, a
+-- group change), which UpdateHealth tells by the GUID. A nameplate's removal is sent while its token still names the
+-- unit, so the unit is polled from then on, which finds it again once the nameplate is gone. An event left over from a
+-- unit no longer shown drops them all.
+function T:OnHealthEvent(event, token)
+    if not self.unit then return self:Watch(nil) end
+    if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then return self:UpdateHealth(false) end
+    if event ~= "NAME_PLATE_UNIT_REMOVED" then return self:UpdateHealth(true) end
+    if token == self.watched then self:Watch(nil) end
 end
 
 local function Disconnected(unit)
@@ -232,31 +313,62 @@ local function Disconnected(unit)
     return not IsSecret(connected) and not connected
 end
 
--- Reads the unit's health into the bar; with recolor, its color too. guid, when given, is the unit's, just read.
+-- Sets the bar's color when it changed. What was set is remembered rather than read back, as the bar may hold a hidden
+-- color.
+function T:SetBarColor(r, g, b, a)
+    local color = self.shownColor
+    if color[1] == r and color[2] == g and color[3] == b and color[4] == a then return end
+    color[1], color[2], color[3], color[4] = r, g, b, a
+    self.bar:SetStatusBarColor(r, g, b, a)
+end
+
+-- Colored by health while the game hides health from addons: the game reads the health through a color curve itself,
+-- and the bar takes the hidden color that comes back. Hidden colors can't be compared, so it's set each time, and the
+-- next color that can be read is set again. The curve is made the first time it's needed; a client without curves
+-- hides no health either.
+local healthCurve
+function T:SecretHealthColor(unit)
+    if healthCurve == nil then
+        healthCurve = false
+        if C_CurveUtil and C_CurveUtil.CreateColorCurve and UnitHealthPercent and CreateColor then
+            healthCurve = C_CurveUtil.CreateColorCurve()
+            if Enum.LuaCurveType then healthCurve:SetType(Enum.LuaCurveType.Linear) end
+            healthCurve:AddPoint(0, CreateColor(1, 0, 0, 1))
+            healthCurve:AddPoint(0.5, CreateColor(1, 1, 0, 1))
+            healthCurve:AddPoint(1, CreateColor(0, 1, 0, 1))
+        end
+    end
+    if not healthCurve then return end
+    local color = UnitHealthPercent(unit, false, healthCurve)
+    if IsSecret(color) or not color then return end
+    self.bar:SetStatusBarColor(color:GetRGBA())
+    self.shownColor[1] = nil
+end
+
+-- Reads the unit's health into the bar; with recolor, its class, reaction or one color too (colored by health, the
+-- color follows every reading). guid, when given, is the unit's, just read.
 function T:UpdateHealth(recolor, guid)
     local unit, bar, p = self.unit, self.bar, self.db.profile
     if not unit then return end
     -- The unit token names another unit now ("mouseover" moves on while the tooltip fades; the token the game gave, which
     -- can be "target" or a nameplate, may change hands): find the unit again by its GUID, or keep the last reading
-    -- rather than show another unit.
+    -- rather than show another unit (and poll until it's found, if ever).
     guid = guid or UnitGUID(unit)
     if not IsSecret(guid) and (not guid or (self.guid and guid ~= self.guid)) then
         local token = self.guid and UnitTokenFromGUID and UnitTokenFromGUID(self.guid)
-        if IsSecret(token) or not token then return end
+        if IsSecret(token) or not token then return self:Watch(nil) end
         unit, self.unit = token, token
     end
+    local follow = HANDOFF[unit] and unit or nil
+    if follow ~= self.watched then self:Watch(follow) end
     -- Class and reaction colors are solid; the custom color keeps its opacity, as the settings preview shows it.
     -- Set only when it changes (a mob becoming tapped, another unit, a setting).
-    if recolor then
+    local byHealth = p.colorBy == "HEALTH"
+    if recolor and not byHealth then
         local r, g, b, a
-        if p.classColors then r, g, b = self:UnitColor(true) end
+        if p.colorBy == "CLASS" then r, g, b = self:UnitColor(true) end
         if not r then r, g, b, a = unpack(p.healthColor) end
-        a = a or 1
-        local color = self.shownColor
-        if color[1] ~= r or color[2] ~= g or color[3] ~= b or color[4] ~= a then
-            color[1], color[2], color[3], color[4] = r, g, b, a
-            bar:SetStatusBarColor(r, g, b, a)
-        end
+        self:SetBarColor(r, g, b, a or 1)
     end
     local current, maximum = UnitHealth(unit), UnitHealthMax(unit)
     local status
@@ -271,17 +383,22 @@ function T:UpdateHealth(recolor, guid)
         bar:SetMinMaxValues(0, maximum)
         bar:SetValue(current)
         self.shownMode = nil
-        -- With no text shown, none is put together (ten times a second, as hidden values can't be told apart).
+        -- A hidden color by health is a new table each time: while polled, it's taken with the other colors (every
+        -- RECOLOR_EVERY readings); followed by events, every reading is a change.
+        if byHealth and (recolor or self.watched) then self:SecretHealthColor(unit) end
+        -- With no text shown, none is put together (on every reading, as hidden values can't be told apart).
         if p.barText == "NONE" then return end
         return self:SecretHealthText(unit, current, maximum)
     end
-    -- Polled ten times a second: redraw only when the reading or the text mode changed. What was drawn
+    -- Read ten times a second while polled: redraw only when the reading or the text mode changed. What was drawn
     -- is remembered rather than read back, since the font string may hold a hidden value.
     if current == self.shownCurrent and maximum == self.shownMax and status == self.shownStatus and p.barText == self.shownMode then return end
     self.shownCurrent, self.shownMax, self.shownStatus, self.shownMode = current, maximum, status, p.barText
     bar:SetMinMaxValues(0, 1)
     local fraction = maximum > 0 and max(0, min(1, current / maximum)) or 0
     bar:SetValue(fraction)
+    -- In steps of 1%, so a little health coming back sets no new color.
+    if byHealth then self:SetBarColor(HealthColor(floor(fraction * 100 + 0.5) / 100)) end
     -- Only the text shown is put together.
     local mode, text = p.barText, status
     if mode == "NONE" then return end
@@ -429,7 +546,7 @@ function T:HookTooltip()
     local tip = GameTooltip
     ns.HookUnitTooltip(function(tooltip, data, unit) self:OnUnitTooltip(tooltip, data, unit) end)
     if tip:HasScript("OnTooltipCleared") then tip:HookScript("OnTooltipCleared", function() self:Clear() end) end
-    tip:HookScript("OnHide", function() self:Clear() end)
+    tip:HookScript("OnHide", function() self:Clear(); self:Watch(nil) end)
     -- Skins restyle the border when the tooltip shows, after the unit is set.
     tip:HookScript("OnShow", function() if self.unit then self:UpdateBorder() end end)
 end
@@ -459,6 +576,7 @@ end
 function T:OnUnlisten()
     HST.LSM.UnregisterCallback(self, "LibSharedMedia_Registered")
     self:Clear()
+    self:Watch(nil)
     self:UpdateScreenClamp()
     self:UpdateBlizzardBar()
 end
@@ -484,10 +602,14 @@ function T:BuildOptions()
                 barText = option("select", "barText", "Text", 2, { disabled = noBar,
                     values = { VALUE = "4215 / 5100", PERCENT = "83%", BOTH = "4215 / 5100 (83%)", NONE = "None" },
                     sorting = { "VALUE", "PERCENT", "BOTH", "NONE" } }),
-                classColors = option("toggle", "classColors", "Class & reaction colors", 3, { disabled = noBar,
-                    desc = "Players by class, NPCs by reaction: red hostile, yellow neutral, green friendly, grey when tapped by others." }),
+                colorBy = option("select", "colorBy", "Color", 3, { disabled = noBar,
+                    values = { CLASS = "Class & reaction", HEALTH = "By health", CUSTOM = "One color" },
+                    sorting = { "CLASS", "HEALTH", "CUSTOM" },
+                    desc = "Class & reaction: players by class, NPCs by reaction (red hostile, yellow neutral, green friendly, "
+                        .. "grey when tapped by others). By health: green when full, yellow at half and red when low, also "
+                        .. "in combat and dungeons." }),
                 healthColor = option("color", "healthColor", "Bar color", 4, {
-                    disabled = function() return not T.db.profile.healthBar or T.db.profile.classColors end }),
+                    disabled = function() return not T.db.profile.healthBar or T.db.profile.colorBy ~= "CUSTOM" end }),
             }),
             size = section("Size", 2, {
                 barHeight = option("range", "barHeight", "Height", 1, { min = 2, max = 30, step = 1 }),
@@ -576,7 +698,13 @@ function T:DrawPreview(frame)
     v.bar:SetPoint("TOPRIGHT", v.box, "BOTTOMRIGHT", -edge, -(min(p.barGap, 4) + edge))
     v.bar:SetHeight(min(p.barHeight, 14))
     v.bar:SetStatusBarTexture(ns.Media("statusbar", p.texture))
-    if p.classColors then v.bar:SetStatusBarColor(class.r, class.g, class.b, 1) else v.bar:SetStatusBarColor(unpack(p.healthColor)) end
+    if p.colorBy == "CLASS" then
+        v.bar:SetStatusBarColor(class.r, class.g, class.b, 1)
+    elseif p.colorBy == "HEALTH" then
+        v.bar:SetStatusBarColor(HealthColor(0.83))
+    else
+        v.bar:SetStatusBarColor(unpack(p.healthColor))
+    end
     v.bar:SetValue(0.83)
     v.bar.background:SetColorTexture(unpack(p.backgroundColor))
     v.bar.edges:Layout(v.bar, edge, true)
