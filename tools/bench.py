@@ -630,6 +630,50 @@ Section('HUD Rules', function()
     end)
     HST:SetFeatureEnabled('HUDRules', false)
 end)
+
+Section('Damage Meter Extras', function()
+    local M, COMBAT, STATE = mod('DamageMeterExtras'), Enum.AddOnRestrictionType.Combat, Enum.AddOnRestrictionState
+    local function fire(event, ...) Send('DamageMeterExtras', event, ...) end
+    -- A fight as the game tells it: the Combat restriction starts, combat starts and ends, then the restriction lifts
+    -- (the meter can be read again).
+    local function fight()
+        fire('ADDON_RESTRICTION_STATE_CHANGED', COMBAT, STATE.Activating)
+        fire('ADDON_RESTRICTION_STATE_CHANGED', COMBAT, STATE.Active)
+        fire('PLAYER_REGEN_DISABLED'); fire('PLAYER_REGEN_ENABLED')
+        fire('ADDON_RESTRICTION_STATE_CHANGED', COMBAT, STATE.Inactive)
+    end
+    Measure('Damage meter: fight ends, solo (summary line)', 100, fight)
+    METER.duration = 5
+    Measure('Damage meter: short fight ends, solo (no summary)', 100, fight)
+    METER.duration = 42
+    M.db.profile.top = true
+    state.raidGroup = true; fire('GROUP_JOINED', 1, 'Party-1')
+    Measure('Damage meter: fight ends in a group (summary, top 3, deaths read)', 100, fight)
+    M.db.profile.top = false
+    -- The meter's update out of combat: every type, for the current session and overall.
+    Measure('Damage meter: one update while grouped (11 types x 2 sessions)', 100, function()
+        for kind = 0, 10 do
+            fire('DAMAGE_METER_COMBAT_SESSION_UPDATED', kind, 3); fire('DAMAGE_METER_COMBAT_SESSION_UPDATED', kind, 0)
+        end
+        AdvanceTime(1)
+    end)
+    local death, recapID = METER.types[Enum.DamageMeterType.Deaths][1], 101
+    Measure('Damage meter: a group member dies (notice a second later)', 100, function()
+        recapID = recapID + 1
+        death.deathRecapID = recapID
+        fire('DAMAGE_METER_COMBAT_SESSION_UPDATED', Enum.DamageMeterType.Deaths, 0)
+        AdvanceTime(1)
+    end)
+    Measure('Damage meter: you die (notice)', 100, function() fire('PLAYER_DEAD') end)
+    local hook = MENU_HOOKS.MENU_DAMAGE_METER_WINDOW_SETTINGS
+    Measure('Damage meter: settings menu opened (Report added)', 300, function() CallIn(hook, METER_COG, MeterMenu()) end,
+        nil, MeterMenu)
+    Measure('Damage meter: report posted to party (top 5)', 50, function()
+        local menu = MeterMenu()
+        CallIn(hook, METER_COG, menu); PickMenu(menu, 'Report', 'Party'); AdvanceTime(6)
+    end, nil, MeterMenu)
+    state.raidGroup = false; fire('GROUP_LEFT', 1, 'Party-1')
+end)
 '''
 
 # Every tweak at once, from a cold login: what a player with everything turned on pays for the frequent events.
@@ -1131,7 +1175,7 @@ def runtime(prelude, scenario, start=True):
 
 def main():
     full = ('MODERN_SPELLBOOK = true\n' + TOOLTIP_MOCKS + mock('items_mocks.lua') + mock('loot_mocks.lua') + SIMPLE_MOCKS
-            + MENU_MOCKS + BREATH_MOCKS + SWING_MOCKS + SETTINGS_MOCKS + mock('full_mocks.lua')
+            + MENU_MOCKS + BREATH_MOCKS + SWING_MOCKS + SETTINGS_MOCKS + mock('full_mocks.lua') + mock('damagemeter_mocks.lua')
             + 'function UnitIsInMyGuild(unit) return MY_GUILD == true and unit == "mouseover" end\n')
     runtime(full, MAIN)
     runtime(full, EVERYTHING, start=False)
