@@ -6,10 +6,6 @@ Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't
 
 Fixes for surnames and friend requests on WoW Forever.
 
-### Every character is its own
-
-On WoW Forever, characters who share a first name no longer share XP Tracker, mail and Game Settings data. Each starts from what was saved before and keeps its own from then on.
-
 ### Changed
 
 - XP Tracker: the EUI / Inter preset is gone, since it needs EllesmereUI and the Inter font, which most players don't have. Your current look doesn't change.

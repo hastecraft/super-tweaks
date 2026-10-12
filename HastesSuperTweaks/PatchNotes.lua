@@ -16,10 +16,6 @@ HST.patchNotes = {
     {
         version = "1.2.1", date = "2026-10-12",
         summary = "Fixes for surnames and friend requests on WoW Forever.",
-        highlights = {
-            { "On WoW Forever, characters who share a first name no longer share XP Tracker, mail and Game Settings data. Each starts from what was saved before and keeps its own from then on.",
-                title = "Every character is its own" },
-        },
         changed = {
             { "XP Tracker: the EUI / Inter preset is gone, since it needs EllesmereUI and the Inter font, which most players don't have. Your current look doesn't change.",
                 module = "XPTracker", path = { "general" } },
