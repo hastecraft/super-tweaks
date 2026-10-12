@@ -554,6 +554,9 @@ local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     row.icon:SetTexture(item.icon)
     row.icon:SetDesaturated(item.locked == true)
     row.quest:SetShown(item.quest == true)
+    -- An eye on loot whose look you haven't collected (Appearance Collector, Modules/Appearances.lua).
+    local looks = ns.Appearances
+    if looks then looks:Mark(row.slot, item.link, "loot", p.iconSize) end
     local quality = item.quality or 1
     local edge = p.iconBorder and quality >= 2 and QualityEdge(quality) or C.border
     if row.edgeColor ~= edge then row.edgeColor = edge; row.edge(edge) end
