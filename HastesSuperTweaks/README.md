@@ -54,6 +54,7 @@ Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's
 | Hide Issue Reporter | Interface | Removes the Issue Reporter button that the beta client puts on your screen. |
 | Mute Mount Sounds | Sound | Silences the noisiest mount and transport sounds: horse hooves, mechanostriders and mechanical footsteps, airships and zeppelins. Choose which in its settings. Turning it off unmutes them, even if another addon muted them too. |
 | Mute Custom Sounds | Sound | Mutes any game sounds you choose by their sound file IDs, or rain and weather and the spell fizzle with a switch. Its settings can also play sound files, so you can find the ones you want. |
+| Aura Sounds | Sound | Plays a sound when a buff or debuff you choose appears on you, gains a stack or fades: a proc such as Clearcasting or Shadow Trance, Inner Fire or Slice and Dice running out, being feared or dazed. Each class has presets, and any other aura can be added by its spell ID; pick a sound for each, from the game's or other addons'. The game plays the sounds itself, so they work in combat and in dungeons, where addons can't see your auras. |
 
 Modules that act for you or take over part of the game's interface (Upgrade Spell Ranks, Auto Accept & Turn In Quests, Skip NPC Chat, Hide Quest Tracker, Loot & Vendors, Consumable Macros, Auto-Equip Bags, Bag Tweaks, Auto Accept Summons, Auto Accept Resurrection, Auto Release in Battlegrounds, Chat Spam Filter), the Auto-Decline modules (except Auto-Decline Guild Charters), Better Scrolling Combat Text, Better Breath Meter, Error Message Filter, Game Settings and the Sound modules start off; everything else starts on. Every module can be turned on or off at any time without a `/reload`. Which modules are on is shared by all characters.
 
@@ -167,6 +168,7 @@ What each module does in unusual situations, and what the game doesn't let addon
 ### Sound
 
 - Mute Custom Sounds' Rain and weather switch mutes Classic Era's weather loops and the newer rain, thunder and lightning sounds WoW Forever plays with its weather; thunder other storm sounds share is muted with it. The spell fizzle switch mutes the fizzle of every school of magic.
+- Aura Sounds hands its sounds to the game, which plays them from then on, so changes made in combat or a boss fight, and turning it off then, apply once it ends. The game plays them only for auras on you, stops each after five seconds, and plays a gained or stack sound at most once a second; it may turn some auras down, and the top of the settings then names them. Presets cover every rank of their spells; an aura you add by its spell ID is that rank only. A sound from an addon that's no longer loaded plays the trigger's own instead. Classic Era can't play sounds for auras, so there it's unavailable.
 
 ## Credits and license
 

@@ -43,6 +43,7 @@ Modules\Automation.lua
 Modules\SellClutter.lua
 Modules\Blocks.lua
 Modules\MuteSounds.lua
+Modules\AuraSounds.lua
 Modules\Loot.lua
 Modules\LootRolls.lua
 Modules\SpellRanks.lua
