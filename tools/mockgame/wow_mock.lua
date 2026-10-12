@@ -326,7 +326,10 @@ for _, method in ipairs({ 'SetWordWrap', 'SetNonSpaceWrap', 'SetJustifyV', 'SetB
     'EnableKeyboard', 'SetToplevel', 'SetHorizTile', 'SetVertTile', 'SetGradient', 'SetVertexOffset',
     'SetMask', 'AddMaskTexture', 'SetFlattensRenderLayers', 'Raise', 'Lower', 'SetMotionScriptsWhileDisabled',
     'EnableMouseWheel', 'SetNormalFontObject', 'SetHighlightFontObject', 'SetDisabledFontObject', 'SetSpacing',
-    'SetRotation', 'UpdateScrollChildRect', 'StartSizing', 'SetDontSavePosition', 'HighlightText', 'SetSnapToPixelGrid' }) do ui[method] = noop end
+    'SetRotation', 'UpdateScrollChildRect', 'StartSizing', 'SetDontSavePosition', 'HighlightText', 'SetSnapToPixelGrid',
+    -- Cooldown frames (Campfire Helper's ring).
+    'SetDrawEdge', 'SetDrawBling', 'SetHideCountdownNumbers', 'SetSwipeTexture', 'SetSwipeColor', 'SetCooldown', 'Pause',
+    'Resume' }) do ui[method] = noop end
 function ui:SetEnabled(value) self.enabled = value and true or false end
 function ui:SetNormalTexture(value) self.normalTexture = value end
 function ui:SetPushedTexture(value) self.pushedTexture = value end
@@ -361,7 +364,8 @@ end
 function ui:GetAttribute(name) local attributes = self.attributes; return attributes and attributes[name] end
 function ui:Click(button) if self.scripts.OnClick and enabled(self) then CallIn(self.scripts.OnClick, self, button or 'LeftButton') end end
 -- Animation groups (the patch notes pip's blink): played and stopped, never animated. Unknown methods error.
-local animation = { SetFromAlpha = noop, SetToAlpha = noop, SetDuration = noop, SetSmoothing = noop }
+local animation = { SetFromAlpha = noop, SetToAlpha = noop, SetDuration = noop, SetSmoothing = noop,
+    SetFlipBookRows = noop, SetFlipBookColumns = noop, SetFlipBookFrames = noop }
 animation.__index = animation
 local animationGroup = { SetLooping = noop }
 animationGroup.__index = animationGroup

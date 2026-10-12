@@ -663,6 +663,19 @@ Section('Campfire Helper', function()
         Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
         benefits.auraInstanceID = benefits.auraInstanceID + 10
     end)
+    -- Near a campfire, sitting the minute out (the campfire's text changes every second), then walking away.
+    local nearby = { auraInstanceID = 200, spellId = 1283391, name = 'Campfire Nearby', duration = 0, expirationTime = 0 }
+    local welcome = { auraInstanceID = 300, spellId = 1289723, name = 'Welcoming Campfire', duration = 60 }
+    Measure('Campfire Helper: near a fire, sit a minute (+60 s), walk away', 10, function()
+        PLAYER_AURAS[1283391] = nearby
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED)
+        welcome.expirationTime = GetTime() + 60
+        PLAYER_AURAS[1289723] = welcome
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); AdvanceTime(60)
+        PLAYER_AURAS[1289723], PLAYER_AURAS[1283391] = nil, nil
+        Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
+        nearby.auraInstanceID, welcome.auraInstanceID = nearby.auraInstanceID + 1, welcome.auraInstanceID + 1
+    end)
     Measure('Campfire Helper: campfire lit (+0.2 s)', 20, function()
         mod('CampfireHelper').litAt = nil
         Send('CampfireHelper', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-2', 1229736, 0); AdvanceTime(0.2)
