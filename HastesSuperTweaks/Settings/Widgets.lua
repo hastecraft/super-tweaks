@@ -923,8 +923,9 @@ function W.ColorRow(parent)
 end
 
 -- A text field. Enter applies, Escape reverts; unsaved edits light the border. A full row has the field under the
--- label, across the row.
-function W.InputRow(parent, full)
+-- label, across the row. Given onEdit, the row is live: onEdit(text) gets each change as it's typed or pasted, and the
+-- field takes text of any length.
+function W.InputRow(parent, full, onEdit)
     local c = NewRow(parent)
     c:EnableMouse(true)
     local e = CreateFrame("EditBox", nil, c)
@@ -937,7 +938,16 @@ function W.InputRow(parent, full)
     local function paint() e.SetBorderColor((e:HasFocus() or dirty()) and C.accent or C.border) end
     e:SetScript("OnEditFocusGained", paint)
     e:SetScript("OnEditFocusLost", paint)
-    e:SetScript("OnTextChanged", paint)
+    if onEdit then
+        c.live = true
+        e:SetMaxLetters(0)
+        e:SetScript("OnTextChanged", function(self, userInput)
+            paint()
+            if userInput then onEdit(self:GetText()) end
+        end)
+    else
+        e:SetScript("OnTextChanged", paint)
+    end
     e:SetScript("OnEscapePressed", function(self) self:SetText(c.saved or ""); self:ClearFocus() end)
     e:SetScript("OnEnterPressed", function(self)
         self:ClearFocus()
@@ -964,9 +974,11 @@ function W.InputRow(parent, full)
         return height
     end
     function c:SetValue(text, off)
-        -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile.
+        -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile. A
+        -- live row's edits are already saved, so it only follows changes made elsewhere (emptied once used).
         local saved = text or ""
-        local kept = e:HasFocus() or (saved == self.saved and dirty())
+        local kept
+        if self.live then kept = e:GetText() == saved else kept = e:HasFocus() or (saved == self.saved and dirty()) end
         self.saved = saved
         if not kept then e:SetText(saved) end
         e:SetEnabled(not off)

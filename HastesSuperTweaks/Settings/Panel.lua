@@ -270,8 +270,10 @@ function Build.color(parent, o, chain, info, gate)
     return c
 end
 
+-- o.live: what's typed or pasted is set as it changes, with no Enter (text that buttons beside it act on).
 function Build.input(parent, o, chain, info, gate)
-    local c = Bind(W.InputRow(parent, o.width == "full"), o, chain, info, gate)
+    local onEdit = o.live and function(text) o.set(info, text); P:RefreshPage() end or nil
+    local c = Bind(W.InputRow(parent, o.width == "full", onEdit), o, chain, info, gate)
     c.onCommit = function(text)
         local valid = true
         if o.validate then valid = o.validate(info, text) end
