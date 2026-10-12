@@ -140,3 +140,15 @@ function EditModeManagerFrame:IsSnapEnabled() return true end
 Enum.EventToastEventType = { LevelUp = 1 }
 EventToastManagerFrame = CreateFrame('Frame', 'EventToastManagerFrame', UIParent)
 function EventToastManagerFrame:DisplayToast() end
+
+-- HUD Rules: the game's groups of frames (rolesets), with the filter last applied, Blizzard's UI modes (none on) and
+-- Quick Keybind Mode. The game's getters return new tables.
+ROLESET_FILTER = { blocked = {}, allowed = {} }
+C_Roleset = {
+    ApplyRolesetFilters = function(blocked, allowed) ROLESET_FILTER.blocked, ROLESET_FILTER.allowed = blocked, allowed end,
+    GetActiveBlockedRolesets = function() return {} end,
+    GetActiveAllowedRolesets = function() return {} end,
+}
+UIModeUtil = { IsModeActive = function() return false end }
+QuickKeybindFrame = CreateFrame('Button', 'QuickKeybindFrame', UIParent)
+QuickKeybindFrame:Hide()

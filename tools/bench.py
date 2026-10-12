@@ -342,6 +342,22 @@ Section('Interface', function()
         HST:SetFeatureEnabled('MuteMountSounds', true); HST:SetFeatureEnabled('MuteMountSounds', false)
     end)
 end)
+
+-- Action bars hidden out of combat, chat in combat and the minimap in dungeons.
+Section('HUD Rules', function()
+    local H = HST:GetModule('HUDRules', true)
+    if not H then return end
+    HST:SetFeatureEnabled('HUDRules', true)
+    H.db.profile.actionBars, H.db.profile.chat, H.db.profile.minimap = 'noncombat', 'combat', 'instance'
+    H:Update()
+    Measure('HUD Rules: combat start + end (bars and chat swap)', 100, function()
+        Send('HUDRules', 'PLAYER_REGEN_DISABLED'); Send('HUDRules', 'PLAYER_REGEN_ENABLED')
+    end)
+    Measure('HUD Rules: loading screen outside dungeons', 300, function()
+        Send('HUDRules', 'PLAYER_ENTERING_WORLD', false, false)
+    end)
+    HST:SetFeatureEnabled('HUDRules', false)
+end)
 '''
 
 # Every tweak at once, from a cold login: what a player with everything turned on pays for the frequent events.
