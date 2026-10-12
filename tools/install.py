@@ -79,9 +79,10 @@ def require_closed(running):
 
 
 def required_files(root=None):
-    """The release's files, relative to the addon folder: what the TOC loads, the TOC, README and licenses, art."""
+    """The release's files, relative to the addon folder: what the TOC loads, the TOC, the key bindings (which the game
+    loads by itself), README and licenses, art."""
     root = root or ADDON
-    files = set(toc_files(root)) | {root / name for name in [TOC, 'README.md', 'LICENSE.txt']}
+    files = set(toc_files(root)) | {root / name for name in [TOC, 'Bindings.xml', 'README.md', 'LICENSE.txt']}
     files |= {p for p in (root / 'Libs').rglob('*') if p.is_file() and any(t in p.name.lower() for t in ['license', 'copying'])}
     files |= {p for p in (root / 'Art').rglob('*') if p.is_file()}
     # The TOC loads the libraries through XML files, which toc_files follows but does not list.

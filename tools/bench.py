@@ -211,6 +211,37 @@ Section('Quest XP in Quest Log', function()
     tip:Hide()
 end)
 
+Section('Quest Item Button', function()
+    if not HST:GetModule('QuestItemButton', true) then return end -- a version without this tweak
+    -- Two of the 20 quests have an item, the torch's quest the nearer; the torch is in your bags and your target in its
+    -- range, and right for it.
+    local torch, rope = state.quests[5], state.quests[12]
+    torch.item, torch.distance = { link = 'item:6001', icon = 'icon6001', range = 1 }, 900
+    rope.item, rope.distance = { link = 'item:6002', icon = 'icon6002' }, 40000
+    ITEM_COUNTS[6001], ITEM_COUNTS[6002] = 3, 1
+    local bag = BAGS[1]
+    BAGS[1] = { { 6002, 1 }, { 6001, 3 } }
+    TARGET_RIGHT = true
+    Enable({ 'QuestItemButton' }, true); AdvanceTime(1)
+    Measure('Quest Item Button: quest log update, then the pick (20 quests, 2 with items)', 100, function()
+        Send('QuestItemButton', 'QUEST_LOG_UPDATE'); AdvanceTime(0.3)
+    end)
+    Measure('Quest Item Button: item cooldown update', 300, function() Send('QuestItemButton', 'BAG_UPDATE_COOLDOWN') end)
+    Measure('Quest Item Button: target changed (range and glow)', 300, function() Send('QuestItemButton', 'PLAYER_TARGET_CHANGED') end)
+    Measure('Quest Item Button: stopped moving with a target', 300, function() Send('QuestItemButton', 'PLAYER_STOPPED_MOVING') end)
+    local function area(inside)
+        QUEST_AREAS[712] = inside or nil
+        Send('QuestItemButton', 'PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED', 712, inside); AdvanceTime(0.3)
+    end
+    Measure('Quest Item Button: into and out of a quest area (item swapped twice)', 50, function() area(true); area(false) end)
+    state.combat = true
+    Measure('Quest Item Button: into and out of a quest area in combat (swap waits)', 50, function() area(true); area(false) end)
+    state.combat = false; Send('QuestItemButton', 'PLAYER_REGEN_ENABLED')
+    Enable({ 'QuestItemButton' }, false)
+    torch.item, torch.distance, rope.item, rope.distance, TARGET_RIGHT = nil, nil, nil, nil, nil
+    BAGS[1] = bag
+end)
+
 Section('Loot', function()
     local L = mod('LootWindow')
     state.cvars.autoLootDefault = '1'

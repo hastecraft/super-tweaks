@@ -49,7 +49,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 **Leveling:** XP Tracker, Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Upgrade Spell Ranks (new ranks replace old ones on your bars), Train All.
 
-**Quests and NPCs:** Auto Accept & Turn In Quests, Skip NPC Chat, Quest Item Sparkle, Quest Reward Value (marks the reward that sells for the most), Hide Quest Tracker (in dungeons, PvP, combat or always).
+**Quests and NPCs:** Auto Accept & Turn In Quests, Skip NPC Chat, Quest Item Sparkle, Quest Item Button (one button and key for your current quest's item), Quest Reward Value (marks the reward that sells for the most), Hide Quest Tracker (in dungeons, PvP, combat or always).
 
 **Loot and vendors:** Loot Window, Movable Loot Rolls, Fast Loot, Sell Junk, Sell Clutter, Repair Automatically (guild funds optional), Restock at Vendors (ammo, reagents and poisons, up to a gold limit per visit).
 

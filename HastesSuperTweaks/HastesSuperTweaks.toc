@@ -55,6 +55,7 @@ Modules\Restock.lua
 Modules\Trainer.lua
 Modules\QuestRewards.lua
 Modules\QuestTracker.lua
+Modules\QuestItemButton.lua
 Modules\ChatFilter.lua
 Modules\GroupFinderWhispers.lua
 Modules\NameplateMarkers.lua
