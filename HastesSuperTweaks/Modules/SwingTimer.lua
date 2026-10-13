@@ -287,6 +287,11 @@ local function Phase(swings, t)
     return started, ended, running, done, left
 end
 
+-- The caption by phase (in melee, then shooting) with hiding idle bars on: with take turns the other kind's bars hide at
+-- once; without, each hides a moment after its own last swing.
+local TAKING_TURNS = { "In melee: the ranged bar hides at once", "Shooting: the melee bars hide at once" }
+local EACH_ALONE = { "In melee: the ranged bar hides when idle", "Shooting: the melee bars hide when idle" }
+
 local function DrawSamples(v, p, t)
     local samples = v.samples
     for i, s in ipairs(samples) do s.started, s.ended, s.running, s.done, s.left = Phase(SWINGS[i], t) end
@@ -325,7 +330,7 @@ local function DrawSamples(v, p, t)
     local phase = p.hideIdle and (t < SWINGS[3][1] and 1 or 2) or 0
     if v.shownPhase ~= phase then
         v.shownPhase = phase
-        v.caption:SetText(phase == 1 and "In melee: the ranged bar hides" or phase == 2 and "Shooting: the melee bars hide" or "")
+        v.caption:SetText(phase == 0 and "" or (p.takeTurns and TAKING_TURNS or EACH_ALONE)[phase])
     end
 end
 
