@@ -17,7 +17,7 @@ Fixes for surnames and friend requests on WoW Forever.
 - Mail Expiry & Alt List lists your alts by the full name the To: field takes. On WoW Forever, each alt reappears once you log in on it.
 - Auto-Decline Battle.net Friend Requests no longer turns down in-game friend requests on WoW Forever.
 - Better Scrolling Combat Text: combo point notices keep up when you switch targets.
-- Hide Issue Reporter is unavailable outside the beta and test clients, where there's no Issue Reporter to hide.
+- Hide Issue Reporter is unavailable outside the beta and test clients.
 
 ## 1.2.0 (2026-10-12)
 
@@ -25,7 +25,7 @@ Easier settings pages, and Hide Issue Reporter now starts off.
 
 ### Find your way back
 
-Pages with sub-pages have an Overview button, so picking a sub-page never strands you away from the page's own settings.
+Pages with sub-pages have an Overview button that takes you back to the page's own settings.
 
 ### New
 
@@ -64,7 +64,7 @@ Defaults that got in the way are gentler: no sound with the rare alert, no /play
 - Guild Message Popup: the "At login, only if changed" setting now starts on, so the same message doesn't pop up at every login and /reload.
 - XP Tracker: Click-through now starts on, so clicks and camera drags reach the world behind the locked bar. Turn it off for the tooltip and right-click settings.
 - Quest XP in Quest Log says it needs Questie on WoW Forever, which doesn't tell addons how much XP a quest gives.
-- Minimap Button starts in a new spot, clear of other addons' minimap buttons. Drag it wherever you like.
+- Minimap Button starts in a new spot, clear of other addons' minimap buttons.
 
 ### Fixed
 

@@ -2,7 +2,7 @@
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local X = ns.XPTracker
-local min, max = math.min, math.max
+local min, max, floor = math.min, math.max, math.floor
 
 -- Select choices as { key, label, key, label, ... }; returns the values table and display order.
 local function choices(list)
@@ -85,8 +85,7 @@ function X:BuildOptions()
             preview = { type = "toggle", name = "Preview", order = 1,
                 desc = "Shows sample data so you can style the bar at any level, ignoring visibility rules. Turns off on /reload.",
                 get = function() return X.preview end, set = function(_, v) X.preview = v; X:Render() end },
-            hideBlizzard = toggle("hideBlizzard", "Hide Blizzard XP bar", 2,
-                "XP bars from other UI addons aren't affected."),
+            hideBlizzard = toggle("hideBlizzard", "Hide the game's XP bar", 2),
         }),
         mouse = section("Mouse", 2, {
             locked = toggle("locked", "Lock position", 1,
@@ -220,7 +219,7 @@ function X:BuildOptions()
                 -- An option's own disabled replaces its group's, so repeat the label check here.
                 font = with(media("font", "font", "Font", 1, "fontPath", key),
                     { disabled = function() return hidden() or X.db.profile.texts[key].fontPath ~= "" end }),
-                size = with(range("size", "Size", 2, 6, 64, 1, key), { desc = "Size at 100% Text size (Text page)." }),
+                size = with(range("size", "Size", 2, 6, 64, 1, key), { desc = "Scaled by Text size on the Text page." }),
                 outline = dropdown("outline", "Outline", 3, labelOutlines, labelOutlineOrder, key),
                 color = color("color", "Color", 4, key),
                 shadow = toggle("shadow", "Shadow", 5, nil, key),
@@ -456,11 +455,45 @@ function X:DrawLivePreview(frame, width, height, path)
             end
         end
     end
+    -- A note under the bar: on the Visibility page what fades or hides it, and whether it's drawn smaller than its Scale
+    -- to fit. Room is kept for it only while it shows.
+    local note = path and path[1] == "visibility" and self:PreviewVisibility(p)
+    local fit = min((width - 24) / (right - left), (height - 20) / (top - bottom))
+    local room = 0
+    if note or fit < p.scale then
+        room = 14
+        fit = min(fit, (height - 20 - room) / (top - bottom))
+        if fit < p.scale then note = note and note .. ". Shown smaller to fit" or "Shown smaller to fit" end
+    end
+    -- Made the first time it's needed, and only shown or hidden when that changes.
+    if note then
+        if not v.note then
+            v.note = ns.Widgets.Text(frame, "GameFontDisableSmall", ns.Widgets.C.muted, "CENTER")
+            v.note:SetPoint("BOTTOM", 0, 4)
+        end
+        v.note:SetText(note)
+        if not v.noteShown then v.noteShown = true; v.note:Show() end
+    elseif v.noteShown then
+        v.noteShown = false
+        v.note:Hide()
+    end
     -- At the bar's own scale, smaller only to fit, centered.
-    local scale = max(0.2, min(p.scale, (width - 24) / (right - left), (height - 20) / (top - bottom)))
+    local scale = max(0.2, min(p.scale, fit))
     v.box:SetScale(scale)
     v.box:ClearAllPoints()
-    v.box:SetPoint("BOTTOMLEFT", frame, "CENTER", -(left + right) / 2, -(bottom + top) / 2)
+    v.box:SetPoint("BOTTOMLEFT", frame, "CENTER", -(left + right) / 2, (room / 2) / scale - (bottom + top) / 2)
+end
+
+-- What the Visibility page's opacity settings do, for the note under the preview; nil when the bar always shows at
+-- its opacity. Hiding at maximum level, in dungeons and in raids depends on where you are, and the page says so.
+function X:PreviewVisibility(p)
+    local hover = p.mouseover and (p.locked and "Hidden until you point at it" or "Mouseover only starts once it's locked")
+    local combat
+    if p.hideCombat or p.combatAlpha == 0 then combat = "Hidden in combat"
+    elseif p.mouseover and p.locked and p.ignoreMouseInCombat then combat = "Stays hidden in combat"
+    elseif p.combatAlpha ~= p.alpha then combat = ("In combat: %d%%"):format(floor(p.combatAlpha * 100 + 0.5)) end
+    if hover and combat then return hover .. ". " .. combat end
+    return hover or combat
 end
 
 X.info.livePreview = function(frame, width, height, path) return X:DrawLivePreview(frame, width, height, path) end
