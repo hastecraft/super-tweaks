@@ -48,15 +48,15 @@ local defaults = {
     -- Campfire: its size and what it draws.
     size = 56, ring = "classic", fireArt = true, animate = true, glow = true, backdrop = true,
     -- Bar.
-    barWidth = 200, barHeight = 20, barIcon = true, texture = "Blizzard", border = 1, borderColor = { 0, 0, 0, 1 },
+    barWidth = 200, barHeight = 20, barIcon = "left", texture = "Blizzard", border = 1, borderColor = { 0, 0, 0, 1 },
     backgroundColor = { 0.05, 0.05, 0.05, 0.75 },
     -- Icons.
-    iconSize = 36, iconSpacing = 4,
+    iconSize = 36, iconSpacing = 4, maxIcons = 8, iconsCombined = false, iconSwipe = true, iconBorder = 1,
     -- Colors: the countdown's while sitting, while the buffs last and when they're ending; the text's.
     sittingColor = { 1, 0.82, 0.3, 1 }, buffsColor = { 1, 0.55, 0.15, 1 }, warnColor = { 1, 0.22, 0.12, 1 },
     textColor = { 1, 0.9, 0.7, 1 }, labelColor = { 0.85, 0.78, 0.68, 1 }, warnTextColor = { 1, 0.35, 0.25, 1 },
     -- Text.
-    showTime = true, showLabel = true, font = "Friz Quadrata TT", fontSize = 13, outline = "OUTLINE",
+    showTime = true, showLabel = true, font = "Friz Quadrata TT", fontSize = 13, labelSize = 10, outline = "OUTLINE",
     -- Chat messages: off, or the ones chosen.
     chat = false, fire = true, sitting = true, buffs = true, ending = true, boosted = true,
 }
@@ -148,7 +148,6 @@ local RING_NAMES = { classic = "Classic", thin = "Thin", thick = "Thick", segmen
 local RING_ORDER = { "classic", "thin", "thick", "segmented", "soft", "rimmed" }
 -- The ring's track: dark under a countdown, lit near a fire, grey once it's out.
 local TRACK_DARK, TRACK_LIT, TRACK_OUT = { 0, 0, 0, 0.55 }, { 1, 0.7, 0.3, 0.6 }, { 0.55, 0.55, 0.55, 0.5 }
-local BORDER_DARK = { 0, 0, 0, 1 }
 -- What each state says. Campfire and icons: the main line (nil: the time left) and the line under it. Bar: the text on
 -- its left and on its right (nil: the time left).
 local LINES = {
@@ -341,14 +340,24 @@ local function NewBar(d)
     return v
 end
 
+-- The bar's icon side: "left", "right" or "none" (true and false from before there was a choice).
+local function IconSide(p)
+    local side = p.barIcon
+    if side == true then return "left" elseif side == false then return "none" end
+    return side
+end
+
 local function StyleBar(v, p, width, height)
-    local icon = p.barIcon and height or 0
+    local side = IconSide(p)
+    local room = side ~= "none" and height + 1 or 0
     v.icon:SetSize(height, height)
-    Shown(v.icon, p.barIcon)
+    v.icon:ClearAllPoints()
+    v.icon:SetPoint(side == "right" and "TOPRIGHT" or "TOPLEFT")
+    Shown(v.icon, side ~= "none")
     v.timer:ClearAllPoints()
-    v.timer:SetPoint("TOPLEFT", icon > 0 and icon + 1 or 0, 0)
-    v.timer:SetPoint("BOTTOMRIGHT")
-    v.barWidth = width - (icon > 0 and icon + 1 or 0)
+    v.timer:SetPoint("TOPLEFT", side == "left" and room or 0, 0)
+    v.timer:SetPoint("BOTTOMRIGHT", side == "right" and -room or 0, 0)
+    v.barWidth = width - room
     local texture = ns.Media("statusbar", p.texture)
     v.timer:SetStatusBarTexture(texture)
     v.still:SetTexture(texture)
@@ -406,7 +415,6 @@ local function IconButton(v, i)
     b.tex:SetAllPoints()
     b.tex:SetTexCoord(CROP, 1 - CROP, CROP, 1 - CROP)
     b.edges = ns.CreateEdges(b, "OVERLAY")
-    b.edges:Layout(b, 1, true)
     b.cd = NewCooldown(b, false)
     v.buttons[i] = b
     return b
@@ -417,11 +425,11 @@ local function StyleIcons(v)
 end
 
 local function DrawIcons(v, d, p, state, start, length, warning, frozen, icons, count)
-    if not icons or count == 0 then
+    if not icons or count == 0 or p.iconsCombined then
         v.one[1] = SpellIcon(STATE_ICON[state])
         icons, count = v.one, 1
     end
-    count = min(count, MAX_ICONS)
+    count = min(count, p.maxIcons, MAX_ICONS)
     if v.count ~= count then
         v.count = count
         local size, gap = p.iconSize, p.iconSpacing
@@ -431,8 +439,11 @@ local function DrawIcons(v, d, p, state, start, length, warning, frozen, icons, 
             b:SetSize(size, size)
             b:ClearAllPoints()
             b:SetPoint("LEFT", (i - 1) * (size + gap), 0)
+            b.edges:Layout(b, p.iconBorder, true)
+            b.edges:SetShown(p.iconBorder > 0)
         end
     end
+    if not p.iconSwipe then start, length = nil, nil end
     local lit = state ~= "ended"
     for i = 1, MAX_ICONS do
         local b = v.buttons[i]
@@ -441,7 +452,7 @@ local function DrawIcons(v, d, p, state, start, length, warning, frozen, icons, 
         if i <= count then
             if b.icon ~= icons[i] then b.icon = icons[i]; b.tex:SetTexture(icons[i]) end
             if b.lit ~= lit then b.lit = lit; b.tex:SetDesaturated(not lit) end
-            b.edges:SetColor(unpack(warning and p.warnColor or BORDER_DARK))
+            b.edges:SetColor(unpack(warning and p.warnColor or p.borderColor))
             SetCountdown(b, b.cd, start, length, frozen)
         end
     end
@@ -506,7 +517,7 @@ local function Style(d, p, scale)
     end
     local font, flags = ns.Media("font", p.font), ns.OutlineFlags(p.outline)
     local shadow = flags == "" and 1 or 0
-    local small = style == "bar" and p.fontSize or max(6, p.fontSize - 3)
+    local small = p.labelSize
     ns.SetFont(time, font, p.fontSize, flags)
     ns.SetFont(label, font, small, flags)
     for _, text in ipairs({ time, label }) do text:SetShadowOffset(shadow, -shadow) end
@@ -1104,36 +1115,134 @@ function C:BuildOptions()
     local function profile() return C.db.profile end
     local function apply() C:Apply() end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra, apply) end
-    local function hidden() return not C.db.profile.display end
+    local function range(key, name, order, low, high, extra)
+        return option("range", key, name, order, ns.With({ min = low, max = high, step = 1 }, extra))
+    end
+    local function off() return not C.db.profile.display end
     local function quiet() return not C.db.profile.chat end
+    -- A style's own tab shows only while that style is chosen (the window rebuilds its tabs as settings change).
     local function notStyle(style) return function() return C.db.profile.style ~= style end end
     local function noFire() return not C.db.profile.fireArt end
+    local function noWarning() return C.db.profile.warnAt == 0 end
     local outlines = ns.OutlineChoices("Drop shadow")
+    -- The countdown's colors, on the ring's and the bar's tabs.
+    local function colors(order, what)
+        return ns.Section("Colors", order, {
+            sittingColor = option("color", "sittingColor", "While you sit", 1, {
+                desc = "The " .. what .. " during the minute you sit by a fire." }),
+            buffsColor = option("color", "buffsColor", "While camp buffs last", 2, {
+                desc = "The " .. what .. " during your camp buffs' hour." }),
+            warnColor = option("color", "warnColor", "Ending soon", 3, { disabled = noWarning,
+                desc = "The " .. what .. " once your camp buffs are about to end." }),
+        })
+    end
     return { name = C.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
-            campfire = ns.Section("Campfire on screen", 1, {
-                display = option("toggle", "display", "Show it on screen", 1, { desc =
+            show = ns.Section("On screen", 1, {
+                display = option("toggle", "display", "Show on screen", 1, { desc =
                     "Counts down the minute you sit by a fire, then your camp buffs' hour. Move it in Edit Mode." }),
-                style = option("select", "style", "Style", 1.5, { disabled = hidden,
+                style = option("select", "style", "Style", 2, { disabled = off,
                     values = { campfire = "Campfire in a ring", bar = "Bar", icons = "Buff icons" },
                     sorting = { "campfire", "bar", "icons" },
-                    desc = "A burning campfire in a ring that counts down, a bar, or the camp buffs' own icons with "
-                        .. "the game's countdown on them." }),
-                nearby = option("toggle", "nearby", "When a campfire is nearby", 2, { disabled = hidden, desc =
-                    "Shows the campfire when you're close enough to one to get camp buffs by sitting down." }),
-                keepShown = option("toggle", "keepShown", "Keep it up while camp buffs last", 3, { disabled = hidden,
-                    desc = "Shows your camp buffs' time left the whole hour. Off, it shows only once they're about "
-                        .. "to end." }),
-                warnAt = option("range", "warnAt", "Blink when camp buffs have (minutes left)", 4, {
-                    min = 0, max = 30, step = 1, disabled = hidden, desc = "0 turns the warning off." }),
-                remind = option("toggle", "remind", "Blink once they've ended", 5, { disabled = hidden, desc =
-                    "Keeps it blinking after your camp buffs end, until you sit by a campfire or click it." }),
-                sound = option("toggle", "sound", "Play a sound", 6, { disabled = hidden, desc =
-                    "Plays the raid warning sound when it starts blinking." }),
+                    desc = "Each style has a tab of its own for its look." }),
+                reset = { type = "execute", name = "Reset position", order = 3, disabled = off,
+                    desc = "Moves it back to the middle of the screen, above your character. Edit Mode moves it "
+                        .. "anywhere.",
+                    func = function()
+                        local p = C.db.profile
+                        p.x, p.y = defaults.x, defaults.y
+                        apply()
+                    end },
             }),
-            chat = ns.Section("Chat messages", 2, {
-                chat = option("toggle", "chat", "Say it in chat too", 1, { desc =
-                    "Camp timers and reminders as chat messages, for the ones chosen below." }),
+            when = ns.Section("When it shows", 2, {
+                nearby = option("toggle", "nearby", "Near a campfire", 1, { disabled = off, desc =
+                    "When you're close enough to a fire to get camp buffs by sitting down. The minute you sit "
+                        .. "always shows." }),
+                keepShown = option("toggle", "keepShown", "The whole hour of camp buffs", 2, { disabled = off,
+                    desc = "Off, it shows only once they're about to end." }),
+                remind = option("toggle", "remind", "After camp buffs end", 3, { disabled = off, desc =
+                    "Blinks until you sit by a campfire again or click it." }),
+            }),
+            ending = ns.Section("Ending soon", 3, {
+                warnAt = range("warnAt", "Warn at (minutes left)", 1, 0, 30, { disabled = off,
+                    desc = "Turns red and blinks. 0 turns the warning off." }),
+                sound = option("toggle", "sound", "Play a sound", 2, { disabled = off, desc =
+                    "The raid warning sound when it starts blinking: as your camp buffs are about to end, and when "
+                        .. "they have." }),
+            }),
+        } },
+        campfire = { type = "group", name = "Campfire", order = 2, hidden = notStyle("campfire"), disabled = off, args = {
+            look = ns.Section("Campfire", 1, {
+                size = range("size", "Size", 1, 32, 160),
+                ring = option("select", "ring", "Ring", 2, { values = RING_NAMES, sorting = RING_ORDER,
+                    desc = "The ring that counts down." }),
+                fireArt = option("toggle", "fireArt", "Fire", 3, { desc = "Off, the ring alone." }),
+                animate = option("toggle", "animate", "Animate the fire", 4, { disabled = noFire,
+                    desc = "Off, the fire stands still." }),
+                glow = option("toggle", "glow", "Glow", 5, { desc = "The fire's warm light around it." }),
+                backdrop = option("toggle", "backdrop", "Dark backdrop", 6, {
+                    desc = "A soft dark disc behind it, so it reads on any ground." }),
+            }),
+            colors = colors(2, "ring"),
+        } },
+        bar = { type = "group", name = "Bar", order = 2, hidden = notStyle("bar"), disabled = off, args = {
+            look = ns.Section("Bar", 1, {
+                barWidth = range("barWidth", "Width", 1, 80, 500),
+                barHeight = range("barHeight", "Height", 2, 8, 60),
+                texture = ns.MediaOption(profile, "statusbar", "texture", "Texture", 3, nil, apply),
+                barIcon = option("select", "barIcon", "Icon", 4, {
+                    values = { left = "Left", right = "Right", none = "None" }, sorting = { "left", "right", "none" },
+                    get = function() return IconSide(C.db.profile) end,
+                    desc = "The camp aura's icon beside the bar." }),
+            }),
+            frame = ns.Section("Border and background", 2, {
+                border = range("border", "Border", 1, 0, 4),
+                borderColor = option("color", "borderColor", "Border color", 2),
+                backgroundColor = option("color", "backgroundColor", "Background", 3),
+            }),
+            colors = colors(3, "bar"),
+        } },
+        icons = { type = "group", name = "Icons", order = 2, hidden = notStyle("icons"), disabled = off, args = {
+            look = ns.Section("Icons", 1, {
+                iconsCombined = option("toggle", "iconsCombined", "One icon", 1, { desc =
+                    "Camp Benefits' icon alone, instead of an icon for each camp buff you got." }),
+                maxIcons = range("maxIcons", "Most icons", 2, 1, 8, {
+                    disabled = function() return C.db.profile.iconsCombined end }),
+                iconSize = range("iconSize", "Size", 3, 16, 64),
+                iconSpacing = range("iconSpacing", "Space between", 4, 0, 20),
+                iconSwipe = option("toggle", "iconSwipe", "Countdown on the icons", 5, { desc =
+                    "The game's dark sweep across each icon as time runs out." }),
+            }),
+            frame = ns.Section("Border", 2, {
+                iconBorder = range("iconBorder", "Border", 1, 0, 3),
+                borderColor = option("color", "borderColor", "Border color", 2),
+                warnColor = option("color", "warnColor", "Ending soon", 3, { disabled = noWarning,
+                    desc = "The border once your camp buffs are about to end." }),
+            }),
+        } },
+        text = { type = "group", name = "Text", order = 3, disabled = off, args = {
+            lines = ns.Section("Lines", 1, {
+                showTime = option("toggle", "showTime", "Time left", 1, { desc =
+                    "\"42 sec\" or \"52 min\"; or what's going on when nothing counts down (\"Campfire nearby\")." }),
+                showLabel = option("toggle", "showLabel", "Status", 2, { desc =
+                    "What to do: \"Keep sitting\", \"Camp buffs\". On the bar, its left side." }),
+            }),
+            font = ns.Section("Font", 2, {
+                font = ns.MediaOption(profile, "font", "font", "Font", 1, nil, apply),
+                fontSize = range("fontSize", "Time size", 2, 8, 32),
+                labelSize = range("labelSize", "Status size", 3, 6, 32),
+                outline = option("select", "outline", "Outline", 4, ns.With({ desc = ns.OutlineDesc() }, outlines)),
+            }),
+            colors = ns.Section("Colors", 3, {
+                textColor = option("color", "textColor", "Time left", 1),
+                labelColor = option("color", "labelColor", "Status", 2),
+                warnTextColor = option("color", "warnTextColor", "Time left, ending soon", 3, { disabled = noWarning }),
+            }),
+        } },
+        chat = { type = "group", name = "Chat", order = 4, args = {
+            chat = ns.Section("Chat messages", 1, {
+                chat = option("toggle", "chat", "Say it in chat", 1, { desc =
+                    "Camp timers and reminders as chat messages too, for the ones chosen below." }),
                 fire = option("toggle", "fire", "Your campfire", 2, { disabled = quiet, desc =
                     "Says how long the campfire you light burns and when you can light another, a minute before it "
                         .. "goes out, and when it has." }),
@@ -1143,62 +1252,9 @@ function C:BuildOptions()
                 buffs = option("toggle", "buffs", "Name the camp buffs you got", 4, { disabled = quiet, desc =
                     "Names the camp buffs that landed, and warns when one of them ends before the others." }),
                 ending = option("toggle", "ending", "Camp buffs ending", 5, { disabled = quiet, desc =
-                    "Says when your camp buffs are about to end (as the campfire's warning is set), and when they have." }),
+                    "Says when your camp buffs are about to end (at the warning set on General), and when they have." }),
                 boosted = option("toggle", "boosted", "Boosted Rest", 6, { disabled = quiet, desc =
                     "Says when Boosted Rest ends, so a Camp Tent gives you rested XP again." }),
-            }),
-        } },
-        look = { type = "group", name = "Look", order = 2, disabled = hidden, args = {
-            campfire = ns.Section("Campfire", 1, {
-                size = option("range", "size", "Size", 1, { min = 32, max = 160, step = 1 }),
-                ring = option("select", "ring", "Ring", 1.5, { values = RING_NAMES, sorting = RING_ORDER,
-                    desc = "The ring that counts down." }),
-                fireArt = option("toggle", "fireArt", "Fire", 2, { desc = "Off, the ring alone." }),
-                animate = option("toggle", "animate", "Animate the fire", 3, { disabled = noFire,
-                    desc = "Off, the fire stands still." }),
-                glow = option("toggle", "glow", "Glow", 4, { desc = "The fire's warm light around it." }),
-                backdrop = option("toggle", "backdrop", "Dark backdrop", 5, {
-                    desc = "A soft dark disc behind the fire, so it reads on any ground." }),
-            }, { hidden = notStyle("campfire") }),
-            bar = ns.Section("Bar", 1, {
-                barWidth = option("range", "barWidth", "Width", 1, { min = 80, max = 500, step = 1 }),
-                barHeight = option("range", "barHeight", "Height", 2, { min = 8, max = 60, step = 1 }),
-                barIcon = option("toggle", "barIcon", "Icon", 3, { desc = "The camp aura's icon at the bar's left." }),
-                texture = ns.MediaOption(profile, "statusbar", "texture", "Texture", 4, nil, apply),
-                border = option("range", "border", "Border", 5, { min = 0, max = 4, step = 1 }),
-                borderColor = option("color", "borderColor", "Border color", 6),
-                backgroundColor = option("color", "backgroundColor", "Background", 7),
-            }, { hidden = notStyle("bar") }),
-            icons = ns.Section("Icons", 1, {
-                iconSize = option("range", "iconSize", "Size", 1, { min = 16, max = 64, step = 1 }),
-                iconSpacing = option("range", "iconSpacing", "Space between", 2, { min = 0, max = 20, step = 1 }),
-            }, { hidden = notStyle("icons") }),
-            colors = ns.Section("Colors", 2, {
-                sittingColor = option("color", "sittingColor", "Sitting countdown", 1),
-                buffsColor = option("color", "buffsColor", "Camp buffs countdown", 2),
-                warnColor = option("color", "warnColor", "Ending soon", 3,
-                    { desc = "The countdown, and the border in the other styles, once the camp buffs are about to end." }),
-                textColor = option("color", "textColor", "Text", 4),
-                labelColor = option("color", "labelColor", "Second line", 5,
-                    { desc = "What to do (\"Keep sitting\"), under the time; on the bar, its left side." }),
-                warnTextColor = option("color", "warnTextColor", "Text when ending soon", 6),
-            }),
-            text = ns.Section("Text", 3, {
-                showTime = option("toggle", "showTime", "Time left", 1, {
-                    desc = "The time left, or what's going on when nothing counts down." }),
-                showLabel = option("toggle", "showLabel", "Second line", 2, { desc = "What to do." }),
-                font = ns.MediaOption(profile, "font", "font", "Font", 3, nil, apply),
-                fontSize = option("range", "fontSize", "Size", 4, { min = 8, max = 32, step = 1 }),
-                outline = option("select", "outline", "Outline", 5, ns.With({ desc = ns.OutlineDesc() }, outlines)),
-            }),
-            position = ns.Section("Position", 4, {
-                reset = { type = "execute", name = "Reset position", order = 1,
-                    desc = "Moves it back to the middle of the screen, above your character.",
-                    func = function()
-                        local p = C.db.profile
-                        p.x, p.y = defaults.x, defaults.y
-                        apply()
-                    end },
             }),
         } },
     } }
