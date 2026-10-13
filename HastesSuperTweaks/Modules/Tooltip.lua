@@ -61,7 +61,9 @@ function T:ReadUnit(unit, guid)
     if self.myGuild ~= false then
         local name, server = UnitName(unit)
         if not IsSecret(name) and not IsSecret(server) and name and name ~= UNKNOWN_NAME then
-            self.rosterName = (server and server ~= "") and (name .. "-" .. server) or name
+            -- On WoW Forever the second part is a surname, and the roster is looked up by the whole name (see GuildNotes).
+            if ns.RegionalNames() then self.rosterName = ns.NameKey(ns.FullName(name, server))
+            else self.rosterName = (server and server ~= "") and (name .. "-" .. server) or name end
         end
     end
     self.guildRead = guid ~= nil and (self.myGuild == false or self.rosterName ~= nil)
@@ -335,7 +337,8 @@ function T:FormatGuild(tip)
     if line and current ~= made.text then line:SetText(made.text) end
 end
 
--- Public and officer guild notes by player name: "Name" for your realm, "Name-Realm" for any. Roster updates only
+-- Public and officer guild notes by player name: "Name" for your realm, "Name-Realm" for any (on WoW Forever, the whole
+-- name, spelled as ns.NameKey does). Roster updates only
 -- mark them stale (they arrive often, and large rosters are slow to read); a tooltip reads them again when needed, at
 -- most every NOTES_EVERY seconds (notes rarely change; your own guild changing reads them at once).
 function T:GuildNotes()
@@ -367,13 +370,20 @@ function T:GuildNotes()
     -- are there as soon as the roster is.
     self.notesStale, self.notesRead = false, members > 0 and now or -math.huge
     local realm = GetNormalizedRealmName and GetNormalizedRealmName()
+    local regional = ns.RegionalNames()
     for i = 1, members do
         if i > 1 then name, _, _, _, _, _, note, officerNote = GetGuildRosterInfo(i) end
         note, officerNote = note ~= "" and note or nil, officerNote ~= "" and officerNote or nil
         if name and (note or officerNote) then
-            notes[name], officer[name] = note, officerNote
-            local short, server = name:match("^(.-)%-(.+)$")
-            if short and (not realm or server == realm) then notes[short], officer[short] = note, officerNote end
+            if regional then
+                -- WoW Forever: by the whole name, spelled one way (ns.NameKey), as ReadUnit looks it up.
+                local key = ns.NameKey(name)
+                notes[key], officer[key] = note, officerNote
+            else
+                notes[name], officer[name] = note, officerNote
+                local short, server = name:match("^(.-)%-(.+)$")
+                if short and (not realm or server == realm) then notes[short], officer[short] = note, officerNote end
+            end
         end
     end
     return notes, officer

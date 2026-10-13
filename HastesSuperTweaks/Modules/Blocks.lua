@@ -25,8 +25,10 @@ local function HomeRealm()
 end
 
 -- A character's name and realm. The game leaves the realm off names from your own realm; a name with no realm
--- (and no separate realm given) is on yours.
+-- (and no separate realm given) is on yours. On WoW Forever names are unique across the region and the dash comes
+-- before a surname, not a realm: the whole name decides, in any case and with "-" or " " between its parts.
 local function Identity(name, realm)
+    if ns.RegionalNames() then return ns.NameKey(name), nil end
     local short, own = name:match("^([^%-]+)%-(.+)$")
     if short then return short, Realm(own) end
     return name, Realm(realm) or HomeRealm()
@@ -246,16 +248,19 @@ end)
 local F = Block("BlockFriendRequests", {
     name = "Auto-Decline Battle.net Friend Requests", category = "decline", order = 1, enabledByDefault = false,
     summary = "Turns down Battle.net friend requests.",
-    description = "Turns down Battle.net friend requests and tells you who sent them.",
+    description = "Turns down Battle.net friend requests and tells you who sent them. Friend requests sent in the game, by character name, are left to you.",
     preview = Declined("Interface\\FriendsFrame\\Battlenet-Battleneticon", "Gankalot#1234 wants to be your Battle.net friend.",
         "Declined a Battle.net friend request from Gankalot."),
 -- Requests sent while you were offline arrive with the invite list after login, not as added ones.
 }, { "BN_FRIEND_INVITE_ADDED", "BN_FRIEND_INVITE_LIST_INITIALIZED" }, function(self) self:DeclineAll() end, false)
 
+-- On WoW Forever the game's Add Friend sends a character's friend request as a Battle.net invite too, at the "title"
+-- level; those are friend requests in the game, not Battle.net friendships, and are left to you.
+local TITLE_FRIEND = Enum and Enum.BattleNetFriendLevel and Enum.BattleNetFriendLevel.Title
 function F:DeclineAll()
     for i = (BNGetNumFriendInvites and BNGetNumFriendInvites() or 0), 1, -1 do
         local invite = C_BattleNet.GetFriendInviteInfo(i)
-        if invite and invite.inviteID then
+        if invite and invite.inviteID and not (TITLE_FRIEND and invite.friendLevel == TITLE_FRIEND) then
             BNDeclineFriendInvite(invite.inviteID)
             HST:Print("Declined a Battle.net friend request from " .. Who(invite.accountName) .. ".")
         end

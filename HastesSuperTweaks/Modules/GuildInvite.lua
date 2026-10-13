@@ -72,11 +72,20 @@ local function FullName(contextData)
     return name
 end
 
+-- Whether a menu's name is yours. On WoW Forever it's "First Surname" (or "First-Surname"), compared whole.
+local function IsSelf(name)
+    if ns.RegionalNames() then
+        local me = ns.PlayerName()
+        return me ~= nil and ns.NameKey(name) == ns.NameKey(me)
+    end
+    return Ambiguate(name, "none") == UnitName("player")
+end
+
 function G.AddGuildInvite(_, rootDescription, contextData)
     -- Menus can't be unmodified, so the hook stays registered and checks the module state.
     if not (G:IsEnabled() and contextData and Invite and IsInGuild()) then return end
     local name = FullName(contextData)
-    if not IsUsable(name) or Ambiguate(name, "none") == UnitName("player") then return end
+    if not IsUsable(name) or IsSelf(name) then return end
     -- Already in your guild (a name in guild chat, say): nothing to invite.
     local member = C_GuildInfo and C_GuildInfo.MemberExistsByName
     if member and member(name) then return end
