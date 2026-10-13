@@ -154,6 +154,7 @@ local function ValueText(o)
     end
     if o.type == "input" then
         local text = o.get({ option = o })
+        text = text and text:gsub("%s+", " ")
         return text and text ~= "" and (#text > 18 and (text:sub(1, 16) .. "...") or text) or nil
     end
     if o.type == "items" then
@@ -270,8 +271,10 @@ function Build.color(parent, o, chain, info, gate)
     return c
 end
 
+-- o.multiline: a box that many lines tall (true: 3) for long text.
 function Build.input(parent, o, chain, info, gate)
-    local c = Bind(W.InputRow(parent, o.width == "full"), o, chain, info, gate)
+    local row = o.multiline and W.TextAreaRow(parent, tonumber(o.multiline)) or W.InputRow(parent, o.width == "full")
+    local c = Bind(row, o, chain, info, gate)
     c.onCommit = function(text)
         local valid = true
         if o.validate then valid = o.validate(info, text) end
