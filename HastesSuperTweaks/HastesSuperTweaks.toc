@@ -62,6 +62,7 @@ Modules\Trainer.lua
 Modules\LegacyTracker.lua
 Modules\QuestRewards.lua
 Modules\QuestTracker.lua
+Modules\QuestItemButton.lua
 Modules\QuestSounds.lua
 Modules\ChatFilter.lua
 Modules\GroupFinderWhispers.lua
