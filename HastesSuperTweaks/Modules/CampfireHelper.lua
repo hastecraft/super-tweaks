@@ -33,18 +33,30 @@ end
 local C = HST:NewFeature("CampfireHelper", {
     name = "Campfire Helper", category = "leveling", order = 7, command = "camp", unavailable = unavailable,
     summary = "A campfire on screen: near a fire, the minute to sit, and your camp buffs' hour.",
-    examples = { "nearby", "keepShown", { "warnAt", "Blink at (minutes left)" }, "remind" },
-    description = "Shows a campfire on screen when you're near one, counts down the minute you sit by it on a ring, "
-        .. "then keeps your camp buffs' time left up and blinks when they're about to end and when they have. Move it "
-        .. "in Edit Mode. Chat messages for your own campfire, the buffs you got and Boosted Rest can be turned on "
-        .. "too. /hst camp check shows every camp timer.",
+    examples = { "style", "nearby", "keepShown", { "warnAt", "Blink at (minutes left)" } },
+    description = "Shows a campfire on screen when you're near one, counts down the minute you sit by it, then keeps "
+        .. "your camp buffs' time left up and blinks when they're about to end and when they have: as a campfire in a "
+        .. "ring, a bar or the buffs' icons, moved in Edit Mode. Chat messages for your own campfire, the buffs you "
+        .. "got and Boosted Rest can be turned on too. /hst camp check shows every camp timer.",
 })
 ns.CampfireHelper = C
 
 local defaults = {
     -- The campfire on screen.
     display = true, nearby = true, keepShown = true, warnAt = 5, remind = true, sound = false,
-    size = 56, x = 0, y = 200, showText = true, font = "Friz Quadrata TT", fontSize = 13, outline = "OUTLINE",
+    style = "campfire", x = 0, y = 200,
+    -- Campfire: its size and what it draws.
+    size = 56, fireArt = true, animate = true, glow = true, backdrop = true,
+    -- Bar.
+    barWidth = 200, barHeight = 20, barIcon = true, texture = "Blizzard", border = 1, borderColor = { 0, 0, 0, 1 },
+    backgroundColor = { 0.05, 0.05, 0.05, 0.75 },
+    -- Icons.
+    iconSize = 36, iconSpacing = 4,
+    -- Colors: the countdown's while sitting, while the buffs last and when they're ending; the text's.
+    sittingColor = { 1, 0.82, 0.3, 1 }, buffsColor = { 1, 0.55, 0.15, 1 }, warnColor = { 1, 0.22, 0.12, 1 },
+    textColor = { 1, 0.9, 0.7, 1 }, labelColor = { 0.85, 0.78, 0.68, 1 }, warnTextColor = { 1, 0.35, 0.25, 1 },
+    -- Text.
+    showTime = true, showLabel = true, font = "Friz Quadrata TT", fontSize = 13, outline = "OUTLINE",
     -- Chat messages: off, or the ones chosen.
     chat = false, fire = true, sitting = true, buffs = true, ending = true, boosted = true,
 }
@@ -114,114 +126,59 @@ local function Track(t, aura)
 end
 
 C.welcome, C.benefits, C.boosted, C.near = {}, {}, {}, {}
-C.campBuffs, C.names = {}, {} -- the camp buffs that came with Camp Benefits: name by instance ID; their names in order
+-- The camp buffs that came with Camp Benefits: name and icon by instance ID, their instance IDs and names in order.
+C.campBuffs, C.icons, C.order, C.names = {}, {}, {}, {}
+C.shownIcons = {}
 
 ---------------------------------------------------------------------------
--- The campfire on screen: a fire burning in a ring. The ring counts down the minute you sit and then the camp buffs'
--- hour; the whole of it blinks when the buffs are about to end and once they have. The settings preview draws one too.
+-- On screen, in one of three styles: a campfire burning in a ring, a bar, or the buff icons. The ring, bar or icons
+-- count down the minute you sit and then the camp buffs' hour; the whole of it blinks when the buffs are about to end
+-- and once they have. The settings preview draws one too.
 ---------------------------------------------------------------------------
 local ART = "Interface\\AddOns\\HastesSuperTweaks\\Art\\"
 local FIRE_ART, RING_ART, GLOW_ART = ART .. "CampfireFire", ART .. "CampfireRing", ART .. "CampfireGlow"
 local FIRE_FRAMES, FIRE_COLUMNS, FIRE_FPS = 16, 4, 12
--- The ring's countdown by state, and the full ring's color when nothing counts down.
-local SITTING_COLOR, BUFFS_COLOR, WARNING_COLOR = { 1, 0.82, 0.3 }, { 1, 0.55, 0.15 }, { 1, 0.22, 0.12 }
+-- The ring's track: dark under a countdown, lit near a fire, grey once it's out.
 local TRACK_DARK, TRACK_LIT, TRACK_OUT = { 0, 0, 0, 0.55 }, { 1, 0.7, 0.3, 0.6 }, { 0.55, 0.55, 0.55, 0.5 }
-local TEXT_COLOR, WARNING_TEXT, LABEL_COLOR = { 1, 0.9, 0.7 }, { 1, 0.35, 0.25 }, { 0.85, 0.78, 0.68 }
--- What each state says: the main line, the line under it (nil: the time left goes on the main line).
+local BORDER_DARK = { 0, 0, 0, 1 }
+-- What each state says. Campfire and icons: the main line (nil: the time left) and the line under it. Bar: the text on
+-- its left and on its right (nil: the time left).
 local LINES = {
     nearby = { "Campfire nearby", "Sit down for camp buffs" },
     sitting = { nil, "Keep sitting" },
     buffs = { nil, "Camp buffs" },
     ended = { "Camp buffs ended", "Sit by a campfire" },
 }
+local BAR_LINES = {
+    nearby = { "Campfire nearby", "Sit down" },
+    sitting = { "Keep sitting", nil },
+    buffs = { "Camp buffs", nil },
+    ended = { "Camp buffs ended", "Sit by a fire" },
+}
+-- Each state's own icon, for the bar and for the icons when there are no camp buffs to show.
+local STATE_ICON = { nearby = NEARBY, sitting = WELCOMING[2], buffs = CAMP_BENEFITS, ended = CAMP_BENEFITS }
+local MAX_ICONS = 8
+local CROP = 0.08 -- the icons' edges trimmed, as the game's own buff buttons do
+-- The bar's timer: the game moves it from a duration (StatusBar:SetTimerDuration), with no Lua per frame.
+local CreateDuration = C_DurationUtil and C_DurationUtil.CreateDuration
+local IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+local REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
+
+local spellIcons = {}
+local function SpellIcon(id)
+    local icon = spellIcons[id]
+    if icon == nil then
+        icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(id)
+        if IsSecret(icon) or not icon then icon = 134400 end -- the question mark
+        spellIcons[id] = icon
+    end
+    return icon
+end
 
 local function Animate(region, looping)
     local group = region:CreateAnimationGroup()
     group:SetLooping(looping)
     return group
-end
-
-local function NewCampfire(parent)
-    local d = {}
-    local f = CreateFrame("Frame", nil, parent)
-    d.frame = f
-    d.back = f:CreateTexture(nil, "BACKGROUND", nil, 0) -- a soft dark disc, so the fire reads on any ground
-    d.back:SetTexture(GLOW_ART)
-    d.back:SetVertexColor(0, 0, 0, 0.6)
-    d.glow = f:CreateTexture(nil, "BACKGROUND", nil, 1)
-    d.glow:SetTexture(GLOW_ART)
-    d.glow:SetBlendMode("ADD")
-    d.glow:SetVertexColor(1, 0.5, 0.12, 0.8)
-    d.track = f:CreateTexture(nil, "BORDER")
-    d.track:SetTexture(RING_ART)
-    d.track:SetAllPoints()
-    -- The fire's whole sheet: its animation shows one frame of it at a time (and the whole sheet when stopped).
-    d.fire = f:CreateTexture(nil, "ARTWORK")
-    d.fire:SetTexture(FIRE_ART)
-    -- The fire gone out: its first frame, grey.
-    d.out = f:CreateTexture(nil, "ARTWORK")
-    d.out:SetTexture(FIRE_ART)
-    d.out:SetTexCoord(0, 1 / FIRE_COLUMNS, 0, 1 / FIRE_COLUMNS)
-    d.out:SetDesaturated(true)
-    d.out:SetAlpha(0.55)
-    d.out:Hide()
-    -- The countdown, swept by the game: the part of the ring left is the time left.
-    local cd = CreateFrame("Cooldown", nil, f)
-    d.cd = cd
-    cd:SetAllPoints()
-    cd.noCooldownCount = true -- no countdown numbers from cooldown text addons (OmniCC and the like)
-    if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(true) end
-    cd:SetDrawEdge(false)
-    if cd.SetDrawBling then cd:SetDrawBling(false) end
-    cd:SetSwipeTexture(RING_ART)
-    cd:Hide()
-    d.time = f:CreateFontString(nil, "OVERLAY")
-    d.time:SetPoint("TOP", f, "BOTTOM", 0, -3)
-    d.label = f:CreateFontString(nil, "OVERLAY")
-    d.label:SetPoint("TOP", d.time, "BOTTOM", 0, -1)
-    for _, text in ipairs({ d.time, d.label }) do text:SetShadowColor(0, 0, 0, 1) end
-    d.label:SetTextColor(LABEL_COLOR[1], LABEL_COLOR[2], LABEL_COLOR[3])
-    -- The fire plays through its frames; the glow breathes; the whole blinks as a reminder.
-    d.burn = Animate(d.fire, "REPEAT")
-    local flip = d.burn:CreateAnimation("FlipBook")
-    flip:SetFlipBookRows(FIRE_FRAMES / FIRE_COLUMNS)
-    flip:SetFlipBookColumns(FIRE_COLUMNS)
-    flip:SetFlipBookFrames(FIRE_FRAMES)
-    flip:SetDuration(FIRE_FRAMES / FIRE_FPS)
-    d.breathe = Animate(d.glow, "BOUNCE")
-    local glow = d.breathe:CreateAnimation("Alpha")
-    glow:SetFromAlpha(0.55)
-    glow:SetToAlpha(1)
-    glow:SetDuration(1.6)
-    glow:SetSmoothing("IN_OUT")
-    d.blink = Animate(f, "BOUNCE")
-    local blink = d.blink:CreateAnimation("Alpha")
-    blink:SetFromAlpha(1)
-    blink:SetToAlpha(0.2)
-    blink:SetDuration(0.45)
-    blink:SetSmoothing("IN_OUT")
-    return d
-end
-
--- Size and text as the settings choose.
-local function Style(d, p, scale)
-    local size = p.size * (scale or 1)
-    d.frame:SetSize(size, size)
-    d.back:SetSize(size * 1.05, size * 1.05)
-    d.back:SetPoint("CENTER")
-    d.glow:SetSize(size * 1.6, size * 1.6)
-    d.glow:SetPoint("CENTER", 0, -size * 0.04)
-    for _, fire in ipairs({ d.fire, d.out }) do
-        fire:SetSize(size * 0.74, size * 0.74)
-        fire:SetPoint("CENTER", 0, size * 0.04)
-    end
-    local font, flags = ns.Media("font", p.font), ns.OutlineFlags(p.outline)
-    local shadow = flags == "" and 1 or 0
-    ns.SetFont(d.time, font, p.fontSize, flags)
-    ns.SetFont(d.label, font, max(6, p.fontSize - 3), flags)
-    for _, text in ipairs({ d.time, d.label }) do text:SetShadowOffset(shadow, -shadow) end
-    d.time:SetShown(p.showText)
-    d.label:SetShown(p.showText)
 end
 
 local function SetColor(texture, key, color)
@@ -237,43 +194,337 @@ local function Play(group, on)
     if on then group:Play() else group:Stop() end
 end
 
-local function SetShown(d, shown)
-    if d.shown == shown then return end
-    d.shown = shown
-    d.frame:SetShown(shown)
+local function Shown(region, shown)
+    shown = shown and true or false
+    if region.hstShown == shown then return end
+    region.hstShown = shown
+    region:SetShown(shown)
 end
 
--- Draws a state: "nearby", "sitting", "buffs" or "ended". start and length are the ring's countdown (none: a full
--- ring), main the main line when the state has none of its own, warning colors and blinks it.
-local function Draw(d, state, start, length, main, warning)
-    if d.start ~= start or d.length ~= length then
-        d.start, d.length = start, length
-        if start then
-            d.cd:Show()
-            d.cd:SetCooldown(start, length)
-        else
-            d.cd:Hide()
+local function NewCooldown(parent, ring)
+    local cd = CreateFrame("Cooldown", nil, parent)
+    cd:SetAllPoints()
+    cd.noCooldownCount = true -- no countdown numbers from cooldown text addons (OmniCC and the like)
+    if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(true) end
+    cd:SetDrawEdge(false)
+    if cd.SetDrawBling then cd:SetDrawBling(false) end
+    if ring then
+        cd:SetSwipeTexture(RING_ART) -- the part of the ring left is the time left
+    else
+        cd:SetReverse(true) -- darkening as time passes, as the game's buff buttons do
+        cd:SetSwipeColor(0, 0, 0, 0.65)
+    end
+    cd:Hide()
+    return cd
+end
+
+-- A cooldown's countdown, the game sweeping it; `frozen` holds it still (Pause before setting, as
+-- CooldownFrame_SetDisplayAsPercentage does). Skipped when nothing changed.
+local function SetCountdown(holder, cd, start, length, frozen)
+    frozen = frozen or false
+    if holder.start == start and holder.length == length and holder.frozen == frozen then return end
+    holder.start, holder.length = start, length
+    if holder.frozen and not frozen then cd:Resume() end
+    holder.frozen = frozen
+    if start then
+        cd:Show() -- not skipped: the game hides a cooldown once it's done
+        cd.hstShown = true
+        if frozen then cd:Pause() end
+        cd:SetCooldown(start, length)
+    else
+        Shown(cd, false)
+    end
+end
+
+-- The campfire: a fire (its sheet played as a flipbook, or its first frame standing still) in a ring, over a glow
+-- and a soft dark disc that keeps it readable on any ground.
+local function NewRing(d)
+    local v = CreateFrame("Frame", nil, d.frame)
+    v:SetAllPoints()
+    v.back = v:CreateTexture(nil, "BACKGROUND", nil, 0)
+    v.back:SetTexture(GLOW_ART)
+    v.back:SetVertexColor(0, 0, 0, 0.6)
+    v.back:SetPoint("CENTER")
+    v.glow = v:CreateTexture(nil, "BACKGROUND", nil, 1)
+    v.glow:SetTexture(GLOW_ART)
+    v.glow:SetBlendMode("ADD")
+    v.glow:SetVertexColor(1, 0.5, 0.12, 0.8)
+    v.track = v:CreateTexture(nil, "BORDER")
+    v.track:SetTexture(RING_ART)
+    v.track:SetAllPoints()
+    -- The fire's whole sheet: its animation shows one frame of it at a time (and the whole sheet when stopped).
+    v.fire = v:CreateTexture(nil, "ARTWORK")
+    v.fire:SetTexture(FIRE_ART)
+    -- Its first frame alone: the fire standing still, or grey once it's out.
+    v.still = v:CreateTexture(nil, "ARTWORK")
+    v.still:SetTexture(FIRE_ART)
+    v.still:SetTexCoord(0, 1 / FIRE_COLUMNS, 0, 1 / FIRE_COLUMNS)
+    v.cd = NewCooldown(v, true)
+    v.burn = Animate(v.fire, "REPEAT")
+    local flip = v.burn:CreateAnimation("FlipBook")
+    flip:SetFlipBookRows(FIRE_FRAMES / FIRE_COLUMNS)
+    flip:SetFlipBookColumns(FIRE_COLUMNS)
+    flip:SetFlipBookFrames(FIRE_FRAMES)
+    flip:SetDuration(FIRE_FRAMES / FIRE_FPS)
+    v.breathe = Animate(v.glow, "BOUNCE")
+    local glow = v.breathe:CreateAnimation("Alpha")
+    glow:SetFromAlpha(0.55)
+    glow:SetToAlpha(1)
+    glow:SetDuration(1.6)
+    glow:SetSmoothing("IN_OUT")
+    return v
+end
+
+local function StyleRing(v, p, size)
+    v.back:SetSize(size * 1.05, size * 1.05)
+    Shown(v.back, p.backdrop)
+    v.glow:SetSize(size * 1.6, size * 1.6)
+    v.glow:SetPoint("CENTER", 0, -size * 0.04)
+    for _, fire in ipairs({ v.fire, v.still }) do
+        fire:SetSize(size * 0.74, size * 0.74)
+        fire:SetPoint("CENTER", 0, size * 0.04)
+    end
+end
+
+local function DrawRing(v, p, state, start, length, warning, frozen)
+    SetCountdown(v, v.cd, start, length, frozen)
+    local swipe = warning and p.warnColor or state == "sitting" and p.sittingColor or p.buffsColor
+    if v.swipe ~= swipe then v.swipe = swipe; v.cd:SetSwipeColor(swipe[1], swipe[2], swipe[3], swipe[4] or 1) end
+    local lit = state ~= "ended"
+    SetColor(v.track, "shownColor", start and TRACK_DARK or lit and TRACK_LIT or TRACK_OUT)
+    local burning = lit and p.fireArt and p.animate
+    local still = p.fireArt and not burning
+    Shown(v.fire, burning)
+    Shown(v.still, still)
+    if still and v.stillLit ~= lit then
+        v.stillLit = lit
+        v.still:SetDesaturated(not lit)
+        v.still:SetAlpha(lit and 1 or 0.55)
+    end
+    Play(v.burn, burning)
+    Shown(v.glow, lit and p.glow)
+    Play(v.breathe, lit and p.glow)
+end
+
+-- The bar: the state's icon, and a bar the game runs down (a still fill when nothing counts down, or for Edit Mode's
+-- sample). Its text sits on it.
+local function NewBar(d)
+    local v = CreateFrame("Frame", nil, d.frame)
+    v:SetAllPoints()
+    v.icon = v:CreateTexture(nil, "ARTWORK")
+    v.icon:SetPoint("TOPLEFT")
+    v.icon:SetTexCoord(CROP, 1 - CROP, CROP, 1 - CROP)
+    v.timer = CreateFrame("StatusBar", nil, v)
+    v.timer:SetMinMaxValues(0, 1)
+    v.bg = v:CreateTexture(nil, "BACKGROUND")
+    v.bg:SetAllPoints(v.timer)
+    v.bg:SetTexture(ns.WHITE)
+    v.still = v:CreateTexture(nil, "ARTWORK")
+    v.still:SetPoint("TOPLEFT", v.timer)
+    v.still:SetPoint("BOTTOMLEFT", v.timer)
+    v.edges = ns.CreateEdges(v, "OVERLAY")
+    v.duration = CreateDuration and v.timer.SetTimerDuration and CreateDuration() or nil
+    return v
+end
+
+local function StyleBar(v, p, width, height)
+    local icon = p.barIcon and height or 0
+    v.icon:SetSize(height, height)
+    Shown(v.icon, p.barIcon)
+    v.timer:ClearAllPoints()
+    v.timer:SetPoint("TOPLEFT", icon > 0 and icon + 1 or 0, 0)
+    v.timer:SetPoint("BOTTOMRIGHT")
+    v.barWidth = width - (icon > 0 and icon + 1 or 0)
+    local texture = ns.Media("statusbar", p.texture)
+    v.timer:SetStatusBarTexture(texture)
+    v.still:SetTexture(texture)
+    v.bg:SetVertexColor(unpack(p.backgroundColor))
+    v.edges:Layout(v, p.border, true)
+    v.edges:SetShown(p.border > 0)
+    v.fill, v.stillShare = nil, nil
+end
+
+local function DrawBar(v, p, state, start, length, warning, frozen)
+    local lit = state ~= "ended"
+    local icon = SpellIcon(STATE_ICON[state])
+    if v.shownIcon ~= icon then v.shownIcon = icon; v.icon:SetTexture(icon) end
+    if v.iconLit ~= lit then v.iconLit = lit; v.icon:SetDesaturated(not lit) end
+    local color = warning and p.warnColor or state == "sitting" and p.sittingColor or p.buffsColor
+    v.edges:SetColor(unpack(warning and p.warnColor or p.borderColor))
+    -- Counting down: the game's timer bar. Else a still fill: a share of the bar, all of it near a fire, none once out.
+    local timed = start and not frozen and v.duration
+    local share = not timed and (start and max(0, start + length - GetTime()) / length or state == "nearby" and 1 or 0)
+    Shown(v.timer, timed)
+    if timed and (v.start ~= start or v.length ~= length) then
+        v.start, v.length = start, length
+        v.duration:SetTimeFromStart(start, length)
+        v.timer:SetMinMaxValues(0, length)
+        v.timer:SetTimerDuration(v.duration, IMMEDIATE, REMAINING)
+    elseif not timed then
+        v.start = nil
+    end
+    if v.fill ~= color then
+        v.fill = color
+        v.timer:SetStatusBarColor(color[1], color[2], color[3], color[4] or 1)
+        v.still:SetVertexColor(color[1], color[2], color[3], color[4] or 1)
+    end
+    if v.stillShare ~= share then
+        v.stillShare = share
+        local shown = share and share > 0
+        Shown(v.still, shown)
+        if shown then v.still:SetWidth(max(1, v.barWidth * share)) end
+    end
+end
+
+-- The icons: the camp buffs you have (or the state's own icon), each with the game's countdown swipe, in a row.
+local function NewIcons(d)
+    local v = CreateFrame("Frame", nil, d.frame)
+    v:SetAllPoints()
+    v.buttons, v.one = {}, {}
+    return v
+end
+
+local function IconButton(v, i)
+    local b = v.buttons[i]
+    if b then return b end
+    b = CreateFrame("Frame", nil, v)
+    b.tex = b:CreateTexture(nil, "ARTWORK")
+    b.tex:SetAllPoints()
+    b.tex:SetTexCoord(CROP, 1 - CROP, CROP, 1 - CROP)
+    b.edges = ns.CreateEdges(b, "OVERLAY")
+    b.edges:Layout(b, 1, true)
+    b.cd = NewCooldown(b, false)
+    v.buttons[i] = b
+    return b
+end
+
+local function StyleIcons(v)
+    v.count = nil -- laid out again on the next draw
+end
+
+local function DrawIcons(v, d, p, state, start, length, warning, frozen, icons, count)
+    if not icons or count == 0 then
+        v.one[1] = SpellIcon(STATE_ICON[state])
+        icons, count = v.one, 1
+    end
+    count = min(count, MAX_ICONS)
+    if v.count ~= count then
+        v.count = count
+        local size, gap = p.iconSize, p.iconSpacing
+        d.frame:SetSize(count * size + (count - 1) * gap, size)
+        for i = 1, count do
+            local b = IconButton(v, i)
+            b:SetSize(size, size)
+            b:ClearAllPoints()
+            b:SetPoint("LEFT", (i - 1) * (size + gap), 0)
         end
     end
-    local swipe = warning and WARNING_COLOR or state == "sitting" and SITTING_COLOR or BUFFS_COLOR
-    if d.swipe ~= swipe then d.swipe = swipe; d.cd:SetSwipeColor(swipe[1], swipe[2], swipe[3], 1) end
     local lit = state ~= "ended"
-    SetColor(d.track, "shownColor", start and TRACK_DARK or lit and TRACK_LIT or TRACK_OUT)
-    if d.lit ~= lit then
-        d.lit = lit
-        d.fire:SetShown(lit)
-        d.glow:SetShown(lit)
-        d.out:SetShown(not lit)
+    for i = 1, MAX_ICONS do
+        local b = v.buttons[i]
+        if not b then break end
+        Shown(b, i <= count)
+        if i <= count then
+            if b.icon ~= icons[i] then b.icon = icons[i]; b.tex:SetTexture(icons[i]) end
+            if b.lit ~= lit then b.lit = lit; b.tex:SetDesaturated(not lit) end
+            b.edges:SetColor(unpack(warning and p.warnColor or BORDER_DARK))
+            SetCountdown(b, b.cd, start, length, frozen)
+        end
     end
-    Play(d.burn, lit)
-    Play(d.breathe, lit)
+end
+
+local VIEWS = { campfire = { "ring", NewRing }, bar = { "bar", NewBar }, icons = { "icons", NewIcons } }
+
+local function NewCampfire(parent)
+    local d = {}
+    local f = CreateFrame("Frame", nil, parent)
+    d.frame = f
+    -- The text, over whichever view shows.
+    d.text = CreateFrame("Frame", nil, f)
+    d.text:SetAllPoints()
+    d.text:SetFrameLevel(f:GetFrameLevel() + 10)
+    d.time = d.text:CreateFontString(nil, "OVERLAY")
+    d.label = d.text:CreateFontString(nil, "OVERLAY")
+    for _, text in ipairs({ d.time, d.label }) do text:SetShadowColor(0, 0, 0, 1) end
+    -- The whole blinks as a reminder.
+    d.blink = Animate(f, "BOUNCE")
+    local blink = d.blink:CreateAnimation("Alpha")
+    blink:SetFromAlpha(1)
+    blink:SetToAlpha(0.2)
+    blink:SetDuration(0.45)
+    blink:SetSmoothing("IN_OUT")
+    return d
+end
+
+-- The style, size and text the settings choose; scale shrinks it (for the settings preview).
+local function Style(d, p, scale)
+    scale = scale or 1
+    local style = VIEWS[p.style] and p.style or "campfire"
+    for name, view in pairs(VIEWS) do
+        local v = d[view[1]]
+        if name == style and not v then
+            v = view[2](d)
+            d[view[1]] = v
+        end
+        if v then Shown(v, name == style) end
+    end
+    d.style = style
+    local f, time, label = d.frame, d.time, d.label
+    time:ClearAllPoints()
+    label:ClearAllPoints()
+    if style == "bar" then
+        local width, height = p.barWidth * scale, p.barHeight * scale
+        f:SetSize(width, height)
+        StyleBar(d.bar, p, width, height)
+        label:SetPoint("LEFT", d.bar.timer, "LEFT", 4, 0)
+        time:SetPoint("RIGHT", d.bar.timer, "RIGHT", -4, 0)
+    else
+        if style == "campfire" then
+            local size = p.size * scale
+            f:SetSize(size, size)
+            StyleRing(d.ring, p, size)
+        else
+            f:SetSize(p.iconSize * scale, p.iconSize * scale)
+            StyleIcons(d.icons)
+        end
+        time:SetPoint("TOP", f, "BOTTOM", 0, -3)
+        label:SetPoint("TOP", time, "BOTTOM", 0, -1)
+    end
+    local font, flags = ns.Media("font", p.font), ns.OutlineFlags(p.outline)
+    local shadow = flags == "" and 1 or 0
+    local small = style == "bar" and p.fontSize or max(6, p.fontSize - 3)
+    ns.SetFont(time, font, p.fontSize, flags)
+    ns.SetFont(label, font, small, flags)
+    for _, text in ipairs({ time, label }) do text:SetShadowOffset(shadow, -shadow) end
+    time:SetShown(p.showTime)
+    label:SetShown(p.showLabel)
+    d.textColor, d.labelColor = nil, nil
+end
+
+-- Draws a state: "nearby", "sitting", "buffs" or "ended". start and length are the countdown (none: nothing counts
+-- down), main the time left as text, warning colors and blinks it, frozen holds the countdown still; icons (count of
+-- them) are the camp buffs' icons for the icons style.
+local function Draw(d, p, state, start, length, main, warning, frozen, icons, count)
+    local style = d.style
+    if style == "campfire" then
+        DrawRing(d.ring, p, state, start, length, warning, frozen)
+    elseif style == "bar" then
+        DrawBar(d.bar, p, state, start, length, warning, frozen)
+    else
+        DrawIcons(d.icons, d, p, state, start, length, warning, frozen, icons, count)
+    end
     Play(d.blink, warning or state == "ended")
-    local lines = LINES[state]
-    main = lines[1] or main
-    if d.shownMain ~= main then d.shownMain = main; d.time:SetText(main) end
-    if d.shownLabel ~= lines[2] then d.shownLabel = lines[2]; d.label:SetText(lines[2]) end
-    local color = warning and WARNING_TEXT or TEXT_COLOR
-    if d.textColor ~= color then d.textColor = color; d.time:SetTextColor(color[1], color[2], color[3]) end
+    local lines = style == "bar" and BAR_LINES[state] or LINES[state]
+    local first, second
+    if style == "bar" then first, second = lines[2] or main, lines[1] else first, second = lines[1] or main, lines[2] end
+    if d.shownMain ~= first then d.shownMain = first; d.time:SetText(first) end
+    if d.shownLabel ~= second then d.shownLabel = second; d.label:SetText(second) end
+    local color = warning and p.warnTextColor or p.textColor
+    if d.textColor ~= color then d.textColor = color; d.time:SetTextColor(color[1], color[2], color[3], color[4] or 1) end
+    if d.labelColor ~= p.labelColor then
+        d.labelColor = p.labelColor
+        d.label:SetTextColor(p.labelColor[1], p.labelColor[2], p.labelColor[3], p.labelColor[4] or 1)
+    end
 end
 
 -- Made the first time it shows (most sessions never sit by a fire).
@@ -282,7 +533,7 @@ function C:CreateCampfire()
     self.campfire = d
     local f = d.frame
     f:SetFrameStrata("MEDIUM")
-    SetShown(d, false)
+    Shown(f, false)
     -- Hovering shows what it's counting; clicks pass through to the world, except once the buffs ended, when a click
     -- puts the reminder away.
     f:SetScript("OnEnter", function() self:ShowTooltip(f) end)
@@ -342,23 +593,24 @@ function C:Refresh(now)
     end
     self.tickDue = nil
     if not state then
-        if self.campfire then SetShown(self.campfire, false) end
+        if self.campfire then Shown(self.campfire.frame, false) end
         return
     end
     if not self.campfire then self:CreateCampfire() end
     local d = self.campfire
     local f = d.frame
     local left = ends and max(0, ends - now)
-    -- The sample's ring stands still; a paused ring runs again before it's set (see CooldownFrame_SetDisplayAsPercentage).
-    if d.paused and not self.editMode then
-        d.paused, d.start = false, nil
-        d.cd:Resume()
+    -- The camp buffs' icons, in the order you got them.
+    local icons, count = self.shownIcons, 0
+    if state == "buffs" then
+        for _, id in ipairs(self.order) do
+            local icon = self.icons[id]
+            if icon then count = count + 1; icons[count] = icon end
+        end
     end
-    Draw(d, state, start, length, left and Countdown(left), warning)
-    if self.editMode then
-        d.paused = true
-        d.cd:Pause()
-    elseif left and left > 0 then
+    -- Edit Mode's sample stands still.
+    Draw(d, p, state, start, length, left and Countdown(left), warning, self.editMode, icons, count)
+    if left and left > 0 and not self.editMode then
         -- The game's own timer, which makes no garbage; one that's no longer wanted finds tickDue changed.
         local delay = NextChange(left) + 0.05
         self.tickDue = now + delay
@@ -367,7 +619,7 @@ function C:Refresh(now)
     self.state = state
     local clicks = state == "ended" and not self.editMode
     if d.clicks ~= clicks then d.clicks = clicks; f:SetMouseClickEnabled(clicks) end
-    SetShown(d, true)
+    Shown(f, true)
 end
 
 -- The campfire's tooltip: what it's counting down and what to do, then your own fire and Boosted Rest.
@@ -416,7 +668,7 @@ function C:OnUnlisten()
     self.waiting = false
     for kind in pairs(self.timers) do self:Schedule(kind, nil) end
     self.tickDue = nil
-    if self.campfire then SetShown(self.campfire, false) end
+    if self.campfire then Shown(self.campfire.frame, false) end
     self:UpdateEditMode(false)
 end
 
@@ -543,7 +795,7 @@ function C:CountBuffs(quiet)
     self.countPending = nil
     local GetBuff = C_UnitAuras.GetBuffDataByIndex
     if not GetBuff then return end
-    wipe(self.campBuffs)
+    self:ClearBuffs()
     local names, count = self.names, 0
     for i = 1, 40 do
         local aura = GetBuff("player", i)
@@ -552,10 +804,13 @@ function C:CountBuffs(quiet)
         if not (IsSecret(id) or IsSecret(spell) or IsSecret(ends) or IsSecret(length) or IsSecret(name))
             and spell ~= CAMP_BENEFITS and abs(length - b.length) < 1 and abs(ends - b.ends) < 3 then
             self.campBuffs[id] = name
+            local icon = aura.icon
+            if not IsSecret(icon) then self.icons[id] = icon end
             count = count + 1
-            names[count] = name
+            names[count], self.order[count] = name, id
         end
     end
+    if self:ShowsIcons() then self:Refresh() end
     if quiet or not Says("buffs") then return end
     local left = Span(b.ends - GetTime())
     if count == 0 then
@@ -567,11 +822,22 @@ end
 local function CountLoud() if C:IsEnabled() then C:CountBuffs(false) end end
 local function CountQuiet() if C:IsEnabled() then C:CountBuffs(true) end end
 
+-- Whether the camp buffs' icons are on screen (and so need drawing again when they change).
+function C:ShowsIcons() return self.state == "buffs" and self.campfire and self.campfire.style == "icons" end
+
+function C:ClearBuffs()
+    wipe(self.campBuffs); wipe(self.icons); wipe(self.order)
+end
+
 -- A camp buff that went while Camp Benefits stays: one of the buffs ended early.
 function C:LostBuff(id)
     local name = self.campBuffs[id]
     if not name then return end
-    self.campBuffs[id] = nil
+    self.campBuffs[id], self.icons[id] = nil, nil
+    for i = #self.order, 1, -1 do
+        if self.order[i] == id then table.remove(self.order, i) end
+    end
+    if self:ShowsIcons() then self:Refresh() end
     local b = self.benefits
     local left = b.on and b.ends - GetTime() or 0
     if left > ON_TIME and Says("buffs") then
@@ -607,12 +873,12 @@ function C:Check(quiet)
     local changed = change ~= nil
     local gained = change == "new"
     if change == "new" or change == "back" then
-        wipe(self.campBuffs)
+        self:ClearBuffs()
         self.ended = false
         self:TimeWarning()
         C_Timer.After(1, (quiet or change == "back") and CountQuiet or CountLoud)
     elseif change == "gone" then
-        wipe(self.campBuffs)
+        self:ClearBuffs()
         self:Schedule("buffsEnding", nil)
         if not quiet and wasEnding <= ON_TIME then
             self.ended = true
@@ -714,7 +980,7 @@ function C:EditFrame()
 end
 function C:GetPosition() local p = self.db.profile; return p.x, p.y end
 function C:SetPosition(x, y) local p = self.db.profile; p.x, p.y = floor(x + 0.5), floor(y + 0.5) end
-function C:EditSize() local size = self.db.profile.size; return size, size end
+function C:EditSize() return self.campfire.frame:GetSize() end
 function C:EditPlace(x, y)
     local f = self.campfire.frame
     f:ClearAllPoints()
@@ -769,6 +1035,8 @@ local PREVIEW = {
     { "buffs", 3, 3600, nil, 0, true },
     { "ended", 3 },
 }
+-- Camp buffs to show in the icons style: Stamina, Intellect and Spirit's icons.
+local PREVIEW_ICONS = { 135987, 135932, 135898 }
 function C.info.preview(frame)
     local p = C.db.profile
     local d = frame.hstCampfire
@@ -776,11 +1044,12 @@ function C.info.preview(frame)
         d = NewCampfire(frame)
         frame.hstCampfire = d
     end
-    -- Fits the stage with its text under it.
-    local scale = min(1, 64 / p.size)
+    -- Fits the stage, with its text under it.
+    local scale = p.style == "bar" and min(1, 230 / p.barWidth) or p.style == "campfire" and min(1, 64 / p.size) or 1
     Style(d, p, scale)
+    local below = p.style ~= "bar" and ((p.showTime and 8 or 0) + (p.showLabel and 6 or 0)) or 0
     d.frame:ClearAllPoints()
-    d.frame:SetPoint("CENTER", 0, p.showText and 14 or 0)
+    d.frame:SetPoint("CENTER", 0, below)
     d.frame:Show()
     local steps, total = {}, 0
     for _, step in ipairs(PREVIEW) do
@@ -798,10 +1067,7 @@ function C.info.preview(frame)
             if t < at + s[2] then step = s; break end
             at = at + s[2]
         end
-        if step ~= last then
-            last, began = step, GetTime() - (t - at)
-            d.start = nil -- the countdown starts over
-        end
+        if step ~= last then last, began = step, GetTime() - (t - at) end
         local seconds, length, warning = step[2], step[3], step[6]
         if length then
             -- The game's ring, sped up: over the step's seconds it runs from `from` left to `to` left.
@@ -810,9 +1076,9 @@ function C.info.preview(frame)
             local duration = seconds * length / (from - to)
             local start = began - duration * (1 - from / length)
             local left = from - (from - to) * (t - at) / seconds
-            Draw(d, step[1], start, duration, Countdown(max(1, left)), warning)
+            Draw(d, p, step[1], start, duration, Countdown(max(1, left)), warning, false, PREVIEW_ICONS, 3)
         else
-            Draw(d, step[1], nil, nil, nil, false)
+            Draw(d, p, step[1], nil, nil, nil, false, false)
         end
     end)
 end
@@ -826,13 +1092,19 @@ function C:BuildOptions()
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra, apply) end
     local function hidden() return not C.db.profile.display end
     local function quiet() return not C.db.profile.chat end
+    local function notStyle(style) return function() return C.db.profile.style ~= style end end
+    local function noFire() return not C.db.profile.fireArt end
     local outlines = ns.OutlineChoices("Drop shadow")
     return { name = C.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             campfire = ns.Section("Campfire on screen", 1, {
-                display = option("toggle", "display", "Show a campfire on screen", 1, { desc =
-                    "A campfire in a ring: the ring counts down the minute you sit by a fire, then your camp buffs' "
-                        .. "hour. Move it in Edit Mode." }),
+                display = option("toggle", "display", "Show it on screen", 1, { desc =
+                    "Counts down the minute you sit by a fire, then your camp buffs' hour. Move it in Edit Mode." }),
+                style = option("select", "style", "Style", 1.5, { disabled = hidden,
+                    values = { campfire = "Campfire in a ring", bar = "Bar", icons = "Buff icons" },
+                    sorting = { "campfire", "bar", "icons" },
+                    desc = "A burning campfire in a ring that counts down, a bar, or the camp buffs' own icons with "
+                        .. "the game's countdown on them." }),
                 nearby = option("toggle", "nearby", "When a campfire is nearby", 2, { disabled = hidden, desc =
                     "Shows the campfire when you're close enough to one to get camp buffs by sitting down." }),
                 keepShown = option("toggle", "keepShown", "Keep it up while camp buffs last", 3, { disabled = hidden,
@@ -841,9 +1113,9 @@ function C:BuildOptions()
                 warnAt = option("range", "warnAt", "Blink when camp buffs have (minutes left)", 4, {
                     min = 0, max = 30, step = 1, disabled = hidden, desc = "0 turns the warning off." }),
                 remind = option("toggle", "remind", "Blink once they've ended", 5, { disabled = hidden, desc =
-                    "Keeps a grey campfire blinking after your camp buffs end, until you sit by a campfire or click it." }),
+                    "Keeps it blinking after your camp buffs end, until you sit by a campfire or click it." }),
                 sound = option("toggle", "sound", "Play a sound", 6, { disabled = hidden, desc =
-                    "Plays the raid warning sound when the campfire starts blinking." }),
+                    "Plays the raid warning sound when it starts blinking." }),
             }),
             chat = ns.Section("Chat messages", 2, {
                 chat = option("toggle", "chat", "Say it in chat too", 1, { desc =
@@ -865,20 +1137,52 @@ function C:BuildOptions()
         look = { type = "group", name = "Look", order = 2, disabled = hidden, args = {
             campfire = ns.Section("Campfire", 1, {
                 size = option("range", "size", "Size", 1, { min = 32, max = 160, step = 1 }),
-                reset = { type = "execute", name = "Reset position", order = 2,
-                    desc = "Moves the campfire back to the middle of the screen, above your character.",
+                fireArt = option("toggle", "fireArt", "Fire", 2, { desc = "Off, the ring alone." }),
+                animate = option("toggle", "animate", "Animate the fire", 3, { disabled = noFire,
+                    desc = "Off, the fire stands still." }),
+                glow = option("toggle", "glow", "Glow", 4, { desc = "The fire's warm light around it." }),
+                backdrop = option("toggle", "backdrop", "Dark backdrop", 5, {
+                    desc = "A soft dark disc behind the fire, so it reads on any ground." }),
+            }, { hidden = notStyle("campfire") }),
+            bar = ns.Section("Bar", 1, {
+                barWidth = option("range", "barWidth", "Width", 1, { min = 80, max = 500, step = 1 }),
+                barHeight = option("range", "barHeight", "Height", 2, { min = 8, max = 60, step = 1 }),
+                barIcon = option("toggle", "barIcon", "Icon", 3, { desc = "The camp aura's icon at the bar's left." }),
+                texture = ns.MediaOption(profile, "statusbar", "texture", "Texture", 4, nil, apply),
+                border = option("range", "border", "Border", 5, { min = 0, max = 4, step = 1 }),
+                borderColor = option("color", "borderColor", "Border color", 6),
+                backgroundColor = option("color", "backgroundColor", "Background", 7),
+            }, { hidden = notStyle("bar") }),
+            icons = ns.Section("Icons", 1, {
+                iconSize = option("range", "iconSize", "Size", 1, { min = 16, max = 64, step = 1 }),
+                iconSpacing = option("range", "iconSpacing", "Space between", 2, { min = 0, max = 20, step = 1 }),
+            }, { hidden = notStyle("icons") }),
+            colors = ns.Section("Colors", 2, {
+                sittingColor = option("color", "sittingColor", "Sitting countdown", 1),
+                buffsColor = option("color", "buffsColor", "Camp buffs countdown", 2),
+                warnColor = option("color", "warnColor", "Ending soon", 3,
+                    { desc = "The countdown, and the border in the other styles, once the camp buffs are about to end." }),
+                textColor = option("color", "textColor", "Text", 4),
+                labelColor = option("color", "labelColor", "Second line", 5,
+                    { desc = "What to do (\"Keep sitting\"), under the time; on the bar, its left side." }),
+                warnTextColor = option("color", "warnTextColor", "Text when ending soon", 6),
+            }),
+            text = ns.Section("Text", 3, {
+                showTime = option("toggle", "showTime", "Time left", 1, {
+                    desc = "The time left, or what's going on when nothing counts down." }),
+                showLabel = option("toggle", "showLabel", "Second line", 2, { desc = "What to do." }),
+                font = ns.MediaOption(profile, "font", "font", "Font", 3, nil, apply),
+                fontSize = option("range", "fontSize", "Size", 4, { min = 8, max = 32, step = 1 }),
+                outline = option("select", "outline", "Outline", 5, ns.With({ desc = ns.OutlineDesc() }, outlines)),
+            }),
+            position = ns.Section("Position", 4, {
+                reset = { type = "execute", name = "Reset position", order = 1,
+                    desc = "Moves it back to the middle of the screen, above your character.",
                     func = function()
                         local p = C.db.profile
                         p.x, p.y = defaults.x, defaults.y
                         apply()
                     end },
-            }),
-            text = ns.Section("Text", 2, {
-                showText = option("toggle", "showText", "Show text", 1, { desc =
-                    "The time left and what to do, under the campfire." }),
-                font = ns.MediaOption(profile, "font", "font", "Font", 2, nil, apply),
-                fontSize = option("range", "fontSize", "Size", 3, { min = 8, max = 32, step = 1 }),
-                outline = option("select", "outline", "Outline", 4, ns.With({ desc = ns.OutlineDesc() }, outlines)),
             }),
         } },
     } }

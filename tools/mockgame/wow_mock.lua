@@ -329,7 +329,7 @@ for _, method in ipairs({ 'SetWordWrap', 'SetNonSpaceWrap', 'SetJustifyV', 'SetB
     'SetRotation', 'UpdateScrollChildRect', 'StartSizing', 'SetDontSavePosition', 'HighlightText', 'SetSnapToPixelGrid',
     -- Cooldown frames (Campfire Helper's ring).
     'SetDrawEdge', 'SetDrawBling', 'SetHideCountdownNumbers', 'SetSwipeTexture', 'SetSwipeColor', 'SetCooldown', 'Pause',
-    'Resume', 'SetMouseMotionEnabled', 'SetMouseClickEnabled' }) do ui[method] = noop end
+    'Resume', 'SetReverse', 'SetMouseMotionEnabled', 'SetMouseClickEnabled' }) do ui[method] = noop end
 function ui:SetEnabled(value) self.enabled = value and true or false end
 function ui:SetNormalTexture(value) self.normalTexture = value end
 function ui:SetPushedTexture(value) self.pushedTexture = value end
