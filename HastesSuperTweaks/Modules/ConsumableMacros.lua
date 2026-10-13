@@ -109,7 +109,7 @@ ns.Configure(M, defaults, function(self)
         return ns.Option(profile, "toggle", key, name, order, { desc = desc, disabled = disabled }, function() self:Refresh() end)
     end
     local macros = { help = { type = "description", order = 0,
-        name = "Each macro is kept up to date as your bags change. Turning one off leaves it as it is." } }
+        name = "Each macro is kept up to date as your bags change." } }
     for i, kind in ipairs(self.KINDS) do macros[kind.key] = toggle(kind.key, kind.macro, i) end
     macros.eatdrink.desc = "Eats and drinks in one click. In combat it uses a Healthstone with a mana potion, or a "
         .. "healing potion alone."
