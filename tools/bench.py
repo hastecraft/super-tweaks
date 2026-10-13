@@ -421,6 +421,9 @@ Section('Campfire Helper', function()
         mod('CampfireHelper').litAt = nil
         Send('CampfireHelper', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-2', 1229736, 0); AdvanceTime(0.2)
     end)
+    -- Off, and its timers run out, so none of them fire in the scenarios after this one.
+    HST:SetFeatureEnabled('CampfireHelper', false)
+    AdvanceTime(3700)
 end)
 
 Section('Battleground Alerts', function()
