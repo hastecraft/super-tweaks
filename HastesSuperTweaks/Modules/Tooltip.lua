@@ -619,7 +619,7 @@ function T:BuildOptions()
                         .. "grey when tapped by others). By health: green when full, yellow at half and red when low, also "
                         .. "in combat and dungeons." }),
                 healthColor = option("color", "healthColor", "Bar color", 4, {
-                    disabled = function() return not T.db.profile.healthBar or T.db.profile.colorBy ~= "CUSTOM" end }),
+                    hidden = function() return T.db.profile.colorBy ~= "CUSTOM" end, disabled = noBar }),
             }),
             size = section("Size", 2, {
                 barHeight = option("range", "barHeight", "Height", 1, { min = 2, max = 30, step = 1 }),
