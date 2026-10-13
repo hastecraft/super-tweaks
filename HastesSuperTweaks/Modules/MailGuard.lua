@@ -12,7 +12,7 @@ local G = HST:NewFeature("MailGuard", {
     examples = { "openAll", "items", { "guild", "Trust guild members" }, { "friends", "Trust friends" } },
     description = "Marks mail with gold from players who aren't your characters, friends or guildmates, and makes "
         .. "Open All leave it, since taking gold a gold seller sent you can get an account banned. Click the mark to "
-        .. "send the mail back. It lowers the risk; it can't promise anything.",
+        .. "send the mail back.",
 })
 ns.MailGuard = G
 -- Classic Era's Open All (loaded before addons) has no ShouldSkipCurrentMail to leave mail with, and its inbox no
@@ -41,9 +41,8 @@ ns.Configure(G, {
                 cod = option("cod", "Cash on delivery mail", 1, "Also marks mail asking you to pay on delivery."),
                 items = option("items", "Mail with items", 2, "Also marks mail with items, not only gold."),
                 openAll = option("openAll", "Open All leaves marked mail", 3,
-                    "Open All skips marked mail; open it yourself to take what's in it."),
-                announce = option("announce", "Say what Open All left", 4,
-                    "Prints how many marked mails Open All left in your inbox."),
+                    "Open it yourself to take what's in it."),
+                announce = option("announce", "Say what Open All left", 4),
             }),
             trust = ns.Section("Trust", 2, {
                 characters = option("characters", "Your characters", 1,

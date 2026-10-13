@@ -35,8 +35,8 @@ ns.Configure(E, { resources = true, cooldown = true, range = false, target = fal
         for _, kind in ipairs(m.KINDS) do
             args[kind.key] = ns.Option(profile, "toggle", kind.key, kind.name, kind.order, { desc = kind.desc }, function() m:Apply() end)
         end
-        args.combatOnly = ns.Option(profile, "toggle", "combatOnly", "Only in combat", #m.KINDS + 1,
-            { desc = "Out of combat, every message shows." }, function() m:Apply() end)
+        args.combatOnly = ns.Option(profile, "toggle", "combatOnly", "Only in combat", #m.KINDS + 1, nil,
+            function() m:Apply() end)
         return ns.OnePage(m.info.name, "hide", "Hide", args)
     end, "Apply")
 

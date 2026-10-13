@@ -47,8 +47,7 @@ ns.Configure(R, { keepLower = true, summary = true }, function(self)
         keepLower = ns.Option(profile, "toggle", "keepLower", "Leave lower ranks you placed", 1, { desc =
             "Only buttons with your previous highest rank get the new one, so lower ranks kept to save mana stay. "
             .. "Turn off to replace every lower rank." }),
-        summary = ns.Option(profile, "toggle", "summary", "Say what was upgraded", 2,
-            { desc = "Prints which spells were upgraded and on how many buttons." }),
+        summary = ns.Option(profile, "toggle", "summary", "Say what was upgraded", 2),
         upgradeAll = { type = "execute", name = "Upgrade all buttons now", order = 3,
             desc = "Puts your highest rank on every button with a lower rank, including ones you placed on purpose.",
             confirm = true, confirmText = "Put your highest rank on every button with a lower rank, including ones you placed on purpose?",

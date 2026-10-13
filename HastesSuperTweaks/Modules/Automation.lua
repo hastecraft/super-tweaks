@@ -508,7 +508,7 @@ local J = HST:NewFeature("SellJunk", {
 ns.SellJunk = J
 Settings(J,{ summary = true, keepGear = false, skipConfirm = false }, function(m) return {
     summary = Toggle(m, "summary", "Say what was sold", 1, "Prints how many items were sold and for how much."),
-    keepGear = Toggle(m, "keepGear", "Keep grey weapons and armor", 2, "Sells only grey items that can't be equipped."),
+    keepGear = Toggle(m, "keepGear", "Keep grey weapons and armor", 2),
     skipConfirm = Toggle(m, "skipConfirm", "Sell All Junk without asking", 3,
         "The vendor's own Sell All Junk button sells right away, without asking you to confirm."),
 } end)
@@ -826,7 +826,7 @@ ns.AutoRepair = A
 Settings(A, { guildFunds = false, summary = true }, function(m) return {
     guildFunds = Toggle(m, "guildFunds", "Use guild funds", 1,
         "Pays from the guild bank when your rank allows it, and from your gold for the rest."),
-    summary = Toggle(m, "summary", "Say what it cost", 2, "Prints the repair cost."),
+    summary = Toggle(m, "summary", "Say what it cost", 2),
 } end)
 
 A.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page

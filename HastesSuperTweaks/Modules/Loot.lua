@@ -229,7 +229,7 @@ Configure(L, defaults, function(m)
         general = { type = "group", name = "General", order = 1, args = {
             window = ns.Section("Loot window", 1, {
                 underMouse = option("toggle", "underMouse", "Open at the mouse", 1,
-                    { desc = "Turned off, it opens where you placed it in Edit Mode." }),
+                    { desc = "When off, it opens where you placed it in Edit Mode." }),
                 ownedCount = option("toggle", "ownedCount", "Show how many you have", 2,
                     { desc = "Adds how many of each item are already in your bags." }),
                 scale = option("range", "scale", "Scale", 3, { min = 0.6, max = 1.6, step = 0.05, isPercent = true }),
@@ -258,7 +258,6 @@ Configure(L, defaults, function(m)
                     desc = "In combat, clicks pass through the list and it fades on time, even under the mouse." }),
                 growUp = { type = "select", name = "Direction", order = 3, disabled = quiet,
                     values = { DOWN = "Grow down", UP = "Grow up" }, sorting = { "DOWN", "UP" },
-                    desc = "Grow down adds new items at the bottom. Grow up adds them on top.",
                     get = function() return m.db.profile.growUp and "UP" or "DOWN" end,
                     set = function(_, value) m.db.profile.growUp = value == "UP"; m:Refresh() end },
                 fade = option("range", "fade", "Show for (seconds)", 4, { min = 2, max = 10, step = 0.5, disabled = quiet,
@@ -267,7 +266,7 @@ Configure(L, defaults, function(m)
                 minQuality = option("select", "minQuality", "Lowest quality listed", 6, { disabled = quiet,
                     values = qualityNames, sorting = { 0, 1, 2, 3, 4 }, desc = "Quest items are always listed." }),
                 combineJunk = option("toggle", "combineJunk", "Combine junk into one line", 7,
-                    { desc = "Grey items share a single line with their total.", disabled = quiet }),
+                    { disabled = quiet }),
                 money = option("toggle", "money", "Show money", 8, { disabled = quiet,
                     desc = "Totals the money you loot, including group shares, at the bottom of the list." }),
                 vendorPrice = option("select", "vendorPrice", "Vendor price", 9, { disabled = quiet,

@@ -23,7 +23,7 @@ function S:BuildOptions()
             values = game and { HERE = "Here", GAME = "Game's combat text", OFF = "Off" } or { HERE = "Here", OFF = "Off" },
             sorting = game and { "HERE", "GAME", "OFF" } or { "HERE", "OFF" },
             desc = game and (desc and desc .. " " or "") .. "Game's combat text needs the game's Show Combat Text option "
-                .. "on, and a change to or from it shows there after a /reload." or desc,
+                .. "on. Switching to or from it takes a /reload." or desc,
             get = function()
                 local p = S.db.profile
                 return p[key] and "HERE" or game and p.gameNotices[key] and "GAME" or "OFF"
@@ -69,8 +69,8 @@ function S:BuildOptions()
         general = { type = "group", name = "General", order = 1, args = {
             main = Section("Combat text", 1, {
                 replaceBlizzard = toggle("replaceBlizzard", "Replace the game's combat text", 1,
-                    "Stops the game's own combat text from showing what this already shows, so nothing appears twice. "
-                        .. "Turning this off puts the game's settings back; its notices follow after a /reload."),
+                    "Stops the game's own combat text from showing the same things, so nothing appears twice. Its "
+                        .. "notices come back after a /reload when you turn this off."),
                 sample = { type = "execute", name = "Play sample", order = 2,
                     desc = "Shows sample texts in every area in use.",
                     func = function() S:PlaySample() end },
@@ -142,7 +142,7 @@ function S:BuildOptions()
                         .. "dealt it, and nameplate numbers need enemy nameplates shown. The game's own numbers shows only "
                         .. "your damage, with this font and the size under The game's numbers." }),
                 hideWorldDamage = enemyOption("toggle", "hideWorldDamage", "Hide the game's damage numbers", 2, {
-                    desc = "Turns off the game's floating damage numbers while this shows its own. Turning it off puts them back." }),
+                    desc = "Turns off the game's floating damage numbers while this shows its own." }),
                 skipTapped = enemyOption("toggle", "skipTapped", "Skip other players' mobs", 3,
                     { desc = "Shows nothing on mobs tapped by players outside your group." }),
                 enemyMisses = enemyOption("toggle", "enemyMisses", "Misses, dodges and parries", 4),
@@ -202,7 +202,6 @@ function S:BuildOptions()
                     desc = "A new alert replaces the one already showing for that ability instead of stacking up.",
                     disabled = function() return not S.db.profile.reactives end }),
                 reactiveBlink = option("toggle", "reactiveBlink", "Blink spell alerts", 4.5, {
-                    desc = "Alerts blink until they fade.",
                     disabled = function() return not S.db.profile.reactives end }),
                 comboPoints = toggle("comboPoints", "Combo points", 5),
                 buffs = notice("buffs", "Buffs gained", 6),

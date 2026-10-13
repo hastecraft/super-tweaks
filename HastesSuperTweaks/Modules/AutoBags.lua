@@ -15,9 +15,8 @@ ns.Configure(B, { boe = false, announce = true }, function(m)
     local function target() return m.db.profile end
     return ns.OnePage(m.info.name, "settings", "Settings", {
         boe = ns.Option(target, "toggle", "boe", "Include bind on equip bags", 1, { desc =
-            "Also equips bags that aren't bound yet, after the game asks you to confirm. Leave off to keep them for "
-                .. "selling or trading." }),
-        announce = ns.Option(target, "toggle", "announce", "Say what was equipped", 2, { desc = "Prints each bag equipped or swapped." }),
+            "Also equips bags that aren't bound yet, after the game asks you to confirm." }),
+        announce = ns.Option(target, "toggle", "announce", "Say what was equipped", 2),
     })
 end)
 
