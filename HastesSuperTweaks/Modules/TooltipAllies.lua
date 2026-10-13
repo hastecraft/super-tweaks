@@ -1,6 +1,6 @@
--- Better Tooltips, Recent Allies: on WoW Forever, players in your Recent Allies get a line saying where and when you
--- last played together, with your note on them and a pin if you pinned them. The game itself marks recent allies only
--- with an icon in chat and whisper tabs; the rest is in the Social window.
+-- Better Tooltips, Recent Allies: on WoW Forever, players in your Recent Allies get a line starting with the Social
+-- window's gold pin, saying where and when you last played together, and your note on them. The game itself marks
+-- recent allies only with an icon in chat and whisper tabs; the rest is in the Social window.
 -- Part of Better Tooltips (Tooltip.lua): its switch, profile and settings page are shared.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -10,9 +10,9 @@ local floor, max = math.floor, math.max
 
 T.defaults.profile.recentAllies = true
 
-local LABEL, NOTE = "Recent ally", "|cff999999Ally note:|r "
--- The pin the Social window's list shows beside allies you pinned.
-local PINNED = LABEL .. " |A:friendslist-recentallies-pin-yellow:12:12|a"
+local NOTE = "|cff999999Ally note:|r "
+-- The gold pin of the Social window's Recent Allies list, which starts the line.
+local PIN = "|A:friendslist-recentallies-pin-yellow:12:12|a "
 -- The events that say what the game knows about your allies changed.
 local DATA_EVENTS = { "RECENT_ALLIES_DATA_READY", "RECENT_ALLIES_CACHE_UPDATE", "RECENT_ALLY_DATA_UPDATED" }
 
@@ -42,12 +42,12 @@ local function Field(value, kind)
 end
 
 local MINUTE, HOUR, DAY = 60, 3600, 86400
--- The line's text, such as "The Deadmines · 2 days ago" (whole minutes, hours or days, at least one minute), and the
--- server time it changes.
+-- The line's text, the pin and then such as "The Deadmines · 2 days ago" (whole minutes, hours or days, at least one
+-- minute), and the server time it changes.
 local function Text(entry, now)
     local at, place = entry.at, entry.place
     if not at or at <= 0 then
-        entry.text, entry.stale = place or "", math.huge
+        entry.text, entry.stale = PIN .. (place or ""), math.huge
         return
     end
     local age = max(0, now - at)
@@ -55,21 +55,20 @@ local function Text(entry, now)
     if age >= DAY then unit, word = DAY, " day" elseif age >= HOUR then unit, word = HOUR, " hour" end
     local n = max(1, floor(age / unit))
     local ago = n .. word .. (n == 1 and " ago" or "s ago")
-    entry.text, entry.stale = place and (place .. " · " .. ago) or ago, at + (n + 1) * unit
+    entry.text, entry.stale = PIN .. (place and (place .. " · " .. ago) or ago), at + (n + 1) * unit
 end
 
 -- What the lines say about an ally, from the game's data on them: where (or else what) your latest time together was
--- and when (the game lists the newest first), your note and their pin. The game makes new tables for every call, so
+-- and when (the game lists the newest first), and your note. The game makes new tables for every call, so
 -- this is read once, and again after the game updates them.
 local function Read(guid)
     local data = RA.GetRecentAllyByGUID(guid)
     if type(data) ~= "table" then return false end
-    local state, together = data.stateData, data.interactionData
+    local together = data.interactionData
     local latest = together and type(together.interactions) == "table" and together.interactions[1]
     local context = latest and latest.contextData
     local note = Field(together and together.note, "string")
     local entry = {
-        label = Field(state and state.pinExpirationDate, "number") and PINNED or LABEL,
         place = Field(context and context.locationName, "string") or Field(latest and latest.description, "string"),
         at = Field(latest and latest.timestamp, "number"),
         note = note and (NOTE .. note),
@@ -100,7 +99,7 @@ local function AddLines(tip, guid)
         end
     end
     if not entry then return end
-    tip:AddDoubleLine(entry.label, entry.text, 0.6, 0.6, 0.6, 1, 1, 1)
+    tip:AddLine(entry.text, 1, 1, 1)
     if entry.note then tip:AddLine(entry.note, 1, 1, 1, true) end
 end
 
@@ -237,8 +236,8 @@ end
 ---------------------------------------------------------------------------
 -- Settings: a switch among the Extras page's extra lines, and the line in the settings preview.
 ---------------------------------------------------------------------------
-local DESC = "Players from your Recent Allies list (in the Social window) get a line with where and when you last "
-    .. "played together, your note on them, and a pin if you pinned them."
+local DESC = "Players from your Recent Allies list (in the Social window) get a line with a gold pin, where and when "
+    .. "you last played together, and your note on them."
 local DESC_OFF = DESC .. " The game has Recent Allies turned off right now."
 
 local Build = T.BuildOptions
@@ -267,7 +266,7 @@ function T:DrawPreview(frame)
     if shown and not v.ally then
         v.ally = ns.Widgets.Text(v.box, "GameFontHighlightSmall")
         v.ally:SetPoint("TOPLEFT", 8, -7 - 3 * 14)
-        v.ally:SetText("|cff999999" .. PINNED .. "|r  The Deadmines · 2 days ago")
+        v.ally:SetText(PIN .. "The Deadmines · 2 days ago")
         v.allyWidth = max(150, floor(v.ally:GetStringWidth() + 17))
     end
     if shown ~= v.allyShown then
