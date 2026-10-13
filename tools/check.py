@@ -8,9 +8,10 @@
 - with --base REF: the pull request leaves the patch notes' entries and the TOC's version alone (so CHANGELOG.md too).
   A release pull request (--release; CI passes it only for release/* branches of this repository) adds one entry on
   top and keeps every shipped entry, in order, with its version and date. Releases write those; see .claude/skills/release. (PatchNotes.lua's code
-  and comments may change.)
+  and comments may change.) With --notes-fix (CI passes it for the maintainer's patch-notes-fix label), edits to shipped
+  entries are a warning, to correct mistakes.
 
-Usage: python tools/check.py [--tag vX.Y.Z] [--base REF [--release]]
+Usage: python tools/check.py [--tag vX.Y.Z] [--base REF [--release | --notes-fix]]
 """
 from pathlib import Path
 import os
@@ -105,7 +106,11 @@ def main():
         else:
             later = 'describe the change for players in the pull request instead (see CONTRIBUTING.md)'
             if old != notes:
-                error(f'Patch notes entries are written at release time; {later}', NOTES)
+                if '--notes-fix' in sys.argv:
+                    print(f'::warning file={NOTES}::Shipped patch notes were edited; allowed with the patch-notes-fix '
+                          'label (only to correct mistakes)')
+                else:
+                    error(f'Patch notes entries are written at release time; {later}', NOTES)
             if toc_version(at_base('HastesSuperTweaks/HastesSuperTweaks.toc')) != version:
                 error('The TOC\'s ## Version is set at release time; leave it as it is (see CONTRIBUTING.md)',
                       'HastesSuperTweaks/HastesSuperTweaks.toc')
