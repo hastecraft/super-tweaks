@@ -460,8 +460,8 @@ end
 ---------------------------------------------------------------------------
 -- A list's description: how to fill it, and which spells its IDs are.
 local function ListDesc(key)
-    local text = "Spell IDs of buffs or debuffs on you, separated by commas or spaces; notes without numbers are fine. "
-        .. "Press Enter to apply."
+    local text = "Spell IDs of buffs or debuffs on you, separated by commas, spaces or lines; notes without numbers are "
+        .. "fine. Press Enter to apply, Shift+Enter for a new line."
     local names = {}
     for _, id in ipairs(A.Parse(A.db.profile[key])) do
         local name = SpellExists(id) and SpellName(id)
@@ -523,7 +523,8 @@ ns.Configure(A, defaults, function(m)
         local key = trigger.key
         own[key .. "Group"] = ns.Section(trigger.name, i, {
             [key] = ns.Option(profile, "input", key, "Spell IDs", 1,
-                { width = "full", desc = function() return ListDesc(key) end }, function() Committed(key) end),
+                { width = "full", multiline = true, desc = function() return ListDesc(key) end },
+                function() Committed(key) end),
             [key .. "Sound"] = ns.Option(profile, "select", key .. "Sound", "Sound", 2,
                 { values = values, sorting = sorting },
                 function() m:Preview(m.db.profile[key .. "Sound"]); m:Sync() end),
