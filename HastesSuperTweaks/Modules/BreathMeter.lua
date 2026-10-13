@@ -18,7 +18,7 @@ local defaults = {
     hideBlizzard = true, showTime = true, hideRefill = false,
     warnAt = 10, warnSound = true, warnPulse = true, warnColor = { 1, 0.15, 0.15, 1 },
     width = 240, height = 18, gap = 4, x = 0, y = 284,
-    texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 12, outline = "OUTLINE",
+    texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 12, outline = "OUTLINE", textColor = { 1, 1, 1, 1 },
     border = 1, borderColor = { 0, 0, 0, 1 }, backgroundColor = { 0.035, 0.045, 0.06, 0.9 },
     breathColor = { 0.2, 0.55, 1, 1 }, fatigueColor = { 1, 0.7, 0.1, 1 }, feignColor = { 0.4, 0.85, 0.4, 1 },
 }
@@ -72,6 +72,7 @@ local function Style(bar, p, font, flags)
     for _, text in ipairs({ bar.label, bar.time }) do
         ns.SetFont(text, font, p.fontSize, flags)
         text:SetShadowOffset(shadow, -shadow)
+        text:SetTextColor(unpack(p.textColor))
     end
     bar.time:SetShown(p.showTime)
     bar.shownColor, bar.shownKey = nil, nil
@@ -346,28 +347,75 @@ function B:ApplyEditMode() self:Apply() end
 ns.EditMode.Add(B)
 
 ---------------------------------------------------------------------------
--- Settings preview: a breath bar running out, red and pulsing at the end.
+-- Settings preview: a breath bar running out, red and pulsing at the end, then filling back up as you surface; under it
+-- a fatigue bar, or feign death's, every other pass.
 ---------------------------------------------------------------------------
+-- One preview bar for this moment, as B:Draw draws a timer: seconds left, nil while it fills back up.
+local function DrawSample(bar, p, value, seconds, color, now)
+    bar:SetValue(value)
+    if p.showTime then TimeText(bar, seconds) end
+    local warning = seconds and p.warnAt > 0 and seconds <= p.warnAt
+    SetColor(bar, warning and p.warnColor or color)
+    local alpha = warning and p.warnPulse and 0.55 + 0.45 * abs(cos(now * 4)) or 1
+    if bar.shownAlpha ~= alpha then bar.shownAlpha = alpha; bar:SetAlpha(alpha) end
+end
+
 function B.info.preview(frame)
     local p = B.db.profile
-    local bar = frame.hstBreath
-    if not bar then
-        bar = CreateBar(frame)
-        frame.hstBreath = bar
-        bar:SetPoint("CENTER")
-        bar:SetMinMaxValues(0, 1)
+    local v = frame.hstBreath
+    if not v then
+        v = { box = CreateFrame("Frame", nil, frame) }
+        frame.hstBreath = v
+        v.box:SetPoint("CENTER")
+        v.breath, v.other = CreateBar(v.box), CreateBar(v.box)
+        v.breath:SetMinMaxValues(0, 1)
+        v.other:SetMinMaxValues(0, 1)
+        v.breath.label:SetText(LABELS.BREATH)
     end
-    Style(bar, p, ns.Media("font", p.font), Flags(p))
-    bar:SetSize(min(p.width, 200), p.height)
-    bar.label:SetText(LABELS.BREATH)
-    local seconds = 15
+    local font, flags = ns.Media("font", p.font), Flags(p)
+    -- As wide as the preview allows; both bars and the space between them, smaller only to fit its height.
+    local width, step = min(p.width, 240), p.height + p.gap
+    local tall = step + p.height + p.border * 2
+    v.box:SetSize(width, step + p.height)
+    v.box:SetScale(min(1, 128 / tall))
+    Style(v.breath, p, font, flags)
+    Style(v.other, p, font, flags)
+    v.breath:SetWidth(width)
+    v.other:SetWidth(width)
+    v.breath.shownAlpha, v.other.shownAlpha = nil, nil
+    -- Laid out as B:Layout does: a bar hidden while it refills leaves its place to the next.
+    local function Place(refilling)
+        local hidden = refilling and p.hideRefill
+        v.breath:SetShown(not hidden)
+        v.breath:ClearAllPoints()
+        v.breath:SetPoint("TOP")
+        v.other:ClearAllPoints()
+        v.other:SetPoint("TOP", 0, hidden and 0 or -step)
+        v.placed = refilling
+    end
+    Place(false)
+    -- The other bar runs 45 seconds down to 29 of 60 each pass.
+    local seconds, last, feign = 15, 0, false
     ns.Widgets.Loop(frame, seconds + 1, function(t)
-        local left = max(0, seconds - t)
-        bar:SetValue(left / seconds)
-        TimeText(bar, left)
-        local warning = p.warnAt > 0 and left <= p.warnAt
-        SetColor(bar, warning and p.warnColor or p.breathColor)
-        bar:SetAlpha(warning and p.warnPulse and 0.55 + 0.45 * abs(cos(t * 4)) or 1)
+        -- Each pass starts over with full breath, the other bar taking turns between fatigue and feign death.
+        if t < last then
+            feign = not feign
+            v.other.label:SetText(LABELS[feign and "FEIGNDEATH" or "EXHAUSTION"])
+        elseif t == 0 then
+            v.other.label:SetText(LABELS.EXHAUSTION)
+        end
+        last = t
+        -- The last second you've surfaced: breath fills back up.
+        local refilling = t > seconds
+        if refilling ~= v.placed then Place(refilling) end
+        if refilling then
+            DrawSample(v.breath, p, t - seconds, nil, p.breathColor, t)
+        else
+            local left = seconds - t
+            DrawSample(v.breath, p, left / seconds, left, p.breathColor, t)
+        end
+        local other = 45 - t
+        DrawSample(v.other, p, other / 60, other, feign and p.feignColor or p.fatigueColor, t)
     end)
 end
 
@@ -383,8 +431,7 @@ function B:BuildOptions()
     return { name = B.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             main = ns.Section("Breath meter", 1, {
-                hideBlizzard = option("toggle", "hideBlizzard", "Replace the game's bars", 1, {
-                    desc = "Hides the game's own bars while this one shows." }),
+                hideBlizzard = option("toggle", "hideBlizzard", "Replace the game's bars", 1),
                 showTime = option("toggle", "showTime", "Seconds left", 2, {
                     desc = "Shows tenths for the last ten seconds." }),
                 hideRefill = option("toggle", "hideRefill", "Hide while refilling", 3, {
@@ -429,6 +476,7 @@ function B:BuildOptions()
                 fontSize = option("range", "fontSize", "Size", 2, { min = 6, max = 32, step = 1 }),
                 outline = option("select", "outline", "Outline", 3, ns.With({
                     desc = ns.OutlineDesc() }, outlines)),
+                textColor = option("color", "textColor", "Text color", 4),
             }),
         } },
     } }

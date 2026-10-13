@@ -29,7 +29,7 @@ HST.patchNotes = {
                 module = "BlockFriendRequests" },
             { "Better Scrolling Combat Text: combo point notices keep up when you switch targets.",
                 module = "CombatText", path = { "notices" }, setting = "comboPoints" },
-            { "Hide Issue Reporter is unavailable outside the beta and test clients, where there's no Issue Reporter to hide.",
+            { "Hide Issue Reporter is unavailable outside the beta and test clients.",
                 module = "HideIssueReporter" },
         },
     },
@@ -37,7 +37,7 @@ HST.patchNotes = {
         version = "1.2.0", date = "2026-10-12",
         summary = "Easier settings pages, and Hide Issue Reporter now starts off.",
         highlights = {
-            { "Pages with sub-pages have an Overview button, so picking a sub-page never strands you away from the page's own settings.",
+            { "Pages with sub-pages have an Overview button that takes you back to the page's own settings.",
                 title = "Find your way back", module = "CombatText", path = { "notices" } },
         },
         new = {
@@ -76,7 +76,7 @@ HST.patchNotes = {
             { "XP Tracker: Click-through now starts on, so clicks and camera drags reach the world behind the locked bar. Turn it off for the tooltip and right-click settings.",
                 module = "XPTracker", path = { "general" }, setting = "clickThrough" },
             { "Quest XP in Quest Log says it needs Questie on WoW Forever, which doesn't tell addons how much XP a quest gives.", module = "QuestXP" },
-            { "Minimap Button starts in a new spot, clear of other addons' minimap buttons. Drag it wherever you like.", module = "MinimapButton" },
+            { "Minimap Button starts in a new spot, clear of other addons' minimap buttons.", module = "MinimapButton" },
         },
         fixed = {
             { "XP Tracker no longer prints your /played time in chat at every login.", module = "XPTracker" },
