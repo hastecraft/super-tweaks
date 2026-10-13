@@ -27,7 +27,7 @@ By contributing, you agree that your work is licensed under the [MPL-2.0](LICENS
 
 ## Making a change
 
-- Work on a branch, and keep each pull request to one change.
+- Work on a branch from `master`. One pull request per tweak: if one is already open for the tweak you're changing, add to it (or ask its author) instead of opening another. Don't base a pull request on another pull request's branch.
 - Match the code around you: its naming, comment style and structure.
 - Test in game. CI can't run the game, so say in the pull request which client you tested on (WoW Forever or Classic Era) and what you did.
 - Mind the cost. The addon promises minimal performance impact. Prefer events over OnUpdate, register frequent events only while needed, make no garbage per event, and make sure a turned-off tweak costs nothing. [AGENTS.md](AGENTS.md#cost-as-little-as-possible) has the details.
@@ -67,7 +67,7 @@ Don't edit the patch notes entries in `PatchNotes.lua`, the TOC's `## Version` o
 python tools/bench.py
 ```
 
-This loads the addon into a mocked game and counts the work done per operation on its hot paths: game API calls, widget calls, frames and regions created, event handlers run, and memory allocated. It covers every tweak's frequent events, a login, and each tweak alone, and checks that turned-off tweaks cost nothing. The counts are the same on every run, so compare before and after your change. CI runs the bench on every pull request and on its base branch, and posts the difference in the Performance check's summary. More work fails the check, unless the maintainer agrees the cost is worth it. If you add something that runs often, add a scenario for it to `tools/bench.py`.
+This loads the addon into a mocked game and counts the work done per operation on its hot paths: game API calls, widget calls, frames and regions created, event handlers run, and memory allocated. It covers every tweak's frequent events, a login, and each tweak alone, and checks that turned-off tweaks cost nothing. The counts are the same on every run, so compare before and after your change. CI runs the bench on every pull request and on its base branch, and posts the difference in the Performance check's summary. Only a major regression fails the check: any more work with every tweak off, new garbage per run on a tweak's own hot paths, or a count there up by more than 10%. Scenarios with every tweak on, startup and the settings window are reported only, since a new tweak always adds work there, and so are scenarios whose tweak isn't on the base branch yet. The maintainer can accept a regression that's worth it with the `perf-accepted` label. If you add something that runs often, add a scenario for it to `tools/bench.py`.
 
 The bench counts work; it doesn't time the real game. For a real-world check, compare FPS in a busy spot with the tweak on and off.
 
@@ -79,7 +79,7 @@ Every pull request runs:
 | --- | --- |
 | PR title | The title follows [Conventional Commits](#commit-messages-and-pull-request-titles). |
 | Lint | [luacheck](https://github.com/lunarmodules/luacheck) with `.luacheckrc`: accidental globals, unused variables, syntax errors. |
-| Checks | `tools/check.py`: the TOC's files exist, and the patch notes and version are untouched. |
+| Checks | `tools/check.py`: the TOC's files exist, and the patch notes and version are untouched (the maintainer's `patch-notes-fix` label allows correcting shipped patch notes). |
 | Performance | The bench comparison described above. |
 | Package | Builds the addon ZIP. Download it from the run's artifacts to try the pull request in game. |
 
