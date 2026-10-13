@@ -248,7 +248,7 @@ end)
 local F = Block("BlockFriendRequests", {
     name = "Auto-Decline Battle.net Friend Requests", category = "decline", order = 1, enabledByDefault = false,
     summary = "Turns down Battle.net friend requests.",
-    description = "Turns down Battle.net friend requests and tells you who sent them. Friend requests sent in the game, by character name, are left to you.",
+    description = "Turns down Battle.net friend requests and tells you who sent them.",
     preview = Declined("Interface\\FriendsFrame\\Battlenet-Battleneticon", "Gankalot#1234 wants to be your Battle.net friend.",
         "Declined a Battle.net friend request from Gankalot."),
 -- Requests sent while you were offline arrive with the invite list after login, not as added ones.

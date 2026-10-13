@@ -785,7 +785,7 @@ S.TIP_COLOR, S.KEEP_COLOR = { 0.95, 0.6, 0.25 }, { 0.45, 0.8, 0.45 }
 -- Adds the tooltip line for an item, if it gets one.
 function S:TooltipLine(tip, itemID)
     if IsSecret(itemID) or type(itemID) ~= "number" or not (self:IsEnabled() and self.db.profile.tooltip) then return end
-    local c, text = self.KEEP_COLOR, "Never sold: on your Never sell list"
+    local c, text = self.KEEP_COLOR, "On your Never sell list"
     if not self:Keeps(itemID) then
         if not self.db.profile.sell[itemID] and not self:Item(itemID) then return end
         local info, bag, slot = TooltipSlot(tip, itemID)
