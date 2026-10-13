@@ -215,8 +215,11 @@ local function NewCooldown(parent, ring)
     if ring then
         cd:SetSwipeTexture(RING_ART) -- the part of the ring left is the time left
     else
-        cd:SetReverse(true) -- darkening as time passes, as the game's buff buttons do
+        -- Darkening as time passes, as the game's buff buttons do. A cooldown made without the game's template has no
+        -- swipe texture, and draws nothing until it gets one (CooldownFrameTemplate's is a plain color).
+        cd:SetSwipeTexture(ns.WHITE)
         cd:SetSwipeColor(0, 0, 0, 0.65)
+        cd:SetReverse(true)
     end
     cd:Hide()
     return cd
