@@ -665,8 +665,8 @@ function M:Mood()
     if mood and last and mood < last and self.MOODS[mood] then HST:Print(self.MOODS[mood]) end
 end
 
--- The events only some macros need, listened to only while those are kept: your pet changing and its happiness
--- (hunters), and your weapons changing. watched skips registering what already is.
+-- The events only some macros need, listened to only while those are kept: your pet changing, leveling (the best food
+-- for it goes by its level) and its happiness (hunters), and your weapons changing. watched skips registering what already is.
 local watched = {}
 local function Follow(frame, event, on, unit)
     on = on and true or false
@@ -680,6 +680,7 @@ function M:Watch()
     local p, on = self.db.profile, self:IsEnabled()
     local hunter = on and p.pet and Class() == "HUNTER"
     Follow(frame, "UNIT_PET", hunter, "player")
+    Follow(frame, "UNIT_LEVEL", hunter, "pet")
     Follow(frame, "UNIT_HAPPINESS", hunter and p.petMood, "pet")
     Follow(frame, "PLAYER_EQUIPMENT_CHANGED", on and (p.mainhand or p.offhand))
     self.handsRead, self.mood = false, hunter and p.petMood and PetMood() or nil
