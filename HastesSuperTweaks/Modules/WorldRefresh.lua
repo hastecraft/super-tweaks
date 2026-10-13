@@ -27,7 +27,7 @@ local defaults = {
     chat = true, startSound = true, flash = true,
     warnAt = 60, warnSound = true, warnMessage = true, warnPulse = true,
     showLabel = true, width = 220, height = 20, x = 0, y = -180,
-    texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 12, outline = "OUTLINE",
+    texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 12, outline = "OUTLINE", textColor = { 1, 1, 1, 1 },
     border = 1, borderColor = { 0, 0, 0, 1 }, backgroundColor = { 0.035, 0.045, 0.06, 0.9 },
     barColor = { 0.51, 0.77, 1, 1 }, warnColor = { 1, 0.3, 0.2, 1 }, autoColor = { 0.35, 0.85, 0.45, 1 },
 }
@@ -150,6 +150,7 @@ local function Style(bar, p, font, flags)
     for _, text in ipairs({ bar.label, bar.time }) do
         ns.SetFont(text, font, p.fontSize, flags)
         text:SetShadowOffset(shadow, -shadow)
+        text:SetTextColor(unpack(p.textColor))
     end
     bar.label:SetShown(p.showLabel)
     bar.shownLabel, bar.shownTime, bar.shownColor = nil, nil, nil
@@ -556,6 +557,7 @@ function R:BuildOptions()
                 fontSize = option("range", "fontSize", "Size", 3, { min = 6, max = 32, step = 1 }),
                 outline = option("select", "outline", "Outline", 4, ns.With({
                     desc = ns.OutlineDesc() }, outlines)),
+                textColor = option("color", "textColor", "Text color", 5),
             }),
         } },
     } }
