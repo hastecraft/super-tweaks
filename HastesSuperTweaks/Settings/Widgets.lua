@@ -980,8 +980,8 @@ end
 
 -- A text box `lines` lines tall (3 unless given) for long text, such as word lists: the label above it, the text
 -- wrapping inside it and scrolling past that. Enter applies, Shift+Enter starts a new line, Escape reverts; unsaved
--- edits light the border. It takes text of any length.
-function W.TextAreaRow(parent, lines)
+-- edits light the border. It takes text of any length. Given onEdit, the box is live, as W.InputRow's is.
+function W.TextAreaRow(parent, lines, onEdit)
     local c = NewRow(parent)
     c:EnableMouse(true)
     local box = CreateFrame("Frame", nil, c)
@@ -1019,7 +1019,15 @@ function W.TextAreaRow(parent, lines)
     area:SetScript("OnMouseWheel", function(self, delta) self:ScrollTo(self:GetVerticalScroll() - delta * line * 2) end)
     e:SetScript("OnEditFocusGained", paint)
     e:SetScript("OnEditFocusLost", paint)
-    e:SetScript("OnTextChanged", paint)
+    if onEdit then
+        c.live = true
+        e:SetScript("OnTextChanged", function(self, userInput)
+            paint()
+            if userInput then onEdit(self:GetText()) end
+        end)
+    else
+        e:SetScript("OnTextChanged", paint)
+    end
     e:SetScript("OnEscapePressed", function(self) self:SetText(c.saved or ""); self:ClearFocus() end)
     e:SetScript("OnEnterPressed", function(self)
         if IsShiftKeyDown() then return self:Insert("\n") end
@@ -1049,9 +1057,11 @@ function W.TextAreaRow(parent, lines)
         return height
     end
     function c:SetValue(text, off)
-        -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile.
+        -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile. A
+        -- live box's edits are already saved, so it only follows changes made elsewhere.
         local saved = text or ""
-        local kept = e:HasFocus() or (saved == self.saved and dirty())
+        local kept
+        if self.live then kept = e:GetText() == saved else kept = e:HasFocus() or (saved == self.saved and dirty()) end
         self.saved = saved
         if not kept then e:SetText(saved) end
         e:SetEnabled(not off)
