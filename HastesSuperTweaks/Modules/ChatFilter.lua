@@ -1,6 +1,6 @@
 -- Chat Spam Filter: hides messages in public channels (trade, general, looking for group and the like) that match your
--- word lists, by default gold selling, boosting and guild recruitment. Whispers, group, raid and guild chat are never
--- looked at, and neither are you, your friends and your guildmates.
+-- word lists, by default gold selling, boosting and guild recruitment, and everything from guilds you mute. Whispers,
+-- group, raid and guild chat are never looked at, and neither are you, your friends and your guildmates.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -9,11 +9,11 @@ local find, lower = string.find, string.lower
 
 local F = HST:NewFeature("ChatFilter", {
     name = "Chat Spam Filter", category = "social", order = 2.5, command = "spam", enabledByDefault = false,
-    summary = "Hides gold selling, boosting and guild recruitment in public channels.",
+    summary = "Hides gold selling, boosting, guild recruitment and guilds you mute in public channels.",
     examples = { "gold", "boosting", "recruitment", "guildTags" },
     description = "Hides messages in trade, general and other public channels that match your word lists: gold "
-        .. "selling, boosting, guild recruitment and words of your own. Whispers, group and guild chat, and your "
-        .. "friends and guildmates, are never hidden.",
+        .. "selling, boosting, guild recruitment and words of your own, and everything from guilds you mute. Whispers, "
+        .. "group and guild chat, and your friends and guildmates, are never hidden.",
 })
 ns.ChatFilter = F
 
@@ -31,7 +31,7 @@ F.LISTS = {
 }
 
 local defaults = { gold = true, boosting = true, recruitment = true, custom = true, guildTags = false,
-    customChannels = false, sayYell = false }
+    customChannels = false, sayYell = false, mutedGuilds = "" }
 for _, list in ipairs(F.LISTS) do defaults[list.words] = list.default end
 
 F.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
@@ -75,6 +75,8 @@ end
 ---------------------------------------------------------------------------
 local active = {} -- the word lists that are on, each an array of lowercase words
 local tags -- whether a <Guild Name> hides a message
+-- Muted guilds: their lowercase names as a set, and as "<name>" (a message naming one so is hidden too); whether any is.
+local muted, mutedTags, muting = {}, {}, false
 
 -- The words of a comma-separated list, trimmed and lowercased; empty entries are dropped.
 function F.Words(text)
@@ -96,6 +98,12 @@ function F:Compile()
         end
     end
     tags = p.guildTags
+    wipe(muted); wipe(mutedTags)
+    for _, guild in ipairs(self.Words(p.mutedGuilds)) do
+        muted[guild] = true
+        mutedTags[#mutedTags + 1] = "<" .. guild .. ">"
+    end
+    muting = #mutedTags > 0
 end
 
 -- Whether a message (lowercased) is spam by the lists that are on.
@@ -110,6 +118,47 @@ local function Spam(text)
     return tags and find(text, "<%a[^<>]-%a>") ~= nil
 end
 
+---------------------------------------------------------------------------
+-- Muted guilds. Chat doesn't say a sender's guild, and the game only tells a player's guild while they're a unit you
+-- can point at (your target, the mouseover, a nameplate). So members are learned as you see them, and as they talk
+-- while they're one of those, and remembered by GUID (members of muted guilds only) across sessions.
+---------------------------------------------------------------------------
+local lowered = {} -- guild names as the game gives them, lowercased, read once each
+local function GuildOf(unit)
+    local guild = GetGuildInfo(unit)
+    if IsSecret(guild) or not guild or guild == "" then return nil end
+    local key = lowered[guild]
+    if not key then key = lower(guild); lowered[guild] = key end
+    return key
+end
+
+-- Notes whether a player unit is in a muted guild, and returns that guild (nil when not, or when it can't be told).
+function F:Learn(unit)
+    local guid = UnitGUID(unit)
+    if IsSecret(guid) or not guid then return nil end
+    local player = UnitIsPlayer(unit)
+    if IsSecret(player) or not player then return nil end
+    local members, guild = self.db.global.guildMembers, GuildOf(unit)
+    -- No guild yet may only mean the game hasn't been told it: what's known stays.
+    if not guild then return members[guid] end
+    members[guid] = muted[guild] and guild or nil
+    return members[guid]
+end
+
+-- Whether a message (lowercased) is from a member of a muted guild, or names one as <Guild>.
+local function Muted(guid, text)
+    for i = 1, #mutedTags do
+        if find(text, mutedTags[i], 1, true) then return true end
+    end
+    if not guid then return false end
+    local guild = F.db.global.guildMembers[guid]
+    if not guild and UnitTokenFromGUID then
+        local unit = UnitTokenFromGUID(guid)
+        if not IsSecret(unit) and unit then guild = F:Learn(unit) end
+    end
+    return guild ~= nil and muted[guild] == true
+end
+
 -- The chat line last looked at, and whether it was hidden; your GUID, read as the filter is put on.
 local lastLine, lastHidden, me = nil, false, nil
 F.hidden = 0
@@ -122,9 +171,10 @@ local function Filter(_, event, text, sender, _, _, _, _, zoneChannel, _, _, _, 
     lastLine, lastHidden = line, false
     if event == "CHAT_MSG_CHANNEL" and not F.db.profile.customChannels
         and (IsSecret(zoneChannel) or not zoneChannel or zoneChannel == 0) then return false end
-    if not Spam(lower(text)) then return false end
-    -- You, your friends and your guildmates are never hidden (only asked about once a message matches).
     if IsSecret(guid) then guid = nil end
+    local lowerText = lower(text)
+    if not Spam(lowerText) and not (muting and Muted(guid, lowerText)) then return false end
+    -- You, your friends and your guildmates are never hidden (only asked about once a message matches).
     if guid and guid == me then return false end
     if ns.IsFrom(sender, guid, true, true, false) then return false end
     lastHidden = true
@@ -139,6 +189,10 @@ if not (AddFilter and RemoveFilter) then F.info.unavailable = "This client doesn
 
 -- Filters the channels chosen while on. The filters are taken off again when it's turned off, so chat costs nothing then.
 local EVENTS = { "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_YELL" }
+-- Where players' guilds are learned while any guild is muted, and the unit each event is for (nameplates give theirs).
+local LEARN = { UPDATE_MOUSEOVER_UNIT = "mouseover", PLAYER_TARGET_CHANGED = "target", NAME_PLATE_UNIT_ADDED = false }
+local learner
+local function OnLearn(_, event, unit) F:Learn(LEARN[event] or unit) end
 function F:Apply()
     if not AddFilter then return end
     self:Compile()
@@ -151,6 +205,20 @@ function F:Apply()
         if wanted then AddFilter(event, Filter) end
     end
     lastLine, lastHidden = nil, false
+    -- Members of guilds no longer muted are forgotten.
+    local members = self.db.global.guildMembers
+    for guid, guild in pairs(members) do
+        if not muted[guild] then members[guid] = nil end
+    end
+    if on and muting then
+        if not learner then
+            learner = CreateFrame("Frame")
+            learner:SetScript("OnEvent", OnLearn)
+        end
+        for event in pairs(LEARN) do learner:RegisterEvent(event) end
+    elseif learner then
+        learner:UnregisterAllEvents()
+    end
 end
 
 function F:OnEnable() self:Apply() end
@@ -183,7 +251,18 @@ ns.Configure(F, defaults, function(m)
         general = { type = "group", name = "General", order = 1, args = {
             hide = ns.Section("Hide", 1, lists),
             words = ns.Section("Word lists", 2, words),
-            channels = ns.Section("Where", 3, {
+            guilds = ns.Section("Muted guilds", 3, {
+                help = { type = "description", order = 0, name = function()
+                    local count = 0
+                    for _ in pairs(m.db.global.guildMembers) do count = count + 1 end
+                    return "Hides everything their members say where this filters, and messages naming one as <Guild>. "
+                        .. "The game doesn't say who's in a guild until you see them: members are recognized once "
+                        .. "you've pointed at or targeted them, their nameplate showed, or they spoke while one of "
+                        .. "those, and are remembered after that. Members recognized: " .. count .. "." end },
+                mutedGuilds = ns.Option(profile, "input", "mutedGuilds", "Guilds", 1, { width = "full",
+                    desc = "Guild names, separated by commas; capitals don't matter. Press Enter to apply." }, apply),
+            }),
+            channels = ns.Section("Where", 4, {
                 help = { type = "description", order = 0, name = function()
                     return "Trade, general, local defense and looking for group are always filtered. Hidden since you "
                         .. "logged in: " .. m.hidden .. "." end },
@@ -194,3 +273,5 @@ ns.Configure(F, defaults, function(m)
         } },
     } }
 end, "Apply")
+-- Members of muted guilds, by GUID: their guild, lowercased (see F:Learn).
+F.defaults.global = { guildMembers = {} }
