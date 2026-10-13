@@ -63,7 +63,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 **Interface:** Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Druid Mana in Forms (your mana under the player frame in cat and bear form), Elite & Rare Markers (dragons on nameplates and a rare alert), Error Message Filter, Minimap Button, Game Settings (camera distance, nameplate range, spell queue window, threat percentage, outlines, map fade and other settings the game's options don't show, reapplied at login, plus Edit Mode layout backups), Hide Issue Reporter.
 
-**Sound:** Mute Mount Sounds, Mute Custom Sounds (rain, spell fizzle, or any sound file ID).
+**Sound:** Mute Mount Sounds, Mute Custom Sounds (rain, spell fizzle, or any sound file ID), Aura Sounds (a sound when the buffs or debuffs you choose appear or fade, in combat too).
 
 ## Install
 
