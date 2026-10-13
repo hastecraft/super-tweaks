@@ -12,6 +12,9 @@ HST.settingsPanel = P
 local TITLE, SIDEBAR, PAD, GAP, CARD_PAD = 44, 216, 16, 12, 14
 local NAV_ROW, MODULE_ROW, RESULT_ROW = 24, 46, 40
 local MIN_W, MIN_H, DEFAULT_W, DEFAULT_H = 820, 480, 1000, 640
+-- The sidebar can be dragged between these widths (SIDEBAR is its default), as far as the main area keeps the width it
+-- has in the smallest window.
+local SIDEBAR_LEAST, SIDEBAR_MOST = 170, 400
 -- The overview's details pane, a share of the main area within these widths.
 local DETAIL_LEAST, DETAIL_MOST = 240, 300
 local MIN_SCALE, MAX_SCALE = 0.6, 1.5
@@ -25,8 +28,8 @@ local SIDE_LEAST, SIDE_MOST, TOP_LEAST, TOP_MOST = 260, 380, 92, 192
 -- struck-through logo (over the dimmed preview, or above the title without one).
 local OFF_PAD, OFF_WIDTH, OFF_PREVIEW, OFF_ICON = 20, 460, 190, 56
 
--- How the window was left, saved account-wide: size, scale, place, whether previews show and which sidebar
--- categories are open.
+-- How the window was left, saved account-wide: size, scale, place, sidebar width, whether previews show and which
+-- sidebar categories are open.
 local function State()
     local global = HST.db.global
     local state = global.window
@@ -1142,7 +1145,7 @@ function P:Create()
     self:CreateTitleBar(f)
     self:CreateSidebar(f)
     local main = CreateFrame("Frame", nil, f)
-    main:SetPoint("TOPLEFT", SIDEBAR + 1, -TITLE - 1)
+    main:SetPoint("TOPLEFT", self.sidebar, "TOPRIGHT")
     main:SetPoint("BOTTOMRIGHT", -1, 1)
     self:CreateOverview(main)
     self:CreatePageView(main)
@@ -1174,6 +1177,7 @@ function P:Create()
         W.ShowTooltip(g, "Resize", "Drag to resize the window. Right-click for the default size.")
     end)
     grip:SetScript("OnLeave", function(g) paint(); W.HideTooltip(g) end)
+    self:CreateSidebarEdge(f, grip:GetFrameLevel())
     self:ApplyScale(state.scale or 1)
     self:SetSize(state.width or DEFAULT_W, state.height or DEFAULT_H)
     f:ClearAllPoints()
@@ -1206,7 +1210,21 @@ function P:Resized(width, height)
     width, height = math.floor(width + 0.5), math.floor(height + 0.5)
     if width == self.width and height == self.height then return end
     self.width, self.height = width, height
-    local main = width - SIDEBAR - 2
+    self:Layout()
+end
+
+-- The widest the sidebar can be in a window this wide.
+function P:SidebarMost() return Clamp(self.width - MIN_W + SIDEBAR, SIDEBAR_LEAST, SIDEBAR_MOST) end
+
+-- Lays the sidebar and main area out for the window's width and the sidebar's.
+function P:Layout()
+    local sidebar = Clamp(State().sidebar or SIDEBAR, SIDEBAR_LEAST, self:SidebarMost())
+    if sidebar ~= self.sidebarWidth then
+        self.sidebarWidth = sidebar
+        self.sidebar:SetWidth(sidebar)
+        self.navArea.child:SetWidth(sidebar - 9)
+    end
+    local main = self.width - sidebar - 2
     self.detailWidth = Clamp(math.floor(main * 0.38), DETAIL_LEAST, DETAIL_MOST)
     self.detail:SetWidth(self.detailWidth)
     -- Its texts get widths of their own, so their wrapped heights are right the moment they are set.
@@ -1356,6 +1374,7 @@ local PIP_LIT = { C.line[1], C.line[2], C.line[3], 0.55 }
 
 function P:CreateSidebar(f)
     local sidebar = CreateFrame("Frame", nil, f)
+    self.sidebar = sidebar
     sidebar:SetPoint("TOPLEFT", 1, -TITLE - 1)
     sidebar:SetPoint("BOTTOMLEFT", 1, 1)
     sidebar:SetWidth(SIDEBAR)
@@ -1444,6 +1463,55 @@ function P:CreateSidebar(f)
     self.navArea:SetPoint("TOPLEFT", 0, -56)
     self.navArea:SetPoint("BOTTOMRIGHT", bottom, "TOPRIGHT", -8, 4)
     self.navArea.child:SetWidth(SIDEBAR - 9)
+end
+
+-- The sidebar's right edge: drag it to widen or narrow the sidebar, right-click for its default width. It lights while
+-- pointed at and turns gold while dragged; the drag follows the cursor once a frame, and only while dragging.
+function P:CreateSidebarEdge(f, level)
+    local edge = CreateFrame("Button", nil, f)
+    edge:SetPoint("TOPLEFT", self.sidebar, "TOPRIGHT", -1, 0)
+    edge:SetPoint("BOTTOMLEFT", self.sidebar, "BOTTOMRIGHT", -1, 0)
+    edge:SetWidth(6)
+    edge:SetFrameLevel(level)
+    edge.line = W.Fill(edge, C.line, "OVERLAY")
+    edge.line:SetPoint("TOPLEFT"); edge.line:SetPoint("BOTTOMLEFT"); edge.line:SetWidth(2)
+    edge.line:Hide()
+    local grab
+    local function paint()
+        local dragging = grab ~= nil
+        edge.line:SetShown(dragging or edge:IsMouseOver())
+        edge.line:SetColorTexture(unpack(dragging and C.accent or C.line))
+    end
+    local function follow()
+        local x = GetCursorPosition() / f:GetEffectiveScale()
+        local width = math.floor(x - grab - self.sidebar:GetLeft() + 0.5)
+        width = Clamp(width, SIDEBAR_LEAST, self:SidebarMost())
+        if width == self.sidebarWidth then return end
+        State().sidebar = width
+        self:Layout()
+    end
+    local function stop()
+        if not grab then return end
+        grab = nil
+        edge:SetScript("OnUpdate", nil)
+        paint()
+    end
+    edge:RegisterForClicks("RightButtonUp")
+    edge:SetScript("OnMouseDown", function(_, button)
+        if button ~= "LeftButton" then return end
+        -- Where on the edge it was taken, so the edge stays under the cursor.
+        grab = GetCursorPosition() / f:GetEffectiveScale() - self.sidebar:GetRight()
+        edge:SetScript("OnUpdate", follow)
+        paint()
+    end)
+    edge:SetScript("OnMouseUp", stop)
+    edge:SetScript("OnHide", stop)
+    edge:SetScript("OnClick", function()
+        State().sidebar = nil
+        self:Layout()
+    end)
+    edge:SetScript("OnEnter", paint)
+    edge:SetScript("OnLeave", paint)
 end
 
 function P:CreateSearch(sidebar)
@@ -2442,7 +2510,7 @@ end
 
 -- The page view's widths: settings, and the preview (beside them, above them, or none).
 function P:PageGeometry()
-    local main = self.width - SIDEBAR - 2
+    local main = self.width - self.sidebarWidth - 2
     local info = self.pageInfo
     local dock
     if HasPagePreview(info) then
