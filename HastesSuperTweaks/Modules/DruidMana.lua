@@ -21,6 +21,12 @@ local D = HST:NewFeature("DruidMana", {
 })
 ns.DruidMana = D
 
+-- Only druids shift into forms; for any other class this can't be turned on.
+local CLASS = select(2, UnitClass("player"))
+if not IsSecret(CLASS) and type(CLASS) == "string" and CLASS ~= "DRUID" then
+    D.info.unavailable = "Only druids have forms."
+end
+
 local MANA = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 -- x and y place the bar's top middle from the player frame's bottom middle: under its health and power bars.
 local defaults = {
