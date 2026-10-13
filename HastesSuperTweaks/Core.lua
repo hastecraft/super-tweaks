@@ -162,6 +162,8 @@ function HST:FixCharacterKey()
     self.charKey = key
     local regional = ns.RegionalNames()
     local shared = regional and (first .. " - " .. db.keys.realm) or nil
+    -- AceDB still saves profile choices under the shared entry; it keeps the choice it had, for the others.
+    self.sharedKey, self.sharedChoice = shared, shared and db.sv.profileKeys[shared]
     local databases = { db }
     for _, child in pairs(db.children or {}) do databases[#databases + 1] = child end
     for _, child in ipairs(databases) do
@@ -205,6 +207,7 @@ function HST:SaveProfileChoice()
     keys[self.charKey] = self.db.keys.profile
     keys[UNKNOWN_NAME .. " - " .. self.db.keys.realm] = nil
     if ns.RegionalNames() then keys[UNKNOWN_NAME] = nil end
+    if self.sharedKey then keys[self.sharedKey] = self.sharedChoice end
 end
 
 -- Counts profile switches, copies, resets and deletes. Work begun for one profile (an open color picker, a
@@ -215,6 +218,8 @@ function HST:OnProfileEvent(event)
     -- Before a switch or delete (OnProfileShutdown) an open color picker ends while its profile is still active.
     if ns.Widgets then ns.Widgets.EndColorEdit() end
     if event == "OnProfileShutdown" then return end
+    -- Deleting the shared entry's profile takes the choice away from it too.
+    if event == "OnProfileDeleted" and self.sharedKey then self.sharedChoice = self.db.sv.profileKeys[self.sharedKey] end
     if event == "OnProfileChanged" then self:SaveProfileChoice(); self:ListProfiles() end
     self:RefreshSettings()
 end
