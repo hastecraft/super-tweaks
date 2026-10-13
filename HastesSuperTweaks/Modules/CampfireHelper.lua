@@ -43,7 +43,7 @@ ns.CampfireHelper = C
 
 local defaults = {
     -- The campfire on screen.
-    display = true, nearby = true, nearbyFirst = true, keepShown = true, warnAt = 5, remind = true, sound = false,
+    display = true, nearby = true, nearbyAt = 30, keepShown = true, warnAt = 5, remind = true, sound = false,
     style = "campfire", x = 0, y = 200,
     -- Campfire: its size and what it draws.
     size = 56, ring = "classic", fireArt = true, animate = true, glow = true, backdrop = true,
@@ -571,7 +571,7 @@ function C:Refresh(now)
     elseif self.editMode then
         -- A sample to place: the minute of sitting, a third gone, standing still.
         state, start, length, ends = "sitting", now - 20, 60, now + 40
-    elseif b.on and not (n.on and p.nearby and p.nearbyFirst) then
+    elseif b.on and not (n.on and p.nearby and b.ends - now <= p.nearbyAt * 60) then
         local left = b.ends - now
         warning = p.warnAt > 0 and left <= self:WarnAt()
         if p.keepShown or warning then state, start, length, ends = "buffs", b.ends - b.length, b.length, b.ends end
@@ -754,17 +754,23 @@ ON_TIMER.buffsEnding = function()
     if p.sound and p.display and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
     C:Refresh()
 end
+ON_TIMER.nearbyFirst = function()
+    C.timers.nearbyFirst = nil
+    if C.near.on then C:Refresh() end
+end
 function C.onTick()
     local due, now = C.tickDue, GetTime()
     if not due or now < due - 0.01 then return end
     C:Refresh(now)
 end
 
--- The warning before the camp buffs end, from now (none when it's off or past).
+-- The warning before the camp buffs end, and the moment a campfire nearby shows over them, from now (none when off or
+-- past).
 function C:TimeWarning()
-    local b = self.benefits
-    local warnAt = self:WarnAt()
-    self:Schedule("buffsEnding", b.on and warnAt > 0 and b.ends - warnAt - GetTime() or nil)
+    local b, now = self.benefits, GetTime()
+    local warnAt, nearbyAt = self:WarnAt(), self.db.profile.nearbyAt * 60
+    self:Schedule("buffsEnding", b.on and warnAt > 0 and b.ends - warnAt - now or nil)
+    self:Schedule("nearbyFirst", b.on and nearbyAt > 0 and b.ends - nearbyAt - now or nil)
 end
 
 ---------------------------------------------------------------------------
@@ -1104,9 +1110,10 @@ function C:BuildOptions()
                 nearby = option("toggle", "nearby", "Near a campfire", 1, { disabled = off, desc =
                     "When you're close enough to a fire to get camp buffs by sitting down. The minute you sit "
                         .. "always shows." }),
-                nearbyFirst = option("toggle", "nearbyFirst", "Even with camp buffs", 2, {
+                nearbyAt = range("nearbyAt", "Over camp buffs at (minutes left)", 2, 0, 60, {
                     disabled = function() return off() or not C.db.profile.nearby end, desc =
-                    "Near a campfire, shows that and the minute you sit instead of your camp buffs' countdown." }),
+                    "Near a campfire, shows that and the minute you sit instead of your camp buffs' countdown once "
+                        .. "they have this long left. 0: never, 60: always." }),
                 keepShown = option("toggle", "keepShown", "The whole hour of camp buffs", 3, { disabled = off,
                     desc = "Off, it shows only once they're about to end." }),
                 remind = option("toggle", "remind", "After camp buffs end", 4, { disabled = off, desc =
