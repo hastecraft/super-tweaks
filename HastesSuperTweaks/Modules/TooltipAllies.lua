@@ -32,8 +32,8 @@ local RA, events
 -- GUID of the player whose tooltip shows: a tooltip redrawn for them (unit frames redraw theirs five times a second)
 -- only adds the lines.
 local allies, stranger, last
--- Whether the game has loaded your Recent Allies, and whether it was asked to since the line came on.
-local ready, requested
+-- Whether the game has loaded your Recent Allies.
+local ready
 
 -- A field of the game's data, when it holds a `kind` (values hidden from addons and empty texts don't count).
 local function Field(value, kind)
@@ -115,59 +115,14 @@ function T:OnUnitTooltip(tip, data, unit)
 end
 
 ---------------------------------------------------------------------------
--- Loading your allies. The game loads them when asked (its Social window asks each time it opens), which addons may
--- only do while nothing restricts them: this asks once, after entering the world, out of combat and outside the
--- game's other restrictions; until then, the end of combat, a loading screen or the end of a restriction tries again.
+-- Loading your allies. Only the game may ask for them (an addon asking is forbidden, and the game blames it with its
+-- "blocked from an action" dialog): its Social window does each time its Recent Allies list shows. Until then the line
+-- waits, and RECENT_ALLIES_DATA_READY says when they're in.
 ---------------------------------------------------------------------------
-local function Restricted()
-    if InCombatLockdown() then return true end
-    local active = C_RestrictedActions and C_RestrictedActions.IsAddOnRestrictionActive
-    local kinds = Enum and Enum.AddOnRestrictionType
-    if active and kinds then
-        for _, kind in pairs(kinds) do
-            if active(kind) then return true end
-        end
-    end
-    return false
-end
-
--- The game's event for a restriction starting or ending (a restriction such as Map can end without a loading screen),
--- on clients that have restrictions, and its state for one that has ended.
-local RESTRICTION = C_RestrictedActions and "ADDON_RESTRICTION_STATE_CHANGED"
-local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
-
-local function Wait(waiting)
-    if waiting then
-        events:RegisterEvent("PLAYER_ENTERING_WORLD")
-        events:RegisterEvent("PLAYER_REGEN_ENABLED")
-        if RESTRICTION then events:RegisterEvent(RESTRICTION) end
-    else
-        events:UnregisterEvent("PLAYER_ENTERING_WORLD")
-        events:UnregisterEvent("PLAYER_REGEN_ENABLED")
-        if RESTRICTION then events:UnregisterEvent(RESTRICTION) end
-    end
-end
-
--- inWorld: called from an event that comes only in the world (before the first loading screen, HST.worldEntry is nil).
-local function Request(inWorld)
-    if ready or requested then return Wait(false) end
-    if not (inWorld or HST.worldEntry) or Restricted() then return Wait(true) end
-    requested = true
-    Wait(false)
-    if RA.TryRequestRecentAlliesData then RA.TryRequestRecentAlliesData() end
-end
-
--- While the game says a restriction ended, every restriction reads as inactive, so the retry waits for the next frame.
-local retrying
-local function Retry()
-    retrying = nil
-    if allies then Request() end
-end
-
 local Refresh -- below
 
--- guid: the ally's GUID for RECENT_ALLY_DATA_UPDATED; state: the restriction's new state for RESTRICTION.
-local function OnEvent(_, event, guid, state)
+-- guid: the ally's GUID for RECENT_ALLY_DATA_UPDATED.
+local function OnEvent(_, event, guid)
     if event == "RECENT_ALLY_DATA_UPDATED" then
         -- One ally's note, pin or latest time together changed (or a player became one).
         if not allies then return end
@@ -182,19 +137,10 @@ local function OnEvent(_, event, guid, state)
         if not allies then return end
         wipe(allies)
         stranger = nil
-        if not ready then
-            ready = event == "RECENT_ALLIES_DATA_READY" or RA.IsRecentAllyDataReady() == true
-            if ready then Wait(false) end
-        end
+        if not ready then ready = event == "RECENT_ALLIES_DATA_READY" or RA.IsRecentAllyDataReady() == true end
     elseif event == "RECENT_ALLIES_SYSTEM_STATUS_UPDATED" then
         Refresh()
         HST:RefreshSettings()
-    elseif event == RESTRICTION then
-        if retrying or IsSecret(state) or state ~= INACTIVE then return end
-        retrying = true
-        C_Timer.After(0, Retry)
-    else
-        Request(true)
     end
 end
 
@@ -229,9 +175,8 @@ function Refresh()
     if on == (allies ~= nil) then return end
     if on then
         for i = 1, #DATA_EVENTS do events:RegisterEvent(DATA_EVENTS[i]) end
-        allies, stranger, last, requested = {}, nil, nil, false
+        allies, stranger, last = {}, nil, nil
         ready = RA.IsRecentAllyDataReady() == true
-        if not ready then Request() end
     else
         events:UnregisterAllEvents()
         events:RegisterEvent("RECENT_ALLIES_SYSTEM_STATUS_UPDATED")
@@ -256,7 +201,8 @@ end
 -- Settings: a switch among the Extras page's extra lines, and the line in the settings preview.
 ---------------------------------------------------------------------------
 local DESC = "Players from your Recent Allies list (in the Social window) get a line with a gold pin, where and when "
-    .. "you last played together, and your note on them."
+    .. "you last played together, and your note on them. Shows once the game has loaded your Recent Allies: open "
+    .. "that list once after you log in."
 local DESC_OFF = DESC .. " The game has Recent Allies turned off right now."
 
 local Build = T.BuildOptions
