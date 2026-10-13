@@ -76,10 +76,10 @@ end
 local active = {} -- the word lists that are on, each an array of lowercase words
 local tags -- whether a <Guild Name> hides a message
 
--- The words of a comma-separated list, trimmed and lowercased; empty entries are dropped.
+-- The words of a list separated by commas or lines, trimmed and lowercased; empty entries are dropped.
 function F.Words(text)
     local words = {}
-    for word in (text or ""):gmatch("[^,]+") do
+    for word in (text or ""):gmatch("[^,\n]+") do
         word = lower(word:match("^%s*(.-)%s*$"))
         if word ~= "" then words[#words + 1] = word end
     end
@@ -166,9 +166,10 @@ ns.Configure(F, defaults, function(m)
     local lists, words = {}, {}
     for i, list in ipairs(m.LISTS) do
         lists[list.key] = toggle(list.key, list.name, i, list.key == "custom" and "The words you add below." or nil)
-        words[list.words] = ns.Option(profile, "input", list.words, list.name, i, { width = "full",
+        words[list.words] = ns.Option(profile, "input", list.words, list.name, i, { multiline = true,
             disabled = function() return not m.db.profile[list.key] end,
-            desc = "Separate words and phrases with commas; capitals don't matter. Press Enter to apply." }, apply)
+            desc = "Separate words and phrases with commas or lines; capitals don't matter. Press Enter to apply, "
+                .. "Shift+Enter for a new line." }, apply)
     end
     lists.guildTags = toggle("guildTags", "Any message naming a <Guild>", #m.LISTS + 1,
         "Hides every message with a name in angle brackets, as guild recruiters write their guild's name.")
