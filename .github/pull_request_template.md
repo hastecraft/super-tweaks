@@ -7,7 +7,7 @@
 
 ## For the patch notes
 
-<!-- One line for players, in game terms, naming the tweak as the settings window does. The maintainer turns this into
+<!-- One line per change players will notice, in game terms, naming the tweak as the settings window does. The maintainer turns this into
 the patch notes at release time, so don't edit PatchNotes.lua or the TOC version. Write "none" if players won't notice
 (refactors, tooling, docs). -->
 
@@ -18,6 +18,6 @@ the patch notes at release time, so don't edit PatchNotes.lua or the TOC version
 ## Performance
 
 <!-- Does this touch a hot path (tooltips, combat text, bag or loot events, OnUpdate)? CI benches every pull request
-and fails on more work; see the Performance check's summary. Explain any increase. -->
+and fails on a major regression; see the Performance check's summary. Explain any increase. -->
 
 - [ ] I read CONTRIBUTING.md.
