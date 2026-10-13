@@ -183,8 +183,8 @@ Section('Tooltips', function()
     Script(tip, 'OnTooltipCleared'); tip.unit = nil
 end)
 
--- WoW Forever's Recent Allies, which the client of the other scenarios doesn't have (as on Classic Era): Better Tooltips
--- asks for them once in the world, and they arrive. Jaina is a pinned ally with a note, last met in The Deadmines two
+-- WoW Forever's Recent Allies, which the client of the other scenarios doesn't have (as on Classic Era): the Social
+-- window loads them (asking is forbidden to addons, so the mock fails if one does), and they arrive. Jaina is a pinned ally with a note, last met in The Deadmines two
 -- days ago; Thrall isn't one. As the game's, GetRecentAllyByGUID makes new tables on every call.
 Section('Tooltips: Recent Allies (WoW Forever)', function()
     -- A copy of the addon from before the line (a base to compare with) has nothing to measure here.
@@ -196,7 +196,7 @@ Section('Tooltips: Recent Allies (WoW Forever)', function()
         IsSystemSupported = function() return true end,
         IsSystemEnabled = function() return true end,
         IsRecentAllyDataReady = function() return loaded end,
-        TryRequestRecentAlliesData = function() loaded = true end,
+        TryRequestRecentAlliesData = function() error('only the game may ask for Recent Allies (ADDON_ACTION_FORBIDDEN)') end,
         IsRecentAllyByGUID = function(guid) if loaded then return guid == ALLY_GUID end end,
         GetRecentAllyByGUID = function(guid)
             if not loaded or guid ~= ALLY_GUID then return nil end
@@ -214,6 +214,7 @@ Section('Tooltips: Recent Allies (WoW Forever)', function()
     UNIT_DATA.ally = { guid = ALLY_GUID }
     local ALLY = { 'Jaina', 'Level 60 Human Mage (Player)' }
     T:Apply()
+    loaded = true -- the Social window's list showed
     Dispatch('RECENT_ALLIES_DATA_READY')
     Measure('Tooltip refresh: recent ally (pinned, with a note)', 300, function() hover('ally', ALLY) end)
     Measure('Tooltip refresh: player, not a recent ally', 300, function() hover('mouseover', PLAYER) end)
