@@ -1060,8 +1060,6 @@ local PREVIEW = {
     { "buffs", 3, 3600, nil, 0, true },
     { "ended", 3 },
 }
--- Camp buffs to show in the icons style: Stamina, Intellect and Spirit's icons.
-local PREVIEW_ICONS = { 135987, 135932, 135898 }
 function C.info.preview(frame)
     local p = C.db.profile
     local d = frame.hstCampfire
@@ -1101,7 +1099,7 @@ function C.info.preview(frame)
             local duration = seconds * length / (from - to)
             local start = began - duration * (1 - from / length)
             local left = from - (from - to) * (t - at) / seconds
-            Draw(d, p, step[1], start, duration, Countdown(max(1, left)), warning, false, PREVIEW_ICONS, 3)
+            Draw(d, p, step[1], start, duration, Countdown(max(1, left)), warning, false)
         else
             Draw(d, p, step[1], nil, nil, nil, false, false)
         end
@@ -1205,7 +1203,7 @@ function C:BuildOptions()
         icons = { type = "group", name = "Icons", order = 2, hidden = notStyle("icons"), disabled = off, args = {
             look = ns.Section("Icons", 1, {
                 iconsCombined = option("toggle", "iconsCombined", "One icon", 1, { desc =
-                    "Camp Benefits' icon alone, instead of an icon for each camp buff you got." }),
+                    "Camp Benefits' icon alone. Off, a camp object's buff that shows as a buff of its own gets its own icon too." }),
                 maxIcons = range("maxIcons", "Most icons", 2, 1, 8, {
                     disabled = function() return C.db.profile.iconsCombined end }),
                 iconSize = range("iconSize", "Size", 3, 16, 64),
