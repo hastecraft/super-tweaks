@@ -19,8 +19,10 @@ local G = HST:NewFeature("GameSettings", {
 })
 ns.GameSettings = G
 
--- WoW Forever, told apart from Classic Era by a system only it has: the Classic or Modern experience chosen at login.
-local FOREVER = C_GameRules ~= nil and C_GameRules.GetForeverExperiencePreset ~= nil
+-- WoW Forever, told apart from Classic Era by its item data: Forever files Linen Cloth by kind (Trade Goods, subclass
+-- 5); Classic Era as plain Trade Goods (subclass 0).
+local ItemInfoInstant = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
+local FOREVER = ItemInfoInstant ~= nil and select(7, ItemInfoInstant(2589)) == 5
 
 -- The settings, each a switch (key) and the console setting it holds: at a fixed value (on), or at its slider's
 -- (value, with its range) or menu's (value, with values and sorting) value. Two settings with one key share its switch,
