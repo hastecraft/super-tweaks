@@ -154,7 +154,7 @@ function T:BuildOptions()
     local options = Build(self)
     local function profile() return T.db.profile end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra) end
-    options.args.extras = { type = "group", name = "Extras", order = 4, args = {
+    options.args.extras = { type = "group", name = "Extras", order = 5, args = {
         place = ns.Section("Position", 1, {
             anchor = option("select", "anchor", "Show tooltips", 1, {
                 values = { DEFAULT = "Where the game puts them", CURSOR = "At the mouse", WORLD = "At the mouse, in the game world only" },
@@ -173,17 +173,23 @@ function T:BuildOptions()
     return options
 end
 
--- The settings preview's sample tooltip gets the target line too.
+-- The settings preview's sample tooltip gets the target line last, after the guild notes (as in the game), and the
+-- mouse pointer at its corner when tooltips show at the mouse.
+T:PreviewLine(8, function(p) if p.targetLine then return "|cff999999" .. TARGET_LABEL .. "|r", YOU end end)
+
 local Draw = T.DrawPreview
 function T:DrawPreview(frame)
     Draw(self, frame)
-    local v, shown = frame.hstTip, self.db.profile.targetLine
-    if not v then return end
-    if shown and not v.target then
-        v.target = ns.Widgets.Text(v.box, "GameFontHighlightSmall")
-        v.target:SetPoint("TOPLEFT", 8, -7 - 3 * 14)
-        v.target:SetText("|cff999999" .. TARGET_LABEL .. "|r  " .. YOU)
+    local v, shown = frame.hstTip, self.db.profile.anchor ~= "DEFAULT"
+    if shown and not v.pointer then
+        local pointer = CreateFrame("Frame", nil, v.box)
+        pointer:SetFrameLevel(v.bar:GetFrameLevel() + 2)
+        pointer:SetSize(18, 18)
+        pointer:SetPoint("TOPLEFT", v.box, "BOTTOMLEFT", -4, 4)
+        local texture = pointer:CreateTexture(nil, "OVERLAY")
+        texture:SetAllPoints()
+        texture:SetTexture("Interface\\Cursor\\Point")
+        v.pointer = pointer
     end
-    if v.target then v.target:SetShown(shown) end
-    v.box:SetHeight(shown and 66 or 52)
+    if v.pointer then v.pointer:SetShown(shown) end
 end
