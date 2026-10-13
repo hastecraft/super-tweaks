@@ -245,7 +245,7 @@ function R:Draw(now)
     elseif self.graceLeft then
         Paint(bar, REFRESHING_IN, self.graceLeft .. "s", p.autoColor, value, false)
     elseif left <= 0 then
-        Paint(bar, LABEL, "any moment", p.warnColor, 0, p.warnPulse)
+        Paint(bar, LABEL, "any moment", p.warnColor, 0, p.warnAt > 0 and p.warnPulse)
     else
         Paint(bar, LABEL, Clock(left), warning and p.warnColor or p.barColor, value, warning and p.warnPulse)
     end
@@ -299,7 +299,7 @@ end
 function R:Tick()
     local p, now = self.db.profile, GetTime()
     local left = self.deadline - now
-    if not self.warned and left <= p.warnAt then
+    if not self.warned and p.warnAt > 0 and left <= p.warnAt then
         self.warned = true
         self.hiddenUntil = nil
         if p.warnMessage then CenterMessage(WarnText(left)) end
