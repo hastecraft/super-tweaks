@@ -384,7 +384,7 @@ function S:BuildOptions()
                     desc = "A bar shows from your swing until a moment after it fills. Edit Mode still shows every bar." }),
                 takeTurns = option("toggle", "takeTurns", "Melee and ranged take turns", 2, { disabled = unset("hideIdle"),
                     desc = "A melee swing hides the ranged bar at once, and a shot the melee bars, so bars in one spot "
-                        .. "don't cover each other. Off, each hides on its own." }),
+                        .. "don't cover each other." }),
             }),
         } },
     } }
