@@ -49,12 +49,12 @@ ns.Configure(B, {
                         .. "profession bags; pointing at it lists their free slots." }),
             }),
             order = ns.Section("Clean Up and new items", 3, {
-                help = { type = "description", order = 0, name = "WoW Forever's options don't offer these two settings "
-                    .. "of the game's. Chosen here, they're set again every time you log in." },
+                help = { type = "description", order = 0, name = "WoW Forever's options don't have these. They're set "
+                    .. "again every time you log in." },
                 sortRight = option("select", "sortRight", "Sort bags right to left", 1, { values = DIRECTIONS,
-                    sorting = DIRECTION_ORDER, desc = "On, Clean Up fills your bags starting from the other end." }),
+                    sorting = DIRECTION_ORDER, desc = "Clean Up fills your bags from the other end." }),
                 insertLeft = option("select", "insertLeft", "Insert items left to right", 2, { values = DIRECTIONS,
-                    sorting = DIRECTION_ORDER, desc = "On, new items go into your leftmost bag first instead of your "
+                    sorting = DIRECTION_ORDER, desc = "New items go into your leftmost bag first instead of your "
                         .. "backpack." }),
             }, { disabled = noSort }),
         } },

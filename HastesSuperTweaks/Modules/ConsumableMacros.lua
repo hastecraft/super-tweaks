@@ -117,7 +117,7 @@ ns.Configure(M, defaults, function(self)
         icons[key] = ns.Section(kind.macro, i, {
             icon = ns.Option(function() return profile().icons end, "select", key, "Icon", 1, { values = any,
                 sorting = anyOrder, desc = "The item's shows the item the macro will use. Set in the Macros window keeps "
-                    .. "the icon you pick there. Any other choice always shows that icon." },
+                    .. "the icon you pick there." },
                 function() self:Queue() end),
             empty = ns.Option(function() return profile().emptyIcons end, "select", key, "Icon when empty", 2, {
                 values = fixed, sorting = fixedOrder, desc = "Shown while you have nothing for this macro to use.",
@@ -142,7 +142,7 @@ ns.Configure(M, defaults, function(self)
                 stoneFirst = toggle("stoneFirst", "Healthstones before potions", 5,
                     "Uses a Healthstone when you have one, saving your potions."),
                 bandageTarget = toggle("bandageTarget", "Bandage your friendly target", 6,
-                    "Otherwise, or with this off, you bandage yourself."),
+                    "Otherwise you bandage yourself."),
             }),
         } },
         icons = { type = "group", name = "Icons", order = 2, args = icons },

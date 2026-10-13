@@ -12,6 +12,9 @@ HST.settingsPanel = P
 local TITLE, SIDEBAR, PAD, GAP, CARD_PAD = 44, 216, 16, 12, 14
 local NAV_ROW, MODULE_ROW, RESULT_ROW = 24, 46, 40
 local MIN_W, MIN_H, DEFAULT_W, DEFAULT_H = 820, 480, 1000, 640
+-- The sidebar can be dragged between these widths (SIDEBAR is its default), as far as the main area keeps the width it
+-- has in the smallest window.
+local SIDEBAR_LEAST, SIDEBAR_MOST = 170, 400
 -- The overview's details pane, a share of the main area within these widths.
 local DETAIL_LEAST, DETAIL_MOST = 240, 300
 local MIN_SCALE, MAX_SCALE = 0.6, 1.5
@@ -25,8 +28,8 @@ local SIDE_LEAST, SIDE_MOST, TOP_LEAST, TOP_MOST = 260, 380, 92, 192
 -- struck-through logo (over the dimmed preview, or above the title without one).
 local OFF_PAD, OFF_WIDTH, OFF_PREVIEW, OFF_ICON = 20, 460, 190, 56
 
--- How the window was left, saved account-wide: size, scale, place, whether previews show and which sidebar
--- categories are open.
+-- How the window was left, saved account-wide: size, scale, place, sidebar width, whether previews show and which
+-- sidebar categories are open.
 local function State()
     local global = HST.db.global
     local state = global.window
@@ -71,6 +74,16 @@ local function Hidden(chain, info)
         local value = chain[i].hidden
         if value ~= nil then return Resolve(value, info) end
     end
+end
+
+-- Whether a setting's `hidden` (its own, or a section's it's in) is decided as settings change, by a function, rather
+-- than fixed: such a setting is built anyway, and shown or hidden as its page is refreshed.
+local function HidesLater(chain)
+    for i = #chain, 2, -1 do
+        local value = chain[i].hidden
+        if value ~= nil then return type(value) == "function" end
+    end
+    return false
 end
 
 local function Sorted(args)
@@ -154,6 +167,7 @@ local function ValueText(o)
     end
     if o.type == "input" then
         local text = o.get({ option = o })
+        text = text and text:gsub("%s+", " ")
         return text and text ~= "" and (#text > 18 and (text:sub(1, 16) .. "...") or text) or nil
     end
     if o.type == "items" then
@@ -270,8 +284,13 @@ function Build.color(parent, o, chain, info, gate)
     return c
 end
 
+-- o.live: what's typed or pasted is set as it changes, with no Enter (text that buttons beside it act on).
+-- o.multiline: a box that many lines tall (true: 3) for long text.
 function Build.input(parent, o, chain, info, gate)
-    local c = Bind(W.InputRow(parent, o.width == "full"), o, chain, info, gate)
+    local onEdit = o.live and function(text) o.set(info, text); P:RefreshPage() end or nil
+    local row = o.multiline and W.TextAreaRow(parent, tonumber(o.multiline), onEdit)
+        or W.InputRow(parent, o.width == "full", onEdit)
+    local c = Bind(row, o, chain, info, gate)
     c.onCommit = function(text)
         local valid = true
         if o.validate then valid = o.validate(info, text) end
@@ -899,7 +918,15 @@ local FULL = { description = true, commands = true, items = true, release = true
 
 function P:BuildPage(group, gate)
     local content = CreateFrame("Frame", nil, self.pageArea.child)
-    local page = { content = content, blocks = {}, controls = {} }
+    -- hiders: the rows and blocks whose `hidden` can change, each with its hiddenWhen (see HidesLater).
+    local page = { content = content, blocks = {}, controls = {}, hiders = {} }
+    -- Settings hidden for good are left out; those hidden for now are built, and hidden as their page is refreshed.
+    local function skip(path, info) return Hidden(path, info) and not HidesLater(path) end
+    local function hider(region, path, info)
+        if not HidesLater(path) then return end
+        region.hiddenWhen = function() return Hidden(path, info) and true or false end
+        page.hiders[#page.hiders + 1] = region
+    end
     local function add(card, key, o, path, info)
         local last = card.rows[#card.rows]
         local parent = o.type == "execute" and (last and last.buttons and last or ButtonBar(card)) or card
@@ -907,21 +934,27 @@ function P:BuildPage(group, gate)
         c.key = key
         page.controls[#page.controls + 1] = c
         if parent ~= card then
-            if parent ~= last then card.rows[#card.rows + 1] = parent end
+            if parent ~= last then
+                card.rows[#card.rows + 1] = parent
+                hider(parent, path, info)
+            end
             parent.buttons[#parent.buttons + 1] = c
         else
             card.rows[#card.rows + 1] = c
+            hider(c, path, info)
         end
     end
     local function fill(card, args, chain)
         for _, entry in ipairs(Sorted(args)) do
             local o = entry.option
             local info, path = { option = o, key = entry.key }, Extend(chain, o)
-            if Hidden(path, info) then
-                -- skipped
+            if skip(path, info) then
+                -- left out
             elseif o.type == "group" then
                 if o.inline then
-                    card.rows[#card.rows + 1] = Subheading(card, Resolve(o.name, info))
+                    local heading = Subheading(card, Resolve(o.name, info))
+                    card.rows[#card.rows + 1] = heading
+                    hider(heading, path, info)
                     fill(card, o.args, path)
                 end
             elseif Build[o.type] then
@@ -933,12 +966,13 @@ function P:BuildPage(group, gate)
     for _, entry in ipairs(Sorted(group.args)) do
         local o = entry.option
         local info, path = { option = o, key = entry.key }, Extend({ group }, o)
-        if Hidden(path, info) or IsPage(o) then
-            -- skipped; sub-pages have tabs of their own
+        if skip(path, info) or IsPage(o) then
+            -- left out; sub-pages have tabs of their own
         elseif o.type == "group" then
             loose = nil
             local card = W.Card(content, Resolve(o.name, info))
             card.rows, card.isCard = {}, true
+            hider(card, path, info)
             fill(card, o.args, path)
             page.blocks[#page.blocks + 1] = card
         elseif FULL[o.type] then
@@ -947,6 +981,7 @@ function P:BuildPage(group, gate)
             c.key = entry.key
             page.controls[#page.controls + 1] = c
             page.blocks[#page.blocks + 1] = c
+            hider(c, path, info)
         elseif Build[o.type] then
             if not loose then
                 loose = W.Card(content)
@@ -966,19 +1001,29 @@ local function LayoutCard(card, width, top)
     local y = card.title and 34 or 8
     local previous
     for _, row in ipairs(card.rows) do
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", CARD_PAD, -y)
-        row:SetWidth(inner)
-        local height = row:Layout(inner)
-        row:SetHeight(height)
-        row.top = top + y
-        if row.buttons then for _, b in ipairs(row.buttons) do b.top = top + y + b.barY end end
-        if row.divider then row.divider:SetShown(previous ~= nil and not previous.noDivider) end
-        previous = row
-        y = y + height
+        -- A row hidden for now takes no room.
+        if row.hiddenWhen then row:SetShown(not row.hiddenNow) end
+        if not row.hiddenNow then
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", CARD_PAD, -y)
+            row:SetWidth(inner)
+            local height = row:Layout(inner)
+            row:SetHeight(height)
+            row.top = top + y
+            if row.buttons then for _, b in ipairs(row.buttons) do b.top = top + y + b.barY end end
+            if row.divider then row.divider:SetShown(previous ~= nil and not previous.noDivider) end
+            previous = row
+            y = y + height
+        end
     end
     card:SetSize(width, y + 8)
     return y + 8
+end
+
+-- The next block shown from blocks[i] on, when it's a card: its index. Blocks hidden for now are passed over.
+local function NextCard(blocks, i)
+    while blocks[i] and blocks[i].hiddenNow do i = i + 1 end
+    return blocks[i] and blocks[i].isCard and i or nil
 end
 
 function P:LayoutPage(page, width)
@@ -986,41 +1031,53 @@ function P:LayoutPage(page, width)
     page.width = width
     local wide = width >= TWO_COLUMNS
     local blocks = page.blocks
-    local columns, columnWidth
+    local columns, columnWidth, previous
     local tops = { 0, 0 }
     for b, block in ipairs(blocks) do
-        block:ClearAllPoints()
-        -- Each run of cards between full-width blocks: two columns on a wide page, but only with two cards to fill them.
-        if block.isCard and not (blocks[b - 1] and blocks[b - 1].isCard) then
-            local last = b
-            while blocks[last + 1] and blocks[last + 1].isCard do last = last + 1 end
-            columns = (wide and last > b) and 2 or 1
-            columnWidth = columns == 2 and math.floor((width - GAP) / 2) or width
-        end
-        if block.isCard then
-            local i = (columns == 2 and tops[2] < tops[1]) and 2 or 1
-            block:SetPoint("TOPLEFT", (i - 1) * (columnWidth + GAP), -tops[i])
-            block.top = tops[i]
-            tops[i] = tops[i] + LayoutCard(block, columnWidth, tops[i]) + GAP
-        else
-            local top = math.max(tops[1], tops[2])
-            block:SetPoint("TOPLEFT", 0, -top)
-            block:SetWidth(width)
-            local height = block:Layout(width)
-            block:SetHeight(height)
-            block.top = top
-            tops[1], tops[2] = top + height + GAP, top + height + GAP
+        -- A block hidden for now takes no room.
+        if block.hiddenWhen then block:SetShown(not block.hiddenNow) end
+        if not block.hiddenNow then
+            block:ClearAllPoints()
+            -- Each run of cards between full-width blocks: two columns on a wide page, but only with two cards to
+            -- fill them.
+            if block.isCard and not (previous and previous.isCard) then
+                local count, i = 1, NextCard(blocks, b + 1)
+                while i do count, i = count + 1, NextCard(blocks, i + 1) end
+                columns = (wide and count > 1) and 2 or 1
+                columnWidth = columns == 2 and math.floor((width - GAP) / 2) or width
+            end
+            previous = block
+            if block.isCard then
+                local i = (columns == 2 and tops[2] < tops[1]) and 2 or 1
+                block:SetPoint("TOPLEFT", (i - 1) * (columnWidth + GAP), -tops[i])
+                block.top = tops[i]
+                tops[i] = tops[i] + LayoutCard(block, columnWidth, tops[i]) + GAP
+            else
+                local top = math.max(tops[1], tops[2])
+                block:SetPoint("TOPLEFT", 0, -top)
+                block:SetWidth(width)
+                local height = block:Layout(width)
+                block:SetHeight(height)
+                block.top = top
+                tops[1], tops[2] = top + height + GAP, top + height + GAP
+            end
         end
     end
     page.height = math.max(tops[1], tops[2])
     page.content:SetSize(width, math.max(1, page.height))
 end
 
--- Refreshes the page's controls; a page whose text changed its height is laid out again.
+-- Refreshes the page's controls; a page whose text changed its height, or whose settings hidden for now changed, is
+-- laid out again.
 function P:RefreshPage()
     local page = self.page
     if not page then return end
     local resized = false
+    -- Rows and blocks whose `hidden` changed: the page is laid out again.
+    for _, region in ipairs(page.hiders) do
+        local off = region.hiddenWhen()
+        if region.hiddenNow ~= off then region.hiddenNow, resized = off, true end
+    end
     for _, c in ipairs(page.controls) do
         c:Refresh()
         if c.resized then c.resized = nil; resized = true end
@@ -1142,7 +1199,7 @@ function P:Create()
     self:CreateTitleBar(f)
     self:CreateSidebar(f)
     local main = CreateFrame("Frame", nil, f)
-    main:SetPoint("TOPLEFT", SIDEBAR + 1, -TITLE - 1)
+    main:SetPoint("TOPLEFT", self.sidebar, "TOPRIGHT")
     main:SetPoint("BOTTOMRIGHT", -1, 1)
     self:CreateOverview(main)
     self:CreatePageView(main)
@@ -1174,6 +1231,7 @@ function P:Create()
         W.ShowTooltip(g, "Resize", "Drag to resize the window. Right-click for the default size.")
     end)
     grip:SetScript("OnLeave", function(g) paint(); W.HideTooltip(g) end)
+    self:CreateSidebarEdge(f, grip:GetFrameLevel())
     self:ApplyScale(state.scale or 1)
     self:SetSize(state.width or DEFAULT_W, state.height or DEFAULT_H)
     f:ClearAllPoints()
@@ -1206,7 +1264,21 @@ function P:Resized(width, height)
     width, height = math.floor(width + 0.5), math.floor(height + 0.5)
     if width == self.width and height == self.height then return end
     self.width, self.height = width, height
-    local main = width - SIDEBAR - 2
+    self:Layout()
+end
+
+-- The widest the sidebar can be in a window this wide.
+function P:SidebarMost() return Clamp(self.width - MIN_W + SIDEBAR, SIDEBAR_LEAST, SIDEBAR_MOST) end
+
+-- Lays the sidebar and main area out for the window's width and the sidebar's.
+function P:Layout()
+    local sidebar = Clamp(State().sidebar or SIDEBAR, SIDEBAR_LEAST, self:SidebarMost())
+    if sidebar ~= self.sidebarWidth then
+        self.sidebarWidth = sidebar
+        self.sidebar:SetWidth(sidebar)
+        self.navArea.child:SetWidth(sidebar - 9)
+    end
+    local main = self.width - sidebar - 2
     self.detailWidth = Clamp(math.floor(main * 0.38), DETAIL_LEAST, DETAIL_MOST)
     self.detail:SetWidth(self.detailWidth)
     -- Its texts get widths of their own, so their wrapped heights are right the moment they are set.
@@ -1356,6 +1428,7 @@ local PIP_LIT = { C.line[1], C.line[2], C.line[3], 0.55 }
 
 function P:CreateSidebar(f)
     local sidebar = CreateFrame("Frame", nil, f)
+    self.sidebar = sidebar
     sidebar:SetPoint("TOPLEFT", 1, -TITLE - 1)
     sidebar:SetPoint("BOTTOMLEFT", 1, 1)
     sidebar:SetWidth(SIDEBAR)
@@ -1444,6 +1517,55 @@ function P:CreateSidebar(f)
     self.navArea:SetPoint("TOPLEFT", 0, -56)
     self.navArea:SetPoint("BOTTOMRIGHT", bottom, "TOPRIGHT", -8, 4)
     self.navArea.child:SetWidth(SIDEBAR - 9)
+end
+
+-- The sidebar's right edge: drag it to widen or narrow the sidebar, right-click for its default width. It lights while
+-- pointed at and turns gold while dragged; the drag follows the cursor once a frame, and only while dragging.
+function P:CreateSidebarEdge(f, level)
+    local edge = CreateFrame("Button", nil, f)
+    edge:SetPoint("TOPLEFT", self.sidebar, "TOPRIGHT", -1, 0)
+    edge:SetPoint("BOTTOMLEFT", self.sidebar, "BOTTOMRIGHT", -1, 0)
+    edge:SetWidth(6)
+    edge:SetFrameLevel(level)
+    edge.line = W.Fill(edge, C.line, "OVERLAY")
+    edge.line:SetPoint("TOPLEFT"); edge.line:SetPoint("BOTTOMLEFT"); edge.line:SetWidth(2)
+    edge.line:Hide()
+    local grab
+    local function paint()
+        local dragging = grab ~= nil
+        edge.line:SetShown(dragging or edge:IsMouseOver())
+        edge.line:SetColorTexture(unpack(dragging and C.accent or C.line))
+    end
+    local function follow()
+        local x = GetCursorPosition() / f:GetEffectiveScale()
+        local width = math.floor(x - grab - self.sidebar:GetLeft() + 0.5)
+        width = Clamp(width, SIDEBAR_LEAST, self:SidebarMost())
+        if width == self.sidebarWidth then return end
+        State().sidebar = width
+        self:Layout()
+    end
+    local function stop()
+        if not grab then return end
+        grab = nil
+        edge:SetScript("OnUpdate", nil)
+        paint()
+    end
+    edge:RegisterForClicks("RightButtonUp")
+    edge:SetScript("OnMouseDown", function(_, button)
+        if button ~= "LeftButton" then return end
+        -- Where on the edge it was taken, so the edge stays under the cursor.
+        grab = GetCursorPosition() / f:GetEffectiveScale() - self.sidebar:GetRight()
+        edge:SetScript("OnUpdate", follow)
+        paint()
+    end)
+    edge:SetScript("OnMouseUp", stop)
+    edge:SetScript("OnHide", stop)
+    edge:SetScript("OnClick", function()
+        State().sidebar = nil
+        self:Layout()
+    end)
+    edge:SetScript("OnEnter", paint)
+    edge:SetScript("OnLeave", paint)
 end
 
 function P:CreateSearch(sidebar)
@@ -2070,8 +2192,7 @@ function P:WelcomeCard()
     card.text:SetPoint("RIGHT", -WELCOME_PAD, 0)
     card.text:SetSpacing(3)
     card.text:SetText("Tweaks that show you more, like the XP bar and better tooltips, start on. Tweaks that act for you, "
-        .. "like selling, accepting and declining, start off. Point at a tweak to see what it does, and click its switch "
-        .. "to turn it on or off.")
+        .. "like selling, accepting and declining, start off. Point at a tweak to see what it does.")
     local keep = W.Button(card, "Keep these", "primary")
     keep:Fit(110)
     keep:SetScript("OnClick", function() self:CloseWelcome() end)
@@ -2197,7 +2318,6 @@ function P:RefreshRows()
             end
             local on = module:IsEnabled()
             row.switch:SetOn(on, same)
-            row.switch.tipText = on and "On. Click to turn it off." or "Off. Click to turn it on."
         end
     end
     -- Result rows only show in search mode (P:ShowModules hides them for the list).
@@ -2296,8 +2416,6 @@ function P:CreatePageView(main)
         state.hidePreview = not state.hidePreview or nil
         self:LayoutPageView()
     end)
-    header.previewToggle.tipTitle = "Live preview"
-    header.previewToggle.tipText = "Shows what these settings change, as you change them."
     self.pageArea = W.ScrollArea(view)
     -- Live preview.
     local live = W.Card(view)
@@ -2442,7 +2560,7 @@ end
 
 -- The page view's widths: settings, and the preview (beside them, above them, or none).
 function P:PageGeometry()
-    local main = self.width - SIDEBAR - 2
+    local main = self.width - self.sidebarWidth - 2
     local info = self.pageInfo
     local dock
     if HasPagePreview(info) then
@@ -2966,7 +3084,7 @@ function P:Search(text, again)
     if count == 0 then
         -- A fixed title: one with the query in it would grow as you type and push everything under it around.
         self:ShowEmpty({ icon = "search", title = "No matching tweaks or settings",
-            text = "Search looks through tweak names, settings and their descriptions. Try fewer words, or other ones.",
+            text = "Try fewer or different words.",
             buttons = {
                 -- Left focused, to type another search right away.
                 { "Clear search", function() self.search:SetText(""); self.search:SetFocus() end },

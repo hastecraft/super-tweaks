@@ -241,7 +241,7 @@ end
 function G:Restore()
     local backup = self.db.char.backup
     if not (backup and C_EditMode and C_EditMode.SaveLayouts) then return HST:Print("There's no backup to restore.") end
-    if InCombatLockdown() then return HST:Print("Restoring waits until you're out of combat. Try again then.") end
+    if InCombatLockdown() then return HST:Print("Can't restore during combat. Try again after the fight.") end
     C_EditMode.SaveLayouts(backup.layouts)
     -- Settings switched on above keep their values; the rest go back to the backup's, those this client can use.
     local p = self.db.profile
