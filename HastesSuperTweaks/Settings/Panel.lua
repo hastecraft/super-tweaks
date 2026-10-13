@@ -2070,8 +2070,7 @@ function P:WelcomeCard()
     card.text:SetPoint("RIGHT", -WELCOME_PAD, 0)
     card.text:SetSpacing(3)
     card.text:SetText("Tweaks that show you more, like the XP bar and better tooltips, start on. Tweaks that act for you, "
-        .. "like selling, accepting and declining, start off. Point at a tweak to see what it does, and click its switch "
-        .. "to turn it on or off.")
+        .. "like selling, accepting and declining, start off. Point at a tweak to see what it does.")
     local keep = W.Button(card, "Keep these", "primary")
     keep:Fit(110)
     keep:SetScript("OnClick", function() self:CloseWelcome() end)
@@ -2197,7 +2196,6 @@ function P:RefreshRows()
             end
             local on = module:IsEnabled()
             row.switch:SetOn(on, same)
-            row.switch.tipText = on and "On. Click to turn it off." or "Off. Click to turn it on."
         end
     end
     -- Result rows only show in search mode (P:ShowModules hides them for the list).
@@ -2296,8 +2294,6 @@ function P:CreatePageView(main)
         state.hidePreview = not state.hidePreview or nil
         self:LayoutPageView()
     end)
-    header.previewToggle.tipTitle = "Live preview"
-    header.previewToggle.tipText = "Shows what these settings change, as you change them."
     self.pageArea = W.ScrollArea(view)
     -- Live preview.
     local live = W.Card(view)
@@ -2966,7 +2962,7 @@ function P:Search(text, again)
     if count == 0 then
         -- A fixed title: one with the query in it would grow as you type and push everything under it around.
         self:ShowEmpty({ icon = "search", title = "No matching tweaks or settings",
-            text = "Search looks through tweak names, settings and their descriptions. Try fewer words, or other ones.",
+            text = "Try fewer or different words.",
             buttons = {
                 -- Left focused, to type another search right away.
                 { "Clear search", function() self.search:SetText(""); self.search:SetFocus() end },

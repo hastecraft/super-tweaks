@@ -285,7 +285,7 @@ function R:UpgradeAll(spells, deferred)
     end
     self.upgradeAllPending = waiting
     local changed = self:Report(self:Swap(swaps, spells), spells)
-    if waiting and not wasWaiting then HST:Print("Waiting for spell rank data to finish upgrading your buttons.")
+    if waiting and not wasWaiting then HST:Print("Spell ranks are still loading. Your buttons upgrade once they're ready.")
     elseif not waiting and not wasWaiting and changed == 0 then HST:Print("Your action buttons already have your highest ranks.") end
 end
 

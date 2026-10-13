@@ -708,7 +708,7 @@ function Sale:Open()
         list, waiting = self:Find()
         attempts = attempts + 1
         if waiting and attempts < 6 then return C_Timer.After(0.5, begin) end
-        if waiting then HST:Print("Kept items whose quest protection data is still loading. Visit the vendor again to retry.") end
+        if waiting then HST:Print("Kept some items while your quest data loads. Visit the vendor again to sell them.") end
         if #list == 0 then return end
         queue = { unpack(list) }
         step(true)

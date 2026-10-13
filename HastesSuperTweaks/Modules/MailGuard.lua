@@ -288,8 +288,8 @@ function G:HookOpenAll()
         for _ in pairs(left) do count = count + 1 end
         wipe(left)
         if count > 0 and G:IsEnabled() and G.db.profile.announce then
-            HST:Print(string.format("Open All left %d marked %s from players you don't know in your inbox. Point at "
-                .. "the mark to see why.", count, count == 1 and "mail" or "mails"))
+            HST:Print(string.format("Open All left %d marked %s from players you don't know.", count,
+                count == 1 and "mail" or "mails"))
         end
     end)
 end
