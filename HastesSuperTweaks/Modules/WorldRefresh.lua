@@ -438,12 +438,15 @@ function R:UpdateBlizzard()
     local hide = self:IsEnabled() and self.db.profile.hideBlizzard or false
     if hide == (self.hidingGame or false) then return end
     self.hidingGame = hide
+    -- Given back while a refresh is waiting: the notice it missed, as the game would have shown it.
+    local waiting = not hide and GameWait()
     for _, frame in ipairs({ ShardTransferImminentFrame, ShardTransferImminentMinimizeButton }) do
         if hide then
             frame:UnregisterEvent("SHARD_TRANSFER_IMMINENT")
             if frame:IsShown() then frame:Hide() end
         else
             frame:RegisterEvent("SHARD_TRANSFER_IMMINENT")
+            if waiting and frame.Start then frame:Start() end
         end
     end
 end
