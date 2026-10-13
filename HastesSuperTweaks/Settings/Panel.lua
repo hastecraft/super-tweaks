@@ -3000,7 +3000,7 @@ function P:LayoutResults(modules, ranked, words)
             local item = ranked[i]
             local row = self:ResultRow(i)
             local result = item.entry
-            row.result = result
+            row.result, row.top = result, y
             row.label:SetText(Highlight(result.name or "", words))
             row.sub:SetText(result.where)
             row:ClearAllPoints()
@@ -3045,6 +3045,12 @@ function P:MoveCursor(step)
     local row = rows[self.cursorIndex]
     if row.module then self:ShowDetail(row.module) else self:ShowResultDetail(row.result) end
     self:PaintCursor()
+    -- Scrolled just enough to show the highlighted row (the first one with its heading).
+    local list, top = self.list, self.cursorIndex > 1 and row.top or 0
+    if top then
+        local scroll, bottom = list:GetVerticalScroll(), top + row:GetHeight() - list:GetHeight()
+        if top < scroll then list:ScrollTo(top) elseif bottom > scroll then list:ScrollTo(bottom) end
+    end
 end
 
 function P:OpenCursor()

@@ -101,11 +101,19 @@ local trusted = {} -- sender -> true or false, this mailbox visit
 
 local function Realm(realm) return realm and (realm:gsub("[%s%-']", ""):lower()) or nil end
 
--- Whether a sender is one of your characters on this realm (as Mail Expiry & Alt List keeps them).
+-- Whether a sender is one of your characters on this realm (as Mail Expiry & Alt List keeps them). On WoW Forever,
+-- where names are unique across the region and the dash comes before a surname, the whole name decides.
 local function OwnCharacter(sender)
     local helper = ns.MailHelper
     local characters = helper and helper.db and helper.db.global.characters
     if not characters then return false end
+    if ns.RegionalNames() then
+        local key = ns.NameKey(sender)
+        for _, character in pairs(characters) do
+            if character.name and ns.NameKey(character.name) == key then return true end
+        end
+        return false
+    end
     local name, realm = sender:match("^([^%-]+)%-(.+)$")
     name, realm = name or sender, Realm(realm) or Realm(GetRealmName())
     for _, character in pairs(characters) do
@@ -146,23 +154,51 @@ end
 ---------------------------------------------------------------------------
 local marks = {}
 
--- What identifies a mail while indexes shift (mail taken or returned before it): sender, subject, gold and items.
-local function Signature(index)
-    local _, _, sender, subject, money, cod, _, items = GetInboxHeaderInfo(index)
-    return { sender = sender, subject = subject, money = money, cod = cod, items = items }
-end
-local function Find(mail)
-    for index = 1, (GetInboxNumItems()) do
-        local _, _, sender, subject, money, cod, _, items = GetInboxHeaderInfo(index)
-        if sender == mail.sender and subject == mail.subject and money == mail.money and cod == mail.cod and items == mail.items then
-            return index
+-- What identifies a mail while indexes shift (mail taken or returned before it): sender, subject, gold, and each
+-- attachment's item and count. Two mails can still be alike in all of that, so where it was is kept too.
+local function Attachments(index)
+    local list = ""
+    for slot = 1, ATTACHMENTS_MAX_RECEIVE or 16 do
+        if HasInboxItem(index, slot) then
+            local _, id, _, count = GetInboxItem(index, slot)
+            list = list .. slot .. ":" .. tostring(id) .. "x" .. tostring(count) .. ","
         end
     end
+    return list
+end
+local function Signature(index)
+    local _, _, sender, subject, money, cod, _, items = GetInboxHeaderInfo(index)
+    local count, total = GetInboxNumItems()
+    return { index = index, count = count, total = total, sender = sender, subject = subject, money = money, cod = cod,
+        items = items, attachments = Attachments(index) }
+end
+local function Matches(index, mail)
+    local _, _, sender, subject, money, cod, _, items = GetInboxHeaderInfo(index)
+    return sender == mail.sender and subject == mail.subject and money == mail.money and cod == mail.cod
+        and items == mail.items and Attachments(index) == mail.attachments
+end
+-- The mail's index now: where it was while the inbox holds as many mails as then (loaded and in all: with more mail
+-- than the inbox loads, taking one loads the next and keeps the loaded count), or else the one mail like it. Nil when
+-- it's gone; nil and true when more than one mail is like it, and which one it is can't be told.
+local function Find(mail)
+    local count, total = GetInboxNumItems()
+    if count == mail.count and total == mail.total and mail.index <= count and Matches(mail.index, mail) then
+        return mail.index
+    end
+    local found
+    for index = 1, count do
+        if Matches(index, mail) then
+            if found then return nil, true end
+            found = index
+        end
+    end
+    return found
 end
 
 -- Sends a marked mail back. The mail open on screen is closed first, as the game's own Return button does.
 function G:Return(mail)
-    local index = Find(mail)
+    local index, alike = Find(mail)
+    if alike then return HST:Print("Your inbox changed and holds more than one mail like that one; click its mark again.") end
     if not index then return HST:Print("That mail isn't in your inbox anymore.") end
     if InboxItemCanDelete(index) then return HST:Print("That mail can't be returned; it would be deleted instead.") end
     if OpenMailFrame and OpenMailFrame:IsShown() and InboxFrame.openMailID == index then HideUIPanel(OpenMailFrame) end
