@@ -145,7 +145,7 @@ function Q.info.preview(frame)
         v.caption = W.Caption(frame, CAPTIONS[1]) -- each caption is one line, laid out with this one
     end
     local b, key = v.button, KeyText()
-    Size(b, math.min(p.size, 56))
+    Size(b, p.size)
     W.Column(frame, { b, 14, v.caption })
     local phase
     W.Loop(frame, 5, function(t)
