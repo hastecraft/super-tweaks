@@ -351,8 +351,9 @@ ns.Configure(F, defaults, function(m)
                     return "Hides everything their members say, and messages naming one as <Guild>. A member is "
                         .. "only recognized once you've seen them: by pointing at or targeting them, their nameplate, "
                         .. "grouping with them or a /who. Members recognized: " .. count .. "." end },
-                mutedGuilds = ns.Option(profile, "input", "mutedGuilds", "Guilds", 1, { width = "full",
-                    desc = "Guild names, separated by commas; capitals don't matter. Press Enter to apply." }, apply),
+                mutedGuilds = ns.Option(profile, "input", "mutedGuilds", "Guilds", 1, { width = "full", multiline = true,
+                    desc = "Guild names, separated by commas or lines; capitals don't matter. Press Enter to apply, "
+                        .. "Shift+Enter for a new line." }, apply),
                 scan = { type = "execute", name = "Find members", order = 2,
                     desc = "Looks up who's online in a muted guild with /who, one guild per click, and recognizes them "
                         .. "at once. The server lists 50 players at most and takes a few seconds between lookups.",
