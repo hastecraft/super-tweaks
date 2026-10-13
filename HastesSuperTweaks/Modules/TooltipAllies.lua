@@ -117,7 +117,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading your allies. The game loads them when asked (its Social window asks each time it opens), which addons may
 -- only do while nothing restricts them: this asks once, after entering the world, out of combat and outside the
--- game's other restrictions; until then, the end of combat or a loading screen tries again.
+-- game's other restrictions; until then, the end of combat, a loading screen or the end of a restriction tries again.
 ---------------------------------------------------------------------------
 local function Restricted()
     if InCombatLockdown() then return true end
@@ -131,13 +131,20 @@ local function Restricted()
     return false
 end
 
+-- The game's event for a restriction starting or ending (a restriction such as Map can end without a loading screen),
+-- on clients that have restrictions, and its state for one that has ended.
+local RESTRICTION = C_RestrictedActions and "ADDON_RESTRICTION_STATE_CHANGED"
+local INACTIVE = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
+
 local function Wait(waiting)
     if waiting then
         events:RegisterEvent("PLAYER_ENTERING_WORLD")
         events:RegisterEvent("PLAYER_REGEN_ENABLED")
+        if RESTRICTION then events:RegisterEvent(RESTRICTION) end
     else
         events:UnregisterEvent("PLAYER_ENTERING_WORLD")
         events:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        if RESTRICTION then events:UnregisterEvent(RESTRICTION) end
     end
 end
 
@@ -150,9 +157,17 @@ local function Request(inWorld)
     if RA.TryRequestRecentAlliesData then RA.TryRequestRecentAlliesData() end
 end
 
+-- While the game says a restriction ended, every restriction reads as inactive, so the retry waits for the next frame.
+local retrying
+local function Retry()
+    retrying = nil
+    if allies then Request() end
+end
+
 local Refresh -- below
 
-local function OnEvent(_, event, guid)
+-- guid: the ally's GUID for RECENT_ALLY_DATA_UPDATED; state: the restriction's new state for RESTRICTION.
+local function OnEvent(_, event, guid, state)
     if event == "RECENT_ALLY_DATA_UPDATED" then
         -- One ally's note, pin or latest time together changed (or a player became one).
         if not allies then return end
@@ -174,6 +189,10 @@ local function OnEvent(_, event, guid)
     elseif event == "RECENT_ALLIES_SYSTEM_STATUS_UPDATED" then
         Refresh()
         HST:RefreshSettings()
+    elseif event == RESTRICTION then
+        if retrying or IsSecret(state) or state ~= INACTIVE then return end
+        retrying = true
+        C_Timer.After(0, Retry)
     else
         Request(true)
     end
