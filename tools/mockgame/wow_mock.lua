@@ -326,7 +326,10 @@ for _, method in ipairs({ 'SetWordWrap', 'SetNonSpaceWrap', 'SetJustifyV', 'SetB
     'EnableKeyboard', 'SetToplevel', 'SetHorizTile', 'SetVertTile', 'SetGradient', 'SetVertexOffset',
     'SetMask', 'AddMaskTexture', 'SetFlattensRenderLayers', 'Raise', 'Lower', 'SetMotionScriptsWhileDisabled',
     'EnableMouseWheel', 'SetNormalFontObject', 'SetHighlightFontObject', 'SetDisabledFontObject', 'SetSpacing',
-    'SetRotation', 'UpdateScrollChildRect', 'StartSizing', 'SetDontSavePosition', 'HighlightText', 'SetSnapToPixelGrid' }) do ui[method] = noop end
+    'SetRotation', 'UpdateScrollChildRect', 'StartSizing', 'SetDontSavePosition', 'HighlightText', 'SetSnapToPixelGrid',
+    -- Cooldown frames (Campfire Helper's ring).
+    'SetDrawEdge', 'SetDrawBling', 'SetHideCountdownNumbers', 'SetSwipeTexture', 'SetSwipeColor', 'SetCooldown', 'Pause',
+    'Resume', 'SetReverse', 'SetMouseMotionEnabled', 'SetMouseClickEnabled' }) do ui[method] = noop end
 function ui:SetEnabled(value) self.enabled = value and true or false end
 function ui:SetNormalTexture(value) self.normalTexture = value end
 function ui:SetPushedTexture(value) self.pushedTexture = value end
@@ -352,9 +355,17 @@ function ui:SetVerticalScroll(value) self.scroll = value; if self.scripts.OnVert
 function ui:GetVerticalScroll() return self.scroll or 0 end
 function ui:SetColorTexture(...) self.color = {...} end
 function ui:GetName() return self.name end
+-- Frame attributes (secure buttons read their action from them).
+function ui:SetAttribute(name, value)
+    local attributes = self.attributes
+    if not attributes then attributes = {}; self.attributes = attributes end
+    attributes[name] = value
+end
+function ui:GetAttribute(name) local attributes = self.attributes; return attributes and attributes[name] end
 function ui:Click(button) if self.scripts.OnClick and enabled(self) then CallIn(self.scripts.OnClick, self, button or 'LeftButton') end end
 -- Animation groups (the patch notes pip's blink): played and stopped, never animated. Unknown methods error.
-local animation = { SetFromAlpha = noop, SetToAlpha = noop, SetDuration = noop, SetSmoothing = noop }
+local animation = { SetFromAlpha = noop, SetToAlpha = noop, SetDuration = noop, SetSmoothing = noop,
+    SetFlipBookRows = noop, SetFlipBookColumns = noop, SetFlipBookFrames = noop }
 animation.__index = animation
 local animationGroup = { SetLooping = noop }
 animationGroup.__index = animationGroup
@@ -404,8 +415,12 @@ function dropdown:Pick(data)
     end
     error('dropdown has no entry ' .. tostring(data))
 end
+-- Cooldown frames: the swipe they're showing (start and duration), or none once cleared.
+local cooldown = { SetDrawEdge = noop }
+function cooldown:SetCooldown(start, duration) self.start, self.duration = start, duration end
+function cooldown:Clear() self.start, self.duration = nil, nil end
 -- Every table of widget methods (frames, templates, animations), for the benchmark's widget call counts.
-MOCK_WIDGET_METHODS = { methods, ui, slider, dropdown, animation, animationGroup }
+MOCK_WIDGET_METHODS = { methods, ui, slider, dropdown, animation, animationGroup, cooldown }
 MinimalSliderWithSteppersMixin = { Event = { OnValueChanged = 'OnValueChanged' } }
 ColorPickerFrame = {}
 function ColorPickerFrame:SetupColorPickerAndShow(info) self.info = info; self.r, self.g, self.b, self.a = info.r, info.g, info.b, info.opacity end
@@ -430,6 +445,8 @@ function CreateFrame(kind, name, parent, template)
         f.Slider = CreateFrame('Slider', nil, f)
     elseif kind == 'DropdownButton' then
         f.template = dropdown
+    elseif kind == 'Cooldown' then
+        f.template = cooldown
     end
     if name then _G[name] = f end
     return f

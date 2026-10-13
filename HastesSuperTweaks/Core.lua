@@ -127,7 +127,7 @@ function HST:Introduce()
         local on, total = self:CountEnabled()
         local minimap = self:GetModule("MinimapButton", true)
         self:Print(on .. " of " .. total .. " tweaks are on. Type /hst" .. (minimap and minimap:IsEnabled() and " or click the minimap button" or "")
-            .. " to see what each one does and choose yours.")
+            .. " to choose yours.")
     end)
 end
 
@@ -266,10 +266,12 @@ function HST:ValidProfileName(name)
 end
 
 -- The Profiles and About pages, built the first time the settings window shows them (see ns.LazyOptions).
--- Profiles cover every module's settings; module on/off states and statistics are separate.
+-- Profiles cover every module's settings; module on/off states and statistics are separate. The Export and Import
+-- cards are ProfileStrings.lua's.
 function HST:ProfileOptions()
     if self.profileOptions then return self.profileOptions end
     local db = self.db
+    local share = self:ProfileShareOptions()
     local function values(list)
         local result = {}; for _, item in ipairs(list) do result[item] = item end; return result
     end
@@ -312,6 +314,8 @@ function HST:ProfileOptions()
             reset = { type = "execute", name = "Reset profile", order = 3, confirm = true,
                 confirmText = "Restore the active profile to default settings?", func = function() db:ResetProfile() end },
         } },
+        export = share.export,
+        import = share.import,
     } }
     return self.profileOptions
 end
@@ -334,6 +338,7 @@ function HST:AboutOptions()
             { "/hst mail check", "Mail expiring soon on your characters" },
             { "/hst sort", "Clean up your bags" },
             { "/hst refresh now", "Refresh the world now, when a refresh is waiting" },
+            { "/hst legacy", "Open the Legacy window" },
         }),
         xp = card("XP Tracker", 4, {
             { "/hxp", "Open XP Tracker settings" },
@@ -399,7 +404,7 @@ function HST:Command(message)
     end
     table.sort(words)
     self:Print("/hst opens settings; /hst <tweak> opens a tweak's settings (" .. table.concat(words, ", ")
-        .. "). Also: /hst clutter list, /hst keep <item>, /hst sell <item>, /hst mail check, /hst sort, /hst refresh now. XP bar commands: /hxp help.")
+        .. "). Also: /hst clutter list, /hst keep <item>, /hst sell <item>, /hst mail check, /hst sort, /hst refresh now, /hst legacy. XP bar commands: /hxp help.")
 end
 
 -- The About page's /hst commands: the window, then each module's settings word in alphabetical order.
