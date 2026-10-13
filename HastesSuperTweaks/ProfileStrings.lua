@@ -399,7 +399,7 @@ function HST:ProfileShareOptions()
                 func = function() self:ShowProfileString() end },
         } },
         import = { type = "group", inline = true, name = "Import", order = 4, args = {
-            text = { type = "input", name = "Profile string", order = 1, width = "full", live = true,
+            text = { type = "input", name = "Profile string", order = 1, width = "full", multiline = 5, live = true,
                 desc = "Paste a profile string here, then import it as a new profile or into the active one.",
                 disabled = unsupported, get = function() return pasted end, set = function(_, text) pasted = text end },
             new = { type = "execute", name = "Import as new profile", order = 2, disabled = empty,
