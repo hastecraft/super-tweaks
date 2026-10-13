@@ -57,32 +57,55 @@ end, "Apply")
 -- Settings preview: what a fight leaves in chat (its summary, the group's top 3, a death), then the meter's settings
 -- menu with Report open, a click on Party, and the report in party chat.
 ---------------------------------------------------------------------------
-local ROW = 18 -- a menu row
+local ROW, SUB_ROW, DIVIDER = 18, 14, 7 -- menu rows; Report's submenu has more, so its rows are shorter
+local SAMPLE_SECONDS = 42 -- the sample fight's length
+local MENU_TEXT, OFF_TEXT = { 0.85, 0.85, 0.85 }, { 0.5, 0.5, 0.5 }
 
 local function Colored(class, name)
     local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
     return color and (ns.ColorCode(color) .. name .. "|r") or name
 end
 
-local function MenuPanel(parent, entries)
+-- A game menu with its entries top to bottom: text, false for a divider, or { text } for a radio button
+-- (panel.radios[i] is its selected dot). panel.tops[i] is where entry i starts.
+local function MenuPanel(parent, entries, row)
     local W = ns.Widgets
-    local panel = W.Panel(parent, 0, #entries * ROW + 8)
-    local width = 0
+    local panel = W.Panel(parent, 0, 0)
+    panel.tops, panel.labels, panel.radios = {}, {}, {}
+    local y, width = 4, 0
     for i, entry in ipairs(entries) do
-        local label = W.Text(panel, "GameFontHighlightSmall", { 0.85, 0.85, 0.85 })
-        label:SetPoint("TOPLEFT", 10, -7 - (i - 1) * ROW)
-        label:SetText(entry)
-        width = math.max(width, math.ceil(label:GetStringWidth()))
+        panel.tops[i] = y
+        if entry then
+            local radio = type(entry) == "table"
+            local label = W.Text(panel, "GameFontHighlightSmall", MENU_TEXT)
+            label:SetPoint("LEFT", panel, "TOPLEFT", radio and 22 or 10, -y - row / 2)
+            label:SetText(radio and entry[1] or entry)
+            panel.labels[i] = label
+            width = math.max(width, math.ceil(label:GetStringWidth()) + (radio and 12 or 0))
+            if radio then
+                W.Dot(panel, 9, { 0.3, 0.3, 0.3, 1 }):SetPoint("CENTER", panel, "TOPLEFT", 14, -y - row / 2)
+                panel.radios[i] = W.Dot(panel, 5, { 1, 0.82, 0, 1 }, nil, "OVERLAY")
+                panel.radios[i]:SetPoint("CENTER", panel, "TOPLEFT", 14, -y - row / 2)
+            end
+            y = y + row
+        else
+            local line = W.Fill(panel, { 0.35, 0.35, 0.35, 1 }, "ARTWORK")
+            line:SetHeight(1)
+            line:SetPoint("TOPLEFT", 8, -y - DIVIDER / 2)
+            line:SetPoint("TOPRIGHT", -8, -y - DIVIDER / 2)
+            y = y + DIVIDER
+        end
     end
-    panel:SetWidth(width + 34)
+    panel:SetSize(width + 34, y + 4)
     panel.hover = W.Fill(panel, { 0.3, 0.5, 1, 1 }, "ARTWORK")
-    panel.hover:SetHeight(ROW)
+    panel.hover:SetHeight(row)
     return panel
 end
 
-local function Hover(panel, row, alpha)
-    panel.hover:SetPoint("TOPLEFT", 3, -4 - (row - 1) * ROW)
-    panel.hover:SetPoint("TOPRIGHT", -3, -4 - (row - 1) * ROW)
+local function Hover(panel, i, alpha)
+    local y = -panel.tops[i]
+    panel.hover:SetPoint("TOPLEFT", 3, y)
+    panel.hover:SetPoint("TOPRIGHT", -3, y)
     panel.hover:SetAlpha(alpha)
 end
 
@@ -96,46 +119,66 @@ function D.info.preview(frame)
         v.summary = W.ChatLine(frame, "Hogger · 0:42 · 12,345 damage · 293 DPS · #2 of 5 (31%)")
         v.top = W.ChatLine(frame, "1. " .. ann .. " 18,234 (45%) · 2. " .. Colored("HUNTER", "Haste")
             .. " 12,345 (31%) · 3. " .. Colored("WARRIOR", "Bob") .. " 6,120 (15%)")
+        v.short = W.Caption(frame, "")
         v.death = W.ChatLine(frame, ann .. " died: Defias Pillager's Fireball 412 (87 overkill) |cff71d5ff[Death Recap]|r")
         v.none = W.Caption(frame, "Turn on a part of this tweak to see it here.")
-        -- The meter window's cog menu, with Report's submenu beside it.
+        -- The meter window's cog menu, with Report's submenu beside it: the channels (in a party, Raid and Instance are
+        -- off), then how many names a report lists.
         v.row = CreateFrame("Frame", nil, frame)
-        v.menu = MenuPanel(v.row, { DAMAGE_METER_RESET_ALL_SESSIONS or "Reset All Sessions", "Report" })
+        v.menu = MenuPanel(v.row, { DAMAGE_METER_RESET_ALL_SESSIONS or "Reset All Sessions", "Report" }, ROW)
         v.menu:SetPoint("TOPLEFT")
-        W.Chevron(v.menu, 8, { 0.85, 0.85, 0.85 }):SetPoint("RIGHT", v.menu, "TOPRIGHT", -8, -4 - 1.5 * ROW)
-        v.sub = MenuPanel(v.row, { "Say", "Party", "Raid", "Guild" })
+        W.Chevron(v.menu, 8, MENU_TEXT):SetPoint("RIGHT", v.menu, "TOPRIGHT", -8, -4 - 1.5 * ROW)
+        v.sub = MenuPanel(v.row, { "Say", "Party", "Raid", "Instance", "Guild", false, { LINES[5] }, { LINES[10] } },
+            SUB_ROW)
+        v.sub.labels[3]:SetTextColor(unpack(OFF_TEXT))
+        v.sub.labels[4]:SetTextColor(unpack(OFF_TEXT))
         v.sub:SetPoint("TOPLEFT", v.menu, "TOPRIGHT", 2, -ROW)
-        v.row:SetSize(v.menu:GetWidth() + 2 + v.sub:GetWidth(), ROW + v.sub:GetHeight())
+        v.row:SetSize(v.menu:GetWidth() + 2 + v.sub:GetWidth(), math.max(v.menu:GetHeight(), ROW + v.sub:GetHeight()))
         v.cursor = W.Icon(v.row, "Interface\\Cursor\\Point", 20, "OVERLAY")
         local party = ChatTypeInfo and ChatTypeInfo.PARTY
         v.party = W.Text(frame, "GameFontHighlightSmall", party and { party.r, party.g, party.b } or { 0.67, 0.67, 1 },
             "CENTER")
         v.party:SetWidth(242)
-        v.party:SetText("[Party] [Haste]: Damage Done: Hogger [0:42]\n[Party] [Haste]: 1. Ann 18,234 (434/s, 45%)")
     end
     local p = D.db.profile
-    local summary, top, death = p.summary == true, p.summary and p.top == true, p.deaths == true
-    local chat = summary or death
+    -- The sample fight gets a summary only when it's as long as the shortest fight set.
+    local long = SAMPLE_SECONDS >= p.minSeconds
+    local summary, death = p.summary == true and long, p.deaths == true
+    local top = summary and p.top == true
+    local short = p.summary == true and p.minSeconds > 0
+    if short then
+        v.short:SetText(long and ("No summary for fights under " .. p.minSeconds .. " sec.")
+            or ("No summary for this 0:42 fight: it's under " .. p.minSeconds .. " sec."))
+    end
+    local chat = summary or short or death
     local column = {}
-    for _, line in ipairs({ summary and v.summary, top and v.top, death and v.death }) do
+    for _, line in ipairs({ summary and v.summary, top and v.top, short and v.short, death and v.death }) do
         if line then
             if #column > 0 then column[#column + 1] = 6 end
             column[#column + 1] = line
         end
     end
-    v.summary:SetShown(summary); v.top:SetShown(top); v.death:SetShown(death)
+    v.summary:SetShown(summary); v.top:SetShown(top); v.short:SetShown(short); v.death:SetShown(death)
     v.row:SetShown(p.report); v.party:SetShown(p.report)
     v.none:SetShown(not (chat or p.report))
     if #column > 0 then W.Column(frame, column) end
-    W.Column(frame, { v.row, 10, v.party })
+    -- The report: its title, the first name and how many more it lists at most. It takes the menu's place as it closes.
+    v.sub.radios[7]:SetShown(p.reportLines == 5)
+    v.sub.radios[8]:SetShown(p.reportLines == 10)
+    v.party:SetText("[Party] [Haste]: Damage Done: Hogger [0:42]\n[Party] [Haste]: 1. Ann 18,234 (434/s, 45%)\n"
+        .. "|cff9d9d9d...and up to " .. (p.reportLines - 1) .. " more names|r")
+    W.Column(frame, { v.row })
+    W.Column(frame, { v.party })
     W.Column(frame, { v.none })
     -- The chat lines, then the menu: four seconds each.
     local menuAt = chat and 4 or 0
     local period = math.max(4, menuAt + (p.report and 4 or 0))
     local x1, x2 = v.menu:GetWidth() - 40, v.menu:GetWidth() + 2 + v.sub:GetWidth() - 36
+    local y1, y2 = -1.5 * ROW, 4 - ROW - v.sub.tops[2] - SUB_ROW / 2 -- the pointer's tip on a row
     W.Loop(frame, period, function(t)
         v.summary:SetAlpha(W.Window(t, 0.2, 3.8, 0.3))
         v.top:SetAlpha(W.Window(t, 0.5, 3.8, 0.3))
+        v.short:SetAlpha(W.Window(t, 0.2, 3.8, 0.3))
         v.death:SetAlpha(W.Window(t, 0.9, 3.8, 0.3))
         local u = t - menuAt
         local menu = W.Window(u, 0.1, 2.1, 0.2)
@@ -144,9 +187,9 @@ function D.info.preview(frame)
         Hover(v.menu, 2, u > 0.4 and 0.25 or 0)
         local move = W.Ease(u, 0.9, 1.4)
         Hover(v.sub, 2, u < 1.4 and 0 or 0.25 + 0.3 * W.Window(u, 1.5, 1.8, 0.1))
-        v.cursor:SetPoint("TOPLEFT", v.row, "TOPLEFT", x1 + (x2 - x1) * move, -4 - 1.5 * ROW - move * ROW + 4)
+        v.cursor:SetPoint("TOPLEFT", v.row, "TOPLEFT", x1 + (x2 - x1) * move, y1 + (y2 - y1) * move)
         v.cursor:SetAlpha(menu)
-        v.party:SetAlpha(W.Window(u, 1.9, 3.9, 0.2))
+        v.party:SetAlpha(W.Window(u, 2.1, 3.9, 0.2))
     end)
 end
 
