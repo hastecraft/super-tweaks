@@ -131,36 +131,71 @@ function HST:Introduce()
     end)
 end
 
+-- A copy of saved data, tables and all.
+local function DeepCopy(value)
+    if type(value) ~= "table" then return value end
+    local copy = {}
+    for k, v in pairs(value) do copy[k] = DeepCopy(v) end
+    return copy
+end
+
+-- This character's key in the database: "Name - Realm", or on WoW Forever, where names are unique across the region,
+-- "First Surname" (the key AceDB-3.0 r39 gives it); and its first name. Nil while the game doesn't know the name yet.
+local function CharacterKey(realm)
+    local name, surname = (UnitNameUnmodified or UnitName)("player")
+    if not name or name == "" or name == UNKNOWN_NAME then return nil end
+    if ns.RegionalNames() then return (surname and surname ~= "") and (name .. " " .. surname) or name, name end
+    return name .. " - " .. realm, name
+end
+
 -- On this client UnitName("player") can return "Unknown" while addons load, and AceDB builds its
 -- character key at that moment. Once the real name is known, bind per-character data (in this
 -- database and its module namespaces) and the profile choice to it. Data saved under the
 -- placeholder is merged; when both entries record /played, the higher one is newer.
+-- Before this addon knew WoW Forever's surnames, every character there with the same first name shared one entry,
+-- "First - Realm". A character with no entry of its own yet starts from a copy of it, as it was; the shared entry stays
+-- for the others.
 function HST:FixCharacterKey()
-    local name = UnitName("player")
-    if not name or name == "" or name == UNKNOWN_NAME then return end
     local db = self.db
-    local key = name .. " - " .. db.keys.realm
+    local key, first = CharacterKey(db.keys.realm)
+    if not key then return end
     self.charKey = key
+    local regional = ns.RegionalNames()
+    local shared = regional and (first .. " - " .. db.keys.realm) or nil
+    -- AceDB still saves profile choices under the shared entry; it keeps the choice it had, for the others.
+    self.sharedKey, self.sharedChoice = shared, shared and db.sv.profileKeys[shared]
     local databases = { db }
     for _, child in pairs(db.children or {}) do databases[#databases + 1] = child end
     for _, child in ipairs(databases) do
         local chars = child.sv.char
         if chars then
-            for _, stale in ipairs({ child.keys.char, UNKNOWN_NAME .. " - " .. child.keys.realm }) do
-                local data = stale ~= key and chars[stale]
+            local stale = { child.keys.char, UNKNOWN_NAME .. " - " .. child.keys.realm, regional and UNKNOWN_NAME or nil }
+            for _, old in ipairs(stale) do
+                local data = old ~= key and old ~= shared and chars[old]
                 if data then
                     local current = chars[key]
                     if not current or (tonumber(data.played) or 0) > (tonumber(current.played) or 0) then chars[key] = data end
-                    chars[stale] = nil
+                    chars[old] = nil
                 end
             end
+            if shared and not chars[key] and chars[shared] then chars[key] = DeepCopy(chars[shared]) end
         end
         if child.keys.char ~= key then
             child.keys.char = key
             rawset(child, "char", nil) -- AceDB rebuilds it from sv.char[key] on next use
         end
     end
+    -- The first time a character uses its surname key, it keeps the profile its shared entry had chosen (AceDB may
+    -- already have recorded the default under the new key).
     local chosen = db.sv.profileKeys[key]
+    if shared then
+        local moved = db.global.surnameKeys or {}
+        db.global.surnameKeys = moved
+        if not moved[key] then
+            moved[key] = true
+            chosen = db.sv.profileKeys[shared] or chosen
+        end
+    end
     if chosen and chosen ~= db:GetCurrentProfile() then db:SetProfile(chosen) end
     self:SaveProfileChoice()
 end
@@ -171,6 +206,8 @@ function HST:SaveProfileChoice()
     local keys = self.db.sv.profileKeys
     keys[self.charKey] = self.db.keys.profile
     keys[UNKNOWN_NAME .. " - " .. self.db.keys.realm] = nil
+    if ns.RegionalNames() then keys[UNKNOWN_NAME] = nil end
+    if self.sharedKey then keys[self.sharedKey] = self.sharedChoice end
 end
 
 -- Counts profile switches, copies, resets and deletes. Work begun for one profile (an open color picker, a
@@ -181,6 +218,8 @@ function HST:OnProfileEvent(event)
     -- Before a switch or delete (OnProfileShutdown) an open color picker ends while its profile is still active.
     if ns.Widgets then ns.Widgets.EndColorEdit() end
     if event == "OnProfileShutdown" then return end
+    -- Deleting the shared entry's profile takes the choice away from it too.
+    if event == "OnProfileDeleted" and self.sharedKey then self.sharedChoice = self.db.sv.profileKeys[self.sharedKey] end
     if event == "OnProfileChanged" then self:SaveProfileChoice(); self:ListProfiles() end
     self:RefreshSettings()
 end
@@ -404,6 +443,42 @@ HST.links = {
 -- table keys or tested; check anything read from the game before doing that.
 ns.IsSecret = issecretvalue or function() return false end
 local IsSecret = ns.IsSecret
+
+-- Character names. On WoW Forever every character has a first name and a surname, unique across the region: the
+-- game gives the surname where other clients give a realm (UnitName's second return), shows "First Surname" and also
+-- takes "First-Surname". On other clients "Name-Realm" names a character on another realm.
+local regionalNames
+function ns.RegionalNames()
+    if regionalNames == nil then regionalNames = RegionalUniqueNamesEnabled ~= nil and RegionalUniqueNamesEnabled() == true end
+    return regionalNames
+end
+
+-- "First Surname" on WoW Forever, from a first name and a surname (UnitName's two returns); elsewhere the name. A first
+-- name that already holds the surname is left as it is. Check both for secret values first.
+function ns.FullName(name, surname)
+    if surname and surname ~= "" and ns.RegionalNames() and not name:find("[%s%-]") then
+        local consts = Constants and Constants.CharacterNameSeparatorConsts
+        return name .. (consts and consts.CHARACTERNAME_SURNAME_SEPARATOR or " ") .. surname
+    end
+    return name
+end
+
+-- Your name as the mail and whisper boxes take it ("First Surname" on WoW Forever), or nil while the game doesn't know
+-- it yet. It doesn't change during a session, so it's read once.
+local playerName
+function ns.PlayerName()
+    if playerName then return playerName end
+    local name, surname = (UnitNameUnmodified or UnitName)("player")
+    if not name or name == "" or name == UNKNOWN_NAME then return nil end
+    playerName = ns.FullName(name, surname)
+    return playerName
+end
+
+-- A WoW Forever name spelled one way for comparing: "First Surname", "First-Surname" and any case are the same name.
+-- Check it for a secret value first.
+function ns.NameKey(name)
+    return (name:gsub("[%s%-]+", " "):lower())
+end
 
 -- The left-hand lines of a tooltip the game fills in: from its tooltip data (getData(...), where the client has it),
 -- or else from a hidden tooltip (setter is its method that shows the same thing).
