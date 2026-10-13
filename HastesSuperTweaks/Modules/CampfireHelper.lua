@@ -32,12 +32,11 @@ end
 
 local C = HST:NewFeature("CampfireHelper", {
     name = "Campfire Helper", category = "leveling", order = 7, command = "camp", unavailable = unavailable,
-    summary = "A campfire on screen: near a fire, the minute to sit, and your camp buffs' hour.",
+    summary = "Timers for sitting by a campfire and for your camp buffs.",
     examples = { "style", "nearby", "keepShown", "warnAt" },
-    description = "Shows a campfire on screen when you're near one, counts down the minute you sit by it, then keeps "
-        .. "your camp buffs' time left up and blinks when they're about to end and when they have. Show it as a "
-        .. "campfire in a ring, a bar or the camp aura's icon, and move it in Edit Mode. Chat messages for your own "
-        .. "campfire, the buffs you got and Boosted Rest can be turned on too. /hst camp check shows every camp timer.",
+    description = "Shows when you're near a campfire, counts down while you sit by it, then shows how long your camp "
+        .. "buffs have left and blinks when they're about to run out. Show it as a ring, a bar or an icon, and move it "
+        .. "in Edit Mode. /hst camp check lists every camp timer.",
 })
 ns.CampfireHelper = C
 
@@ -1079,25 +1078,20 @@ function C:BuildOptions()
     local function noWarning() return C.db.profile.warnAt == 0 end
     local outlines = ns.OutlineChoices("Drop shadow")
     -- The countdown's colors, on the ring's and the bar's tabs.
-    local function colors(order, what)
+    local function colors(order)
         return ns.Section("Colors", order, {
-            sittingColor = option("color", "sittingColor", "While you sit", 1, {
-                desc = "The " .. what .. " during the minute you sit by a fire." }),
-            buffsColor = option("color", "buffsColor", "While camp buffs last", 2, {
-                desc = "The " .. what .. " during your camp buffs' hour." }),
-            warnColor = option("color", "warnColor", "Ending soon", 3, { disabled = noWarning,
-                desc = "The " .. what .. " once your camp buffs are about to end." }),
+            sittingColor = option("color", "sittingColor", "While you sit", 1),
+            buffsColor = option("color", "buffsColor", "While camp buffs last", 2),
+            warnColor = option("color", "warnColor", "Ending soon", 3, { disabled = noWarning }),
         })
     end
     return { name = C.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             show = ns.Section("On screen", 1, {
-                display = option("toggle", "display", "Show on screen", 1, { desc =
-                    "Counts down the minute you sit by a fire, then your camp buffs' hour. Move it in Edit Mode." }),
+                display = option("toggle", "display", "Show on screen", 1, { desc = "Move it in Edit Mode." }),
                 style = option("select", "style", "Style", 2, { disabled = off,
                     values = { campfire = "Campfire in a ring", bar = "Bar", icons = "Icon" },
-                    sorting = { "campfire", "bar", "icons" },
-                    desc = "Each style has a tab of its own for its look." }),
+                    sorting = { "campfire", "bar", "icons" } }),
                 reset = { type = "execute", name = "Reset position", order = 3, disabled = off,
                     desc = "Moves it back to the middle of the screen, above your character.",
                     func = function()
@@ -1108,14 +1102,13 @@ function C:BuildOptions()
             }),
             when = ns.Section("When it shows", 2, {
                 nearby = option("toggle", "nearby", "Near a campfire", 1, { disabled = off, desc =
-                    "When you're close enough to a fire to get camp buffs by sitting down. The minute you sit "
-                        .. "always shows." }),
-                nearbyAt = range("nearbyAt", "Over camp buffs at (minutes left)", 2, 0, 60, {
+                    "Close enough to sit by it for camp buffs." }),
+                nearbyAt = range("nearbyAt", "Switch to a nearby fire at (minutes left)", 2, 0, 60, {
                     disabled = function() return off() or not C.db.profile.nearby end, desc =
-                    "Near a campfire, shows that and the minute you sit instead of your camp buffs' countdown once "
-                        .. "they have this long left. 0: never, 60: always." }),
-                keepShown = option("toggle", "keepShown", "The whole hour of camp buffs", 3, { disabled = off,
-                    desc = "Off, it shows only once they're about to end." }),
+                    "Near a campfire, shows the fire instead of your camp buffs once they have this many minutes "
+                        .. "left. 0: never, 60: always." }),
+                keepShown = option("toggle", "keepShown", "While camp buffs last", 3, { disabled = off,
+                    desc = "When off, it only shows once they're about to run out." }),
                 remind = option("toggle", "remind", "After camp buffs end", 4, { disabled = off, desc =
                     "Blinks until you sit by a campfire again or click it." }),
             }),
@@ -1123,8 +1116,7 @@ function C:BuildOptions()
                 warnAt = range("warnAt", "Warn at (minutes left)", 1, 0, 30, { disabled = off,
                     desc = "Turns red and blinks. 0 turns the warning off." }),
                 sound = option("toggle", "sound", "Play a sound", 2, { disabled = off, desc =
-                    "The raid warning sound when it starts blinking: as your camp buffs are about to end, and when "
-                        .. "they have." }),
+                    "The raid warning sound, when your camp buffs are about to run out and when they do." }),
             }),
         } },
         campfire = { type = "group", name = "Campfire", order = 2, hidden = notStyle("campfire"), disabled = off, args = {
@@ -1136,7 +1128,7 @@ function C:BuildOptions()
                 glow = option("toggle", "glow", "Glow", 5),
                 backdrop = option("toggle", "backdrop", "Dark backdrop", 6),
             }),
-            colors = colors(2, "ring"),
+            colors = colors(2),
         } },
         bar = { type = "group", name = "Bar", order = 2, hidden = notStyle("bar"), disabled = off, args = {
             look = ns.Section("Bar", 1, {
@@ -1145,35 +1137,32 @@ function C:BuildOptions()
                 texture = ns.MediaOption(profile, "statusbar", "texture", "Texture", 3, nil, apply),
                 barIcon = option("select", "barIcon", "Icon", 4, {
                     values = { left = "Left", right = "Right", none = "None" }, sorting = { "left", "right", "none" },
-                    get = function() return IconSide(C.db.profile) end,
-                    desc = "The camp aura's icon beside the bar." }),
+                    get = function() return IconSide(C.db.profile) end }),
             }),
             frame = ns.Section("Border and background", 2, {
                 border = range("border", "Border", 1, 0, 4),
                 borderColor = option("color", "borderColor", "Border color", 2),
                 backgroundColor = option("color", "backgroundColor", "Background", 3),
             }),
-            colors = colors(3, "bar"),
+            colors = colors(3),
         } },
         icons = { type = "group", name = "Icon", order = 2, hidden = notStyle("icons"), disabled = off, args = {
             look = ns.Section("Icon", 1, {
                 iconSize = range("iconSize", "Size", 1, 16, 96),
-                iconSwipe = option("toggle", "iconSwipe", "Countdown sweep", 2, { desc =
-                    "The game's dark sweep across the icon as time runs out." }),
+                iconSwipe = option("toggle", "iconSwipe", "Countdown sweep", 2),
             }),
             frame = ns.Section("Border", 2, {
                 iconBorder = range("iconBorder", "Border", 1, 0, 3),
                 borderColor = option("color", "borderColor", "Border color", 2),
-                warnColor = option("color", "warnColor", "Ending soon", 3, { disabled = noWarning,
-                    desc = "The border once your camp buffs are about to end." }),
+                warnColor = option("color", "warnColor", "Ending soon", 3, { disabled = noWarning }),
             }),
         } },
         text = { type = "group", name = "Text", order = 3, disabled = off, args = {
             lines = ns.Section("Lines", 1, {
                 showTime = option("toggle", "showTime", "Time left", 1, { desc =
-                    "\"42 sec\" or \"52 min\"; or what's going on when nothing counts down (\"Campfire nearby\")." }),
+                    "Such as \"42 sec\", or \"Campfire nearby\" when nothing counts down." }),
                 showLabel = option("toggle", "showLabel", "Status", 2, { desc =
-                    "What to do: \"Keep sitting\", \"Camp buffs\". On the bar, its left side." }),
+                    "Such as \"Keep sitting\" or \"Camp buffs\"." }),
             }),
             font = ns.Section("Font", 2, {
                 font = ns.MediaOption(profile, "font", "font", "Font", 1, nil, apply),
@@ -1190,19 +1179,19 @@ function C:BuildOptions()
         chat = { type = "group", name = "Chat", order = 4, args = {
             chat = ns.Section("Chat messages", 1, {
                 chat = option("toggle", "chat", "Say it in chat", 1, { desc =
-                    "Camp timers and reminders as chat messages too, for the ones chosen below." }),
+                    "Also posts the messages chosen below in chat." }),
                 fire = option("toggle", "fire", "Your campfire", 2, { disabled = quiet, desc =
-                    "Says how long the campfire you light burns and when you can light another, a minute before it "
-                        .. "goes out, and when it has." }),
+                    "How long a campfire you light burns, a warning a minute before it goes out, and when you can "
+                        .. "light another." }),
                 sitting = option("toggle", "sitting", "Keep sitting", 3, { disabled = quiet, desc =
-                    "When you sit by a campfire, says how long until the camp buffs land, and warns when you moved "
-                        .. "too soon or still have camp buffs that keep you from getting new ones." }),
+                    "How long until your camp buffs land, and a warning if you got up too soon or your old camp "
+                        .. "buffs block new ones." }),
                 buffs = option("toggle", "buffs", "Name the camp buffs you got", 4, { disabled = quiet, desc =
-                    "Names the camp buffs that landed, and warns when one of them ends before the others." }),
+                    "Also warns when one of them ends before the others." }),
                 ending = option("toggle", "ending", "Camp buffs ending", 5, { disabled = quiet, desc =
-                    "Says when your camp buffs are about to end (at the warning set on General), and when they have." }),
+                    "At the warning time set on General, and when they're gone." }),
                 boosted = option("toggle", "boosted", "Boosted Rest", 6, { disabled = quiet, desc =
-                    "Says when Boosted Rest ends, so a Camp Tent gives you rested XP again." }),
+                    "Says when it ends, so a Camp Tent gives rested XP again." }),
             }),
         } },
     } }
