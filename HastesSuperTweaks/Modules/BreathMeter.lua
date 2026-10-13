@@ -318,6 +318,15 @@ function B:UpdateBlizzard()
         for _, event in ipairs(GAME_EVENTS) do frame:UnregisterEvent(event) end
     else
         for _, event in ipairs(GAME_EVENTS) do pcall(frame.RegisterEvent, frame, event) end
+        -- Timers that started while the game wasn't listening are handed to it as if they had just started (with
+        -- paused as a boolean: the game's bar takes the number 0 for paused).
+        local onEvent = frame:GetScript("OnEvent")
+        for i = 1, onEvent and GetMirrorTimerInfo and 3 or 0 do
+            local name, value, maxValue, scale, paused, label = GetMirrorTimerInfo(i)
+            if name and name ~= "UNKNOWN" then
+                onEvent(frame, "MIRROR_TIMER_START", name, value, maxValue, scale, IsPaused(paused), label)
+            end
+        end
     end
     self.hidingGame = hide
 end
