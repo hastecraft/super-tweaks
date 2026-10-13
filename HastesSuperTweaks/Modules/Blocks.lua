@@ -34,14 +34,64 @@ local function Identity(name, realm)
     return name, Realm(realm) or HomeRealm()
 end
 
--- Same character: GUIDs when both are known, otherwise the same name on the same realm. Only when a realm can't be
--- worked out at all does the name alone decide.
-local function Matches(who, guid, otherName, otherGuid, otherRealm)
+-- Same character as the one named short and realm (by Identity) with this GUID, if known: GUIDs when both are known,
+-- otherwise the same name on the same realm. Only when a realm can't be worked out at all does the name alone decide.
+local function Matches(short, realm, guid, otherName, otherGuid, otherRealm)
     if guid and not IsSecret(otherGuid) and otherGuid then return guid == otherGuid end
     if IsSecret(otherName) or not otherName or otherName == "" then return false end
-    local short, realm = Identity(otherName, otherRealm)
-    if short ~= who.name then return false end
-    return realm == nil or who.realm == nil or realm == who.realm
+    local otherShort, other = Identity(otherName, otherRealm)
+    if otherShort ~= short then return false end
+    return other == nil or realm == nil or other == realm
+end
+
+-- Your guildmates, read from the roster once and again only after it changes, so asking about a player is a lookup
+-- rather than a walk through the roster (slow for large guilds). By GUID, and by name as Identity gives it: of the
+-- members with no GUID (asked with one), and of every member (asked without). A name's value is its realm, true when
+-- any realm matches, or a set of realms.
+local mateGuids, mateNamesNoGuid, mateNames = {}, {}, {}
+local rosterRead, rosterWatch = false, nil
+local function AddName(names, short, realm)
+    local known = names[short]
+    if known == true then return end
+    if realm == nil then names[short] = true
+    elseif known == nil then names[short] = realm
+    elseif type(known) == "string" then
+        if known ~= realm then names[short] = { [known] = true, [realm] = true } end
+    else known[realm] = true end
+end
+local function HasName(names, short, realm)
+    local known = names[short]
+    if known == nil then return false end
+    if known == true or realm == nil then return true end
+    if type(known) == "string" then return known == realm end
+    return known[realm] == true
+end
+-- Reads the roster when it changed since it was last read. While the game hides any of it, it's read again next time.
+local function ReadRoster()
+    if rosterRead then return end
+    wipe(mateGuids); wipe(mateNamesNoGuid); wipe(mateNames)
+    local count, complete = GetNumGuildMembers(), true
+    if IsSecret(count) or not count then count, complete = 0, false end
+    for i = 1, count do
+        local name, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, guid = GetGuildRosterInfo(i)
+        local hasGuid = not IsSecret(guid) and guid
+        if hasGuid then mateGuids[guid] = true end
+        if IsSecret(name) or IsSecret(guid) then complete = false end
+        if not IsSecret(name) and name and name ~= "" then
+            local short, realm = Identity(name)
+            AddName(mateNames, short, realm)
+            if not hasGuid then AddName(mateNamesNoGuid, short, realm) end
+        end
+    end
+    if not complete then return end
+    rosterRead = true
+    -- The next roster change marks it to be read again; nothing listens in between.
+    if not rosterWatch then
+        rosterWatch = CreateFrame("Frame")
+        rosterWatch:SetScript("OnEvent", function(frame) rosterRead = false; frame:UnregisterAllEvents() end)
+    end
+    rosterWatch:RegisterEvent("GUILD_ROSTER_UPDATE")
+    rosterWatch:RegisterEvent("PLAYER_GUILD_UPDATE")
 end
 
 -- True when the player is a character or Battle.net friend, guild member or community member, checking
@@ -49,13 +99,12 @@ end
 -- name without one (or where the game has no such answer, or hides it).
 local function IsIn(name, guid, friends, guild, communities)
     local short, realm = Identity(name)
-    local who = { name = short, realm = realm }
     if friends and C_FriendList then
         local known = guid and C_FriendList.IsFriend ~= nil
         if known and C_FriendList.IsFriend(guid) then return true end
         for i = 1, known and 0 or C_FriendList.GetNumFriends() or 0 do
             local info = C_FriendList.GetFriendInfoByIndex(i)
-            if info and Matches(who, guid, info.name, info.guid) then return true end
+            if info and Matches(short, realm, guid, info.name, info.guid) then return true end
         end
     end
     if friends and C_BattleNet then
@@ -66,7 +115,7 @@ local function IsIn(name, guid, friends, guild, communities)
                 for j = 1, C_BattleNet.GetFriendNumGameAccounts(i) or 0 do
                     local account = C_BattleNet.GetFriendGameAccountInfo(i, j)
                     if account and account.clientProgram == "WoW"
-                        and Matches(who, guid, account.characterName, account.playerGuid, account.realmName) then return true end
+                        and Matches(short, realm, guid, account.characterName, account.playerGuid, account.realmName) then return true end
                 end
             end
         end
@@ -74,12 +123,11 @@ local function IsIn(name, guid, friends, guild, communities)
     if guild and IsInGuild() then
         local member = guid and IsGuildMember and IsGuildMember(guid)
         if not IsSecret(member) and member then return true end
-        local known = guid and IsGuildMember ~= nil and not IsSecret(member)
-        local count = not known and GetNumGuildMembers()
-        if IsSecret(count) or not count then count = 0 end
-        for i = 1, count do
-            local memberName, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, memberGuid = GetGuildRosterInfo(i)
-            if Matches(who, guid, memberName, memberGuid) then return true end
+        -- The roster is only asked when the game can't answer by GUID.
+        if not (guid and IsGuildMember ~= nil and not IsSecret(member)) then
+            ReadRoster()
+            if guid and mateGuids[guid] then return true end
+            if HasName(guid and mateNamesNoGuid or mateNames, short, realm) then return true end
         end
     end
     -- Community members can't be read while chat is locked down (in some instances): the game hides them from addons
@@ -90,7 +138,7 @@ local function IsIn(name, guid, friends, guild, communities)
                 for _, memberId in ipairs(C_Club.GetClubMembers(club.clubId) or {}) do
                     if IsSecret(memberId) then break end
                     local member = C_Club.GetMemberInfo(club.clubId, memberId)
-                    if member and Matches(who, guid, member.name, member.guid) then return true end
+                    if member and Matches(short, realm, guid, member.name, member.guid) then return true end
                 end
             end
         end

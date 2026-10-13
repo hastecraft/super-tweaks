@@ -140,14 +140,16 @@ local function GuildOf(unit)
 end
 
 -- A player's name as members are remembered by it: on WoW Forever the whole "First Surname" spelled one way
--- (ns.NameKey), elsewhere the name without your own realm, lowercased. Read once per name as given.
-local nameKeys = {}
+-- (ns.NameKey), elsewhere the name without your own realm, lowercased. Read once per name as given; the names kept are
+-- let go once there are many, as every sender in trade chat passes through.
+local nameKeys, nameKeyCount = {}, 0
 local function NameKey(name)
     local key = nameKeys[name]
     if not key then
         if ns.RegionalNames() then key = ns.NameKey(name)
         else key = lower(Ambiguate and Ambiguate(name, "none") or name) end
-        nameKeys[name] = key
+        if nameKeyCount >= 500 then wipe(nameKeys); nameKeyCount = 0 end
+        nameKeys[name], nameKeyCount = key, nameKeyCount + 1
     end
     return key
 end
@@ -232,8 +234,9 @@ local function Muted(guid, sender, text)
         local unit = UnitTokenFromGUID(guid)
         if not IsSecret(unit) and unit then guild = F:Learn(unit) end
     end
-    if not guild and not IsSecret(sender) and type(sender) == "string" and sender ~= "" then
-        guild = F.db.global.guildNames[NameKey(sender)]
+    local names = F.db.global.guildNames
+    if not guild and next(names) ~= nil and not IsSecret(sender) and type(sender) == "string" and sender ~= "" then
+        guild = names[NameKey(sender)]
     end
     if guild and muted[guild] then return "member" end
 end

@@ -7,7 +7,9 @@ UNITS.player = { guid = 'Player-0', player = true, class = 'WARRIOR', health = 4
 UNITS.target = UNITS.npc
 Enum.TooltipDataType.Item = 0
 function UnitPlayerControlled(unit) local u = UNITS[unit]; return u ~= nil and (u.player == true or u.controlled == true) end
-function UnitTokenFromGUID(guid) for _, token in ipairs({ 'mouseover', 'target', 'npc' }) do if UNITS[token] and UNITS[token].guid == guid then return token end end end
+-- Made once: the game's UnitTokenFromGUID makes no garbage.
+local GUID_TOKENS = { 'mouseover', 'target', 'npc' }
+function UnitTokenFromGUID(guid) for _, token in ipairs(GUID_TOKENS) do if UNITS[token] and UNITS[token].guid == guid then return token end end end
 C_Item.GetItemCount = function(item) return ITEM_COUNTS[item] or 12 end
 function UnitAffectingCombat() return state.combat == true end
 MailFrame = CreateFrame('Frame', 'MailFrame', UIParent); MailFrame:Hide()
