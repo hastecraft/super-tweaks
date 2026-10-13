@@ -190,6 +190,7 @@ Section('Tooltips: Recent Allies (WoW Forever)', function()
     -- A copy of the addon from before the line (a base to compare with) has nothing to measure here.
     if T.db.profile.recentAllies == nil then return end
     local NOW, ALLY_GUID, loaded = 1760000000, 'Player-2', false
+    local serverTime = GetServerTime
     function GetServerTime() return NOW + math.floor(state.time) end
     C_RecentAllies = {
         IsSystemSupported = function() return true end,
@@ -220,7 +221,7 @@ Section('Tooltips: Recent Allies (WoW Forever)', function()
     Measure('Recent ally updated, then their tooltip', 100, function()
         Dispatch('RECENT_ALLY_DATA_UPDATED', ALLY_GUID); hover('ally', ALLY)
     end)
-    C_RecentAllies = nil
+    C_RecentAllies, GetServerTime = nil, serverTime
     T:Apply()
     Script(tip, 'OnTooltipCleared'); tip.unit = nil
 end)
