@@ -46,7 +46,7 @@ local defaults = {
     display = true, nearby = true, keepShown = true, warnAt = 5, remind = true, sound = false,
     style = "campfire", x = 0, y = 200,
     -- Campfire: its size and what it draws.
-    size = 56, fireArt = true, animate = true, glow = true, backdrop = true,
+    size = 56, ring = "classic", fireArt = true, animate = true, glow = true, backdrop = true,
     -- Bar.
     barWidth = 200, barHeight = 20, barIcon = true, texture = "Blizzard", border = 1, borderColor = { 0, 0, 0, 1 },
     backgroundColor = { 0.05, 0.05, 0.05, 0.75 },
@@ -138,6 +138,14 @@ C.shownIcons = {}
 local ART = "Interface\\AddOns\\HastesSuperTweaks\\Art\\"
 local FIRE_ART, RING_ART, GLOW_ART = ART .. "CampfireFire", ART .. "CampfireRing", ART .. "CampfireGlow"
 local FIRE_FRAMES, FIRE_COLUMNS, FIRE_FPS = 16, 4, 12
+-- The rings to choose from (drawn by tools/make_art.py), in the settings' order.
+local RINGS = {
+    classic = RING_ART, thin = RING_ART .. "Thin", thick = RING_ART .. "Thick", segmented = RING_ART .. "Segmented",
+    soft = RING_ART .. "Soft", rimmed = RING_ART .. "Rimmed",
+}
+local RING_NAMES = { classic = "Classic", thin = "Thin", thick = "Thick", segmented = "Segmented", soft = "Soft",
+    rimmed = "Rimmed" }
+local RING_ORDER = { "classic", "thin", "thick", "segmented", "soft", "rimmed" }
 -- The ring's track: dark under a countdown, lit near a fire, grey once it's out.
 local TRACK_DARK, TRACK_LIT, TRACK_OUT = { 0, 0, 0, 0.55 }, { 1, 0.7, 0.3, 0.6 }, { 0.55, 0.55, 0.55, 0.5 }
 local BORDER_DARK = { 0, 0, 0, 1 }
@@ -276,6 +284,12 @@ local function NewRing(d)
 end
 
 local function StyleRing(v, p, size)
+    local ring = RINGS[p.ring] or RING_ART
+    if v.ring ~= ring then
+        v.ring = ring
+        v.track:SetTexture(ring)
+        v.cd:SetSwipeTexture(ring)
+    end
     v.back:SetSize(size * 1.05, size * 1.05)
     Shown(v.back, p.backdrop)
     v.glow:SetSize(size * 1.6, size * 1.6)
@@ -1137,6 +1151,8 @@ function C:BuildOptions()
         look = { type = "group", name = "Look", order = 2, disabled = hidden, args = {
             campfire = ns.Section("Campfire", 1, {
                 size = option("range", "size", "Size", 1, { min = 32, max = 160, step = 1 }),
+                ring = option("select", "ring", "Ring", 1.5, { values = RING_NAMES, sorting = RING_ORDER,
+                    desc = "The ring that counts down." }),
                 fireArt = option("toggle", "fireArt", "Fire", 2, { desc = "Off, the ring alone." }),
                 animate = option("toggle", "animate", "Animate the fire", 3, { disabled = noFire,
                     desc = "Off, the fire stands still." }),
