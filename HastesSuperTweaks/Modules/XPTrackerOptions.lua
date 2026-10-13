@@ -85,8 +85,7 @@ function X:BuildOptions()
             preview = { type = "toggle", name = "Preview", order = 1,
                 desc = "Shows sample data so you can style the bar at any level, ignoring visibility rules. Turns off on /reload.",
                 get = function() return X.preview end, set = function(_, v) X.preview = v; X:Render() end },
-            hideBlizzard = toggle("hideBlizzard", "Hide the game's XP bar", 2,
-                "XP bars from other UI addons aren't affected."),
+            hideBlizzard = toggle("hideBlizzard", "Hide the game's XP bar", 2),
         }),
         mouse = section("Mouse", 2, {
             locked = toggle("locked", "Lock position", 1,
