@@ -36,7 +36,7 @@ The addon's promise is minimal performance impact: CPU per event and frame, garb
 - Make no garbage per event: no throwaway tables or closures, and no string building on hot paths. Build settings and option tables lazily.
 - Skip redundant widget calls: don't repeat SetText, SetPoint or Show when nothing changed.
 - A turned-off tweak should cost nothing: no events, hooks or OnUpdate.
-- Measure, don't guess. `python tools/bench.py` counts game API calls, widget calls, frames, regions, handlers run and garbage per operation on the hot paths (`--detail` lists the calls, and any game API the mocks lack). CI compares every pull request with its base and fails on more work, so run it before and after a change to a hot path. The hottest paths are unit tooltip redraws and the tooltip health poll, combat text, and bag and loot events. If you add a hot path, add a scenario for it to `tools/bench.py`.
+- Measure, don't guess. `python tools/bench.py` counts game API calls, widget calls, frames, regions, handlers run and garbage per operation on the hot paths (`--detail` lists the calls, and any game API the mocks lack). CI compares every pull request with its base and fails on a major regression (more work with every tweak off, new garbage on a hot path, or a count there up more than 10%), so run it before and after a change to a hot path. The hottest paths are unit tooltip redraws and the tooltip health poll, combat text, and bag and loot events. If you add a hot path, add a scenario for it to `tools/bench.py`.
 
 ## Know the game client
 
