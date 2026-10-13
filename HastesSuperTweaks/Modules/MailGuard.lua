@@ -85,7 +85,7 @@ function G.info.preview(frame)
             subject:SetPoint("TOPLEFT", sender, "BOTTOMLEFT", 0, -1)
             subject:SetText(row[2])
             if row[4] then
-                v.mark = W.Icon(inbox, ALERT, 16, "OVERLAY")
+                v.mark = W.Icon(slot, ALERT, 16, "OVERLAY")
                 v.mark:SetPoint("CENTER", slot, "BOTTOMRIGHT", -2, 2)
             end
         end
