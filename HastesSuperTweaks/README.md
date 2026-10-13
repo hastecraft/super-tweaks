@@ -16,12 +16,12 @@ Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's
 | Train All | Leveling | Adds a Train All button to trainers that learns everything they teach you that you can afford, one at a time, and names the new spells your class trainer has for you each time you level up. |
 | Auto Accept & Turn In Quests | Quests & NPCs | Accepts quests and turns them in for you when you talk to quest givers. Hold Shift to do it yourself. |
 | Skip NPC Chat | Quests & NPCs | Opens flight maps, bank, vendor and trainer windows right away when that's all an NPC has to offer. Hold Shift to see the chat. |
-| Quest Item Sparkle | Quests & NPCs | Keeps the sparkle on quest items and objects you can loot or use in the world, even with the game's outlines turned off, by turning on the game's `outlineModeShowLootEffectWhenDisabled` option each time you enter the world. Turning it off puts the option back. |
+| Quest Item Sparkle | Quests & NPCs | Keeps the sparkle on quest items and objects you can loot or use in the world, even with the game's outlines turned off. |
 | Quest Reward Value | Quests & NPCs | When a quest lets you choose a reward, the one a vendor pays the most for gets a gold coin and its price. |
 | Hide Quest Tracker | Quests & NPCs | Hides the quest tracker in dungeons and raids, in battlegrounds and arenas, in combat, or always. |
 | Loot Window | Loot & Vendors | Replaces the loot window with a compact list in this addon's style, with a Take All button and hotkey. While you auto loot, it lists what you picked up for a few seconds instead. Move it in Edit Mode. |
 | Movable Loot Rolls | Loot & Vendors | Lets you move the group loot rolls (Need, Greed and Pass) in Edit Mode, where a sample shows, and size them. |
-| Fast Loot | Loot & Vendors | Takes all the loot at once instead of one item at a time, whenever the game auto loots. Moderate speed (the default) waits a frame so addons that track loot (ore, herbs, fish) see it; Maximum is instant but can hide loot from them. Items being rolled on, and the master looter's items to hand out, are left in the loot window. |
+| Fast Loot | Loot & Vendors | Takes all the loot at once instead of one item at a time, whenever the game auto loots. Moderate speed (the default) waits a frame so addons that track loot (ore, herbs, fish) see it; Maximum is instant but can hide loot from them. |
 | Sell Junk Automatically | Loot & Vendors | Sells your grey items whenever you visit a vendor. Hold Shift to skip. Can also make the vendor's own Sell All Junk button sell without asking. |
 | Sell Clutter Automatically | Loot & Vendors | Sells what you pick up while leveling but won't use, whenever you visit a vendor: cooking ingredients and monster parts if no profession of yours uses them, other classes' reagents, gear your class can't use (and cloth armor on Warriors, Rogues and Hunters), drinks on Warriors and Rogues (no mana), food, potions and white gear you've outleveled, and the crafting materials you choose. Valuable materials, items your quests or RestedXP guides need, equipment sets, profession tools and anything that opens are kept. Never sell and Always sell lists fine-tune it, item tooltips say what will be sold, and `/hst clutter list` shows it before you reach a vendor. Hold Shift to skip. |
 | Repair Automatically | Loot & Vendors | Repairs your gear whenever you visit a vendor who can repair, from guild funds if you turn that on. Hold Shift to skip. |
@@ -35,7 +35,7 @@ Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's
 | Auto Accept Resurrection | Group & PvP | Accepts resurrections from other players as soon as the game allows. Hold Shift to answer them yourself. |
 | Auto Release in Battlegrounds | Group & PvP | Releases your spirit as soon as you die in a battleground. Hold Shift to stay. |
 | Group Finder Whispers | Group & PvP | While you're listed in the Group Finder, whispers show the sender's class (in its color), level and race, and a small list of who whispered you lets you invite them with a click. |
-| Right-Click Guild Invite | Social | Invite players to your guild straight from the right-click menu on their name in chat (not shown for people already in your guild). |
+| Right-Click Guild Invite | Social | Invite players to your guild straight from the right-click menu on their name in chat. |
 | Guild Message Popup | Social | Shows your guild's message of the day in the middle of the screen when you log in or when it changes. |
 | Chat Spam Filter | Social | Hides messages in trade, general and other public channels that match your word lists: gold selling, boosting, guild recruitment and words of your own. |
 | Auto-Decline Battle.net Friend Requests | Auto-Decline | Turns down Battle.net friend requests and tells you who sent them. |
@@ -69,11 +69,11 @@ Search is at the top, then every tweak by category. Click a category to open or 
 
 Every tweak with a switch to turn it on or off, filtered by All, On or Off. Pointing at one shows its description and preview on the right; clicking it opens its page.
 
-Tweaks with nothing to set (Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Skip NPC Chat, Quest Item Sparkle, Quest Reward Value, Right-Click Guild Invite, Auto-Decline Battle.net Friend Requests, Minimap Button, Hide Issue Reporter) have no page. They're just a switch, in the list and in the sidebar, and clicking them turns them on or off.
+Tweaks with nothing to set (Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Skip NPC Chat, Quest Item Sparkle, Quest Reward Value, Right-Click Guild Invite, Auto-Decline Battle.net Friend Requests, Minimap Button, Hide Issue Reporter) have no page. They're just a switch.
 
 ### A tweak's page
 
-The page has the tweak's switch, tabs for its settings pages (and chips for sub-pages), and the settings in cards, each with its description under it. Sliders take a typed value too. A live preview sits beside the settings (above them for the XP bar) and redraws as you change anything: the XP bar with its labels at its real size, the loot window both as you loot by hand and as auto looting lists it, the tooltip, combat text, breath meter and the rest. "Hide preview" gives the settings the whole width. A tweak that's off shows its settings, disabled, until you turn it on.
+The page has the tweak's switch, tabs for its settings pages (and chips for sub-pages), and the settings in cards, each with its description under it. Sliders take a typed value too. A live preview beside the settings (above them for the XP bar) redraws as you change anything; "Hide preview" gives the settings the whole width. A tweak that's off shows its settings, disabled, until you turn it on.
 
 ### Search
 
@@ -85,7 +85,7 @@ Profiles lets you switch, create, copy, delete and reset profiles. Profiles hold
 
 ### Other details
 
-Settings that cannot apply are disabled. Font menus preview each font. A confirmation accepted after you switched profiles does nothing, since it was asked about the other profile. Profiles made on one character are listed on all of them. Closing and reopening the window returns to the page you had open. Changes take effect immediately. The Loot Window's "Show on screen" shows its sample where the window opens, to drag it into place.
+Profiles made on one character are listed on all of them. The Loot Window's "Show on screen" shows its sample where the window opens, to drag it into place.
 
 ## Commands
 
@@ -124,7 +124,7 @@ What each module does in unusual situations, and what the game doesn't let addon
 
 - Auto Accept & Turn In Quests leaves you quests with a choice of rewards, quests that cost gold or flag you for PvP, repeatable quests, and NPCs with special gossip options. It doesn't accept a share Auto-Decline Shared Quests is declining, or an escort while your quest log is full or you're dead.
 - Skip NPC Chat only picks an NPC's single option when it opens a banker, battlemaster, guild charter, tabard, flight, trainer or vendor window. Plain chat, spirit healers, innkeepers and talent unlearning are never chosen.
-- Quest Reward Value compares what each reward sells for (times how many you get); rewards whose details haven't arrived yet are compared once they do. It never chooses for you, and Auto Accept & Turn In Quests still leaves quests with a choice of rewards to you.
+- Quest Reward Value compares what each reward sells for (times how many you get); rewards whose details haven't arrived yet are compared once they do.
 - Hide Quest Tracker moves the tracker under a hidden frame rather than collapsing it with the game's own code, which would lay it out again from this addon (its quest item buttons included); so hiding and showing wait for combat to end, and In combat hides it as combat starts. Showing only the current zone's quests isn't offered: it would mean changing which quests you watch.
 - Auto Accept Summons checks again when its countdown ends that it's the same summon and that your settings still accept it. A summon in combat is counted down once combat ends; while you can't teleport (falling, say) it waits.
 - Auto Accept Resurrection waits out the corpse recovery delay, then checks the offer, Shift and the combat setting again. Hardcore realms offer no resurrection.
@@ -144,7 +144,7 @@ What each module does in unusual situations, and what the game doesn't let addon
 
 - Consumable Macros recognizes items by their use spell, in the game's language, so new items work without a list; Healthstones are known by item ID. The macros are account-wide, use items by ID, and are only rewritten when their text changes: never in combat, while you're dead, or while the Macros window is open. In combat Eat & Drink leaves out the mana potion after a healing potion, since potions share a cooldown.
 - Mail Expiry & Alt List only knows a character's mail once you've opened its mailbox. On WoW Forever characters are told apart by first name and surname, and the list gives the full name the To: field takes; characters saved before this addon knew surnames are dropped, and each comes back when you log in on it. An inbox holding more than it can show is reported too, since that mail's expiry can't be read until some is taken out.
-- Mail Gold Guard only marks mail a player sent (mail you can reply to): auction house, quest and other game mail, and mail coming back to you, never are. Your characters count once this addon has seen each (logged in with Mail Expiry & Alt List on, or at a mailbox); friends, Battle.net friends and guildmates are matched by name and realm. It lowers the risk of taking gold you didn't ask for but can't promise anything: taking marked gold by hand, or returning it, stays your choice.
+- Mail Gold Guard only marks mail a player sent (mail you can reply to): auction house, quest and other game mail, and mail coming back to you, never are. Your characters count once this addon has seen each (logged in with Mail Expiry & Alt List on, or at a mailbox); friends, Battle.net friends and guildmates are matched by name and realm.
 - Bag Tweaks moves only the combined bags (Options > Controls > Use Combined Inventory Bags), right after the game places them each time they open; the bag frames aren't protected, so this works in combat. Its Clean Up button only shows when the game's own isn't on the combined bags. The Clean Up and new-item settings are the game's own, which WoW Forever's options don't show.
 - Auto-Equip Bags only acts on bags that arrive (looted, bought, or from mail, trade or the bank), never on bags you already had or took off yourself. Quivers, ammo pouches, soul bags and profession bags are never equipped or replaced. It waits out combat and anything on your cursor, and doesn't retry a swap the game refused.
 
@@ -157,7 +157,7 @@ What each module does in unusual situations, and what the game doesn't let addon
 
 ### Interface
 
-- Better Tooltips works on Blizzard's tooltip and on skinned ones (when another addon hides the border, it draws its own). The guild line replaces a rank another addon added, such as EllesmereUI's. Guild notes come from the guild roster, read at most every 15 seconds; in dungeons and raids, where the game hides the roster, the last notes stay. Tooltips at the mouse covers the tooltips the game places in its default spot. The target line and NPC IDs leave out units the game hides from addons, and the target line shows when the tooltip is drawn, not as the target changes.
+- Better Tooltips works on the game's tooltip and on skinned ones (when another addon hides the border, it draws its own). The guild line replaces a rank another addon added, such as EllesmereUI's. Guild notes come from the guild roster, read at most every 15 seconds; in dungeons and raids, where the game hides the roster, the last notes stay. Tooltips at the mouse covers the tooltips the game places in its default spot. The target line and NPC IDs leave out units the game hides from addons, and the target line shows when the tooltip is drawn, not as the target changes.
 - Elite & Rare Markers marks only the game's own nameplates: a nameplate addon that replaces them draws its own. A rare is announced once a session, when its nameplate first shows (turn on enemy nameplates); one whose identity the game hides (in instances) isn't.
 - Error Message Filter uses the game's own list of error types its error frame leaves out, so it costs nothing per message; spell failures the game reports under a general error type can't be told apart, and still show.
 - Game Settings holds each setting the way Better Scrolling Combat Text does: what it was is kept, and put back when you switch it off, unless you changed it yourself meanwhile. Settings that can't change in combat wait for it to end. The action camera is the game's ActionCam command; while on, the game's Keep Character Centered (part of Motion Sickness) is off, and the game's experimental feature warning is confirmed for you. Sound in Background and Error Speech aren't here: they're in the game's Options > Audio. The Edit Mode backup holds this character's and the account's layouts; restoring reloads the interface, and a backup at login is skipped while you have no layouts of your own, so losing them never replaces a good backup.
