@@ -608,15 +608,89 @@ end
 -- The campfire's tooltip: what it's counting down and what to do, then your own fire and Boosted Rest.
 local WHITE, GREY = { 1, 1, 1 }, { 0.6, 0.6, 0.6 }
 local function Line(text, color) GameTooltip:AddLine(text, color[1], color[2], color[3], true) end
+
+-- What the camp buffs give, read from their tooltips: "Increases armor by 114 and Spirit by 14." is +114 Armor and
+-- +14 Spirit. The same stat from two buffs adds up; stats keep the order they're read in.
+local GetBuffTooltip = C_TooltipInfo and C_TooltipInfo.GetUnitBuffByAuraInstanceID
+local statAmount, statOrder = {}, {}
+local LEAD = { "^and ", "^increases ", "^decreases ", "^reduces ", "^your ", "^the " }
+local TAIL = { " increased$", " decreased$", " reduced$" }
+local function TitleCase(a, rest) return a:upper() .. rest end
+local added -- how many amounts the buff being read gave
+-- One amount: `words` is the stat as the tooltip says it, or `name` the stat as shown.
+local function AddStat(words, sign, amount, name)
+    if not name then
+        words = words:lower():gsub("^%s+", ""):gsub("%s+$", "")
+        local cut
+        repeat
+            cut = false
+            for i = 1, #LEAD do
+                local n
+                words, n = words:gsub(LEAD[i], "")
+                cut = cut or n > 0
+            end
+        until not cut
+        for i = 1, #TAIL do words = words:gsub(TAIL[i], "") end
+        if words == "" then return end
+        name = words:gsub("(%a)([%w']*)", TitleCase)
+    end
+    local percent = amount:sub(-1) == "%" and "%" or ""
+    local key = sign .. percent .. " " .. name
+    if not statAmount[key] then statOrder[#statOrder + 1] = key end
+    statAmount[key] = (statAmount[key] or 0) + tonumber(percent == "" and amount or amount:sub(1, -2))
+    added = added + 1
+end
+-- Reads a buff's stats; true when it had any.
+local function ReadStats(id)
+    added = 0
+    local data = id and GetBuffTooltip("player", id)
+    if IsSecret(data) or type(data) ~= "table" or IsSecret(data.lines) or type(data.lines) ~= "table" then return false end
+    local lines = data.lines
+    for i = 2, #lines do
+        local line = lines[i]
+        local text = not IsSecret(line) and type(line) == "table" and line.leftText
+        if not IsSecret(text) and type(text) == "string" then
+            local sign = "+"
+            for words, amount in text:gmatch("([%a' ]+) by (%d+%%?)") do
+                local lower = words:lower()
+                if lower:find("decrease") or lower:find("reduce") then sign = "-" elseif lower:find("increase") then sign = "+" end
+                AddStat(words, sign, amount)
+            end
+            for amount, words in text:gmatch("%+(%d+%%?) ([%a' ]+)") do AddStat(words, "+", amount) end
+            local mana, every = text:match("[Rr]estores (%d+) mana every (%d+) sec")
+            if mana then AddStat(nil, "+", mana, "Mana per " .. every .. " sec") end
+        end
+    end
+    return added > 0
+end
+-- A line for each stat the camp buffs give, then the names of camp buffs without one.
+local unread = {}
+function C:BuffLines()
+    if not GetBuffTooltip then
+        for _, name in pairs(self.campBuffs) do Line(name, WHITE) end
+        return
+    end
+    wipe(statAmount); wipe(statOrder); wipe(unread)
+    ReadStats(self.benefits.id)
+    for id, name in pairs(self.campBuffs) do
+        if not ReadStats(id) then unread[#unread + 1] = name end
+    end
+    for i = 1, #statOrder do
+        local key = statOrder[i]
+        local sign, percent, name = key:match("^([+-])(%%?) (.+)$")
+        Line(sign .. statAmount[key] .. percent .. " " .. name, WHITE)
+    end
+    for i = 1, #unread do Line(unread[i], WHITE) end
+end
+
 function C:ShowTooltip(owner)
     local state, now = self.state, GetTime()
     local b, w = self.benefits, self.welcome
     GameTooltip:SetOwner(owner, "ANCHOR_TOP")
     if state == "buffs" then
         GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
-        Line("Your camp buffs last " .. Span(b.ends - now) .. " more.", WHITE)
-        for _, name in pairs(self.campBuffs) do Line(name, GREY) end
-        Line("You can't get new ones until they end.", GREY)
+        self:BuffLines()
+        Line(Span(b.ends - now) .. " left", GREY)
     elseif state == "sitting" then
         GameTooltip:SetText(SpellName(WELCOMING[2], "Welcoming Campfire"))
         Line("Keep sitting: camp buffs in " .. Span(w.ends - now) .. ".", WHITE)
