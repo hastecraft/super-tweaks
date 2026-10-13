@@ -35,7 +35,7 @@ end
 
 L.LOGIN_DELAY, L.LOGIN_RETRY = 6, 15 -- seconds after logging in (past the login messages), and once more
 L.SETTLE, L.KEEP = 2, 30 -- quiet seconds before a challenge's line; how long a challenge waits for its points
-L.gained, L.waits, L.challenges, L.challengeTime = 0, 0, {}, 0
+L.gained, L.waits, L.challenges, L.challengeTime, L.login = 0, 0, {}, 0, 0
 
 ns.Configure(L, { announce = true, remind = true }, function(m)
     local function profile() return m.db.profile end
@@ -249,14 +249,15 @@ function L:Report()
     wipe(challenges)
 end
 
-function L:LoginCheck(retry)
-    if not self:IsEnabled() then return end
+-- A check set before the tweak was last turned off is dropped (login no longer matches).
+function L:LoginCheck(login, retry)
+    if login ~= self.login or not self:IsEnabled() then return end
     self.earned, self.ready = Earned(), true
     if not self.db.profile.remind or self.earned <= 0 then return end
     local s = self:Read()
     if not s.unspent then
         -- The game hasn't sent the Legacy trees yet: one more look.
-        if not retry then C_Timer.After(self.LOGIN_RETRY, function() self:LoginCheck(true) end) end
+        if not retry then C_Timer.After(self.LOGIN_RETRY, function() self:LoginCheck(login, true) end) end
         return
     end
     if s.unspent > 0 then HST:Print(self:Reminder(s)) end
@@ -285,7 +286,12 @@ ns.Listen(L, { "PLAYER_ENTERING_WORLD", "ACHIEVEMENT_EARNED", "MAJOR_FACTION_REN
         elseif event == "PLAYER_ENTERING_WORLD" then
             self.events:UnregisterEvent(event)
             self.earned = Earned()
-            if a then C_Timer.After(self.LOGIN_DELAY, function() self:LoginCheck() end) else self.ready = true end
+            if a then
+                local login = self.login
+                C_Timer.After(self.LOGIN_DELAY, function() self:LoginCheck(login) end)
+            else
+                self.ready = true
+            end
         end
     end)
 
@@ -300,7 +306,7 @@ end
 
 function L:OnUnlisten()
     EventRegistry:UnregisterCallback("SetItemRef", self)
-    self.waits, self.waiting, self.gained = self.waits + 1, false, 0
+    self.waits, self.waiting, self.gained, self.login = self.waits + 1, false, 0, self.login + 1
     wipe(self.challenges)
 end
 
