@@ -18,6 +18,7 @@ Libs\AceConsole-3.0\AceConsole-3.0.xml
 Libs\AceDB-3.0\AceDB-3.0.xml
 
 Core.lua
+ProfileStrings.lua
 PatchNotes.lua
 Media.lua
 Settings\Widgets.lua
@@ -31,18 +32,22 @@ Modules\HideIssueReporter.lua
 Modules\MinimapButton.lua
 Modules\Tooltip.lua
 Modules\TooltipExtras.lua
+Modules\TooltipAllies.lua
 Modules\CombatText.lua
 Modules\CombatTextOptions.lua
 Modules\BreathMeter.lua
+Modules\DruidMana.lua
 Modules\GuildMOTD.lua
 Modules\KillsToLevel.lua
 Modules\QuestXP.lua
 Modules\QuestSparkle.lua
 Modules\LevelUpScreenshot.lua
+Modules\CampfireHelper.lua
 Modules\Automation.lua
 Modules\SellClutter.lua
 Modules\Blocks.lua
 Modules\MuteSounds.lua
+Modules\AuraSounds.lua
 Modules\Loot.lua
 Modules\LootRolls.lua
 Modules\SpellRanks.lua
@@ -54,10 +59,13 @@ Modules\BagTweaks.lua
 Modules\Appearances.lua
 Modules\Restock.lua
 Modules\Trainer.lua
+Modules\LegacyTracker.lua
 Modules\QuestRewards.lua
 Modules\QuestTracker.lua
+Modules\QuestSounds.lua
 Modules\ChatFilter.lua
 Modules\GroupFinderWhispers.lua
+Modules\BattlegroundAlerts.lua
 Modules\NameplateMarkers.lua
 Modules\ErrorFilter.lua
 Modules\GameSettings.lua

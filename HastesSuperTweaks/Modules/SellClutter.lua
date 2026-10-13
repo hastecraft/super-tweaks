@@ -803,7 +803,7 @@ S.LOOK_TIPS = { new = "Kept: a look you haven't collected", waiting = "Kept: a l
 -- Adds the tooltip line for an item, if it gets one. link is the tooltip's item link, when it has one.
 function S:TooltipLine(tip, itemID, link)
     if IsSecret(itemID) or type(itemID) ~= "number" or not (self:IsEnabled() and self.db.profile.tooltip) then return end
-    local c, text = self.KEEP_COLOR, "Never sold: on your Never sell list"
+    local c, text = self.KEEP_COLOR, "On your Never sell list"
     if not self:Keeps(itemID) then
         if not self.db.profile.sell[itemID] and not self:Item(itemID) then return end
         local info, bag, slot = TooltipSlot(tip, itemID)
