@@ -144,6 +144,10 @@ S.FADE_IN, S.FADE_FROM, S.FADE_OUT, S.POP = 0.08, 0.5, 0.25, 0.15 -- seconds; al
 S.SHAKE, S.SHAKE_SIZE, S.SHAKE_SPEED = 0.3, 0.25, 70
 -- Texts are laid out in a box this wide (see S:Show).
 S.TEXT_BOX = 600
+-- Without Slug, the game draws a text's letters as pictures at their size on screen, and cuts the outline off letters
+-- much taller than this many pixels (a critical hit popping on a 4K screen). A text is never scaled past it: the rest
+-- of the way, it's stretched (see Place), as the game's own critical hits are.
+S.MOST_PIXELS = 150
 -- Blinking texts (spell alerts, when chosen) dip to BLINK_LOW of their opacity and back every BLINK seconds.
 S.BLINK, S.BLINK_LOW = 0.5, 0.2
 S.MOST, S.MOST_ON_PLATE = 20, 8
@@ -263,6 +267,10 @@ local function Place(f, now)
     local push = f.anim == "DOWN" and -f.push or f.push
     local scale = f.kindScale
     if f.pop and age < S.POP then scale = scale * (2 - age / S.POP) end
+    -- Past the largest scale its letters keep their outline at, the frame stays at that scale and the text stretches.
+    local stretch = 1
+    if f.limit and scale > f.limit then stretch, scale = scale / f.limit, f.limit end
+    if stretch ~= f.shownStretch then f.shownStretch = stretch; f.text:SetTextHeight(f.size * stretch) end
     local alpha = min(1, (1 - t) / S.FADE_OUT)
     if f.fadeIn and age < S.FADE_IN then alpha = min(alpha, S.FADE_FROM + (1 - S.FADE_FROM) * age / S.FADE_IN) end
     if f.blink then alpha = alpha * (S.BLINK_LOW + (1 - S.BLINK_LOW) * abs(cos(age * math.pi / S.BLINK))) end
@@ -356,6 +364,7 @@ local function Acquire(onWorld)
         f.text = f:CreateFontString(nil, "OVERLAY")
         f.text:SetShadowColor(0, 0, 0, 1)
         f.text:SetWidth(S.TEXT_BOX)
+        f.shownStretch = 1
         -- Inside a nameplate, frame levels don't reliably decide what is drawn over what, strata do: nameplate
         -- addons' bars and texts are on MEDIUM (EllesmereUI keeps its glow behind its health bar on BACKGROUND), as
         -- a frame made on the world's frame is. On BACKGROUND, a number in its own nameplate stays under its bars.
@@ -473,6 +482,10 @@ function S:Show(lane, color, kind, fmt, a, b)
     end
     f.lane, f.born, f.anim, f.height, f.duration, f.size = lane, now, anim, height, duration, size
     f.kindScale = kind == "crit" and p.critScale or kind == "small" and 0.8 or kind == "miss" and p.missScale or 1
+    -- The largest scale it keeps its outline at (none with Slug, which draws letters as shapes at any size).
+    f.limit = not self.slug and S.MOST_PIXELS / (size * self:PixelScale()) or nil
+    -- A pooled text last stretched starts at its own size.
+    if f.shownStretch ~= 1 then f.shownStretch = 1; f.text:SetTextHeight(size) end
     f.pop, f.shake, f.fadeIn = kind == "crit" and p.critPop, kind == "crit" and p.critShake, p.fadeIn
     f.sticky = kind == "crit" and p.stickyCrits and not onPlate and anim ~= "STATIC"
     f.push, f.shownScale, f.shownAlpha, f.blink, f.spell, f.unmatched, f.vanishAt = 0, nil, nil, nil, nil, nil, nil
@@ -1138,6 +1151,9 @@ function S:UpdateEvents()
     local on, p = self:IsEnabled(), self.db.profile
     self:WatchPlates(on and p.enemyMode == "NAMEPLATE")
     if not on then return end
+    -- How many screen pixels a text's unit is (see S:PixelScale) changes only with these.
+    Register(general, "UI_SCALE_CHANGED")
+    Register(general, "DISPLAY_SIZE_CHANGED")
     if p.combatState then Register(general, "PLAYER_REGEN_DISABLED"); Register(general, "PLAYER_REGEN_ENABLED") end
     if self:UsesGameCombatText() then
         Register(general, "COMBAT_TEXT_UPDATE")
@@ -1166,8 +1182,21 @@ function S:UpdateEvents()
     if OwnEnemyNumbers(p) then Register(enemies, "UNIT_COMBAT", "target") end
 end
 
+-- Screen pixels in one unit of the interface (texts on the world's frame are matched to it, see Place): its scale times
+-- the screen's height over the 768 units it's laid out in. Read once, and again after the scale or display changes.
+function S:PixelScale()
+    local scale = self.pixelScale
+    if not scale then
+        local _, height = GetPhysicalScreenSize and GetPhysicalScreenSize()
+        scale = UIParent:GetEffectiveScale() * (tonumber(height) or 768) / 768
+        self.pixelScale = scale
+    end
+    return scale
+end
+
 function S:OnEvent(event, ...)
     if event == "COMBAT_TEXT_UPDATE" then return self:OnGameCombatText(...) end
+    if event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then self.pixelScale = nil; return end
     if event == "NAME_PLATE_UNIT_ADDED" then return self:OnPlateAdded(...) end
     if event == "NAME_PLATE_UNIT_REMOVED" then return self:OnPlateRemoved(...) end
     if event == "UNIT_HEALTH" then return self:CheckLowHealth() end
@@ -1414,6 +1443,7 @@ function S:Apply()
         p.plateBehind = nil
     end
     self.font, self.flags = FontFile(p), S.FontFlags(p)
+    self.slug, self.pixelScale = self.flags:find("SLUG", 1, true) ~= nil, nil
     self:UpdateDamageFont()
     self:UpdateEvents()
     self:UpdateCVars()

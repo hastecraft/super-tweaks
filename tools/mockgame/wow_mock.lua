@@ -196,7 +196,7 @@ local methods = {}
 local function noop() end
 for _, method in ipairs({ "SetMovable", "SetClampedToScreen", "RegisterForDrag", "StartMoving", "StopMovingOrSizing",
     "SetBackdrop", "SetBackdropBorderColor", "SetJustifyH", "SetShadowColor", "SetShadowOffset", "AddLine", "AddDoubleLine",
-    "RegisterForClicks", "SetHighlightTexture", "SetTexCoord" }) do methods[method] = noop end
+    "RegisterForClicks", "SetHighlightTexture", "SetTexCoord", "SetTextHeight" }) do methods[method] = noop end
 function methods:SetScript(name, fn) self.scripts[name] = fn end
 function methods:GetScript(name) return self.scripts[name] end
 function methods:HookScript(name, fn)
