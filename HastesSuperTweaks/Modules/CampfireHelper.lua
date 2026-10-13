@@ -36,7 +36,7 @@ local C = HST:NewFeature("CampfireHelper", {
     examples = { "style", "nearby", "keepShown", { "warnAt", "Blink at (minutes left)" } },
     description = "Shows a campfire on screen when you're near one, counts down the minute you sit by it, then keeps "
         .. "your camp buffs' time left up and blinks when they're about to end and when they have: as a campfire in a "
-        .. "ring, a bar or the buffs' icons, moved in Edit Mode. Chat messages for your own campfire, the buffs you "
+        .. "ring, a bar or the camp aura's icon, moved in Edit Mode. Chat messages for your own campfire, the buffs you "
         .. "got and Boosted Rest can be turned on too. /hst camp check shows every camp timer.",
 })
 ns.CampfireHelper = C
@@ -51,7 +51,7 @@ local defaults = {
     barWidth = 200, barHeight = 20, barIcon = "left", texture = "Blizzard", border = 1, borderColor = { 0, 0, 0, 1 },
     backgroundColor = { 0.05, 0.05, 0.05, 0.75 },
     -- Icons.
-    iconSize = 36, iconSpacing = 4, maxIcons = 8, iconsCombined = false, iconSwipe = true, iconBorder = 1,
+    iconSize = 36, iconSwipe = true, iconBorder = 1,
     -- Colors: the countdown's while sitting, while the buffs last and when they're ending; the text's.
     sittingColor = { 1, 0.82, 0.3, 1 }, buffsColor = { 1, 0.55, 0.15, 1 }, warnColor = { 1, 0.22, 0.12, 1 },
     textColor = { 1, 0.9, 0.7, 1 }, labelColor = { 0.85, 0.78, 0.68, 1 }, warnTextColor = { 1, 0.35, 0.25, 1 },
@@ -126,12 +126,10 @@ local function Track(t, aura)
 end
 
 C.welcome, C.benefits, C.boosted, C.near = {}, {}, {}, {}
--- The camp buffs that came with Camp Benefits: name and icon by instance ID, their instance IDs and names in order.
-C.campBuffs, C.icons, C.order, C.names = {}, {}, {}, {}
-C.shownIcons = {}
+C.campBuffs, C.names = {}, {} -- the camp buffs that came with Camp Benefits: name by instance ID; their names in order
 
 ---------------------------------------------------------------------------
--- On screen, in one of three styles: a campfire burning in a ring, a bar, or the buff icons. The ring, bar or icons
+-- On screen, in one of three styles: a campfire burning in a ring, a bar, or the camp aura's icon. The ring, bar or icon
 -- count down the minute you sit and then the camp buffs' hour; the whole of it blinks when the buffs are about to end
 -- and once they have. The settings preview draws one too.
 ---------------------------------------------------------------------------
@@ -148,7 +146,7 @@ local RING_NAMES = { classic = "Classic", thin = "Thin", thick = "Thick", segmen
 local RING_ORDER = { "classic", "thin", "thick", "segmented", "soft", "rimmed" }
 -- The ring's track: dark under a countdown, lit near a fire, grey once it's out.
 local TRACK_DARK, TRACK_LIT, TRACK_OUT = { 0, 0, 0, 0.55 }, { 1, 0.7, 0.3, 0.6 }, { 0.55, 0.55, 0.55, 0.5 }
--- What each state says. Campfire and icons: the main line (nil: the time left) and the line under it. Bar: the text on
+-- What each state says. Campfire and icon: the main line (nil: the time left) and the line under it. Bar: the text on
 -- its left and on its right (nil: the time left).
 local LINES = {
     nearby = { "Campfire nearby", "Sit down for camp buffs" },
@@ -162,9 +160,8 @@ local BAR_LINES = {
     buffs = { "Camp buffs", nil },
     ended = { "Camp buffs ended", "Sit by a fire" },
 }
--- Each state's own icon, for the bar and for the icons when there are no camp buffs to show.
+-- Each state's own icon: its camp aura's.
 local STATE_ICON = { nearby = NEARBY, sitting = WELCOMING[2], buffs = CAMP_BENEFITS, ended = CAMP_BENEFITS }
-local MAX_ICONS = 8
 local CROP = 0.08 -- the icons' edges trimmed, as the game's own buff buttons do
 -- The bar's timer: the game moves it from a duration (StatusBar:SetTimerDuration), with no Lua per frame.
 local CreateDuration = C_DurationUtil and C_DurationUtil.CreateDuration
@@ -399,66 +396,33 @@ local function DrawBar(v, p, state, start, length, warning, frozen)
     end
 end
 
--- The icons: the camp buffs you have (or the state's own icon), each with the game's countdown swipe, in a row.
-local function NewIcons(d)
+-- The icon: the camp aura's own (Campfire Nearby, Welcoming Campfire, Camp Benefits) with the game's countdown sweep.
+local function NewIcon(d)
     local v = CreateFrame("Frame", nil, d.frame)
     v:SetAllPoints()
-    v.buttons, v.one = {}, {}
+    v.tex = v:CreateTexture(nil, "ARTWORK")
+    v.tex:SetAllPoints()
+    v.tex:SetTexCoord(CROP, 1 - CROP, CROP, 1 - CROP)
+    v.edges = ns.CreateEdges(v, "OVERLAY")
+    v.cd = NewCooldown(v, false)
     return v
 end
 
-local function IconButton(v, i)
-    local b = v.buttons[i]
-    if b then return b end
-    b = CreateFrame("Frame", nil, v)
-    b.tex = b:CreateTexture(nil, "ARTWORK")
-    b.tex:SetAllPoints()
-    b.tex:SetTexCoord(CROP, 1 - CROP, CROP, 1 - CROP)
-    b.edges = ns.CreateEdges(b, "OVERLAY")
-    b.cd = NewCooldown(b, false)
-    v.buttons[i] = b
-    return b
+local function StyleIcon(v, p)
+    v.edges:Layout(v, p.iconBorder, true)
+    v.edges:SetShown(p.iconBorder > 0)
 end
 
-local function StyleIcons(v)
-    v.count = nil -- laid out again on the next draw
-end
-
-local function DrawIcons(v, d, p, state, start, length, warning, frozen, icons, count)
-    if not icons or count == 0 or p.iconsCombined then
-        v.one[1] = SpellIcon(STATE_ICON[state])
-        icons, count = v.one, 1
-    end
-    count = min(count, p.maxIcons, MAX_ICONS)
-    if v.count ~= count then
-        v.count = count
-        local size, gap = p.iconSize, p.iconSpacing
-        d.frame:SetSize(count * size + (count - 1) * gap, size)
-        for i = 1, count do
-            local b = IconButton(v, i)
-            b:SetSize(size, size)
-            b:ClearAllPoints()
-            b:SetPoint("LEFT", (i - 1) * (size + gap), 0)
-            b.edges:Layout(b, p.iconBorder, true)
-            b.edges:SetShown(p.iconBorder > 0)
-        end
-    end
+local function DrawIcon(v, p, state, start, length, warning, frozen)
+    local icon, lit = SpellIcon(STATE_ICON[state]), state ~= "ended"
+    if v.icon ~= icon then v.icon = icon; v.tex:SetTexture(icon) end
+    if v.lit ~= lit then v.lit = lit; v.tex:SetDesaturated(not lit) end
+    v.edges:SetColor(unpack(warning and p.warnColor or p.borderColor))
     if not p.iconSwipe then start, length = nil, nil end
-    local lit = state ~= "ended"
-    for i = 1, MAX_ICONS do
-        local b = v.buttons[i]
-        if not b then break end
-        Shown(b, i <= count)
-        if i <= count then
-            if b.icon ~= icons[i] then b.icon = icons[i]; b.tex:SetTexture(icons[i]) end
-            if b.lit ~= lit then b.lit = lit; b.tex:SetDesaturated(not lit) end
-            b.edges:SetColor(unpack(warning and p.warnColor or p.borderColor))
-            SetCountdown(b, b.cd, start, length, frozen)
-        end
-    end
+    SetCountdown(v, v.cd, start, length, frozen)
 end
 
-local VIEWS = { campfire = { "ring", NewRing }, bar = { "bar", NewBar }, icons = { "icons", NewIcons } }
+local VIEWS = { campfire = { "ring", NewRing }, bar = { "bar", NewBar }, icons = { "icon", NewIcon } }
 
 local function NewCampfire(parent)
     local d = {}
@@ -510,7 +474,7 @@ local function Style(d, p, scale)
             StyleRing(d.ring, p, size)
         else
             f:SetSize(p.iconSize * scale, p.iconSize * scale)
-            StyleIcons(d.icons)
+            StyleIcon(d.icon, p)
         end
         time:SetPoint("TOP", f, "BOTTOM", 0, -3)
         label:SetPoint("TOP", time, "BOTTOM", 0, -1)
@@ -527,16 +491,15 @@ local function Style(d, p, scale)
 end
 
 -- Draws a state: "nearby", "sitting", "buffs" or "ended". start and length are the countdown (none: nothing counts
--- down), main the time left as text, warning colors and blinks it, frozen holds the countdown still; icons (count of
--- them) are the camp buffs' icons for the icons style.
-local function Draw(d, p, state, start, length, main, warning, frozen, icons, count)
+-- down), main the time left as text, warning colors and blinks it, frozen holds the countdown still.
+local function Draw(d, p, state, start, length, main, warning, frozen)
     local style = d.style
     if style == "campfire" then
         DrawRing(d.ring, p, state, start, length, warning, frozen)
     elseif style == "bar" then
         DrawBar(d.bar, p, state, start, length, warning, frozen)
     else
-        DrawIcons(d.icons, d, p, state, start, length, warning, frozen, icons, count)
+        DrawIcon(d.icon, p, state, start, length, warning, frozen)
     end
     Play(d.blink, warning or state == "ended")
     local lines = style == "bar" and BAR_LINES[state] or LINES[state]
@@ -625,16 +588,8 @@ function C:Refresh(now)
     local d = self.campfire
     local f = d.frame
     local left = ends and max(0, ends - now)
-    -- The camp buffs' icons, in the order you got them.
-    local icons, count = self.shownIcons, 0
-    if state == "buffs" then
-        for _, id in ipairs(self.order) do
-            local icon = self.icons[id]
-            if icon then count = count + 1; icons[count] = icon end
-        end
-    end
     -- Edit Mode's sample stands still.
-    Draw(d, p, state, start, length, left and Countdown(left), warning, self.editMode, icons, count)
+    Draw(d, p, state, start, length, left and Countdown(left), warning, self.editMode)
     if left and left > 0 and not self.editMode then
         -- The game's own timer, which makes no garbage; one that's no longer wanted finds tickDue changed.
         local delay = NextChange(left) + 0.05
@@ -829,13 +784,10 @@ function C:CountBuffs(quiet)
         if not (IsSecret(id) or IsSecret(spell) or IsSecret(ends) or IsSecret(length) or IsSecret(name))
             and spell ~= CAMP_BENEFITS and abs(length - b.length) < 1 and abs(ends - b.ends) < 3 then
             self.campBuffs[id] = name
-            local icon = aura.icon
-            if not IsSecret(icon) then self.icons[id] = icon end
             count = count + 1
-            names[count], self.order[count] = name, id
+            names[count] = name
         end
     end
-    if self:ShowsIcons() then self:Refresh() end
     if quiet or not Says("buffs") then return end
     local left = Span(b.ends - GetTime())
     if count == 0 then
@@ -847,22 +799,15 @@ end
 local function CountLoud() if C:IsEnabled() then C:CountBuffs(false) end end
 local function CountQuiet() if C:IsEnabled() then C:CountBuffs(true) end end
 
--- Whether the camp buffs' icons are on screen (and so need drawing again when they change).
-function C:ShowsIcons() return self.state == "buffs" and self.campfire and self.campfire.style == "icons" end
-
 function C:ClearBuffs()
-    wipe(self.campBuffs); wipe(self.icons); wipe(self.order)
+    wipe(self.campBuffs)
 end
 
 -- A camp buff that went while Camp Benefits stays: one of the buffs ended early.
 function C:LostBuff(id)
     local name = self.campBuffs[id]
     if not name then return end
-    self.campBuffs[id], self.icons[id] = nil, nil
-    for i = #self.order, 1, -1 do
-        if self.order[i] == id then table.remove(self.order, i) end
-    end
-    if self:ShowsIcons() then self:Refresh() end
+    self.campBuffs[id] = nil
     local b = self.benefits
     local left = b.on and b.ends - GetTime() or 0
     if left > ON_TIME and Says("buffs") then
@@ -1140,7 +1085,7 @@ function C:BuildOptions()
                 display = option("toggle", "display", "Show on screen", 1, { desc =
                     "Counts down the minute you sit by a fire, then your camp buffs' hour. Move it in Edit Mode." }),
                 style = option("select", "style", "Style", 2, { disabled = off,
-                    values = { campfire = "Campfire in a ring", bar = "Bar", icons = "Buff icons" },
+                    values = { campfire = "Campfire in a ring", bar = "Bar", icons = "Icon" },
                     sorting = { "campfire", "bar", "icons" },
                     desc = "Each style has a tab of its own for its look." }),
                 reset = { type = "execute", name = "Reset position", order = 3, disabled = off,
@@ -1200,16 +1145,11 @@ function C:BuildOptions()
             }),
             colors = colors(3, "bar"),
         } },
-        icons = { type = "group", name = "Icons", order = 2, hidden = notStyle("icons"), disabled = off, args = {
-            look = ns.Section("Icons", 1, {
-                iconsCombined = option("toggle", "iconsCombined", "One icon", 1, { desc =
-                    "Camp Benefits' icon alone. Off, a camp object's buff that shows as a buff of its own gets its own icon too." }),
-                maxIcons = range("maxIcons", "Most icons", 2, 1, 8, {
-                    disabled = function() return C.db.profile.iconsCombined end }),
-                iconSize = range("iconSize", "Size", 3, 16, 64),
-                iconSpacing = range("iconSpacing", "Space between", 4, 0, 20),
-                iconSwipe = option("toggle", "iconSwipe", "Countdown on the icons", 5, { desc =
-                    "The game's dark sweep across each icon as time runs out." }),
+        icons = { type = "group", name = "Icon", order = 2, hidden = notStyle("icons"), disabled = off, args = {
+            look = ns.Section("Icon", 1, {
+                iconSize = range("iconSize", "Size", 1, 16, 96),
+                iconSwipe = option("toggle", "iconSwipe", "Countdown sweep", 2, { desc =
+                    "The game's dark sweep across the icon as time runs out." }),
             }),
             frame = ns.Section("Border", 2, {
                 iconBorder = range("iconBorder", "Border", 1, 0, 3),
