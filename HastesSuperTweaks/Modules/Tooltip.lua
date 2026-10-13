@@ -482,6 +482,13 @@ function T:SecretHealthText(unit, current, maximum)
     end
 end
 
+-- "<Guild> Rank" in the chosen colors (realm and rank: nil for none). The settings preview draws it too.
+local function GuildText(guild, realm, color, rank, rankColor)
+    local text = Hex(color) .. "<" .. (realm and (guild .. "-" .. realm) or guild) .. ">|r"
+    if rank then text = text .. " " .. Hex(rankColor) .. rank .. "|r" end
+    return text
+end
+
 -- Rewrites the guild line as "<Guild> Rank". Built from the unit's guild, not from the line's own text, so a rank
 -- another addon appended (EllesmereUI's "Guild [Rank]") is replaced rather than repeated. The text is kept while
 -- what it's made from stays the same, so redrawing a tooltip puts no new text together.
@@ -495,9 +502,7 @@ function T:FormatGuild(tip)
     local realm, rankColor = self.guildRealm, rank and p.rankColor
     if made.guild ~= guild or made.realm ~= realm or made.rank ~= rank or made.color ~= color or made.rankColor ~= rankColor then
         made.guild, made.realm, made.rank, made.color, made.rankColor = guild, realm, rank, color, rankColor
-        local text = Hex(color) .. "<" .. (realm and (guild .. "-" .. realm) or guild) .. ">|r"
-        if rank then text = text .. " " .. Hex(rankColor) .. rank .. "|r" end
-        made.text = text
+        made.text = GuildText(guild, realm, color, rank, rankColor)
     end
     local line, current = ns.FindTooltipLine(tip, guild)
     if line and current ~= made.text then line:SetText(made.text) end
@@ -536,6 +541,14 @@ function T:LayoutLogo()
     if p.factionStyle ~= "LOGO" then self:HideLogo() end
 end
 
+-- A faction's name in its color, with its logo after it, size pixels tall, when a size is given. The settings preview
+-- draws it too.
+local function FactionText(faction, name, color, size)
+    local text = Hex(color) .. name .. "|r"
+    if size then text = text .. " " .. LogoMarkup(faction, size) end
+    return text
+end
+
 -- Shows the faction line ("Alliance", "Horde") as its faction's logo in the corner, taking the line out; or rewrites it
 -- in its faction's color, with the same logo after it when chosen. Only a line that is the faction's name and nothing
 -- else is, so a guild or name holding the word is left alone. The text is kept while what it's made from stays the same.
@@ -553,13 +566,13 @@ function T:FormatFaction(tip, style)
     local color, icon = faction == "Alliance" and p.allianceColor or p.hordeColor, p.factionIcon
     if made.name ~= name or made.color ~= color or made.icon ~= icon then
         made.name, made.color, made.icon = name, color, icon
-        local text = Hex(color) .. name .. "|r"
         -- The logo is as tall as the line's text.
+        local size
         if icon then
-            local _, size = line:GetFont()
-            text = text .. " " .. LogoMarkup(faction, floor((size or 12) + 0.5))
+            local _, height = line:GetFont()
+            size = floor((height or 12) + 0.5)
         end
-        made.text = text
+        made.text = FactionText(faction, name, color, size)
     end
     line:SetText(made.text)
 end
@@ -802,64 +815,194 @@ function T:BuildOptions()
     } }
 end
 
--- Settings preview: a sample player tooltip drawn with the active profile's settings.
+---------------------------------------------------------------------------
+-- Settings preview: a sample player tooltip drawn with the active profile's settings. The player is your guildmate,
+-- of your faction until a faction's color is changed, then of that faction.
+---------------------------------------------------------------------------
+local ROW, INSET = 14, 8 -- the sample's line pitch and how far its text is inset
+local GREY = "|cff999999" -- the labels of two-column lines (see AddNote)
+local MAGE = { r = 0.25, g = 0.78, b = 0.92 }
+local RACES = { Alliance = "Gnome", Horde = "Undead" }
+local FACTION_NAMES = { Alliance = FACTION_ALLIANCE or "Alliance", Horde = FACTION_HORDE or "Horde" }
+local function Mage() return RAID_CLASS_COLORS and RAID_CLASS_COLORS.MAGE or MAGE end
+
+-- The sample's lines, in the order the game shows them. Each gives its text for the profile and the sample (and the
+-- right-hand text of a two-column line), or nothing when it doesn't show. The extras and Recent Allies add theirs.
+local previewLines = {}
+function T:PreviewLine(order, text)
+    previewLines[#previewLines + 1] = { order = order, text = text }
+    table.sort(previewLines, function(a, b) return a.order < b.order end)
+end
+T:PreviewLine(1, function() return Hex(Mage()) .. "Haste Forever|r" end)
+T:PreviewLine(2, function(p)
+    if not p.guildLine then return "Exertion" end
+    return GuildText("Exertion", nil, p.highlightGuild and p.ownGuildColor or p.guildColor, p.guildRank and "Guild Master" or nil, p.rankColor)
+end)
+T:PreviewLine(3, function(_, v) return "Level 60 " .. RACES[v.faction] .. " Mage" end)
+T:PreviewLine(4, function(p, v)
+    local style, name = p.factionStyle, FACTION_NAMES[v.faction]
+    if style == "LOGO" then return nil end
+    if style == "NONE" then return name end
+    return FactionText(v.faction, name, v.faction == "Alliance" and p.allianceColor or p.hordeColor, p.factionIcon and v.lineSize or nil)
+end)
+T:PreviewLine(5, function(p) if p.guildNotes then return GREY .. "Note|r", "Main tank" end end)
+T:PreviewLine(6, function(p) if p.officerNotes then return GREY .. "Officer note|r", "Alt of Swiftblade" end end)
+
+-- The sample's nth line (its left-hand text), made when first needed.
+local function Line(v, n)
+    local line = v.left[n]
+    if not line then
+        line = ns.Widgets.Text(v.box, n == 1 and "GameFontNormal" or "GameFontHighlightSmall")
+        line:SetPoint("TOPLEFT", INSET, -7 - (n - 1) * ROW)
+        v.left[n] = line
+    end
+    return line
+end
+
+-- Sets a line's text and shows it; returns its width. What didn't change since the last draw isn't set again.
+local function SetLine(line, text)
+    if line.hstText ~= text then
+        line.hstText = text
+        line:SetText(text)
+        line.hstWidth = line:GetStringWidth()
+    end
+    if not line.hstShown then
+        line.hstShown = true
+        line:Show()
+    end
+    return line.hstWidth
+end
+local function HideLine(line)
+    if line and line.hstShown ~= false then
+        line.hstShown = false
+        line:Hide()
+    end
+end
+
+-- Shows the sample's lines; returns how many and the widest's width.
+local function DrawLines(v, p)
+    local rows, width = 0, 0
+    for i = 1, #previewLines do
+        local text, right = previewLines[i].text(p, v)
+        if text then
+            rows = rows + 1
+            local lineWidth = SetLine(Line(v, rows), text)
+            local other = v.right[rows]
+            if right then
+                if not other then
+                    other = ns.Widgets.Text(v.box, "GameFontHighlightSmall", nil, "RIGHT")
+                    other:SetPoint("TOPRIGHT", -INSET, -7 - (rows - 1) * ROW)
+                    v.right[rows] = other
+                end
+                lineWidth = lineWidth + 12 + SetLine(other, right)
+            else
+                HideLine(other)
+            end
+            width = max(width, lineWidth)
+        end
+    end
+    for i = rows + 1, #v.left do
+        HideLine(v.left[i])
+        HideLine(v.right[i])
+    end
+    return rows, width
+end
+
 function T:DrawPreview(frame)
     local W, p = ns.Widgets, self.db.profile
     local v = frame.hstTip
     if not v then
-        v = {}
+        v = { left = {}, right = {} }
         frame.hstTip = v
         v.box = CreateFrame("Frame", nil, frame)
-        v.box:SetSize(150, 52)
-        v.box:SetPoint("CENTER", 0, 6)
         W.Fill(v.box, { 0.02, 0.02, 0.02, 0.95 }):SetAllPoints()
-        v.setBorder = W.Border(v.box)
-        v.lines = {}
-        for i = 1, 3 do
-            v.lines[i] = W.Text(v.box, i == 1 and "GameFontNormal" or "GameFontHighlightSmall")
-            v.lines[i]:SetPoint("TOPLEFT", 8, -7 - (i - 1) * 14)
-        end
+        v.edges = CreateEdges(v.box)
         v.logo = v.box:CreateTexture(nil, "ARTWORK", nil, -8)
         v.logo:SetPoint("TOPRIGHT", -4, -4)
-        v.logoAspect = SetLogo(v.logo, "Alliance")
         v.bar = CreateFrame("StatusBar", nil, v.box)
         v.bar:SetMinMaxValues(0, 1)
+        v.bar:SetValue(0.83)
         v.bar.background = W.Fill(v.bar, { 0, 0, 0, 1 })
         v.bar.background:SetAllPoints()
         v.bar.edges = CreateEdges(v.bar)
         v.bar.text = v.bar:CreateFontString(nil, "OVERLAY")
         v.bar.text:SetPoint("CENTER")
+        v.bar.text:SetShadowColor(0, 0, 0, 0.9)
+        v.bar.text:SetShadowOffset(1, -1)
+        -- A logo in a line is as tall as its text (see FormatFaction).
+        local _, size = Line(v, 2):GetFont()
+        v.lineSize = floor((size or 10) + 0.5)
+        local faction = UnitFactionGroup("player")
+        v.faction = not IsSecret(faction) and FACTIONS[faction] and faction or "Alliance"
+        v.allianceColor, v.hordeColor = p.allianceColor, p.hordeColor
     end
-    local class = RAID_CLASS_COLORS.MAGE or { r = 0.25, g = 0.78, b = 0.92 }
-    v.setBorder(p.classBorder and { class.r, class.g, class.b, 1 } or { 0.35, 0.35, 0.35, 1 })
-    v.lines[1]:SetText("Haste Forever"); v.lines[1]:SetTextColor(class.r, class.g, class.b)
-    local guild = p.guildLine and (Hex(p.guildColor) .. "<Exertion>|r" .. (p.guildRank and (" " .. Hex(p.rankColor) .. "Guild Master|r") or ""))
-        or "Exertion"
-    v.lines[2]:SetText(guild)
-    v.lines[3]:SetText("Level 60 Gnome Mage")
-    local logoSize = min(p.logoSize, 40)
-    v.logo:SetSize(logoSize * v.logoAspect, logoSize)
-    v.logo:SetAlpha(p.logoAlpha)
-    v.logo:SetShown(p.factionStyle == "LOGO")
-    v.bar:SetShown(p.healthBar)
-    v.bar:ClearAllPoints()
-    local edge = p.barBorderSize
-    v.bar:SetPoint("TOPLEFT", v.box, "BOTTOMLEFT", edge, -(min(p.barGap, 4) + edge))
-    v.bar:SetPoint("TOPRIGHT", v.box, "BOTTOMRIGHT", -edge, -(min(p.barGap, 4) + edge))
-    v.bar:SetHeight(min(p.barHeight, 14))
-    v.bar:SetStatusBarTexture(ns.Media("statusbar", p.texture))
-    if p.colorBy == "CLASS" then
-        v.bar:SetStatusBarColor(class.r, class.g, class.b, 1)
-    elseif p.colorBy == "HEALTH" then
-        v.bar:SetStatusBarColor(HealthColor(0.83))
+    -- A faction's color changed (a new table each time): the sample turns to that faction. A profile switch changes
+    -- both, and keeps it.
+    local alliance, horde = p.allianceColor ~= v.allianceColor, p.hordeColor ~= v.hordeColor
+    if alliance ~= horde then v.faction = alliance and "Alliance" or "Horde" end
+    v.allianceColor, v.hordeColor = p.allianceColor, p.hordeColor
+
+    local rows, width = DrawLines(v, p)
+    local boxWidth, boxHeight = max(150, floor(width + 2 * INSET + 1)), 10 + rows * ROW
+    if v.width ~= boxWidth or v.height ~= boxHeight then
+        v.width, v.height = boxWidth, boxHeight
+        v.box:SetSize(boxWidth, boxHeight)
+    end
+    local logo = p.factionStyle == "LOGO"
+    if logo and v.logoFaction ~= v.faction then
+        v.logoFaction = v.faction
+        v.logoAspect = SetLogo(v.logo, v.faction)
+    end
+    if logo then
+        v.logo:SetSize(p.logoSize * v.logoAspect, p.logoSize)
+        v.logo:SetAlpha(p.logoAlpha)
+    end
+    v.logo:SetShown(logo)
+
+    -- The tooltip, its bar and a logo taller than it, scaled down when they wouldn't fit the stage, and centered on it.
+    local height = boxHeight + (p.healthBar and (p.barGap + p.barHeight + 2 * p.barBorderSize) or 0)
+    if logo then height = max(height, 4 + p.logoSize) end
+    local stageWidth, stageHeight = W.PREVIEW_WIDTH, W.PREVIEW_HEIGHT
+    local scale = min(1, (stageHeight - 12) / height, (stageWidth - 12) / boxWidth)
+    local top = (stageHeight - height * scale) / 2
+    if v.scale ~= scale or v.top ~= top then
+        v.scale, v.top = scale, top
+        v.box:SetScale(scale)
+        v.box:ClearAllPoints()
+        v.box:SetPoint("TOP", frame, "TOP", 0, -top / scale)
+    end
+
+    -- The border as drawn over tooltips other addons restyle (see UpdateBorder). Sizes here are in the stage's units.
+    local class = Mage()
+    if p.classBorder then
+        v.edges:Layout(v.box, p.borderSize, false)
+        v.edges:SetColor(class.r, class.g, class.b, 1)
     else
-        v.bar:SetStatusBarColor(unpack(p.healthColor))
+        v.edges:Layout(v.box, 1, false)
+        v.edges:SetColor(0.35, 0.35, 0.35, 1)
     end
-    v.bar:SetValue(0.83)
-    v.bar.background:SetColorTexture(unpack(p.backgroundColor))
-    v.bar.edges:Layout(v.bar, edge, true)
-    v.bar.edges:SetColor(unpack(p.barBorderColor))
-    v.bar.edges:SetShown(edge > 0)
-    ns.SetFont(v.bar.text, ns.Media("font", p.font), min(p.fontSize, 12), ns.OutlineFlags(p.outline))
-    v.bar.text:SetText(p.barText == "PERCENT" and "83%" or p.barText == "BOTH" and "4215 / 5100 (83%)" or p.barText == "NONE" and "" or "4215 / 5100")
+    v.edges:SetShown(true)
+
+    local bar = v.bar
+    bar:SetShown(p.healthBar)
+    if not p.healthBar then return end
+    local edge = p.barBorderSize
+    bar:ClearAllPoints()
+    bar:SetPoint("TOPLEFT", v.box, "BOTTOMLEFT", edge, -(p.barGap + edge))
+    bar:SetPoint("TOPRIGHT", v.box, "BOTTOMRIGHT", -edge, -(p.barGap + edge))
+    bar:SetHeight(p.barHeight)
+    bar:SetStatusBarTexture(ns.Media("statusbar", p.texture))
+    if p.colorBy == "CLASS" then
+        bar:SetStatusBarColor(class.r, class.g, class.b, 1)
+    elseif p.colorBy == "HEALTH" then
+        bar:SetStatusBarColor(HealthColor(0.83))
+    else
+        bar:SetStatusBarColor(unpack(p.healthColor))
+    end
+    bar.background:SetColorTexture(unpack(p.backgroundColor))
+    bar.edges:Layout(bar, edge, true)
+    bar.edges:SetColor(unpack(p.barBorderColor))
+    bar.edges:SetShown(edge > 0)
+    ns.SetFont(bar.text, ns.Media("font", p.font), p.fontSize, ns.OutlineFlags(p.outline))
+    bar.text:SetText(p.barText == "PERCENT" and "83%" or p.barText == "BOTH" and "4215 / 5100 (83%)" or p.barText == "NONE" and "" or "4215 / 5100")
 end
