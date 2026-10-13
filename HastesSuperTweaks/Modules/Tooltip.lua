@@ -678,13 +678,13 @@ function T:BuildOptions()
             logo = section("Logo", 2, {
                 logoAlpha = option("range", "logoAlpha", "Opacity", 1, { min = 0.05, max = 1, step = 0.05, isPercent = true }),
                 logoSize = option("range", "logoSize", "Size", 2, { min = 12, max = 64, step = 1 }),
-            }, { disabled = notStyle("LOGO") }),
+            }, { hidden = notStyle("LOGO") }),
             line = section("Line", 3, {
                 factionIcon = option("toggle", "factionIcon", "Show faction logo", 1,
                     { desc = "Adds the faction's logo after its name." }),
                 allianceColor = option("color", "allianceColor", "Alliance color", 2),
                 hordeColor = option("color", "hordeColor", "Horde color", 3),
-            }, { disabled = notStyle("LINE") }),
+            }, { hidden = notStyle("LINE") }),
         } },
     } }
 end
