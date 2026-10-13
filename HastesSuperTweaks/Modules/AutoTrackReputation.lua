@@ -31,12 +31,10 @@ ns.Configure(A, { skipLosses = true, skipExalted = true, skipMajor = true, skipB
     local function profile() return m.db.profile end
     local function option(key, name, order, desc) return ns.Option(profile, "toggle", key, name, order, { desc = desc }) end
     return ns.OnePage(m.info.name, "switch", "Switch the bar", {
-        help = { type = "description", order = 0, name = "When a kill or a quest moves several factions at once, the "
-            .. "bar shows the one that went up the most." },
         skipLosses = option("skipLosses", "Not on losses", 1, "As when you kill a faction's members."),
         skipExalted = option("skipExalted", "Not at Exalted", 2),
         -- WoW Forever's PvP rank and Legacy are kept as factions (with renown levels); Classic Era has neither.
-        skipMajor = BY_ID and option("skipMajor", "Not your PvP rank or Legacy", 3, "They have pages of their own.") or nil,
+        skipMajor = BY_ID and option("skipMajor", "Not your PvP rank or Legacy", 3) or nil,
         skipBattlegrounds = option("skipBattlegrounds", "Not in battlegrounds", 4),
     })
 end)
