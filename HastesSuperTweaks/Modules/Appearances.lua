@@ -152,8 +152,8 @@ function A:Mark(owner, link, kind, iconSize)
         mark:SetPoint("TOPRIGHT", owner, "TOPRIGHT", -1, -1)
         marks[owner] = mark
     end
-    local kind = self.db.profile.mark
-    if mark.kind ~= kind then SetMark(mark, kind) end
+    local chosen = self.db.profile.mark
+    if mark.kind ~= chosen then SetMark(mark, chosen) end
     local size = iconSize and MarkSize(iconSize) or mark.size or BUTTON_MARK
     if mark.size ~= size then mark.size = size; mark:SetSize(size, size) end
     if mark.state ~= state then
