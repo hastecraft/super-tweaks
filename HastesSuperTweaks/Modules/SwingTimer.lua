@@ -365,8 +365,7 @@ function S:BuildOptions()
             help = { type = "description", order = 0, name = "These are the game's own swing timer bars: turn them on in "
                 .. "the game's options, and move and size them in Edit Mode." },
             fill = ns.Section("Fill", 1, {
-                recolor = option("toggle", "recolor", "Your colors and texture", 1, {
-                    desc = "Off, the bars keep the game's own look." }),
+                recolor = option("toggle", "recolor", "Your colors and texture", 1),
                 texture = ns.MediaOption(profile, "statusbar", "texture", "Texture", 2, { disabled = noColors,
                     desc = "Game texture keeps the swing timer's own art, grayed so your colors show as chosen." },
                     apply, "Game texture"),

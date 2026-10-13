@@ -108,21 +108,15 @@ ns.Configure(M, defaults, function(self)
     local function toggle(key, name, order, desc, disabled)
         return ns.Option(profile, "toggle", key, name, order, { desc = desc, disabled = disabled }, function() self:Refresh() end)
     end
-    local macros = {}
-    for i, kind in ipairs(self.KINDS) do
-        macros[kind.key] = toggle(kind.key, kind.name, i, "Keeps the \"" .. kind.macro .. "\" macro up to date. "
-            .. "Turning this off leaves the macro as it is.")
-    end
-    macros.eatdrink.desc = "Keeps the \"HST Eat & Drink\" macro up to date, which eats and drinks in one click. In "
-        .. "combat it uses a Healthstone with a mana potion, or a healing potion alone. Turning this off leaves the "
-        .. "macro as it is."
-    macros.pet.desc = "Hunters: keeps the \"HST Feed Pet\" macro up to date while your pet is out, which feeds it the "
-        .. "best food it eats from your bags. Turning this off leaves the macro as it is."
-    macros.mainhand.desc = "Keeps the \"HST Main Hand\" macro up to date, which puts your best sharpening stone (edged "
-        .. "weapons) or weightstone (blunt ones), oil or poison on your main hand weapon. Turning this off leaves the "
-        .. "macro as it is."
-    macros.offhand.desc = "Keeps the \"HST Off Hand\" macro up to date, which does the same for the weapon in your off "
-        .. "hand. Turning this off leaves the macro as it is."
+    local macros = { help = { type = "description", order = 0,
+        name = "Each macro is kept up to date as your bags change. Turning one off leaves it as it is." } }
+    for i, kind in ipairs(self.KINDS) do macros[kind.key] = toggle(kind.key, kind.macro, i) end
+    macros.eatdrink.desc = "Eats and drinks in one click. In combat it uses a Healthstone with a mana potion, or a "
+        .. "healing potion alone."
+    macros.pet.desc = "Hunters: feeds your pet the best food it eats from your bags, while it's out."
+    macros.mainhand.desc = "Puts your best sharpening stone (edged weapons) or weightstone (blunt ones), oil or poison "
+        .. "on your main hand weapon."
+    macros.offhand.desc = "The same for your off hand weapon."
 
     -- Icon choices, each shown with its picture.
     local fixed, fixedOrder = {}, {}

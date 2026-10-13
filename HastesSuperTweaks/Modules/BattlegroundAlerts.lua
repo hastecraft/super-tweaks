@@ -59,7 +59,7 @@ ns.Configure(A, { invite = true, gates = true, gatesWarning = false, result = tr
         result = toggle("result", "Result in chat", 4, MATCH_RESULTS
             and "When a match ends, says in chat whether you won, how long it took and the honor you earned."
             or "When a match ends, says in chat whether you won and how long it took."),
-        test = { type = "execute", name = "Test", order = 5, desc = "Shows a sample invite countdown, with its sounds.",
+        test = { type = "execute", name = "Play sample", order = 5, desc = "Shows a sample invite countdown, with its sounds.",
             disabled = function() return not m.db.profile.invite end, func = function() m:Test() end },
     })
 end, "Apply")

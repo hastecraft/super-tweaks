@@ -52,7 +52,7 @@ local GAME_SOUNDS = {
     { "ALARM_CLOCK_WARNING_3", "Alarm clock" },
 }
 -- The game's volume settings a sound can follow.
-local CHANNELS = { Master = "Master", SFX = "Effects", Ambience = "Ambience", Music = "Music", Dialog = "Dialog" }
+local CHANNELS = { Master = "Master", SFX = "Sound effects", Ambience = "Ambience", Music = "Music", Dialog = "Dialog" }
 local CHANNEL_ORDER = { "Master", "SFX", "Ambience", "Music", "Dialog" }
 
 ns.Configure(Q, { objectiveSound = "MAP_PING", questSound = "IG_QUEST_LIST_COMPLETE", message = true, channel = "Master" },
@@ -422,7 +422,7 @@ function Q:BuildOptions()
             sorting = function() return select(2, SoundChoices()) end })
     end
     local function play(key)
-        return { type = "execute", name = "Play", order = 2, desc = "Plays it on the sound channel chosen below.",
+        return { type = "execute", name = "Play", order = 2,
             func = function() Q:Preview(Q.db.profile[key]) end,
             disabled = function() return Q.db.profile[key] == "" end }
     end

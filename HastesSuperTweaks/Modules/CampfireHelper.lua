@@ -33,11 +33,11 @@ end
 local C = HST:NewFeature("CampfireHelper", {
     name = "Campfire Helper", category = "leveling", order = 7, command = "camp", unavailable = unavailable,
     summary = "A campfire on screen: near a fire, the minute to sit, and your camp buffs' hour.",
-    examples = { "style", "nearby", "keepShown", { "warnAt", "Blink at (minutes left)" } },
+    examples = { "style", "nearby", "keepShown", "warnAt" },
     description = "Shows a campfire on screen when you're near one, counts down the minute you sit by it, then keeps "
-        .. "your camp buffs' time left up and blinks when they're about to end and when they have: as a campfire in a "
-        .. "ring, a bar or the camp aura's icon, moved in Edit Mode. Chat messages for your own campfire, the buffs you "
-        .. "got and Boosted Rest can be turned on too. /hst camp check shows every camp timer.",
+        .. "your camp buffs' time left up and blinks when they're about to end and when they have. Show it as a "
+        .. "campfire in a ring, a bar or the camp aura's icon, and move it in Edit Mode. Chat messages for your own "
+        .. "campfire, the buffs you got and Boosted Rest can be turned on too. /hst camp check shows every camp timer.",
 })
 ns.CampfireHelper = C
 
@@ -1092,8 +1092,7 @@ function C:BuildOptions()
                     sorting = { "campfire", "bar", "icons" },
                     desc = "Each style has a tab of its own for its look." }),
                 reset = { type = "execute", name = "Reset position", order = 3, disabled = off,
-                    desc = "Moves it back to the middle of the screen, above your character. Edit Mode moves it "
-                        .. "anywhere.",
+                    desc = "Moves it back to the middle of the screen, above your character.",
                     func = function()
                         local p = C.db.profile
                         p.x, p.y = defaults.x, defaults.y
@@ -1120,14 +1119,11 @@ function C:BuildOptions()
         campfire = { type = "group", name = "Campfire", order = 2, hidden = notStyle("campfire"), disabled = off, args = {
             look = ns.Section("Campfire", 1, {
                 size = range("size", "Size", 1, 32, 160),
-                ring = option("select", "ring", "Ring", 2, { values = RING_NAMES, sorting = RING_ORDER,
-                    desc = "The ring that counts down." }),
-                fireArt = option("toggle", "fireArt", "Fire", 3, { desc = "Off, the ring alone." }),
-                animate = option("toggle", "animate", "Animate the fire", 4, { disabled = noFire,
-                    desc = "Off, the fire stands still." }),
-                glow = option("toggle", "glow", "Glow", 5, { desc = "The fire's warm light around it." }),
-                backdrop = option("toggle", "backdrop", "Dark backdrop", 6, {
-                    desc = "A soft dark disc behind it, so it reads on any ground." }),
+                ring = option("select", "ring", "Ring", 2, { values = RING_NAMES, sorting = RING_ORDER }),
+                fireArt = option("toggle", "fireArt", "Fire", 3),
+                animate = option("toggle", "animate", "Animate the fire", 4, { disabled = noFire }),
+                glow = option("toggle", "glow", "Glow", 5),
+                backdrop = option("toggle", "backdrop", "Dark backdrop", 6),
             }),
             colors = colors(2, "ring"),
         } },

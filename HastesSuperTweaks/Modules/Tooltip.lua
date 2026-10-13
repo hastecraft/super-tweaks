@@ -639,7 +639,7 @@ function T:BuildOptions()
         health = { type = "group", name = "Health bar", order = 1, args = {
             bar = section("Health bar", 1, {
                 healthBar = option("toggle", "healthBar", "Show health bar", 1, {
-                    desc = "Replaces Blizzard's thin health bar under unit tooltips." }),
+                    desc = "Replaces the game's thin health bar under unit tooltips." }),
                 barText = option("select", "barText", "Text", 2, { disabled = noBar,
                     values = { VALUE = "4215 / 5100", PERCENT = "83%", BOTH = "4215 / 5100 (83%)", NONE = "None" },
                     sorting = { "VALUE", "PERCENT", "BOTH", "NONE" } }),
