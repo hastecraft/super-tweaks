@@ -14,8 +14,8 @@ local L = HST:NewFeature("LegacyTracker", {
     summary = "Says what each challenge earns and reminds you to spend your Legacy points.",
     examples = { "announce", "remind" },
     description = "When a challenge completes, says how many Legacy points it gave and how many you have to spend. "
-        .. "When you log in with points to spend, says how many, with your points earned, the season's cap and your "
-        .. "next reward. Links in these lines, and /hst legacy, open the Legacy window.",
+        .. "Can also remind you at login when you have points to spend. Links in these lines, and /hst legacy, open "
+        .. "the Legacy window.",
 })
 ns.LegacyTracker = L
 
@@ -37,7 +37,7 @@ L.LOGIN_DELAY, L.LOGIN_RETRY = 6, 15 -- seconds after logging in (past the login
 L.SETTLE, L.KEEP = 2, 30 -- quiet seconds before a challenge's line; how long a challenge waits for its points
 L.gained, L.waits, L.challenges, L.challengeTime, L.login = 0, 0, {}, 0, 0
 
-ns.Configure(L, { announce = true, remind = true }, function(m)
+ns.Configure(L, { announce = true, remind = false }, function(m)
     local function profile() return m.db.profile end
     return ns.OnePage(m.info.name, "chat", "In chat", {
         announce = ns.Option(profile, "toggle", "announce", "Say what challenges give", 1, { desc = "When a challenge "
