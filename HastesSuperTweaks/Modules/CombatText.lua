@@ -1323,6 +1323,27 @@ local GAME_NOTICE_CVARS = {
     floatingCombatTextLowManaHealth_v2 = { "lowHealth", "lowMana" },
 }
 
+-- The game's own damage numbers' switches, by their setting here: flying out to the sides, every auto attack, your
+-- pet's melee and spell damage, and damage over time. Each is left to the game until it's set here, and held as set
+-- while the game's numbers are the ones shown.
+S.GAME_NUMBER_CVARS = {
+    gameDirectional = "floatingCombatTextCombatDamageDirectionalScale_v2",
+    gameAllAutos = "floatingCombatTextCombatDamageAllAutos_v2",
+    gamePetMelee = "floatingCombatTextPetMeleeDamage_v2",
+    gamePetSpells = "floatingCombatTextPetSpellDamage_v2",
+    gamePeriodic = "floatingCombatTextCombatLogPeriodicSpells_v2",
+}
+
+-- Whether one of those switches is on: as set here, else as the game has it. nil on a client without it.
+function S:GameNumberOn(key)
+    local value = ReadCVar(self.GAME_NUMBER_CVARS[key])
+    if value == nil then return nil end
+    local choice = self.db.profile[key]
+    if choice ~= nil then return choice end
+    value = tonumber(value)
+    return value ~= nil and value > 0
+end
+
 function S:UpdateCVars()
     if InCombatLockdown() then return watcher:RegisterEvent("PLAYER_REGEN_ENABLED") end
     local on, p = self:IsEnabled(), self.db.profile
@@ -1338,6 +1359,13 @@ function S:UpdateCVars()
     -- given back too (released, a hold is put back when the setting is the value given here or the one held).
     local size = on and p.enemyMode == "GAME" and p.gameDamageSize ~= 1 and p.gameDamageSize or nil
     self:HoldCVar("WorldTextScale_v2", size and tostring(size) or "0", size ~= nil)
+    -- Switches never set here, and not held, are left alone without asking the game.
+    local game, saved = on and p.enemyMode == "GAME", self.db.global.cvars
+    for key, name in pairs(self.GAME_NUMBER_CVARS) do
+        local choice = p[key]
+        local hold = game and choice ~= nil
+        if hold or saved[name] ~= nil then self:HoldCVar(name, choice and "1" or "0", hold) end
+    end
     -- The game's frame reads these settings only as it loads, its combat text is turned on or the screen is resized,
     -- so one changed here shows from the next reload. Its own update, called from here, would run as addon code and
     -- taint the frame: the game's combat text would then fail on the values it hides from addons.
