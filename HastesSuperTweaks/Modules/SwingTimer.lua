@@ -381,7 +381,7 @@ function S:BuildOptions()
             }),
             hide = ns.Section("Hide", 3, {
                 hideIdle = option("toggle", "hideIdle", "Hide bars that aren't swinging", 1, {
-                    desc = "A bar shows from your swing until a moment after it fills. Edit Mode still shows every bar." }),
+                    desc = "A bar shows from your swing until a moment after it fills." }),
                 takeTurns = option("toggle", "takeTurns", "Melee and ranged take turns", 2, { disabled = unset("hideIdle"),
                     desc = "A melee swing hides the ranged bar at once, and a shot the melee bars, so bars in one spot "
                         .. "don't cover each other." }),
