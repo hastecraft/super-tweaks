@@ -96,6 +96,23 @@ local function List(names, count)
     return table.concat(names, ", ", 1, count - 1) .. " and " .. names[count]
 end
 
+-- Chat messages the settings preview shows too.
+local function FireText(cooldown)
+    return "Campfire lit: it burns for " .. Span(FIRE_TIME) .. "."
+        .. (cooldown > 0 and (" You can light another in " .. Span(cooldown) .. ".") or "")
+end
+local function SittingText(left) return "Keep sitting: camp buffs in " .. Span(left) .. "." end
+-- The camp buffs that came with Camp Benefits, or Camp Benefits alone.
+local function BuffsText(left, names, count)
+    if count == 0 then return SpellName(CAMP_BENEFITS, "Camp Benefits") .. " for " .. Span(left) .. "." end
+    return "Camp buffs for " .. Span(left) .. ": " .. List(names, count) .. "."
+end
+local function EndingText(left) return "Your camp buffs end in " .. Span(left) .. "." end
+local function EndedText() return "Your camp buffs ended. Sit by a campfire for " .. Span(60) .. " for new ones." end
+local function RestedText()
+    return SpellName(BOOSTED_REST, "Boosted Rest") .. " is over: a Camp Tent gives you rested XP again."
+end
+
 -- The time on your computer's clock, for timers kept across a /reload or logout.
 local function Clock() return GetServerTime and GetServerTime() or time() end
 
@@ -448,7 +465,7 @@ local function NewCampfire(parent)
     return d
 end
 
--- The style, size and text the settings choose; scale shrinks it (for the settings preview).
+-- The style, size and text the settings choose; scale shrinks all of it, text too (for the settings preview).
 local function Style(d, p, scale)
     scale = scale or 1
     local style = VIEWS[p.style] and p.style or "campfire"
@@ -484,9 +501,8 @@ local function Style(d, p, scale)
     end
     local font, flags = ns.Media("font", p.font), ns.OutlineFlags(p.outline)
     local shadow = flags == "" and 1 or 0
-    local small = p.labelSize
-    ns.SetFont(time, font, p.fontSize, flags)
-    ns.SetFont(label, font, small, flags)
+    ns.SetFont(time, font, p.fontSize * scale, flags)
+    ns.SetFont(label, font, p.labelSize * scale, flags)
     for _, text in ipairs({ time, label }) do text:SetShadowOffset(shadow, -shadow) end
     time:SetShown(p.showTime)
     label:SetShown(p.showLabel)
@@ -713,9 +729,7 @@ end
 
 local function AnnounceFire()
     if not (C:IsEnabled() and Says("fire")) then return end
-    local cooldown = C:FireCooldown()
-    Print("Campfire lit: it burns for " .. Span(FIRE_TIME) .. "."
-        .. (cooldown > 0 and (" You can light another in " .. Span(cooldown) .. ".") or ""))
+    Print(FireText(C:FireCooldown()))
 end
 
 -- A spell you cast: lighting a campfire starts its timers.
@@ -750,7 +764,7 @@ ON_TIMER.buffsEnding = function()
     C.timers.buffsEnding = nil
     if not C.benefits.on then return end
     local p = C.db.profile
-    if Says("ending") then Print("Your camp buffs end in " .. Span(C.benefits.ends - GetTime()) .. ".") end
+    if Says("ending") then Print(EndingText(C.benefits.ends - GetTime())) end
     if p.sound and p.display and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
     C:Refresh()
 end
@@ -799,12 +813,7 @@ function C:CountBuffs(quiet)
         end
     end
     if quiet or not Says("buffs") then return end
-    local left = Span(b.ends - GetTime())
-    if count == 0 then
-        Print(SpellName(CAMP_BENEFITS, "Camp Benefits") .. " for " .. left .. ".")
-    else
-        Print("Camp buffs for " .. left .. ": " .. List(names, count) .. ".")
-    end
+    Print(BuffsText(b.ends - GetTime(), names, count))
 end
 local function CountLoud() if C:IsEnabled() then C:CountBuffs(false) end end
 local function CountQuiet() if C:IsEnabled() then C:CountBuffs(true) end end
@@ -862,7 +871,7 @@ function C:Check(quiet)
         self:Schedule("buffsEnding", nil)
         if not quiet and wasEnding <= ON_TIME then
             self.ended = true
-            if Says("ending") then Print("Your camp buffs ended. Sit by a campfire for " .. Span(60) .. " for new ones.") end
+            if Says("ending") then Print(EndedText()) end
             if p.sound and p.display and p.remind and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
         end
     end
@@ -876,7 +885,7 @@ function C:Check(quiet)
             if b.on and not gained then
                 Print("You still have camp buffs for " .. Span(b.ends - now) .. ", so this campfire gives you none until they end.")
             else
-                Print("Keep sitting: camp buffs in " .. Span(w.ends - now) .. ".")
+                Print(SittingText(w.ends - now))
             end
         end
     elseif change == "gone" and not quiet and Says("sitting") and not gained and not b.on and welcomeLeft > 2 then
@@ -886,7 +895,7 @@ function C:Check(quiet)
     local r = self.boosted
     local restLeft = r.on and r.ends - now
     if Track(r, boosted) == "gone" and not quiet and Says("boosted") and restLeft <= ON_TIME then
-        Print(SpellName(BOOSTED_REST, "Boosted Rest") .. " is over: a Camp Tent gives you rested XP again.")
+        Print(RestedText())
     end
     if changed then self:Refresh() end
 end
@@ -983,7 +992,7 @@ function C:Report()
     local cooldown = self:FireCooldown()
     Print(cooldown > 0 and ("You can light a campfire in " .. Span(cooldown) .. ".") or "You can light a campfire.")
     local w, b, r = self.welcome, self.benefits, self.boosted
-    if w.on and not b.on then Print("Keep sitting: camp buffs in " .. Span(w.ends - now) .. ".") end
+    if w.on and not b.on then Print(SittingText(w.ends - now)) end
     if b.on then
         local count = 0
         for _ in pairs(self.campBuffs) do count = count + 1 end
@@ -1003,60 +1012,158 @@ HST.commands.camp = function(text)
 end
 
 ---------------------------------------------------------------------------
--- Settings preview: a camp from start to end, sped up: the fire nearby, the minute of sitting, the buffs' hour running
--- down to the warning, and the reminder once they end.
+-- Settings preview: a camp from start to end, sped up: a campfire lit nearby, the minute of sitting, the buffs' hour
+-- running down to the warning (passing another campfire once they're low enough for it to show), and the reminder once
+-- they end. Each step shows what the settings put on screen, and under it the chat message it brings.
 ---------------------------------------------------------------------------
--- Steps: state, seconds shown, and for a countdown its length and the time left it runs from and to (nil: down to the
--- warning), sped up to the step's seconds; then whether it warns (from the warning down to 0).
-local PREVIEW = {
-    { "nearby", 2.5 },
-    { "sitting", 3, 60, 60, 0 },
-    { "buffs", 3, 3600, 3600, nil },
-    { "buffs", 3, 3600, nil, 0, true },
-    { "ended", 3 },
-}
+local HOUR = 3600
+local PAD, CHAT_GAP = 6, 6
+
+-- Adds a step: the state on screen (nil: nothing), its seconds, its chat message (nil: none), and for a countdown its
+-- length and the time left it runs from and to, sped up to the step's seconds, and whether it warns.
+local function Step(steps, state, seconds, chat, length, from, to, warning)
+    if not (state or chat) or seconds <= 0 then return end
+    steps[#steps + 1] = { state = state, seconds = seconds, chat = chat and ns.Widgets.Chat(chat), length = length,
+        from = from, to = to, warning = warning }
+end
+
+-- The camp's steps as the settings show them.
+local function Steps(p, steps)
+    wipe(steps)
+    local shows, says = p.display, p.chat
+    local warn, near = p.warnAt * 60, p.nearby and p.nearbyAt > 0 and p.nearbyAt * 60 or nil
+    -- A campfire lit nearby, and the minute you sit by it (its message comes a moment after it lands).
+    Step(steps, shows and p.nearby and "nearby" or nil, 2.5, says and p.fire and FireText(0) or nil)
+    Step(steps, shows and "sitting" or nil, 3, says and p.sitting and SittingText(59.5) or nil, 60, 60, 0)
+    -- The buffs' hour, in parts: down to the warning, and to where a campfire nearby shows over them. The hour and the
+    -- warning take 3 seconds each.
+    if near and near >= HOUR then Step(steps, shows and "nearby" or nil, 2) end
+    local from = HOUR
+    while from > 0 do
+        local warning = warn > 0 and from <= warn
+        local to = warning and 0 or warn
+        if near and near < from and near > to then to = near end
+        local chat
+        if from == HOUR then chat = says and p.buffs and BuffsText(HOUR - 1, nil, 0)
+        elseif from == warn then chat = says and p.ending and EndingText(warn) end
+        Step(steps, shows and (p.keepShown or warning) and "buffs" or nil, 3 * (from - to) / (warning and warn or HOUR - warn),
+            chat or nil, HOUR, from, to, warning)
+        if to == near then Step(steps, shows and "nearby" or nil, 2) end
+        from = to
+    end
+    -- Once they end: the reminder, and the messages for them and for Boosted Rest.
+    local ended, endedChat, restedChat = shows and p.remind and "ended" or nil, says and p.ending and EndedText() or nil,
+        says and p.boosted and RestedText() or nil
+    if endedChat and restedChat then
+        Step(steps, ended, 1.5, endedChat)
+        Step(steps, ended, 1.5, restedChat)
+    else
+        Step(steps, ended, 3, endedChat or restedChat)
+    end
+end
+
+-- The widest text the campfire or icon shows under it in these steps, at full size.
+local function Widest(d, p, steps)
+    local widest = 0
+    for _, step in ipairs(steps) do
+        local lines = step.state and LINES[step.state]
+        if lines then
+            if p.showTime then
+                d.time:SetText(lines[1] or Countdown(step.length))
+                widest = max(widest, d.time:GetStringWidth())
+            end
+            if p.showLabel and lines[2] then
+                d.label:SetText(lines[2])
+                widest = max(widest, d.label:GetStringWidth())
+            end
+        end
+    end
+    d.shownMain, d.shownLabel = nil, nil
+    return widest
+end
+
 function C.info.preview(frame)
-    local p = C.db.profile
+    local W, p = ns.Widgets, C.db.profile
     local d = frame.hstCampfire
     if not d then
         d = NewCampfire(frame)
         frame.hstCampfire = d
+        d.steps = {}
+        d.chat = W.ChatLine(frame, "")
+        d.caption = W.Caption(frame, "Nothing on screen.")
     end
-    -- Fits the stage, with its text under it.
-    local scale = p.style == "bar" and min(1, 230 / p.barWidth) or p.style == "campfire" and min(1, 64 / p.size) or 1
-    Style(d, p, scale)
-    local below = p.style ~= "bar" and ((p.showTime and 8 or 0) + (p.showLabel and 6 or 0)) or 0
-    d.frame:ClearAllPoints()
-    d.frame:SetPoint("CENTER", 0, below)
-    d.frame:Show()
-    local steps, total = {}, 0
-    for _, step in ipairs(PREVIEW) do
-        local skip = step[1] == "nearby" and not p.nearby or step[1] == "ended" and not p.remind
-            or step[6] and p.warnAt == 0 or step[1] == "buffs" and not step[6] and not p.keepShown
-        if not skip then
-            steps[#steps + 1] = step
-            total = total + step[2]
+    local steps = d.steps
+    Steps(p, steps)
+    -- The chat line's room: its tallest message.
+    local chatHeight = 0
+    for _, step in ipairs(steps) do
+        if step.chat then
+            d.chat:SetText(step.chat)
+            chatHeight = max(chatHeight, d.chat:GetStringHeight())
         end
     end
-    local last, began = nil, 0
-    ns.Widgets.Loop(frame, total, function(t)
+    d.chatShown = nil
+    local below = chatHeight > 0 and chatHeight + CHAT_GAP or 0
+    local f = d.frame
+    Shown(f, false)
+    d.caption:SetShown(not p.display)
+    d.chat:ClearAllPoints()
+    if p.display then
+        -- Scaled to fit the stage above the chat line, its text too: the campfire or icon with the lines under it, or
+        -- the bar with its text on it.
+        local width, height, text = p.barWidth, p.barHeight, 0
+        if p.style ~= "bar" then
+            width = p.style == "icons" and p.iconSize or p.size
+            Style(d, p, 1)
+            width, height = max(width, Widest(d, p, steps)), width
+            text = p.showLabel and 4 + p.fontSize + p.labelSize or p.showTime and 3 + p.fontSize or 0
+        end
+        local scale = min(1, (W.PREVIEW_WIDTH - 2 * PAD) / width,
+            (W.PREVIEW_HEIGHT - 2 * PAD - below) / (height + text))
+        Style(d, p, scale)
+        local top = (W.PREVIEW_HEIGHT - (height + text) * scale - below) / 2
+        f:ClearAllPoints()
+        f:SetPoint("TOP", frame, "TOP", 0, -top)
+        d.chat:SetPoint("TOP", frame, "TOP", 0, -top - (height + text) * scale - CHAT_GAP)
+    else
+        W.Column(frame, chatHeight > 0 and { d.caption, CHAT_GAP, d.chat } or { d.caption })
+    end
+    d.chat:SetAlpha(0)
+    if #steps == 0 then return frame:SetScript("OnUpdate", nil) end
+    local total = 0
+    for _, step in ipairs(steps) do total = total + step.seconds end
+    local last, lastT, began, shownLeft = nil, 0, 0, nil
+    W.Loop(frame, total, function(t)
         local at, step = 0, steps[1]
-        for _, s in ipairs(steps) do
-            if t < at + s[2] then step = s; break end
-            at = at + s[2]
+        for i = 1, #steps do
+            local s = steps[i]
+            if t < at + s.seconds then step = s; break end
+            at = at + s.seconds
         end
-        if step ~= last then last, began = step, GetTime() - (t - at) end
-        local seconds, length, warning = step[2], step[3], step[6]
+        -- A new step, or the same one again after the loop starts over.
+        if step ~= last or t < lastT then last, began = step, GetTime() - (t - at) end
+        lastT = t
+        local u, seconds = t - at, step.seconds
+        if d.chatShown ~= step.chat then
+            d.chatShown = step.chat
+            if step.chat then d.chat:SetText(step.chat) end
+        end
+        d.chat:SetAlpha(step.chat and W.Window(u, 0, seconds, 0.25) or 0)
+        Shown(f, step.state ~= nil)
+        if not step.state then return end
+        local length = step.length
         if length then
-            -- The game's ring, sped up: over the step's seconds it runs from `from` left to `to` left.
-            local warnAt = p.warnAt * 60
-            local from, to = step[4] or warnAt, step[5] or warnAt
+            -- The game's ring, sped up: over the step's seconds it runs from `from` left to `to` left. Its text
+            -- changes once a minute, then once a second.
+            local from, to = step.from, step.to
             local duration = seconds * length / (from - to)
             local start = began - duration * (1 - from / length)
-            local left = from - (from - to) * (t - at) / seconds
-            Draw(d, p, step[1], start, duration, Countdown(max(1, left)), warning, false)
+            local left = max(1, from - (from - to) * u / seconds)
+            local shown = left > 60 and ceil(left / 60) or -ceil(left)
+            if shown ~= shownLeft then shownLeft, d.previewLeft = shown, Countdown(left) end
+            Draw(d, p, step.state, start, duration, d.previewLeft, step.warning, false)
         else
-            Draw(d, p, step[1], nil, nil, nil, false, false)
+            Draw(d, p, step.state, nil, nil, nil, false, false)
         end
     end)
 end
