@@ -551,8 +551,7 @@ function R:BuildOptions()
                 autoColor = option("color", "autoColor", "Refreshing", 3),
             }),
             text = ns.Section("Text", 3, {
-                showLabel = option("toggle", "showLabel", "Show \"World refresh\"", 1, {
-                    desc = "Off shows only the time left." }),
+                showLabel = option("toggle", "showLabel", "Show \"World refresh\"", 1),
                 font = ns.MediaOption(profile, "font", "font", "Font", 2, nil, apply),
                 fontSize = option("range", "fontSize", "Size", 3, { min = 6, max = 32, step = 1 }),
                 outline = option("select", "outline", "Outline", 4, ns.With({
