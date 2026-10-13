@@ -122,15 +122,24 @@ end)
 ---------------------------------------------------------------------------
 -- Characters
 ---------------------------------------------------------------------------
--- This character's entry, brought up to date, or nil while its name isn't known yet.
+-- This character's entry, brought up to date, or nil while its name isn't known yet. On WoW Forever its name is
+-- "First Surname", as the To: field takes it. Entries from before this addon knew surnames ("First - Realm", shared by
+-- every character with that first name) are dropped there; each character adds itself again when it logs in.
 function M:Me()
     HST:EnsureCharacterKey()
     local key = HST.charKey
     if not key then return nil end
-    local me = self.db.global.characters[key] or {}
-    self.db.global.characters[key] = me
+    local characters = self.db.global.characters
+    if ns.RegionalNames() and not self.droppedShared then
+        self.droppedShared = true
+        for old in pairs(characters) do
+            if old:find(" - ", 1, true) then characters[old] = nil end
+        end
+    end
+    local me = characters[key] or {}
+    characters[key] = me
     local _, class = UnitClass("player")
-    me.name, me.realm, me.faction, me.class, me.level = UnitName("player"), GetRealmName(), UnitFactionGroup("player"), class, UnitLevel("player")
+    me.name, me.realm, me.faction, me.class, me.level = ns.PlayerName() or UnitName("player"), GetRealmName(), UnitFactionGroup("player"), class, UnitLevel("player")
     return me, key
 end
 

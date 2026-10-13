@@ -44,17 +44,22 @@ jobs:
       - run: pip install -r tools/requirements.txt
       - name: Consistency
         # Release mode only for release/* branches in this repository (which only the maintainer can push), never forks.
+        # A pull request is checked out as its merge into the base branch, so the merge's first parent is the base
+        # branch as it is now (the event's base.sha can be days old, and would count master's newer commits as ours).
+        # The patch-notes-fix label (the maintainer's) lets a pull request correct shipped patch notes.
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          IS_PR: ${{ github.event_name == 'pull_request' }}
           HEAD_REF: ${{ github.head_ref }}
           SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          NOTES_FIX: ${{ contains(github.event.pull_request.labels.*.name, 'patch-notes-fix') }}
         run: |
-          if [ -n "$BASE" ]; then
-            release=""
+          if [ "$IS_PR" = "true" ]; then
+            flags=""
             if [ "$SAME_REPO" = "true" ]; then
-              case "$HEAD_REF" in release/*) release="--release" ;; esac
+              case "$HEAD_REF" in release/*) flags="--release" ;; esac
             fi
-            python tools/check.py --base "$BASE" $release
+            if [ "$NOTES_FIX" = "true" ]; then flags="$flags --notes-fix"; fi
+            python tools/check.py --base "$(git rev-parse HEAD^1)" $flags
           else
             python tools/check.py
           fi
@@ -77,12 +82,12 @@ jobs:
       - name: Compare with the base branch
         if: github.event_name == 'pull_request'
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
           ACCEPTED: ${{ contains(github.event.pull_request.labels.*.name, 'perf-accepted') }}
-        # Both sides run this version's bench, mocks and scenarios; only the addon differs.
+        # Both sides run this version's bench, mocks and scenarios; only the addon differs. The base is the merge's first
+        # parent: the base branch as it is now. Only a major regression fails (see tools/bench_compare.py).
         run: |
           mkdir "$RUNNER_TEMP/base"
-          git archive "$BASE" HastesSuperTweaks | tar -x -C "$RUNNER_TEMP/base"
+          git archive HEAD^1 HastesSuperTweaks | tar -x -C "$RUNNER_TEMP/base"
           HST_ROOT="$RUNNER_TEMP/base" python tools/bench.py --json > "$RUNNER_TEMP/base.json" \
             || echo "::warning::Some scenarios failed on the base branch; they're compared as new."
           status=0
@@ -91,9 +96,9 @@ jobs:
           cat "$RUNNER_TEMP/report.md"
           if [ "$status" -ne 0 ]; then
             if [ "$ACCEPTED" = "true" ]; then
-              echo "::warning::The bench counts more work than the base branch; accepted with the perf-accepted label."
+              echo "::warning::The bench counts a major regression against the base branch; accepted with the perf-accepted label."
             else
-              echo "::error::The bench counts more work than the base branch (see the job summary). Fix it, or have the maintainer add the perf-accepted label if the cost is worth it."
+              echo "::error::The bench counts a major regression against the base branch (see the job summary). Fix it, or have the maintainer add the perf-accepted label if the cost is worth it."
               exit 1
             fi
           fi

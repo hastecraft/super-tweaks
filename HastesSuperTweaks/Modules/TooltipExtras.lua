@@ -48,9 +48,11 @@ local function TargetText(unit)
     playerGUID = playerGUID or UnitGUID("player")
     local text = YOU
     if guid ~= playerGUID then
-        local name = UnitName(target)
+        local name, surname = UnitName(target)
         -- A name still loading isn't kept, so the next redraw asks again.
         if IsSecret(name) or not name or name == UNKNOWNOBJECT then return nil end
+        -- On WoW Forever a player's surname comes second: "First Surname", as the game shows it.
+        if not IsSecret(surname) then name = ns.FullName(name, surname) end
         text = name
         local isPlayer = UnitIsPlayer(target)
         if not IsSecret(isPlayer) and isPlayer then

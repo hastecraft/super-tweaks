@@ -37,7 +37,7 @@ Add one entry at the top of `HST.patchNotes` in `HastesSuperTweaks/PatchNotes.lu
 
 - Cover what players notice: new tweaks, new settings and features, changed behavior or defaults, and fixes for problems players could run into. Leave out refactors, invisible performance work, tooling, docs and `tools/`.
 - One short line per change, under `new`, `changed` or `fixed`, in player terms. Name tweaks as the settings window does. Start from the PR's "For the patch notes" line, but rewrite it to fit.
-- Put the one to four biggest changes under `highlights`, each as a title and a short text.
+- Highlights are only for major new features: a new tweak, or a big new feature or setting players will want to try. Put the one to four biggest under `highlights`, each as a title and a short text. Never highlight fixes or small changes; a release with only those has no `highlights`.
 - When a line or highlight is about one tweak, give it `module` (and `setting` when it's about one setting) so players can click through to it. Check that the module key exists.
 - Merge related PRs into one line. Never edit shipped entries, except to correct mistakes.
 - Optionally give the entry a `summary` of one sentence.
