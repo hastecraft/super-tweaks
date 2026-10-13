@@ -1,5 +1,12 @@
 <Bindings>
 	<!-- Key bindings the game lists under this addon in its Key Bindings. The game loads this file by itself, so the
+	TOC doesn't list it. Their names are set in Lua (Modules/WorldRefresh.lua). -->
+	<Binding name="HASTESSUPERTWEAKS_REFRESHWORLD" category="BINDING_HEADER_HASTESSUPERTWEAKS">
+		HastesSuperTweaks_RefreshWorld()
+	</Binding>
+</Bindings>
+<Bindings>
+	<!-- Key bindings the game lists under this addon in its Key Bindings. The game loads this file by itself, so the
 	TOC doesn't list it. Their names are set in Lua (Modules/QuestItemButton.lua). -->
 	<Binding name="CLICK HastesSuperTweaksQuestItemButton:LeftButton" category="BINDING_HEADER_HASTESSUPERTWEAKS">
 	</Binding>

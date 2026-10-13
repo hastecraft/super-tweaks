@@ -119,6 +119,15 @@ SOUNDKIT.MAP_PING, SOUNDKIT.IG_QUEST_LIST_COMPLETE = 3175, 878
 C_TooltipInfo.GetBagItem = function() return { lines = {} } end
 Enum.PlayerInteractionType = { Merchant = 5 }
 C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function() return false end }
+-- World refresh: a wait the game reports (0 while none), and what makes refreshing unsafe.
+C_PlayerInteractionManager.ShardTransferConfirm = function() state.shardConfirmed = (state.shardConfirmed or 0) + 1 end
+function GetEvictionTimeRemaining() return state.evictionWait or 0 end
+function UnitOnTaxi() return false end
+function IsFalling() return false end
+function UnitCastingInfo() return nil end
+function UnitChannelInfo() return nil end
+function InCinematic() return false end
+function IsResting() return state.resting == true end
 
 -- Group and quest automation: who you're talking to, summons, deaths, repairs, friends and communities.
 C_GossipInfo = { GetOptions = function() return {} end, GetActiveQuests = function() return {} end,
