@@ -12,8 +12,7 @@ local F = HST:NewFeature("ChatFilter", {
     summary = "Hides gold selling, boosting, guild recruitment and guilds you mute in public channels.",
     examples = { "gold", "boosting", "recruitment", "guildTags" },
     description = "Hides messages in trade, general and other public channels that match your word lists: gold "
-        .. "selling, boosting, guild recruitment and words of your own, and everything from guilds you mute. Whispers, "
-        .. "group and guild chat, and your friends and guildmates, are never hidden.",
+        .. "selling, boosting, guild recruitment and words of your own, and everything from guilds you mute.",
 })
 ns.ChatFilter = F
 
