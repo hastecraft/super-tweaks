@@ -51,7 +51,7 @@ ns.Configure(A, { invite = true, gates = true, gatesWarning = false, result = tr
             .. "effects off. To hear them while the game is in the background, turn on Sound in Background in the "
             .. "game's Options > Audio." },
         invite = toggle("invite", "Invite countdown", 1, "While a battleground invite is up, shows how long you have "
-            .. "left to enter, and flashes the taskbar with a sound at 20 and 10 seconds left. Entering is still up to you."),
+            .. "left to enter, and flashes the taskbar with a sound at 20 and 10 seconds left."),
         gates = toggle("gates", "Gates opening", 2, "Flashes the taskbar and plays a sound as the gates open."),
         gatesWarning = toggle("gatesWarning", "10 seconds before too", 3,
             "Also flashes the taskbar and plays a sound 10 seconds before the gates open.",
