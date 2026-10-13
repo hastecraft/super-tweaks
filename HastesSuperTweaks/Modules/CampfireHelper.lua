@@ -43,7 +43,7 @@ ns.CampfireHelper = C
 
 local defaults = {
     -- The campfire on screen.
-    display = true, nearby = true, keepShown = true, warnAt = 5, remind = true, missing = false, missingBlink = true,
+    display = true, nearby = true, keepShown = true, warnAt = 5, without = "ended", blink = true,
     sound = false,
     style = "campfire", x = 0, y = 200,
     -- Campfire: its size and what it draws.
@@ -510,7 +510,7 @@ local function Draw(d, p, state, start, length, main, warning, frozen)
     else
         DrawIcon(d.icon, p, state, start, length, warning, frozen)
     end
-    Play(d.blink, warning or state == "ended" or state == "missing" and p.missingBlink)
+    Play(d.blink, warning or OUT[state] and p.blink)
     local lines = style == "bar" and BAR_LINES[state] or LINES[state]
     local first, second
     if style == "bar" then first, second = lines[2] or main, lines[1] else first, second = lines[1] or main, lines[2] end
@@ -585,10 +585,10 @@ function C:Refresh(now)
         state, start, length, ends = "sitting", w.ends - w.length, w.length, w.ends
     elseif n.on and p.nearby then
         state = "nearby"
-    elseif self.ended and p.remind then
-        state = "ended"
-    elseif p.missing then
+    elseif p.without == "always" then
         state = "missing"
+    elseif self.ended and p.without == "ended" then
+        state = "ended"
     end
     self.tickDue = nil
     if not state then
@@ -944,7 +944,7 @@ function C:Check(quiet)
         if not quiet and wasEnding <= ON_TIME then
             self.ended = true
             if Says("ending") then Print("Your camp buffs ended. Sit by a campfire for " .. Span(60) .. " for new ones.") end
-            if p.sound and p.display and p.remind and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
+            if p.sound and p.display and p.without ~= "none" and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
         end
     end
     local w = self.welcome
@@ -1113,8 +1113,8 @@ function C.info.preview(frame)
     d.frame:Show()
     local steps, total = {}, 0
     for _, step in ipairs(PREVIEW) do
-        local skip = step[1] == "nearby" and not p.nearby or step[1] == "ended" and not p.remind
-            or step[1] == "missing" and not p.missing
+        local skip = step[1] == "nearby" and not p.nearby or step[1] == "ended" and p.without ~= "ended"
+            or step[1] == "missing" and p.without ~= "always"
             or step[6] and p.warnAt == 0 or step[1] == "buffs" and not step[6] and not p.keepShown
         if not skip then
             steps[#steps + 1] = step
@@ -1159,7 +1159,7 @@ function C:BuildOptions()
     -- A style's own tab shows only while that style is chosen (the window rebuilds its tabs as settings change).
     local function notStyle(style) return function() return C.db.profile.style ~= style end end
     local function noFire() return not C.db.profile.fireArt end
-    local function noMissing() local p = C.db.profile; return not (p.display and p.missing) end
+    local function noneWithout() local p = C.db.profile; return not p.display or p.without == "none" end
     local function noWarning() return C.db.profile.warnAt == 0 end
     local outlines = ns.OutlineChoices("Drop shadow")
     -- The countdown's colors, on the ring's and the bar's tabs.
@@ -1196,10 +1196,10 @@ function C:BuildOptions()
                         .. "always shows." }),
                 keepShown = option("toggle", "keepShown", "The whole hour of camp buffs", 2, { disabled = off,
                     desc = "Off, it shows only once they're about to end." }),
-                remind = option("toggle", "remind", "After camp buffs end", 3, { disabled = off, desc =
-                    "Blinks until you sit by a campfire again or click it." }),
-                missing = option("toggle", "missing", "Whenever you have no camp buffs", 8, { disabled = off }),
-                missingBlink = option("toggle", "missingBlink", "Blink when you have none", 9, { disabled = noMissing }),
+                without = option("select", "without", "Without camp buffs", 3, { disabled = off,
+                    values = { none = "Never", ended = "Once they end, until clicked", always = "Always" },
+                    sorting = { "none", "ended", "always" } }),
+                blink = option("toggle", "blink", "Blink without camp buffs", 9, { disabled = noneWithout }),
             }),
             ending = ns.Section("Ending soon", 3, {
                 warnAt = range("warnAt", "Warn at (minutes left)", 1, 0, 30, { disabled = off,
