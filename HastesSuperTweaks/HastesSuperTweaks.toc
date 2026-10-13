@@ -2,7 +2,7 @@
 ## Title: Haste's Super Tweaks
 ## Notes: Opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package. /hst opens settings.
 ## Author: Haste
-## Version: 1.2.1
+## Version: 2.0.0
 ## SavedVariables: HastesSuperTweaksDB
 ## OptionalDeps: EllesmereUI, SharedMedia, SharedMedia_Inter, LibSharedMedia-3.0, Questie, Blizzard_PTRFeedback
 ## IconTexture: Interface\AddOns\HastesSuperTweaks\Art\Logo
