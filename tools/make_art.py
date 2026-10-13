@@ -1,6 +1,7 @@
 """Draws the addon's own art (white or grey on transparent, tinted in game) as 32-bit TGA files: icons, each also
 drawn pixel for pixel at every small size (the disc's halves and quarters round the settings window's pills and
-corners), the Loot Window's burnt page background, and Campfire Helper's fire (in color), ring and glow.
+corners), the Loot Window's burnt page background, Campfire Helper's fire (in color), ring and glow, and
+Appearance Collector's marks.
 
 Usage: python tools/make_art.py [icons-preview.png [page-preview.png]]
 """
@@ -405,6 +406,62 @@ def heart(size=64, samples=4):
     return image
 
 
+# Appearance Collector's marks, side by side in one atlas, in this order (the module's MARKS give each one's cell).
+APPEARANCE_MARKS = ('hanger', 'shirt', 'sparkle', 'dot')
+
+
+def appearance_marks(cell=32, samples=8, outline=2.5):
+    """White marks (tinted in game) with a dark outline baked in, so they read on any item icon at 9 to 13 pixels.
+    Each is drawn at supersampled size in a CELL-wide square, then shrunk by area average."""
+    from PIL import ImageDraw, ImageFilter
+    big = cell * samples
+    pad = (outline + 1.5) * samples  # room for the outline inside each cell
+    span = big - 2 * pad
+
+    def at(x, y):  # a point in the mark's 0..1 box, in big pixels
+        return (pad + x * span, pad + y * span)
+
+    def mask(name):
+        m = Image.new('L', (big, big))
+        d = ImageDraw.Draw(m)
+        if name == 'hanger':
+            # A hook over a triangle with a crossbar: thick strokes, so it holds up small.
+            w = 0.15 * span
+            d.arc([at(0.36, 0.0), at(0.64, 0.30)], 180, 90, fill=255, width=round(w))
+            d.line([at(0.5, 0.30), at(0.5, 0.36)], fill=255, width=round(w))
+            d.line([at(0.5, 0.36), at(0.03, 0.84), at(0.97, 0.84), at(0.5, 0.36)], fill=255, width=round(w),
+                   joint='curve')
+        elif name == 'shirt':
+            d.polygon([at(0.30, 0.06), at(0.42, 0.06), at(0.5, 0.18), at(0.58, 0.06), at(0.70, 0.06), at(1.0, 0.30),
+                       at(0.86, 0.50), at(0.76, 0.42), at(0.76, 0.96), at(0.24, 0.96), at(0.24, 0.42),
+                       at(0.14, 0.50), at(0.0, 0.30)], fill=255)
+        elif name == 'sparkle':
+            # A four-pointed star, and a small one up and to the right.
+            def star(cx, cy, r, waist):
+                points = []
+                for i in range(8):
+                    a, rr = math.pi * i / 4, r if i % 2 == 0 else waist
+                    points.append(at(cx + rr * math.sin(a), cy - rr * math.cos(a)))
+                d.polygon(points, fill=255)
+            star(0.42, 0.58, 0.44, 0.15)
+            star(0.84, 0.16, 0.18, 0.07)
+        elif name == 'dot':
+            d.ellipse([at(0.18, 0.18), at(0.82, 0.82)], fill=255)
+        return m
+
+    sheet = Image.new('RGBA', (cell * len(APPEARANCE_MARKS), cell), (0, 0, 0, 0))
+    for i, name in enumerate(APPEARANCE_MARKS):
+        shape = mask(name)
+        grown = shape.filter(ImageFilter.MaxFilter(2 * round(outline * samples) + 1))
+        dark = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+        dark.putalpha(grown.point(lambda v: round(v * 0.85)))
+        white = Image.new('RGBA', (big, big), (255, 255, 255, 0))
+        white.putalpha(shape)
+        dark.alpha_composite(white)
+        sheet.alpha_composite(dark.resize((cell, cell), Image.BOX), (i * cell, 0))
+    return sheet
+
+
 # The burnt page is drawn with nine-slice rendering: a MARGIN-wide rim (the corners and edges) around a center that
 # tiles. Everything the rim does (the ragged burnt edge, charring, scorch) fades out before the center starts, and all
 # noise repeats every PERIOD pixels from the rim, so edges and center tile seamlessly at any window size.
@@ -726,6 +783,9 @@ if __name__ == '__main__':
     for name, image in images.items():
         image.save(ART / f'{name}.tga')  # uncompressed 32-bit with alpha
         print(f'Wrote {ART / (name + ".tga")} ({image.size[0]}x{image.size[1]})')
+    image = appearance_marks()
+    image.save(ART / 'AppearanceMarks.tga')
+    print(f'Wrote {ART / "AppearanceMarks.tga"} ({image.size[0]}x{image.size[1]})')
     campfire = {'CampfireFire': campfire_fire(), 'CampfireGlow': campfire_glow()}
     campfire.update({name: campfire_ring(**args) for name, args in CAMPFIRE_RINGS.items()})
     for name, image in campfire.items():

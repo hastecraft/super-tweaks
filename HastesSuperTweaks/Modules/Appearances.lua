@@ -1,4 +1,4 @@
--- Appearance Collector: an eye on gear whose look (appearance) you haven't collected, in the game's bags, at vendors
+-- Appearance Collector: a mark on gear whose look (appearance) you haven't collected, in the game's bags, at vendors
 -- (their Buyback tab too) and in this addon's Loot Window, and a line in item tooltips. WoW Forever collects appearances
 -- even before you turn on transmog, but its wardrobe hides what you're missing (Blizzard_Collections/Camelot/
 -- Blizzard_Wardrobe.lua) and nothing marks an item you still need. Sell Clutter asks it which gear to keep (its Keep new
@@ -12,7 +12,7 @@ local A = HST:NewFeature("Appearances", {
     name = "Appearance Collector", category = "items", order = 4,
     summary = "Marks gear whose look you haven't collected yet.",
     examples = { "bags", "vendors", "loot", "tooltip", "alts" },
-    description = "Puts an eye on gear in your bags, at vendors and in the Loot Window whose appearance you haven't "
+    description = "Puts a mark on gear in your bags, at vendors and in the Loot Window whose appearance you haven't "
         .. "collected, and item tooltips say so. WoW Forever collects appearances even before you turn on transmog, "
         .. "but doesn't show what you're missing.",
 })
@@ -99,24 +99,31 @@ function A:State(item)
 end
 
 ---------------------------------------------------------------------------
--- Marks: an eye texture on an item button (or the Loot Window's icon), made the first time that button needs one, in
+-- Marks: a texture (the mark chosen) on an item button (or the Loot Window's icon), made the first time that button
+-- needs one, in
 -- the corner the game leaves free, under its search dimming. What each button was last drawn for (its link, and the
 -- setting that covers it) is kept, so the marks can be drawn again when your collection changes.
 ---------------------------------------------------------------------------
 local marks, links, kinds = {}, {}, {}
-local ATLAS = "socialqueuing-icon-eye" -- the game's own eye, as its quest tracker's Find Group button shows it
 A.COLORS = { [NEW] = { 0.55, 0.8, 1, 1 }, [SOURCE] = { 0.75, 0.75, 0.75, 0.9 }, [ALT] = { 1, 0.78, 0.25, 1 } }
+-- The marks to choose from: cells of MARK_ART (white with a dark outline, tinted by the look's state), in
+-- tools/make_art.py's APPEARANCE_MARKS order.
+local MARK_ART, MARK_CELLS = "Interface\\AddOns\\HastesSuperTweaks\\Art\\AppearanceMarks", 4
+A.MARKS = { HANGER = 1, SHIRT = 2, SPARKLE = 3, DOT = 4 }
+A.MARK_NAMES = { HANGER = "Hanger", SHIRT = "Shirt", SPARKLE = "Sparkle", DOT = "Dot" }
+A.MARK_ORDER = { "HANGER", "SHIRT", "SPARKLE", "DOT" }
 
--- Shows the eye on a texture, or a plain square when the game lacks it.
-local hasAtlas
-local function SetEye(texture)
-    if hasAtlas == nil then hasAtlas = C_Texture ~= nil and C_Texture.GetAtlasInfo ~= nil and C_Texture.GetAtlasInfo(ATLAS) ~= nil end
-    if hasAtlas then texture:SetAtlas(ATLAS) else texture:SetColorTexture(1, 1, 1, 1) end
+-- Shows a mark on a texture: its cell of the marks' art.
+local function SetMark(texture, kind)
+    texture.kind = kind
+    local cell = A.MARKS[kind] or A.MARKS.HANGER
+    texture:SetTexture(MARK_ART)
+    texture:SetTexCoord((cell - 1) / MARK_CELLS, cell / MARK_CELLS, 0, 1)
 end
 
--- The eye's size on an item icon `size` units wide: 13 on the game's 37-unit item buttons.
-local function EyeSize(size) return math.max(8, math.floor(size * 0.36 + 0.5)) end
-local BUTTON_EYE = EyeSize(37)
+-- The mark's size on an item icon `size` units wide: 13 on the game's 37-unit item buttons.
+local function MarkSize(size) return math.max(8, math.floor(size * 0.36 + 0.5)) end
+local BUTTON_MARK = MarkSize(37)
 
 -- The mark an item gets where `kind` (a setting: bags, vendors, loot) says: its state, or nil for none. While the game
 -- is still loading what's needed, it's asked again when that arrives.
@@ -129,7 +136,7 @@ function A:Wanted(link, kind)
     return nil
 end
 
--- Draws one button's mark for the item it shows (link, nil for none). iconSize, when given, sizes the eye to the icon.
+-- Draws one button's mark for the item it shows (link, nil for none). iconSize, when given, sizes the mark to the icon.
 -- Only a mark that changes is touched.
 function A:Mark(owner, link, kind, iconSize)
     if not self:IsEnabled() then return end
@@ -143,10 +150,11 @@ function A:Mark(owner, link, kind, iconSize)
     if not mark then
         mark = owner:CreateTexture(nil, "OVERLAY", nil, 3)
         mark:SetPoint("TOPRIGHT", owner, "TOPRIGHT", -1, -1)
-        SetEye(mark)
         marks[owner] = mark
     end
-    local size = iconSize and EyeSize(iconSize) or mark.size or BUTTON_EYE
+    local chosen = self.db.profile.mark
+    if mark.kind ~= chosen then SetMark(mark, chosen) end
+    local size = iconSize and MarkSize(iconSize) or mark.size or BUTTON_MARK
     if mark.size ~= size then mark.size = size; mark:SetSize(size, size) end
     if mark.state ~= state then
         mark.state = state
@@ -339,7 +347,7 @@ end
 ---------------------------------------------------------------------------
 -- Settings
 ---------------------------------------------------------------------------
-A.DEFAULTS = { bags = true, vendors = true, loot = true, tooltip = true, sources = false, alts = false }
+A.DEFAULTS = { mark = "HANGER", bags = true, vendors = true, loot = true, tooltip = true, sources = false, alts = false }
 
 ns.Configure(A, A.DEFAULTS, function(m)
     local function profile() return m.db.profile end
@@ -350,17 +358,19 @@ ns.Configure(A, A.DEFAULTS, function(m)
     return { name = m.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             marks = ns.Section("Mark gear", 1, {
-                bags = toggle("bags", "In your bags", 1, "The game's bags. Bag addons that replace them draw their own."),
-                vendors = toggle("vendors", "At vendors", 2, "What a vendor sells, and what you can buy back."),
-                loot = toggle("loot", "In the Loot Window", 3, "Needs Loot Window on.", { disabled = noLootWindow }),
-                tooltip = toggle("tooltip", "In item tooltips", 4,
+                mark = ns.Option(profile, "select", "mark", "Mark", 1, { values = m.MARK_NAMES, sorting = m.MARK_ORDER },
+                    function() m:Refresh() end),
+                bags = toggle("bags", "In your bags", 2, "The game's bags. Bag addons that replace them draw their own."),
+                vendors = toggle("vendors", "At vendors", 3, "What a vendor sells, and what you can buy back."),
+                loot = toggle("loot", "In the Loot Window", 4, "Needs Loot Window on.", { disabled = noLootWindow }),
+                tooltip = toggle("tooltip", "In item tooltips", 5,
                     "Adds a line: New appearance, New source (look already known) or An alt can learn this."),
             }),
             looks = ns.Section("Which looks", 2, {
                 sources = toggle("sources", "New sources of looks you have", 1,
-                    "A grey eye on gear whose look you already have from another item."),
+                    "A grey mark on gear whose look you already have from another item."),
                 alts = toggle("alts", "Looks only an alt can learn", 2,
-                    "A gold eye on gear this character can't learn but another of your characters could, such as plate "
+                    "A gold mark on gear this character can't learn but another of your characters could, such as plate "
                         .. "on a Mage."),
             }),
         } },
@@ -368,7 +378,7 @@ ns.Configure(A, A.DEFAULTS, function(m)
 end, "Refresh")
 
 ---------------------------------------------------------------------------
--- Settings preview: a backpack whose gear with a look you haven't collected carries the eye, and that gear's tooltip.
+-- Settings preview: a backpack whose gear with a look you haven't collected carries the mark, and that gear's tooltip.
 -- Items: icon, and the state of their look.
 ---------------------------------------------------------------------------
 A.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
@@ -382,7 +392,7 @@ function A.info.preview(frame)
     local W = ns.Widgets
     local v = frame.hstLooks
     if not v then
-        v = { eyes = {} }
+        v = { marks = {} }
         frame.hstLooks = v
         v.bag = W.Panel(frame, 160, 68)
         local title = W.Text(v.bag, "GameFontNormalSmall")
@@ -392,13 +402,12 @@ function A.info.preview(frame)
             local slot = W.Slot(v.bag, item[1] and "Interface\\Icons\\" .. item[1], 20)
             slot:SetPoint("TOPLEFT", 13 + (i - 1) % 6 * 23, -20 - math.floor((i - 1) / 6) * 23)
             if item[2] then
-                local eye = slot:CreateTexture(nil, "OVERLAY")
-                eye:SetSize(9, 9)
-                eye:SetPoint("TOPRIGHT", 1, 1)
-                SetEye(eye)
+                local mark = slot:CreateTexture(nil, "OVERLAY")
+                mark:SetSize(9, 9)
+                mark:SetPoint("TOPRIGHT", 1, 1)
                 local c = A.COLORS[item[2]]
-                eye:SetVertexColor(c[1], c[2], c[3], c[4])
-                v.eyes[#v.eyes + 1] = { eye, item[2] }
+                mark:SetVertexColor(c[1], c[2], c[3], c[4])
+                v.marks[#v.marks + 1] = { mark, item[2] }
             end
         end
         -- The leather chest's tooltip: name, slot and armor, then the line.
@@ -419,17 +428,18 @@ function A.info.preview(frame)
         text:SetText(line[1])
     end
     local p = A.db.profile
-    for _, eye in ipairs(v.eyes) do
-        local state = eye[2]
-        eye[1]:SetShown(p.bags and (state == NEW or state == SOURCE and p.sources or state == ALT and p.alts) or false)
+    for _, mark in ipairs(v.marks) do
+        local state = mark[2]
+        if mark[1].kind ~= p.mark then SetMark(mark[1], p.mark) end
+        mark[1]:SetShown(p.bags and (state == NEW or state == SOURCE and p.sources or state == ALT and p.alts) or false)
     end
     v.tip:SetShown(p.tooltip)
     W.Column(frame, p.tooltip and { v.bag, 8, v.tip } or { v.bag })
-    -- The eyes on new looks pulse, as they're the ones to spot.
+    -- The marks on new looks pulse, as they're the ones to spot.
     W.Loop(frame, 2, function(t)
         local alpha = 0.55 + 0.45 * math.abs(math.cos(t * math.pi))
-        for _, eye in ipairs(v.eyes) do
-            if eye[2] == NEW then eye[1]:SetAlpha(alpha) end
+        for _, mark in ipairs(v.marks) do
+            if mark[2] == NEW then mark[1]:SetAlpha(alpha) end
         end
     end)
 end
