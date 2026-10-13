@@ -40,8 +40,9 @@ ns.Configure(C, {
 ---------------------------------------------------------------------------
 -- Rows. Each nameplate frame (the game reuses them) gets one row of pips, made the first time it shows your target's
 -- points. The game frame inside a nameplate is reused too, and handed from one nameplate to another, so a row is
--- placed on its nameplate's health bar again whenever that bar has changed. Rows are never measured: the game won't
--- measure a region tied to a nameplate that's going away.
+-- placed on its nameplate's health bar again whenever that bar has changed, and is a child of that game frame: when a
+-- nameplate addon hides or fades it later, the row goes with it. Rows are never measured: the game won't measure a
+-- region tied to a nameplate that's going away.
 ---------------------------------------------------------------------------
 local rows = {} -- by nameplate frame
 C.version = 0 -- counts settings changes: a row is laid out again when it next shows
@@ -158,6 +159,7 @@ function C:ShowRow(plate)
     local row = rows[plate]
     if not row then row = NewRow(plate); rows[plate] = row end
     if row ~= self.row then self:HideRow() end
+    if row.game ~= game then row.game, row.gameLevel = game, nil; row:SetParent(game) end
     local p = self.db.profile
     if row.version ~= self.version then
         row.version, row.bar = self.version, nil
