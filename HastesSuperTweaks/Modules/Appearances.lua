@@ -343,10 +343,7 @@ ns.Configure(A, A.DEFAULTS, function(m)
     return { name = m.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             marks = ns.Section("Mark gear", 1, {
-                help = { type = "description", order = 0, name = "An eye marks gear whose look you haven't collected. "
-                    .. "Appearances are collected even before you turn on transmog." },
-                bags = toggle("bags", "In your bags", 1, "The game's bags, combined or not. Bag addons that replace them "
-                    .. "draw their own."),
+                bags = toggle("bags", "In your bags", 1, "The game's bags. Bag addons that replace them draw their own."),
                 vendors = toggle("vendors", "At vendors", 2, "What a vendor sells, and what you can buy back."),
                 loot = toggle("loot", "In the Loot Window", 3, "Needs Loot Window on.", { disabled = noLootWindow }),
                 tooltip = toggle("tooltip", "In item tooltips", 4,
