@@ -25,7 +25,7 @@ Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's
 | Sell Junk Automatically | Loot & Vendors | Sells your grey items whenever you visit a vendor. Hold Shift to skip. Can also make the vendor's own Sell All Junk button sell without asking. |
 | Sell Clutter Automatically | Loot & Vendors | Sells what you pick up while leveling but won't use, whenever you visit a vendor: cooking ingredients and monster parts if no profession of yours uses them, other classes' reagents, gear your class can't use (and cloth armor on Warriors, Rogues and Hunters), drinks on Warriors and Rogues (no mana), food, potions and white gear you've outleveled, and the crafting materials you choose. Valuable materials, items your quests or RestedXP guides need, equipment sets, profession tools and anything that opens are kept. Never sell and Always sell lists fine-tune it, item tooltips say what will be sold, and `/hst clutter list` shows it before you reach a vendor. Hold Shift to skip. |
 | Repair Automatically | Loot & Vendors | Repairs your gear whenever you visit a vendor who can repair, from guild funds if you turn that on. Hold Shift to skip. |
-| Restock at Vendors | Loot & Vendors | Buys the items on your list (ammo, reagents, poisons and the like) back up to the amount you choose for each, at any vendor that sells them, within a gold limit per visit. Warns you when your ammo runs low. Hold Shift to skip. |
+| Restock at Vendors | Loot & Vendors | Buys the items on your list (ammo, reagents, poisons and the like) back up to the amount you choose for each, at any vendor that sells them, within a gold limit per visit. It can also buy the reagents vendors sell (thread, vials, flux, dyes and the like) for the recipes you track in your professions window, enough for as many crafts as you choose. Warns you when your ammo runs low. Hold Shift to skip. |
 | Consumable Macros | Items & Mail | Keeps macros that always use your best food, drink, bandage and potions, updated as your bags change, plus one that eats and drinks at once. Put them on your action bars once from the Macros window. |
 | Mail Expiry & Alt List | Items & Mail | Warns you when you log in if mail with items or gold is about to expire on any of your characters, and adds a list of your characters to the To: field when you send mail. |
 | Mail Gold Guard | Items & Mail | Marks inbox mail with gold from players who aren't your characters, friends or guildmates, and makes Open All leave it, since taking gold a gold seller mailed you can get an account banned. Click the mark to send the mail back. |
@@ -81,7 +81,7 @@ Search finds tweaks and settings by name, description, section, page or menu cho
 
 ### Profiles and About
 
-Profiles lets you switch, create, copy, delete and reset profiles. Profiles hold every tweak's settings; statistics are saved per character. About lists the commands and credits. The GitHub button sits beside Profiles and About.
+Profiles lets you switch, create, copy, delete and reset profiles, and share them as text. Profiles hold every tweak's settings; which tweaks are on is shared by all characters and statistics are saved per character, so neither is in a profile. Export profile shows the active profile as a profile string, selected for copying (Ctrl+C). Paste one into Import (Ctrl+V) to make a new profile of it, named as you choose, or to replace the active profile's settings once you confirm. Importing takes only the settings this version has, and says in chat how many it left out. Profile strings use the format the game shares Cooldown Manager layouts in: compressed CBOR in Base64, after "HST1:". About lists the commands and credits. The GitHub button sits beside Profiles and About.
 
 ### Other details
 
@@ -139,6 +139,7 @@ What each module does in unusual situations, and what the game doesn't let addon
 - Movable Loot Rolls moves the rolls right after the game lays out the column of frames above your action bars, where they otherwise stack, so that column still keeps their room while rolls are up. Rolls already up when you reset the place go back with the next roll. With a gamepad the game shows its own rolls.
 - Sell All Junk without asking (Sell Junk Automatically) answers only the confirmation of the vendor's own Sell All Junk button.
 - Restock at Vendors buys in the vendor's own bundles (arrows come by the 200), so it can end up to a bundle above the amount you set. Items that cost something other than gold are skipped; it stops at your gold limit, when your bags are full or the vendor runs out, and says what arrived. The low ammo warning only watches while you have a bow, gun or crossbow equipped and use ammo.
+- Reagents for tracked recipes (Restock at Vendors) buys the reagents a recipe requires, the ones the objective tracker lists, and counts what's in your bags, not your bank. They're bought after the items on your list: recipes that need the same reagent add up, and an item that's also on your list is bought up to the larger amount. Recipes tracked to recraft are left out, and Classic Era can't track recipes.
 
 ### Items and mail
 

@@ -216,9 +216,9 @@ Configure(L, defaults, function(m)
     local quiet = off("notify")
     -- Background settings are off while neither the loot to take nor the auto loot list has one.
     local function noBackground() local p = m.db.profile; return not p.takeBackground and p.noticeAlpha <= 0 end
-    -- Settings for one background style, off while the other is chosen.
-    local function style(which)
-        return function() return noBackground() or m.db.profile.backgroundStyle ~= which end
+    -- Settings for one background style, hidden while the other is chosen (and off without a background).
+    local function otherStyle(which)
+        return function() return m.db.profile.backgroundStyle ~= which end
     end
     local qualityNames = {}
     for q, name in pairs(QUALITIES) do
@@ -284,17 +284,19 @@ Configure(L, defaults, function(m)
                 backgroundStyle = option("select", "backgroundStyle", "Style", 3, { disabled = noBackground,
                     values = { SOLID = "Solid color", PAGE = "Burnt page" }, sorting = { "SOLID", "PAGE" },
                     desc = "Burnt page is parchment with scorched, ragged edges." }),
-                backgroundColor = option("color", "backgroundColor", "Solid color", 4, { disabled = style("SOLID") }),
-                pageColor = option("color", "pageColor", "Page color", 5, { hasAlpha = false, disabled = style("PAGE"),
-                    desc = "Grain and burn shading are added on top." }),
+                backgroundColor = option("color", "backgroundColor", "Solid color", 4,
+                    { hidden = otherStyle("SOLID"), disabled = noBackground }),
+                pageColor = option("color", "pageColor", "Page color", 5, { hasAlpha = false, hidden = otherStyle("PAGE"),
+                    disabled = noBackground, desc = "Grain and burn shading are added on top." }),
                 pageAlpha = option("range", "pageAlpha", "Page opacity", 6, { min = 0.05, max = 1, step = 0.05, isPercent = true,
-                    disabled = style("PAGE") }),
-                scorchColor = option("color", "scorchColor", "Scorch color", 7, { hasAlpha = false, disabled = style("PAGE"),
-                    desc = "The singed band just inside the charred edge." }),
-                qualityScorch = option("toggle", "qualityScorch", "Scorch in the best item's color", 8, { disabled = style("PAGE"),
-                    desc = "Uses the best item's quality color, from Uncommon up." }),
+                    hidden = otherStyle("PAGE"), disabled = noBackground }),
+                scorchColor = option("color", "scorchColor", "Scorch color", 7, { hasAlpha = false, hidden = otherStyle("PAGE"),
+                    disabled = noBackground, desc = "The singed band just inside the charred edge." }),
+                qualityScorch = option("toggle", "qualityScorch", "Scorch in the best item's color", 8,
+                    { hidden = otherStyle("PAGE"), disabled = noBackground,
+                        desc = "Uses the best item's quality color, from Uncommon up." }),
                 scorchAlpha = option("range", "scorchAlpha", "Burnt edge strength", 9, { min = 0, max = 1, step = 0.05,
-                    isPercent = true, disabled = style("PAGE"),
+                    isPercent = true, hidden = otherStyle("PAGE"), disabled = noBackground,
                     desc = "At 0% the paper just has a ragged edge." }),
             }),
             border = ns.Section("Border", 2, {
