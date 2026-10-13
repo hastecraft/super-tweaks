@@ -11,7 +11,7 @@ local E = HST:NewFeature("ErrorFilter", {
     summary = "Hides repetitive red error messages like \"Not enough rage\".",
     examples = { "resources", "cooldown", "range", "combatOnly" },
     description = "Hides the red error messages you choose, such as not enough rage, energy or mana, not ready yet and "
-        .. "out of range, and stops your character saying them. Quest progress and other yellow messages stay.",
+        .. "out of range, and stops your character saying them.",
 })
 ns.ErrorFilter = E
 

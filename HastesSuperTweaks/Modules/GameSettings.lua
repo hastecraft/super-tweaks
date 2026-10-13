@@ -25,7 +25,7 @@ G.SETTINGS = {
         desc = "Lets the camera zoom out farther than the options' slider allows (it stops at 2). Players use up to 3.34." },
     { key = "nameplates", cvar = "nameplateMaxDistance", name = "Nameplate distance", value = "nameplateDistance",
         valueName = "Yards", min = 20, max = 41, step = 1, section = "world",
-        desc = "How far away, in yards, nameplates show. The options don't offer it on WoW Forever." },
+        desc = "How far away, in yards, nameplates show." },
     { key = "weather", cvar = "weatherDensity", name = "Weather density", value = "weatherLevel",
         valueName = "Density", min = 0, max = 3, step = 1, section = "world",
         desc = "How much rain, snow and sand the weather draws: 0 is the least, 3 the most. The game's particle density "

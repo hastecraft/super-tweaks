@@ -211,7 +211,7 @@ end
 -- (1.60.1) and Classic Era, which play some different files for the same weather.
 S.PRESETS = {
     { key = "weather", name = "Rain and weather", order = 1,
-        desc = "Rain, snow and sandstorm loops, thunder and distant lightning. The weather still shows. Thunder that "
+        desc = "Rain, snow and sandstorm loops, thunder and distant lightning. Thunder that "
             .. "other storm sounds share is muted with it.",
         ids = {
             -- sound/ambience/weather: rain, snow and sandstorm, light, medium and heavy.

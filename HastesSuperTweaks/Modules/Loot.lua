@@ -264,7 +264,7 @@ Configure(L, defaults, function(m)
                     desc = "How long the list stays after the last item arrives." }),
                 maxRows = option("range", "maxRows", "Most items at once", 5, { min = 3, max = 15, step = 1, disabled = quiet }),
                 minQuality = option("select", "minQuality", "Lowest quality listed", 6, { disabled = quiet,
-                    values = qualityNames, sorting = { 0, 1, 2, 3, 4 }, desc = "Quest items are always listed." }),
+                    values = qualityNames, sorting = { 0, 1, 2, 3, 4 } }),
                 combineJunk = option("toggle", "combineJunk", "Combine junk into one line", 7,
                     { disabled = quiet }),
                 money = option("toggle", "money", "Show money", 8, { disabled = quiet,
@@ -288,7 +288,7 @@ Configure(L, defaults, function(m)
                 pageColor = option("color", "pageColor", "Page color", 5, { hasAlpha = false, disabled = style("PAGE"),
                     desc = "Grain and burn shading are added on top." }),
                 pageAlpha = option("range", "pageAlpha", "Page opacity", 6, { min = 0.05, max = 1, step = 0.05, isPercent = true,
-                    disabled = style("PAGE"), desc = "Doesn't affect the burnt edge." }),
+                    disabled = style("PAGE") }),
                 scorchColor = option("color", "scorchColor", "Scorch color", 7, { hasAlpha = false, disabled = style("PAGE"),
                     desc = "The singed band just inside the charred edge." }),
                 qualityScorch = option("toggle", "qualityScorch", "Scorch in the best item's color", 8, { disabled = style("PAGE"),
@@ -313,7 +313,7 @@ Configure(L, defaults, function(m)
             }),
             reset = ns.Section("Reset", 4, {
                 resetLook = { type = "execute", name = "Reset appearance", order = 1, confirm = true,
-                    desc = "Resets this page and Items & text. The window's position stays.",
+                    desc = "Resets this page and Items & text.",
                     confirmText = "Reset the loot window's appearance to its defaults?",
                     func = function()
                         local p = m.db.profile

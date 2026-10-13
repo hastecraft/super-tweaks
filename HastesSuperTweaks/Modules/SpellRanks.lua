@@ -6,8 +6,7 @@ local HST = ns.HST
 local R = HST:NewFeature("SpellRanks", {
     name = "Upgrade Spell Ranks", category = "leveling", order = 5, command = "ranks", enabledByDefault = false,
     summary = "New spell ranks replace the old ones on your bars.", examples = { "keepLower", "summary" },
-    description = "When you learn a new rank of a spell, your action bars get it in place of the old one. "
-        .. "Lower ranks you put on a bar on purpose are left alone.",
+    description = "When you learn a new rank of a spell, your action bars get it in place of the old one.",
 })
 ns.SpellRanks = R
 
@@ -45,8 +44,7 @@ ns.Configure(R, { keepLower = true, summary = true }, function(self)
     local function profile() return self.db.profile end
     return ns.OnePage(self.info.name, "settings", "Settings", {
         keepLower = ns.Option(profile, "toggle", "keepLower", "Leave lower ranks you placed", 1, { desc =
-            "Only buttons with your previous highest rank get the new one, so lower ranks kept to save mana stay. "
-            .. "Turn off to replace every lower rank." }),
+            "Only buttons with your previous highest rank get the new one." }),
         summary = ns.Option(profile, "toggle", "summary", "Say what was upgraded", 2),
         upgradeAll = { type = "execute", name = "Upgrade all buttons now", order = 3,
             desc = "Puts your highest rank on every button with a lower rank, including ones you placed on purpose.",

@@ -89,8 +89,7 @@ function S:BuildOptions()
                     desc = "12.3k shortens amounts from 10,000 up, and writes millions as 1.2m." }),
                 schoolColors = toggle("schoolColors", "Color spells by school", 6,
                     "Colors spell damage on enemies and your pet: fire orange, frost light blue, nature green, shadow "
-                        .. "purple, arcane pink, holy yellow. Damage you take stays uncolored, since the game doesn't give "
-                        .. "its school."),
+                        .. "purple, arcane pink, holy yellow."),
                 icons = toggle("icons", "Spell icons", 7, "Shows the spell's icon next to spell alerts and auras."),
                 fadeIn = toggle("fadeIn", "Fade in", 8, "Texts fade in over " .. S.FADE_IN * 1000
                     .. " milliseconds instead of appearing at once."),

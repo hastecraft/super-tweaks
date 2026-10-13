@@ -8,7 +8,7 @@ local B = HST:NewFeature("AutoBags", {
     name = "Auto-Equip Bags", category = "items", order = 3, enabledByDefault = false,
     summary = "Equips new bags, replacing your smallest one.", examples = { "boe", "announce" },
     description = "Puts new bags in an empty bag slot, or swaps out your smallest bag if the new one is bigger and moves "
-        .. "its contents over. Quivers, ammo pouches and profession bags are left alone.",
+        .. "its contents over.",
 })
 ns.AutoBags = B
 ns.Configure(B, { boe = false, announce = true }, function(m)
