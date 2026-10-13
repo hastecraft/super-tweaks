@@ -66,8 +66,7 @@ ns.Configure(N, { elite = true, rare = true, quest = true, enemiesOnly = true, s
         elite = option("toggle", "elite", "Elite mobs", 1, { desc = "A gold dragon, also on bosses." }),
         rare = option("toggle", "rare", "Rare mobs", 2, { desc = "A silver dragon on rare elites, a silver star on other rares." }),
         quest = option("toggle", "quest", "Quest mobs", 3, quests
-            and { desc = "A quest mark beside the mobs your quests need, and objects with a nameplate. Checked again "
-                .. "whenever your quests change." }
+            and { desc = "A quest mark beside the mobs your quests need, and objects with a nameplate." }
             or { desc = "This client doesn't tell addons which mobs your quests need.", disabled = true,
                 get = function() return false end }),
         enemiesOnly = option("toggle", "enemiesOnly", "Only mobs you can attack", 4,
