@@ -17,8 +17,7 @@ local A = HST:NewFeature("BattlegroundAlerts", {
     name = "Battleground Alerts", category = "group", order = 3.5,
     summary = "Counts down battleground invites and alerts you as the gates open.",
     examples = { "invite", "gates", { "gatesWarning", "Gates: 10 seconds before" }, "result" },
-    description = "Shows how long you have left to enter a battleground, and flashes the taskbar with a sound as time "
-        .. "runs out. Also alerts you as the gates open, and says in chat whether you won"
+    description = "Shows how long you have left to enter a battleground, and flashes the taskbar as time runs out. Also alerts you as the gates open, and says in chat whether you won"
         .. (MATCH_RESULTS and ", how long it took and the honor you earned." or " and how long it took."),
 })
 ns.BattlegroundAlerts = A
@@ -41,25 +40,25 @@ local function Register(frame, event) pcall(frame.RegisterEvent, frame, event) e
 ---------------------------------------------------------------------------
 -- Settings
 ---------------------------------------------------------------------------
-ns.Configure(A, { invite = true, gates = true, gatesWarning = false, result = true }, function(m)
+ns.Configure(A, { invite = true, gates = true, gatesWarning = false, sound = false, result = true }, function(m)
     local function profile() return m.db.profile end
     local function toggle(key, name, order, desc, extra)
         return ns.Option(profile, "toggle", key, name, order, ns.With({ desc = desc }, extra), function() m:Apply() end)
     end
     return ns.OnePage(m.info.name, "alerts", "Alerts", {
-        help = { type = "description", order = 0, name = "Sounds play on the Master channel, so you hear them with sound "
-            .. "effects off. To hear them while the game is in the background, turn on Sound in Background in the "
-            .. "game's Options > Audio." },
         invite = toggle("invite", "Invite countdown", 1, "While a battleground invite is up, shows how long you have "
-            .. "left to enter, and flashes the taskbar with a sound at 20 and 10 seconds left."),
-        gates = toggle("gates", "Gates opening", 2, "Flashes the taskbar and plays a sound as the gates open."),
+            .. "left to enter, and flashes the taskbar at 20 and 10 seconds left."),
+        gates = toggle("gates", "Gates opening", 2, "Flashes the taskbar as the gates open."),
         gatesWarning = toggle("gatesWarning", "10 seconds before too", 3,
-            "Also flashes the taskbar and plays a sound 10 seconds before the gates open.",
+            "Also flashes the taskbar 10 seconds before the gates open.",
             { disabled = function() return not m.db.profile.gates end }),
-        result = toggle("result", "Result in chat", 4, MATCH_RESULTS
+        sound = toggle("sound", "Play a sound", 4, "With each flash, on the Master channel, so you hear it with sound "
+            .. "effects off. To hear it while the game is in the background, turn on Sound in Background in the game's "
+            .. "Options > Audio.", { disabled = function() return not (m.db.profile.invite or m.db.profile.gates) end }),
+        result = toggle("result", "Result in chat", 5, MATCH_RESULTS
             and "When a match ends, says in chat whether you won, how long it took and the honor you earned."
             or "When a match ends, says in chat whether you won and how long it took."),
-        test = { type = "execute", name = "Play sample", order = 5, desc = "Shows a sample invite countdown, with its sounds.",
+        test = { type = "execute", name = "Play sample", order = 6, desc = "Shows a sample invite countdown.",
             disabled = function() return not m.db.profile.invite end, func = function() m:Test() end },
     })
 end, "Apply")
@@ -128,10 +127,11 @@ function A.info.preview(frame)
     end
     local p = A.db.profile
     local notes = {}
-    if p.invite then notes[#notes + 1] = "Taskbar flash and sound at 20 and 10 seconds left" end
+    local flash = p.sound and "Taskbar flash and sound" or "Taskbar flash"
+    if p.invite then notes[#notes + 1] = flash .. " at 20 and 10 seconds left" end
     if p.gates then
-        notes[#notes + 1] = p.gatesWarning and "Flash and sound 10 seconds before the gates open, and as they do"
-            or "Flash and sound as the gates open"
+        notes[#notes + 1] = flash .. (p.gatesWarning and " 10 seconds before the gates open, and as they do"
+            or " as the gates open")
     end
     v.caption:SetText(table.concat(notes, "\n"))
     v.countdown:SetShown(p.invite)
@@ -158,11 +158,11 @@ function A.info.preview(frame)
 end
 
 ---------------------------------------------------------------------------
--- Alerts: the taskbar flash and a sound, on the Master channel so it's heard with sound effects turned off.
+-- Alerts: the taskbar flash and, when chosen, a sound on the Master channel so it's heard with sound effects off.
 ---------------------------------------------------------------------------
 local function Alert(sound)
     if FlashClientIcon then FlashClientIcon() end
-    local id = SOUNDKIT and SOUNDKIT[sound]
+    local id = A.db.profile.sound and SOUNDKIT and SOUNDKIT[sound]
     if id then PlaySound(id, "Master") end
 end
 
