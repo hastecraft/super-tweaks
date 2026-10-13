@@ -1,5 +1,5 @@
--- Better Tooltips: a health bar under unit tooltips, class-colored borders, a "<Guild> Rank" line, and the faction line
--- in its faction's color with its emblem.
+-- Better Tooltips: a health bar under unit tooltips, class-colored borders, a "<Guild> Rank" line, and the faction as a
+-- see-through logo in the corner (or its line in its faction's color).
 -- Works on Blizzard's tooltip and on skinned ones (EllesmereUI and others).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -8,7 +8,7 @@ local T = HST:NewFeature("Tooltip", {
     name = "Better Tooltips", category = "interface", order = 1, command = "tooltip",
     summary = "Health bars, class borders and guild info on tooltips.", examples = { "healthBar", { "barText", "Health text" }, "classBorder", { "guildLine", "Guild line" }, "guildNotes" },
     description = "Adds a health bar under player and mob tooltips, colors the border by class, shows guild ranks and "
-        .. "notes, and colors the Alliance and Horde lines.",
+        .. "notes, and turns the Alliance and Horde line into a faction logo.",
 })
 ns.Tooltip = T
 local WHITE = ns.WHITE
@@ -21,16 +21,22 @@ ns.Configure(T, {
     classBorder = true, reactionBorder = false, borderSize = 1,
     guildLine = true, guildRank = true, highlightGuild = true, guildNotes = true, officerNotes = true,
     guildColor = { 0.25, 1, 0.25, 1 }, ownGuildColor = { 0.4, 0.8, 1, 1 }, rankColor = { 0.7, 0.7, 0.7, 1 },
-    factionLine = true, factionIcon = true, allianceColor = { 0.3, 0.55, 1, 1 }, hordeColor = { 1, 0.2, 0.2, 1 },
+    factionStyle = "LOGO", logoAlpha = 0.35, logoSize = 32, factionIcon = true, allianceColor = { 0.3, 0.55, 1, 1 }, hordeColor = { 1, 0.2, 0.2, 1 },
 }, function(m) return m:BuildOptions() end, "Apply")
 T.info.preview = function(frame) return T:DrawPreview(frame) end
 
--- Profiles from before the Color choice turned class colors off with classColors = false: that's One color now.
+-- Profiles from before the Color choice turned class colors off with classColors = false: that's One color now. Those
+-- from before the faction logo turned the faction line off with factionLine = false: that's the game's line now.
 function T:Migrate()
     local p = self.db.profile
-    if p.classColors == nil then return end
-    if p.classColors == false then p.colorBy = "CUSTOM" end
-    p.classColors = nil
+    if p.classColors ~= nil then
+        if p.classColors == false then p.colorBy = "CUSTOM" end
+        p.classColors = nil
+    end
+    if p.factionLine ~= nil then
+        if p.factionLine == false then p.factionStyle = "NONE" end
+        p.factionLine = nil
+    end
 end
 local Initialize = T.OnInitialize
 function T:OnInitialize()
@@ -82,6 +88,31 @@ end
 local UNKNOWN_NAME = UNKNOWNOBJECT or "Unknown"
 -- Each faction's emblem, for its tooltip line.
 local FACTION_ICONS = { Alliance = "Interface\\Icons\\PVPCurrency-Honor-Alliance", Horde = "Interface\\Icons\\PVPCurrency-Honor-Horde" }
+-- Each faction's logo, for the tooltip's corner: the flat PvP emblem of the game's unit frames where the client has it
+-- (WoW Forever), else the classic PvP flag trimmed to its emblem. Worked out once per faction, with its width per height.
+local LOGOS = setmetatable({}, { __index = function(list, faction)
+    local atlas = "UI-HUD-UnitFrame-Player-PVP-" .. faction .. "Icon"
+    local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
+    local logo
+    if info and info.width and info.height and info.height > 0 then
+        logo = { atlas = atlas, aspect = info.width / info.height }
+    else
+        logo = { file = "Interface\\TargetingFrame\\UI-PVP-" .. faction, aspect = 1 }
+    end
+    list[faction] = logo
+    return logo
+end })
+-- Puts a faction's logo on a texture; returns its width per height.
+local function SetLogo(texture, faction)
+    local logo = LOGOS[faction]
+    if logo.atlas then
+        texture:SetAtlas(logo.atlas)
+    else
+        texture:SetTexture(logo.file)
+        texture:SetTexCoord(0, 0.65625, 0, 0.65625)
+    end
+    return logo.aspect
+end
 function T:ReadUnit(unit, guid)
     if not guid or guid ~= self.readGuid then
         self.readGuid = guid
@@ -200,6 +231,7 @@ function T:Apply()
     bar.text:SetShadowColor(0, 0, 0, 0.9)
     bar.text:SetShadowOffset(1, -1)
     bar.text:SetShown(p.barText ~= "NONE")
+    self:LayoutLogo()
     self:UpdateScreenClamp()
     self:UpdateBlizzardBar()
     if self.unit then self:UpdateBorder(); self:ShowBar() end
@@ -465,12 +497,52 @@ function T:FormatGuild(tip)
     if line and current ~= made.text then line:SetText(made.text) end
 end
 
--- Rewrites the faction line ("Alliance", "Horde") in its faction's color, with its emblem after it when chosen. Only a
--- line that is the faction's name and nothing else is, so a guild or name holding the word is left alone. The text is
--- kept while what it's made from stays the same.
-function T:FormatFaction(tip)
+-- The faction logo in the tooltip's top right, under the text. Made when first shown.
+function T:ShowLogo(faction)
+    local logo = self.logo
+    if not logo then
+        logo = GameTooltip:CreateTexture(nil, "ARTWORK", nil, -8)
+        logo:SetPoint("TOPRIGHT", GameTooltip, "TOPRIGHT", -6, -6)
+        self.logo = logo
+    end
+    if logo.faction ~= faction then
+        logo.faction, logo.aspect = faction, SetLogo(logo, faction)
+        self:LayoutLogo()
+    end
+    if not self.logoShown then
+        self.logoShown = true
+        logo:Show()
+    end
+end
+
+function T:HideLogo()
+    if not self.logoShown then return end
+    self.logoShown = false
+    self.logo:Hide()
+end
+
+-- Sizes the logo as tall as chosen and as wide as its faction's emblem, at the chosen opacity.
+function T:LayoutLogo()
+    local logo, p = self.logo, self.db.profile
+    if not logo then return end
+    logo:SetSize(p.logoSize * (logo.aspect or 1), p.logoSize)
+    logo:SetAlpha(p.logoAlpha)
+    if p.factionStyle ~= "LOGO" then self:HideLogo() end
+end
+
+-- Shows the faction line ("Alliance", "Horde") as its faction's logo in the corner, taking the line out; or rewrites it
+-- in its faction's color, with its emblem after it when chosen. Only a line that is the faction's name and nothing else
+-- is, so a guild or name holding the word is left alone. The text is kept while what it's made from stays the same.
+function T:FormatFaction(tip, style)
     local faction, name = self.faction, self.factionName
     if not faction then return end
+    if style == "LOGO" then
+        local line = ns.FindTooltipLine(tip, name, true)
+        if not line then return end
+        line:SetText("")
+        line:Hide()
+        return self:ShowLogo(faction)
+    end
     local p, made = self.db.profile, self.factionText
     local color, icon = faction == "Alliance" and p.allianceColor or p.hordeColor, p.factionIcon
     if made.name ~= name or made.color ~= color or made.icon ~= icon then
@@ -565,7 +637,8 @@ function T:OnUnitTooltip(tip, data, unit)
     -- second (unit frames refresh theirs) redraws nothing that didn't change.
     self.unit, self.guid = unit, guid
     if self.db.profile.guildLine then self:FormatGuild(tip) end
-    if self.db.profile.factionLine then self:FormatFaction(tip) end
+    local style = self.db.profile.factionStyle
+    if style ~= "NONE" then self:FormatFaction(tip, style) end
     self:AddNotes(tip)
     self:UpdateBorder()
     self:ShowBar(guid)
@@ -576,6 +649,7 @@ function T:Clear()
     if not (self.bar and (self.unit or self.borderSaved)) then return end
     self.unit, self.guid = nil, nil
     self.bar:Hide()
+    self:HideLogo()
     self:UpdateBorder()
 end
 
@@ -633,6 +707,7 @@ function T:BuildOptions()
     local function media(kind, key, name, order)
         return ns.MediaOption(profile, kind, key, name, order, { disabled = unset("healthBar") }, apply)
     end
+    local function notStyle(style) return function() return T.db.profile.factionStyle ~= style end end
     local section = ns.Section
     local noBar = unset("healthBar")
     return { name = "Better Tooltips", type = "group", args = {
@@ -698,14 +773,23 @@ function T:BuildOptions()
             }),
         } },
         faction = { type = "group", name = "Faction", order = 4, args = {
-            faction = section("Faction line", 1, {
-                factionLine = option("toggle", "factionLine", "Color Alliance and Horde", 1, {
-                    desc = "Colors the Alliance or Horde line on tooltips by faction." }),
-                factionIcon = option("toggle", "factionIcon", "Show faction emblem", 2, { disabled = unset("factionLine"),
-                    desc = "Adds the faction's emblem after its name." }),
-                allianceColor = option("color", "allianceColor", "Alliance color", 3, { disabled = unset("factionLine") }),
-                hordeColor = option("color", "hordeColor", "Horde color", 4, { disabled = unset("factionLine") }),
+            faction = section("Faction", 1, {
+                factionStyle = option("select", "factionStyle", "Show faction as", 1, {
+                    values = { LOGO = "Logo in the corner", LINE = "Colored line", NONE = "The game's line" },
+                    sorting = { "LOGO", "LINE", "NONE" },
+                    desc = "Logo in the corner: the Alliance or Horde line becomes a see-through emblem in the tooltip's "
+                        .. "top right. Colored line: the line in its faction's color." }),
             }),
+            logo = section("Logo", 2, {
+                logoAlpha = option("range", "logoAlpha", "Opacity", 1, { min = 0.05, max = 1, step = 0.05, isPercent = true }),
+                logoSize = option("range", "logoSize", "Size", 2, { min = 12, max = 64, step = 1 }),
+            }, { disabled = notStyle("LOGO") }),
+            line = section("Line", 3, {
+                factionIcon = option("toggle", "factionIcon", "Show faction emblem", 1,
+                    { desc = "Adds the faction's emblem after its name." }),
+                allianceColor = option("color", "allianceColor", "Alliance color", 2),
+                hordeColor = option("color", "hordeColor", "Horde color", 3),
+            }, { disabled = notStyle("LINE") }),
         } },
     } }
 end
@@ -727,6 +811,9 @@ function T:DrawPreview(frame)
             v.lines[i] = W.Text(v.box, i == 1 and "GameFontNormal" or "GameFontHighlightSmall")
             v.lines[i]:SetPoint("TOPLEFT", 8, -7 - (i - 1) * 14)
         end
+        v.logo = v.box:CreateTexture(nil, "ARTWORK", nil, -8)
+        v.logo:SetPoint("TOPRIGHT", -4, -4)
+        v.logoAspect = SetLogo(v.logo, "Alliance")
         v.bar = CreateFrame("StatusBar", nil, v.box)
         v.bar:SetMinMaxValues(0, 1)
         v.bar.background = W.Fill(v.bar, { 0, 0, 0, 1 })
@@ -742,6 +829,10 @@ function T:DrawPreview(frame)
         or "Exertion"
     v.lines[2]:SetText(guild)
     v.lines[3]:SetText("Level 60 Gnome Mage")
+    local logoSize = min(p.logoSize, 40)
+    v.logo:SetSize(logoSize * v.logoAspect, logoSize)
+    v.logo:SetAlpha(p.logoAlpha)
+    v.logo:SetShown(p.factionStyle == "LOGO")
     v.bar:SetShown(p.healthBar)
     v.bar:ClearAllPoints()
     local edge = p.barBorderSize
