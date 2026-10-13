@@ -43,7 +43,8 @@ ns.CampfireHelper = C
 
 local defaults = {
     -- The campfire on screen.
-    display = true, nearby = true, keepShown = true, warnAt = 5, remind = true, missing = false, sound = false,
+    display = true, nearby = true, keepShown = true, warnAt = 5, remind = true, missing = false, missingBlink = true,
+    sound = false,
     style = "campfire", x = 0, y = 200,
     -- Campfire: its size and what it draws.
     size = 56, ring = "classic", fireArt = true, animate = true, glow = true, backdrop = true,
@@ -509,7 +510,7 @@ local function Draw(d, p, state, start, length, main, warning, frozen)
     else
         DrawIcon(d.icon, p, state, start, length, warning, frozen)
     end
-    Play(d.blink, warning or state == "ended")
+    Play(d.blink, warning or state == "ended" or state == "missing" and p.missingBlink)
     local lines = style == "bar" and BAR_LINES[state] or LINES[state]
     local first, second
     if style == "bar" then first, second = lines[2] or main, lines[1] else first, second = lines[1] or main, lines[2] end
@@ -1158,6 +1159,7 @@ function C:BuildOptions()
     -- A style's own tab shows only while that style is chosen (the window rebuilds its tabs as settings change).
     local function notStyle(style) return function() return C.db.profile.style ~= style end end
     local function noFire() return not C.db.profile.fireArt end
+    local function noMissing() local p = C.db.profile; return not (p.display and p.missing) end
     local function noWarning() return C.db.profile.warnAt == 0 end
     local outlines = ns.OutlineChoices("Drop shadow")
     -- The countdown's colors, on the ring's and the bar's tabs.
@@ -1197,6 +1199,7 @@ function C:BuildOptions()
                 remind = option("toggle", "remind", "After camp buffs end", 3, { disabled = off, desc =
                     "Blinks until you sit by a campfire again or click it." }),
                 missing = option("toggle", "missing", "Whenever you have no camp buffs", 4, { disabled = off }),
+                missingBlink = option("toggle", "missingBlink", "Blink when you have none", 5, { disabled = noMissing }),
             }),
             ending = ns.Section("Ending soon", 3, {
                 warnAt = range("warnAt", "Warn at (minutes left)", 1, 0, 30, { disabled = off,
