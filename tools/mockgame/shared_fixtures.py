@@ -145,6 +145,9 @@ function UnitPowerPercent(_, kind, _, curve)
 end
 PlayerFrame = CreateFrame('Button', 'PlayerFrame', UIParent)
 PlayerFrame:SetSize(232, 100)
+-- No target and no nameplates (Combo Points on Nameplates turns on for druids as the addon loads).
+function UnitExists(unit) return unit == 'player' end
+C_NamePlate = { GetNamePlateForUnit = function() return nil end }
 '''
 
 

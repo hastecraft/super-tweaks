@@ -61,7 +61,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 **Auto-decline:** Battle.net friend requests, duels, guild charters, join requests, party invites and shared quests. Friends, guildmates and community members can be let through.
 
-**Interface:** Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Druid Mana in Forms (your mana under the player frame in cat and bear form), Elite & Rare Markers (dragons on nameplates and a rare alert), Error Message Filter, Minimap Button, Game Settings (camera distance, nameplate range, spell queue window, threat percentage, outlines, map fade and other settings the game's options don't show, reapplied at login, plus Edit Mode layout backups), Hide Issue Reporter.
+**Interface:** Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Druid Mana in Forms (your mana under the player frame in cat and bear form), Elite & Rare Markers (dragons on nameplates and a rare alert), Combo Points on Nameplates (rogues and druids), Error Message Filter, Minimap Button, Game Settings (camera distance, nameplate range, spell queue window, threat percentage, outlines, map fade and other settings the game's options don't show, reapplied at login, plus Edit Mode layout backups), Hide Issue Reporter.
 
 **Sound:** Mute Mount Sounds, Mute Custom Sounds (rain, spell fizzle, or any sound file ID), Aura Sounds (a sound when the buffs or debuffs you choose appear or fade, in combat too).
 
