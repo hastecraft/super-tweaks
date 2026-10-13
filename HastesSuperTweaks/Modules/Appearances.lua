@@ -99,36 +99,31 @@ function A:State(item)
 end
 
 ---------------------------------------------------------------------------
--- Marks: a texture (the eye, or the mark chosen) on an item button (or the Loot Window's icon), made the first time
--- that button needs one, in
+-- Marks: a texture (the mark chosen) on an item button (or the Loot Window's icon), made the first time that button
+-- needs one, in
 -- the corner the game leaves free, under its search dimming. What each button was last drawn for (its link, and the
 -- setting that covers it) is kept, so the marks can be drawn again when your collection changes.
 ---------------------------------------------------------------------------
 local marks, links, kinds = {}, {}, {}
-local ATLAS = "socialqueuing-icon-eye" -- the game's own eye, as its quest tracker's Find Group button shows it
 A.COLORS = { [NEW] = { 0.55, 0.8, 1, 1 }, [SOURCE] = { 0.75, 0.75, 0.75, 0.9 }, [ALT] = { 1, 0.78, 0.25, 1 } }
--- The marks to choose from: the game's eye, or a cell of MARK_ART (white with a dark outline, tinted like the eye),
--- in tools/make_art.py's APPEARANCE_MARKS order.
+-- The marks to choose from: cells of MARK_ART (white with a dark outline, tinted by the look's state), in
+-- tools/make_art.py's APPEARANCE_MARKS order.
 local MARK_ART, MARK_CELLS = "Interface\\AddOns\\HastesSuperTweaks\\Art\\AppearanceMarks", 4
-A.MARKS = { EYE = 0, HANGER = 1, SHIRT = 2, SPARKLE = 3, DOT = 4 }
-A.MARK_NAMES = { EYE = "Eye", HANGER = "Hanger", SHIRT = "Shirt", SPARKLE = "Sparkle", DOT = "Dot" }
-A.MARK_ORDER = { "EYE", "HANGER", "SHIRT", "SPARKLE", "DOT" }
+A.MARKS = { HANGER = 1, SHIRT = 2, SPARKLE = 3, DOT = 4 }
+A.MARK_NAMES = { HANGER = "Hanger", SHIRT = "Shirt", SPARKLE = "Sparkle", DOT = "Dot" }
+A.MARK_ORDER = { "HANGER", "SHIRT", "SPARKLE", "DOT" }
 
--- Shows a mark on a texture: the eye, or a cell of the marks' art (the dot when the game lacks the eye).
-local hasAtlas
+-- Shows a mark on a texture: its cell of the marks' art.
 local function SetMark(texture, kind)
-    if hasAtlas == nil then hasAtlas = C_Texture ~= nil and C_Texture.GetAtlasInfo ~= nil and C_Texture.GetAtlasInfo(ATLAS) ~= nil end
     texture.kind = kind
-    local cell = A.MARKS[kind] or 0
-    if cell == 0 and hasAtlas then texture:SetAtlas(ATLAS); return end
-    if cell == 0 then cell = A.MARKS.DOT end
+    local cell = A.MARKS[kind] or A.MARKS.HANGER
     texture:SetTexture(MARK_ART)
     texture:SetTexCoord((cell - 1) / MARK_CELLS, cell / MARK_CELLS, 0, 1)
 end
 
--- The eye's size on an item icon `size` units wide: 13 on the game's 37-unit item buttons.
-local function EyeSize(size) return math.max(8, math.floor(size * 0.36 + 0.5)) end
-local BUTTON_EYE = EyeSize(37)
+-- The mark's size on an item icon `size` units wide: 13 on the game's 37-unit item buttons.
+local function MarkSize(size) return math.max(8, math.floor(size * 0.36 + 0.5)) end
+local BUTTON_MARK = MarkSize(37)
 
 -- The mark an item gets where `kind` (a setting: bags, vendors, loot) says: its state, or nil for none. While the game
 -- is still loading what's needed, it's asked again when that arrives.
@@ -141,7 +136,7 @@ function A:Wanted(link, kind)
     return nil
 end
 
--- Draws one button's mark for the item it shows (link, nil for none). iconSize, when given, sizes the eye to the icon.
+-- Draws one button's mark for the item it shows (link, nil for none). iconSize, when given, sizes the mark to the icon.
 -- Only a mark that changes is touched.
 function A:Mark(owner, link, kind, iconSize)
     if not self:IsEnabled() then return end
@@ -159,7 +154,7 @@ function A:Mark(owner, link, kind, iconSize)
     end
     local kind = self.db.profile.mark
     if mark.kind ~= kind then SetMark(mark, kind) end
-    local size = iconSize and EyeSize(iconSize) or mark.size or BUTTON_EYE
+    local size = iconSize and MarkSize(iconSize) or mark.size or BUTTON_MARK
     if mark.size ~= size then mark.size = size; mark:SetSize(size, size) end
     if mark.state ~= state then
         mark.state = state
@@ -352,7 +347,7 @@ end
 ---------------------------------------------------------------------------
 -- Settings
 ---------------------------------------------------------------------------
-A.DEFAULTS = { mark = "EYE", bags = true, vendors = true, loot = true, tooltip = true, sources = false, alts = false }
+A.DEFAULTS = { mark = "HANGER", bags = true, vendors = true, loot = true, tooltip = true, sources = false, alts = false }
 
 ns.Configure(A, A.DEFAULTS, function(m)
     local function profile() return m.db.profile end
@@ -397,7 +392,7 @@ function A.info.preview(frame)
     local W = ns.Widgets
     local v = frame.hstLooks
     if not v then
-        v = { eyes = {} }
+        v = { marks = {} }
         frame.hstLooks = v
         v.bag = W.Panel(frame, 160, 68)
         local title = W.Text(v.bag, "GameFontNormalSmall")
@@ -407,12 +402,12 @@ function A.info.preview(frame)
             local slot = W.Slot(v.bag, item[1] and "Interface\\Icons\\" .. item[1], 20)
             slot:SetPoint("TOPLEFT", 13 + (i - 1) % 6 * 23, -20 - math.floor((i - 1) / 6) * 23)
             if item[2] then
-                local eye = slot:CreateTexture(nil, "OVERLAY")
-                eye:SetSize(9, 9)
-                eye:SetPoint("TOPRIGHT", 1, 1)
+                local mark = slot:CreateTexture(nil, "OVERLAY")
+                mark:SetSize(9, 9)
+                mark:SetPoint("TOPRIGHT", 1, 1)
                 local c = A.COLORS[item[2]]
-                eye:SetVertexColor(c[1], c[2], c[3], c[4])
-                v.eyes[#v.eyes + 1] = { eye, item[2] }
+                mark:SetVertexColor(c[1], c[2], c[3], c[4])
+                v.marks[#v.marks + 1] = { mark, item[2] }
             end
         end
         -- The leather chest's tooltip: name, slot and armor, then the line.
@@ -433,18 +428,18 @@ function A.info.preview(frame)
         text:SetText(line[1])
     end
     local p = A.db.profile
-    for _, eye in ipairs(v.eyes) do
-        local state = eye[2]
-        if eye[1].kind ~= p.mark then SetMark(eye[1], p.mark) end
-        eye[1]:SetShown(p.bags and (state == NEW or state == SOURCE and p.sources or state == ALT and p.alts) or false)
+    for _, mark in ipairs(v.marks) do
+        local state = mark[2]
+        if mark[1].kind ~= p.mark then SetMark(mark[1], p.mark) end
+        mark[1]:SetShown(p.bags and (state == NEW or state == SOURCE and p.sources or state == ALT and p.alts) or false)
     end
     v.tip:SetShown(p.tooltip)
     W.Column(frame, p.tooltip and { v.bag, 8, v.tip } or { v.bag })
-    -- The eyes on new looks pulse, as they're the ones to spot.
+    -- The marks on new looks pulse, as they're the ones to spot.
     W.Loop(frame, 2, function(t)
         local alpha = 0.55 + 0.45 * math.abs(math.cos(t * math.pi))
-        for _, eye in ipairs(v.eyes) do
-            if eye[2] == NEW then eye[1]:SetAlpha(alpha) end
+        for _, mark in ipairs(v.marks) do
+            if mark[2] == NEW then mark[1]:SetAlpha(alpha) end
         end
     end)
 end
