@@ -34,6 +34,7 @@ Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's
 | Auto Accept Summons | Group & PvP | Accepts summons from warlocks and meeting stones after a short countdown, waiting until you're out of combat. You can choose to only accept summons from friends, guildmates or community members. |
 | Auto Accept Resurrection | Group & PvP | Accepts resurrections from other players as soon as the game allows. Hold Shift to answer them yourself. |
 | Auto Release in Battlegrounds | Group & PvP | Releases your spirit as soon as you die in a battleground. Hold Shift to stay. |
+| Battleground Alerts | Group & PvP | While a battleground invite is up, shows how long you have left to enter it, under the game's invite window, and flashes the taskbar with a sound at 20 and 10 seconds left. Also flashes and plays a sound as the gates open (and 10 seconds before, if you like), and says in chat whether you won, how long the match took and the honor you earned. |
 | Group Finder Whispers | Group & PvP | While you're listed in the Group Finder, whispers show the sender's class (in its color), level and race, and a small list of who whispered you lets you invite them with a click. |
 | Right-Click Guild Invite | Social | Invite players to your guild straight from the right-click menu on their name in chat. |
 | Guild Message Popup | Social | Shows your guild's message of the day in the middle of the screen when you log in or when it changes. |
@@ -129,6 +130,7 @@ What each module does in unusual situations, and what the game doesn't let addon
 - Auto Accept Summons checks again when its countdown ends that it's the same summon and that your settings still accept it. A summon in combat is counted down once combat ends; while you can't teleport (falling, say) it waits.
 - Auto Accept Resurrection waits out the corpse recovery delay, then checks the offer, Shift and the combat setting again. Hardcore realms offer no resurrection.
 - Auto Release in Battlegrounds doesn't release while a soulstone, Reincarnation or someone's resurrection is available, and releases after a `/reload` while dead.
+- Battleground Alerts never enters for you: the game doesn't let addons. The countdown stays where it was when you close the invite window, and with two invites up it shows the one that runs out first; should the game not say how long an invite lasts, it shows no time and reminds you every 20 seconds instead. Its sounds play on the Master channel, so you hear them with sound effects off (in the background only with the game's Sound in Background on). The gates alert follows the game's own gate countdown, so a battleground joined after the gates opened gets none. The result line comes a moment after the match ends, once the game has said what it earned; Classic Era doesn't tell addons what a match earned, so there it names the winner and the time only.
 - Group Finder Whispers is on only while you (or your group) have a Group Finder listing. The level shows when the game knows it for the sender. Whispers the game hides from addons (in dungeons and raids, where chat is restricted) aren't tagged.
 
 ### Loot and vendors
