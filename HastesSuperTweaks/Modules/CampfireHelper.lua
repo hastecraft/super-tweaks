@@ -43,7 +43,7 @@ ns.CampfireHelper = C
 
 local defaults = {
     -- The campfire on screen.
-    display = true, nearby = true, keepShown = true, warnAt = 5, remind = true, sound = false,
+    display = true, nearby = true, keepShown = true, warnAt = 5, remind = true, missing = false, sound = false,
     style = "campfire", x = 0, y = 200,
     -- Campfire: its size and what it draws.
     size = 56, ring = "classic", fireArt = true, animate = true, glow = true, backdrop = true,
@@ -153,15 +153,20 @@ local LINES = {
     sitting = { nil, "Keep sitting" },
     buffs = { nil, "Camp buffs" },
     ended = { "Camp buffs ended", "Sit by a campfire" },
+    missing = { "No camp buffs", "Sit by a campfire" },
 }
 local BAR_LINES = {
     nearby = { "Campfire nearby", "Sit down" },
     sitting = { "Keep sitting", nil },
     buffs = { "Camp buffs", nil },
     ended = { "Camp buffs ended", "Sit by a fire" },
+    missing = { "No camp buffs", "Sit by a fire" },
 }
 -- Each state's own icon: its camp aura's.
-local STATE_ICON = { nearby = NEARBY, sitting = WELCOMING[2], buffs = CAMP_BENEFITS, ended = CAMP_BENEFITS }
+local STATE_ICON = { nearby = NEARBY, sitting = WELCOMING[2], buffs = CAMP_BENEFITS, ended = CAMP_BENEFITS,
+    missing = CAMP_BENEFITS }
+-- The states without camp buffs, drawn unlit.
+local OUT = { ended = true, missing = true }
 local CROP = 0.08 -- the icons' edges trimmed, as the game's own buff buttons do
 -- The bar's timer: the game moves it from a duration (StatusBar:SetTimerDuration), with no Lua per frame.
 local CreateDuration = C_DurationUtil and C_DurationUtil.CreateDuration
@@ -303,7 +308,7 @@ local function DrawRing(v, p, state, start, length, warning, frozen)
     SetCountdown(v, v.cd, start, length, frozen)
     local swipe = warning and p.warnColor or state == "sitting" and p.sittingColor or p.buffsColor
     if v.swipe ~= swipe then v.swipe = swipe; v.cd:SetSwipeColor(swipe[1], swipe[2], swipe[3], swipe[4] or 1) end
-    local lit = state ~= "ended"
+    local lit = not OUT[state]
     SetColor(v.track, "shownColor", start and TRACK_DARK or lit and TRACK_LIT or TRACK_OUT)
     local burning = lit and p.fireArt and p.animate
     local still = p.fireArt and not burning
@@ -368,7 +373,7 @@ local function StyleBar(v, p, width, height)
 end
 
 local function DrawBar(v, p, state, start, length, warning, frozen)
-    local lit = state ~= "ended"
+    local lit = not OUT[state]
     local icon = SpellIcon(STATE_ICON[state])
     if v.shownIcon ~= icon then v.shownIcon = icon; v.icon:SetTexture(icon) end
     if v.iconLit ~= lit then v.iconLit = lit; v.icon:SetDesaturated(not lit) end
@@ -417,7 +422,7 @@ local function StyleIcon(v, p)
 end
 
 local function DrawIcon(v, p, state, start, length, warning, frozen)
-    local icon, lit = SpellIcon(STATE_ICON[state]), state ~= "ended"
+    local icon, lit = SpellIcon(STATE_ICON[state]), not OUT[state]
     if v.icon ~= icon then v.icon = icon; v.tex:SetTexture(icon) end
     if v.lit ~= lit then v.lit = lit; v.tex:SetDesaturated(not lit) end
     v.edges:SetColor(unpack(warning and p.warnColor or p.borderColor))
@@ -493,8 +498,8 @@ local function Style(d, p, scale)
     d.textColor, d.labelColor = nil, nil
 end
 
--- Draws a state: "nearby", "sitting", "buffs" or "ended". start and length are the countdown (none: nothing counts
--- down), main the time left as text, warning colors and blinks it, frozen holds the countdown still.
+-- Draws a state: "nearby", "sitting", "buffs", "ended" or "missing". start and length are the countdown (none: nothing
+-- counts down), main the time left as text, warning colors and blinks it, frozen holds the countdown still.
 local function Draw(d, p, state, start, length, main, warning, frozen)
     local style = d.style
     if style == "campfire" then
@@ -581,6 +586,8 @@ function C:Refresh(now)
         state = "nearby"
     elseif self.ended and p.remind then
         state = "ended"
+    elseif p.missing then
+        state = "missing"
     end
     self.tickDue = nil
     if not state then
@@ -701,6 +708,9 @@ function C:ShowTooltip(owner)
     elseif state == "nearby" then
         GameTooltip:SetText(SpellName(NEARBY, "Campfire Nearby"))
         Line("Sit down near the fire for " .. Span(60) .. " to get camp buffs for an hour.", WHITE)
+    elseif state == "missing" then
+        GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
+        Line("No camp buffs. Sit by a campfire for " .. Span(60) .. " to get them.", WHITE)
     else
         GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
         Line("Your camp buffs ended. Sit by a campfire for " .. Span(60) .. " for new ones.", WHITE)
@@ -1084,6 +1094,7 @@ local PREVIEW = {
     { "buffs", 3, 3600, 3600, nil },
     { "buffs", 3, 3600, nil, 0, true },
     { "ended", 3 },
+    { "missing", 2.5 },
 }
 function C.info.preview(frame)
     local p = C.db.profile
@@ -1102,6 +1113,7 @@ function C.info.preview(frame)
     local steps, total = {}, 0
     for _, step in ipairs(PREVIEW) do
         local skip = step[1] == "nearby" and not p.nearby or step[1] == "ended" and not p.remind
+            or step[1] == "missing" and not p.missing
             or step[6] and p.warnAt == 0 or step[1] == "buffs" and not step[6] and not p.keepShown
         if not skip then
             steps[#steps + 1] = step
@@ -1184,6 +1196,7 @@ function C:BuildOptions()
                     desc = "Off, it shows only once they're about to end." }),
                 remind = option("toggle", "remind", "After camp buffs end", 3, { disabled = off, desc =
                     "Blinks until you sit by a campfire again or click it." }),
+                missing = option("toggle", "missing", "Whenever you have no camp buffs", 4, { disabled = off }),
             }),
             ending = ns.Section("Ending soon", 3, {
                 warnAt = range("warnAt", "Warn at (minutes left)", 1, 0, 30, { disabled = off,
