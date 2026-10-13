@@ -638,21 +638,49 @@ def campfire_fire(frames=FIRE_FRAMES, columns=FIRE_COLUMNS, size=FIRE_SIZE, samp
     return atlas
 
 
-def campfire_ring(size=128, stroke=0.13, samples=8):
-    """A ring touching the square's edges, white: the campfire timer's track and its countdown (the game sweeps it)."""
+def campfire_ring(size=128, stroke=0.13, samples=8, segments=0, gap=0.35, soft=0.0, rim=0.0):
+    """A ring touching the square's edges, white: the campfire timer's track and its countdown (the game sweeps it).
+    stroke is its width as a share of the radius times 2; segments splits it into that many pieces with gap (a share of
+    each piece) between them; soft fades its edges over that share of the stroke; rim adds a thin outer line that far
+    outside the ring's edge (a share of the radius), with the gap between left empty."""
     r = size / 2
-    inner = r * (1 - 2 * stroke)
+    outer = r * (1 - rim) if rim else r
+    inner = outer - r * 2 * stroke
+    width = outer - inner
     image = Image.new('RGBA', (size, size))
     for py in range(size):
         for px in range(size):
-            hits = 0
+            total = 0.0
             for sy in range(samples):
                 for sx in range(samples):
-                    d = math.hypot(px + (sx + 0.5) / samples - r, py + (sy + 0.5) / samples - r)
-                    if inner < d <= r:
-                        hits += 1
-            image.putpixel((px, py), (255, 255, 255, round(255 * hits / samples ** 2)))
+                    x, y = px + (sx + 0.5) / samples - r, py + (sy + 0.5) / samples - r
+                    d = math.hypot(x, y)
+                    a = 0.0
+                    if inner < d <= outer:
+                        a = 1.0
+                        if soft:
+                            edge = min(d - inner, outer - d) / (width * soft)
+                            a = min(1.0, edge)
+                        if segments:
+                            phase = (math.atan2(x, -y) / (2 * math.pi) * segments) % 1.0
+                            if phase < gap / 2 or phase > 1 - gap / 2:
+                                a = 0.0
+                    elif rim and r * (1 - rim * 0.35) < d <= r:
+                        a = 1.0
+                    total += a
+            image.putpixel((px, py), (255, 255, 255, round(255 * total / samples ** 2)))
     return image
+
+
+# The rings to choose from (Campfire Helper's Ring setting): file name and how it's drawn.
+CAMPFIRE_RINGS = {
+    'CampfireRing': {},
+    'CampfireRingThin': {'stroke': 0.06},
+    'CampfireRingThick': {'stroke': 0.22},
+    'CampfireRingSegmented': {'stroke': 0.13, 'segments': 12, 'gap': 0.22},
+    'CampfireRingSoft': {'stroke': 0.16, 'soft': 0.5},
+    'CampfireRingRimmed': {'stroke': 0.1, 'rim': 0.1},
+}
 
 
 def campfire_glow(size=128):
@@ -698,7 +726,8 @@ if __name__ == '__main__':
     for name, image in images.items():
         image.save(ART / f'{name}.tga')  # uncompressed 32-bit with alpha
         print(f'Wrote {ART / (name + ".tga")} ({image.size[0]}x{image.size[1]})')
-    campfire = {'CampfireFire': campfire_fire(), 'CampfireRing': campfire_ring(), 'CampfireGlow': campfire_glow()}
+    campfire = {'CampfireFire': campfire_fire(), 'CampfireGlow': campfire_glow()}
+    campfire.update({name: campfire_ring(**args) for name, args in CAMPFIRE_RINGS.items()})
     for name, image in campfire.items():
         image.save(ART / f'{name}.tga')
         print(f'Wrote {ART / (name + ".tga")} ({image.size[0]}x{image.size[1]})')
