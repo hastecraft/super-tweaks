@@ -367,7 +367,32 @@ function A:Sync()
     Listen()
 end
 
-A.OnEnable, A.OnDisable = A.Sync, A.Sync
+-- Whether a sound the settings hand over is this one.
+function A:Uses(name)
+    local p = self.db.profile
+    for _, preset in ipairs(self:Presets()) do
+        if p.presets[preset.key] == name then return true end
+    end
+    for _, trigger in ipairs(self.TRIGGERS) do
+        if p[trigger.key .. "Sound"] == name and p[trigger.key] ~= "" then return true end
+    end
+    return false
+end
+
+-- A chosen sound from an addon that registers it after the sounds were handed over played the trigger's own until now.
+function A:OnEnable()
+    if not self.info.unavailable then
+        HST.LSM.RegisterCallback(self, "LibSharedMedia_Registered", function(_, kind, name)
+            if kind == "sound" and not queued and self:Uses(name) then queued = true; C_Timer.After(0, Retry) end
+        end)
+    end
+    self:Sync()
+end
+
+function A:OnDisable()
+    HST.LSM.UnregisterCallback(self, "LibSharedMedia_Registered")
+    self:Sync()
+end
 
 -- Names for a sentence, each once: "a, b and c", or the first few of a long list and how many more.
 local function Names(list)
