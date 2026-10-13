@@ -10,7 +10,7 @@
 local ADDON, ns = ...
 local HST = ns.HST
 local IsSecret = ns.IsSecret
-local floor, min = math.floor, math.min
+local floor, min, max = math.floor, math.min, math.max
 
 local D = HST:NewFeature("DruidMana", {
     name = "Druid Mana in Forms", category = "interface", order = 2.6,
@@ -283,17 +283,18 @@ function D.info.preview(frame)
             power:SetSize(124, 8)
         end
         v.bar = CreateBar(unit)
-        v.bar:SetPoint("TOP", unit, "TOPLEFT", 102, -32)
         v.bar:SetMinMaxValues(0, SAMPLE_MAX)
         v.bar:SetValue(SAMPLE_MANA)
         v.caption = W.Caption(frame, "Caster form")
     end
     local p = D.db.profile
-    local height = min(p.height, 24)
+    -- The bar sits under the frame's bars; one too wide for that slides left, up to the stage's middle.
+    local width = min(p.width, 248 - 2 * p.border)
     Style(v.bar, p)
-    v.bar:SetSize(min(p.width, 180), height)
+    v.bar:SetSize(width, p.height)
+    v.bar:SetPoint("TOP", v.unit, "TOPLEFT", 102 - max(0, (width + 2 * p.border - 208) / 2), -32)
     Write(v.bar.text, p.textFormat, SAMPLE_MANA, SAMPLE_MAX, SAMPLE_MANA / SAMPLE_MAX * 100)
-    v.unit:SetHeight(32 + height + p.border)
+    v.unit:SetHeight(32 + p.height + p.border)
     W.Column(frame, { v.unit, 12, v.caption })
     local shifted
     W.Loop(frame, 6, function(t)
