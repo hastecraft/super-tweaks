@@ -1594,62 +1594,371 @@ function S:UpdateSampleLoop()
 end
 
 ---------------------------------------------------------------------------
--- Settings preview: damage taken rising on the left, numbers bursting from an enemy's nameplate on the right, and a
--- notice above.
+-- Settings preview: sample texts for what the settings show, drawn as S:Show and Place draw them, on a 256 x 136
+-- stage. Each scroll area sits where it is on screen (its center from the screen's middle, shrunk to fit the stage):
+-- damage taken on the left, your target's numbers on the right and notices above, by default. Enemy numbers burst from
+-- a sample nameplate. Texts travel a share of their distance at a share of their size.
 ---------------------------------------------------------------------------
-local PREVIEW = {
-    -- area, start time, text, color key, crit
-    { "left", 0, "-342", "damageColor" }, { "left", 0.7, "+1250", "healColor" }, { "left", 1.4, "-1482", "damageColor", true },
-    { "plate", 0.3, "870", "enemyColor" }, { "plate", 1.0, "615", "frost" }, { "plate", 1.7, "2480", "enemyCritColor", true },
-    { "top", 0.1, "+Combat", "combat" },
+local max = math.max
+local PREVIEW_POS, PREVIEW_DIST, PREVIEW_SIZE = 0.27, 0.4, 0.7
+local PREVIEW_TRAVEL, PREVIEW_X, PREVIEW_Y = 100, 100, 56 -- the farthest a text travels; an area's center from the middle
+local PLATE_X, PLATE_Y = 62, -38 -- the sample nameplate's center
+-- Seconds between a lane's samples at least, and after the longest text before the samples start over.
+local PREVIEW_GAP = 0.6
+local SPREADS = { 0.7, 0.95, 0.5, 0.85 } -- how far Fountain throws each number to its side in turn (shown: at random)
+-- The game's own numbers: white, yellow for spells.
+local GAME_WHITE, GAME_YELLOW = { 1, 1, 1 }, { 1, 1, 0 }
+-- Notices, by the setting that shows them, in the order they take turns: color, kind, the spell (by ID) whose name
+-- and icon they show, and the format with its values.
+local NOTICE_SAMPLES = {
+    { key = "combatState", color = COLORS.combat, fmt = "%s", a = ENTERING_COMBAT or "+Combat" },
+    { key = "lowHealth", color = COLORS.low, kind = "crit", fmt = "%s", a = HEALTH_LOW or "Low Health" },
+    { key = "reactives", color = COLORS.reactive, kind = "crit", spell = 7384, fmt = "%s!", a = "Overpower" },
+    { key = "buffs", color = COLORS.buff, spell = 6673, fmt = "+%s", a = "Battle Shout" },
+    { key = "comboPoints", color = COLORS.combo, fmt = COMBAT_TEXT_COMBO_POINTS or "%d Combo Points", a = 3 },
+    { key = "reputation", color = COLORS.reputation, fmt = "+%d %s", a = 25, b = "Stormwind" },
+    { key = "lowMana", color = COLORS.low, kind = "crit", fmt = "%s", a = MANA_LOW or "Low Mana" },
+    { key = "debuffs", color = COLORS.debuff, spell = 1715, fmt = "+%s", a = "Hamstring" },
+    { key = "fades", color = COLORS.fade, spell = 6673, fmt = "-%s", a = "Battle Shout" },
+    { key = "honor", color = COLORS.honor, fmt = "+%d Honor", a = 12 },
+    { key = "skills", color = COLORS.skill, fmt = "+%s (%s)", a = "Swords", b = 87 },
+    { key = "combatState", color = COLORS.combat, fmt = "%s", a = LEAVING_COMBAT or "-Combat" },
 }
-function S.info.preview(frame)
-    local W, p = ns.Widgets, S.db.profile
-    local v = frame.hstCombatText
-    if not v then
-        v = { texts = {} }
-        frame.hstCombatText = v
-        v.plate = W.Panel(frame, 64, 8)
-        v.plate:SetPoint("CENTER", 62, -18)
-        v.fill = W.Fill(v.plate, { 0.8, 0.15, 0.1, 1 })
-        v.fill:SetPoint("TOPLEFT", 1, -1)
-        v.fill:SetPoint("BOTTOMLEFT", 1, 1)
-        v.fill:SetWidth(44)
-        for i in ipairs(PREVIEW) do
-            v.texts[i] = frame:CreateFontString(nil, "OVERLAY")
-            v.texts[i]:SetShadowColor(0, 0, 0, 1)
-        end
+-- Which of S.NOTICE_AREAS each notice shows in with Separate area for each kind.
+local NOTICE_AREA_OF = {}
+for i, area in ipairs(S.NOTICE_AREAS) do
+    for _, key in ipairs(area.uses) do NOTICE_AREA_OF[key] = i end
+end
+
+local function Clamp(value, limit) return max(-limit, min(limit, value)) end
+local function PreviewSize(size) return max(6, floor(size * PREVIEW_SIZE + 0.5)) end
+
+local function SpellTexture(id)
+    local icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(id)
+    if IsSecret(icon) then return nil end
+    return icon
+end
+
+-- A lane of the sketch, kept on the stage by key and filled in again on each redraw: index tells lanes apart, level
+-- is its texts' frame level.
+local function PreviewLane(v, key, index, level)
+    local lane = v.lanes[key]
+    if not lane then lane = {}; v.lanes[key] = lane end
+    lane.index, lane.level, lane.count, lane.dir = index, level, 0, 1
+    lane.font, lane.flags, lane.game, lane.plate = v.font, v.flags, nil, nil
+    return lane
+end
+
+-- A scroll area's lane: where its box is on the stage, and how its texts move.
+local function AreaLane(v, p, key, index)
+    local area, lane = p[key], PreviewLane(v, key, index, v.level + 4)
+    lane.anim, lane.duration, lane.align = area.animation, area.duration, area.align
+    lane.travel = min(area.height * PREVIEW_DIST, PREVIEW_TRAVEL)
+    lane.size = PreviewSize(floor(area.fontSize * p.textScale + 0.5))
+    lane.x, lane.y = Clamp(area.x * PREVIEW_POS, PREVIEW_X), Clamp(area.y * PREVIEW_POS, PREVIEW_Y)
+    return lane
+end
+
+-- The nameplate's lane: under the nameplate when numbers are drawn behind nameplates, else over it.
+local function PlateLane(v, p)
+    local behind = p.plateLayer == "PLATE" or p.plateLayer == "WORLD"
+    local lane = PreviewLane(v, "plate", 2, v.level + (behind and 1 or 3))
+    lane.anim, lane.duration, lane.align = p.plateAnimation, p.plateDuration, "CENTER"
+    lane.travel = min(p.plateHeight * PREVIEW_DIST, PREVIEW_TRAVEL)
+    lane.size = PreviewSize(floor(p.plateSize * p.textScale + 0.5))
+    lane.x, lane.y, lane.plate = PLATE_X, PLATE_Y + p.plateOffset * PREVIEW_DIST, true
+    return lane
+end
+
+-- The game's own numbers: rising from the nameplate in its font (the one chosen here, from the next login), sized by
+-- The game's numbers' size.
+local function GameLane(v, p)
+    local lane = PreviewLane(v, "game", 2, v.level + 3)
+    lane.anim, lane.duration, lane.align, lane.travel = "UP", 1.5, "CENTER", 24
+    lane.size = PreviewSize(20 * p.gameDamageSize)
+    lane.x, lane.y, lane.plate, lane.game = PLATE_X, PLATE_Y + 12, true, true
+    lane.font = p.font ~= "" and ns.Media("font", p.font) or GAME_DAMAGE_FONT or ns.FALLBACK_FONT
+    lane.flags = "OUTLINE"
+    return lane
+end
+
+-- The lane a notice shows in: its kind's own with Separate area for each kind, else Notices (see S:NoticeLane).
+local function PreviewNoticeLane(v, p, key)
+    local i = p.splitNotices and NOTICE_AREA_OF[key]
+    return v.lanes[i and S.NOTICE_AREAS[i].key or "notices"]
+end
+
+-- The stage's next sample text, made as Acquire makes texts: a frame, scaled for critical hits and popping, holding a
+-- font string with an icon to its left. lane: the lane it's counted in, to space its samples apart.
+local function NextSample(v, lane)
+    v.count = v.count + 1
+    local f = v.samples[v.count]
+    if not f then
+        f = CreateFrame("Frame", nil, v.stage)
+        f:SetSize(1, 1)
+        f:Hide()
+        f.text = f:CreateFontString(nil, "OVERLAY")
+        f.text:SetShadowColor(0, 0, 0, 1)
+        f.icon = f:CreateTexture(nil, "OVERLAY")
+        f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        f.icon:SetPoint("RIGHT", f.text, "LEFT", -3, 0)
+        v.samples[v.count] = f
     end
-    local font, flags = FontFile(p), S.FontFlags(p)
-    local shadow = flags == "" and 1 or 0
-    for i, spec in ipairs(PREVIEW) do
-        local text = v.texts[i]
-        local crit = spec[5]
-        ns.SetFont(text, font, floor((crit and 18 or 13) * p.textScale + 0.5), flags)
-        text:SetShadowOffset(shadow, -shadow)
-        local color = spec[4] == "frost" and (p.schoolColors and SCHOOLS[16] or p.enemyColor) or p[spec[4]] or COLORS[spec[4]]
-        text:SetTextColor(color[1], color[2], color[3], 1)
-        text:SetText(spec[3])
+    f.slot, f.k = nil, nil
+    if lane then
+        lane.count = lane.count + 1
+        f.k = lane.count
+        if lane.count > v.most then v.most = lane.count end
     end
-    W.Loop(frame, 2.6, function(t)
-        for i, spec in ipairs(PREVIEW) do
-            local text = v.texts[i]
-            local age = (t - spec[2]) % 2.6
-            local life = age / 1.4
-            if life >= 1 then
-                text:SetAlpha(0)
-            else
-                text:SetAlpha(math.min(1, (1 - life) / 0.3, age / 0.1))
-                -- Its center is the only point it's ever given, so setting it again moves it.
-                if spec[1] == "left" then
-                    text:SetPoint("CENTER", frame, "CENTER", -70, -50 + life * 80)
-                elseif spec[1] == "top" then
-                    text:SetPoint("CENTER", frame, "CENTER", 0, 38 + life * 14)
-                else
-                    local side = i % 2 == 0 and -1 or 1
-                    text:SetPoint("CENTER", frame, "CENTER", 62 + side * 26 * life, -8 + 40 * (3 * life - 3.5 * life * life))
+    return f
+end
+
+-- Gives a sample its text and its lane's look and movement, as S:Show does; only what differs is set.
+local function Style(f, lane, color, kind, icon, text)
+    local p = S.db.profile
+    local size, align, anim = lane.size, lane.align, lane.anim
+    f.lane, f.anim, f.height, f.duration, f.size = lane, anim, lane.travel, lane.duration, size
+    ns.SetFont(f.text, lane.font, size, lane.flags)
+    local shadow = lane.flags == "" and 1 or 0
+    if f.shadow ~= shadow then f.shadow = shadow; f.text:SetShadowOffset(shadow, -shadow) end
+    if f.shownText ~= text then f.shownText = text; f.text:SetText(text) end
+    if f.shownColor ~= color then f.shownColor = color; f.text:SetTextColor(color[1], color[2], color[3], color[4] or 1) end
+    local showIcon = p.icons and icon ~= nil or false
+    local boxed = not showIcon
+    if f.align ~= align or f.boxed ~= boxed then
+        f.align, f.boxed = align, boxed
+        f.text:ClearAllPoints()
+        f.text:SetPoint(align, f, "CENTER")
+        f.text:SetJustifyH(align)
+        f.text:SetWidth(boxed and S.TEXT_BOX or 0)
+    end
+    if showIcon then
+        f.icon:SetTexture(icon)
+        if f.iconSize ~= size then f.iconSize = size; f.icon:SetSize(size, size) end
+    end
+    if f.iconShown ~= showIcon then f.iconShown = showIcon; f.icon:SetShown(showIcon) end
+    -- Set every time: raising the settings window moves every frame level in it.
+    f:SetFrameLevel(lane.level)
+    local crit = kind == "crit" and not lane.game
+    f.kindScale = kind == "crit" and (lane.game and 1.5 or p.critScale) or kind == "miss" and p.missScale or 1
+    f.pop, f.shake, f.fadeIn = crit and p.critPop, crit and p.critShake, p.fadeIn and not lane.game
+    f.sticky = crit and p.stickyCrits and not lane.plate and anim ~= "STATIC"
+    f.blink, f.gap, f.stacks = nil, 0, anim ~= "FOUNTAIN"
+    f.group = lane.index * 2 + (f.sticky and 1 or 0)
+    if anim == "ARC" or anim == "FOUNTAIN" then
+        lane.dir = -lane.dir
+        f.dir, f.spread = lane.dir, SPREADS[lane.count % #SPREADS + 1]
+    end
+    if lane.plate then
+        f.x0, f.y0 = lane.x, lane.y
+    else
+        local side = S.AREA_WIDTH / 2 * PREVIEW_POS
+        f.x0 = lane.x + (align == "LEFT" and -side or align == "RIGHT" and side or 0)
+        if f.sticky or anim == "STATIC" then f.y0 = lane.y
+        elseif anim == "DOWN" then f.y0 = lane.y + lane.travel / 2
+        else f.y0 = lane.y - lane.travel / 2 end
+    end
+end
+
+local function Sample(v, lane, color, kind, fmt, a, b)
+    Style(NextSample(v, lane), lane, color, kind, nil, fmt:format(a, b))
+end
+
+local function StyleNotice(v, f, n)
+    local p = S.db.profile
+    local a, icon = n.a, nil
+    if n.spell then a, icon = SpellName(n.spell) or a, p.icons and SpellTexture(n.spell) or nil end
+    Style(f, PreviewNoticeLane(v, p, n.key), n.color, n.kind, icon, n.fmt:format(a, n.b))
+    if n.key == "reactives" and p.reactiveBlink then f.blink = true end
+end
+
+-- How far a sample has moved along its lane's direction at an age (see Travel).
+local function PreviewTravel(f, age)
+    if f.sticky or f.anim == "STATIC" then return 0 end
+    local _, dy = Motion(f, age / f.duration)
+    return abs(dy)
+end
+
+-- Places the samples for a moment of the loop, as Place does. A sample starting anew takes its turn's notice, when
+-- notices take turns, and is stacked apart from the one before it in its lane, as Stack does.
+local function PreviewTick(v, t)
+    local samples, count, period = v.samples, v.count, v.period
+    for i = 1, count do
+        local f = samples[i]
+        local age = (t - f.start) % period
+        if age >= f.duration then age = -1 end
+        f.isNew = age >= 0 and f.lastAge ~= nil and (f.lastAge < 0 or age < f.lastAge)
+        f.age, f.lastAge = age, age
+    end
+    for i = 1, count do
+        local f = samples[i]
+        if f.isNew then
+            if f.slot then
+                f.turn = f.turn + 1
+                StyleNotice(v, f, v.notices[(f.slot - 1 + f.turn * 2) % #v.notices + 1])
+            end
+            local last
+            if f.stacks then
+                for j = 1, count do
+                    local g = samples[j]
+                    if g ~= f and g.group == f.group and g.age >= 0 and (not last or g.age < last.age) then last = g end
                 end
             end
+            f.gap = last and max(0, (last.size * last.kindScale + f.size * f.kindScale) * 0.6 - PreviewTravel(last, last.age)) or 0
         end
-    end)
+    end
+    for i = 1, count do
+        local f = samples[i]
+        local age = f.age
+        if age < 0 then
+            if f.on then f.on = false; f:Hide() end
+        else
+            local dx, dy = Motion(f, age / f.duration)
+            if f.shake and age < S.SHAKE then
+                local reach = f.size * S.SHAKE_SIZE * (1 - age / S.SHAKE)
+                dx, dy = dx + reach * sin(age * S.SHAKE_SPEED), dy + reach * cos(age * S.SHAKE_SPEED * 1.3)
+            end
+            -- Pushed along by the texts that started after it in its lane.
+            local push = 0
+            if f.stacks then
+                for j = 1, count do
+                    local g = samples[j]
+                    if g.group == f.group and g.age >= 0 and g.age < age then push = push + g.gap end
+                end
+                if f.anim == "DOWN" then push = -push end
+            end
+            local scale = f.kindScale
+            if f.pop and age < S.POP then scale = scale * (2 - age / S.POP) end
+            local alpha = min(1, (1 - age / f.duration) / S.FADE_OUT)
+            if f.fadeIn and age < S.FADE_IN then alpha = min(alpha, S.FADE_FROM + (1 - S.FADE_FROM) * age / S.FADE_IN) end
+            if f.blink then alpha = alpha * (S.BLINK_LOW + (1 - S.BLINK_LOW) * abs(cos(age * math.pi / S.BLINK))) end
+            if scale ~= f.shownScale then f.shownScale = scale; f:SetScale(scale) end
+            if alpha ~= f.shownAlpha then f.shownAlpha = alpha; f:SetAlpha(alpha) end
+            local x, y = (f.x0 + dx) / scale, (f.y0 + dy + push) / scale
+            if x ~= f.shownX or y ~= f.shownY then
+                f.shownX, f.shownY = x, y
+                f:SetPoint("CENTER", v.stage, "CENTER", x, y)
+            end
+            if not f.on then f.on = true; f:Show() end
+        end
+    end
+end
+
+-- Draws the sketch on a 256 x 136 stage. focus: the settings tab open, if any; on Notices, every notice shown here
+-- plays each time round, else two take turns.
+function S:DrawPreview(stage, focus)
+    local W, p = ns.Widgets, self.db.profile
+    local v = stage.hstCombatText
+    if not v then
+        v = { stage = stage, samples = {}, lanes = {}, notices = {} }
+        stage.hstCombatText = v
+        v.plate = W.Panel(stage, 64, 8)
+        v.plate:SetPoint("CENTER", PLATE_X, PLATE_Y)
+        local fill = W.Fill(v.plate, { 0.8, 0.15, 0.1, 1 })
+        fill:SetPoint("TOPLEFT", 1, -1)
+        fill:SetPoint("BOTTOMLEFT", 1, 1)
+        fill:SetWidth(44)
+        v.caption = W.Caption(stage, "")
+        v.caption:SetWidth(130)
+        v.caption:SetPoint("TOP", stage, "CENTER", PLATE_X, PLATE_Y - 8)
+        v.update = function(t) PreviewTick(v, t) end
+    end
+    v.font, v.flags, v.level, v.count, v.most = FontFile(p), S.FontFlags(p), stage:GetFrameLevel(), 0, 0
+    v.plate:SetFrameLevel(v.level + 2)
+    -- Damage and healing you take (see S:OnTaken and S:OnPet).
+    local lane = AreaLane(v, p, "incoming", 1)
+    if p.inDamage and 342 >= p.inDamageMin then Sample(v, lane, p.damageColor, nil, "-%s", self:Amount(342)) end
+    if p.inHeals and 1250 >= p.inHealMin then Sample(v, lane, p.healColor, nil, "+%s", self:Amount(1250)) end
+    if p.inDamage and 14820 >= p.inDamageMin then Sample(v, lane, p.damageColor, "crit", "-%s", self:Amount(14820)) end
+    if p.inMisses then Sample(v, lane, p.missColor, "miss", "%s", MISSES.DODGE) end
+    if p.inReduction then
+        if p.inDamage and 512 >= p.inDamageMin then
+            Sample(v, lane, p.damageColor, nil, PARTIAL_BY.BLOCK, self:Amount(512), self:Amount(120))
+        else
+            Sample(v, lane, p.missColor, "miss", "%s", REDUCED.BLOCK)
+        end
+    end
+    if p.inEnergy then Sample(v, lane, PowerColor("MANA"), nil, "+%s %s", self:Amount(35), MANA or "Mana") end
+    if p.inPet and p.inDamage and 87 >= p.inDamageMin then Sample(v, lane, p.damageColor, nil, "Pet -%s", self:Amount(87)) end
+    -- Damage enemies take (see S:OnEnemy), or the game's own numbers.
+    local mode = p.enemyMode
+    if OwnEnemyNumbers(p) then
+        lane = mode == "AREA" and AreaLane(v, p, "outgoing", 2) or PlateLane(v, p)
+        if 870 >= p.enemyMin then Sample(v, lane, p.enemyColor, nil, "%s", self:Amount(870)) end
+        if 615 >= p.enemyMin then
+            Sample(v, lane, p.schoolColors and SCHOOLS[16] or p.enemyColor, nil, "%s", self:Amount(615))
+        end
+        if 2480 >= p.enemyMin then Sample(v, lane, p.enemyCritColor, "crit", "%s", self:Amount(2480)) end
+        if p.enemyMisses then Sample(v, lane, p.missColor, "miss", "%s", MISSES.PARRY) end
+    elseif mode == "GAME" then
+        lane = GameLane(v, p)
+        Sample(v, lane, GAME_WHITE, nil, "%d", 870)
+        Sample(v, lane, GAME_YELLOW, nil, "%d", 615)
+        Sample(v, lane, GAME_WHITE, "crit", "%d", 2480)
+    end
+    v.plate:SetShown(mode == "NAMEPLATE" or mode == "GAME")
+    local caption = focus == "enemies" and (mode == "GAME" and "The game's own numbers" or mode == "OFF" and "Enemy damage off") or nil
+    v.caption:SetText(caption or "")
+    v.caption:SetShown(caption ~= nil)
+    -- Notices shown here: all of them on the Notices tab, else two at a time taking turns.
+    AreaLane(v, p, "notices", 3)
+    for i, area in ipairs(self.NOTICE_AREAS) do AreaLane(v, p, area.key, 3 + i) end
+    local notices, longest = v.notices, 0
+    for i = #notices, 1, -1 do notices[i] = nil end
+    for _, n in ipairs(NOTICE_SAMPLES) do
+        if p[n.key] then
+            notices[#notices + 1] = n
+            longest = max(longest, PreviewNoticeLane(v, p, n.key).duration)
+        end
+    end
+    v.rotate = focus ~= "notices" and #notices > 2
+    if v.rotate then
+        for slot = 1, 2 do
+            local f = NextSample(v)
+            f.slot = slot
+            StyleNotice(v, f, notices[slot])
+        end
+        v.most = max(v.most, 2)
+    else
+        for _, n in ipairs(notices) do StyleNotice(v, NextSample(v, PreviewNoticeLane(v, p, n.key)), n) end
+    end
+    -- Each lane's samples spread over the loop, which lasts long enough for the longest to play out.
+    local samples = v.samples
+    for i = 1, v.count do longest = max(longest, samples[i].duration) end
+    local period = max(1, longest + PREVIEW_GAP, v.most * PREVIEW_GAP)
+    v.period = period
+    for i = 1, v.count do
+        local f = samples[i]
+        if f.slot then
+            f.start = 0.1 + (f.slot - 1) * period / 2
+            -- One already showing as the loop starts shows its first notice through.
+            f.turn = (0 - f.start) % period < f.duration and 0 or -1
+        else
+            local index = f.lane.index
+            f.start = (index == 1 and 0 or index == 2 and 0.3 or 0.1) + (f.k - 1) * period / f.lane.count
+        end
+        f.age, f.lastAge = -1, nil
+    end
+    for i = v.count + 1, #samples do
+        local f = samples[i]
+        if f.on then f.on = false; f:Hide() end
+    end
+    if v.count == 0 then return stage:SetScript("OnUpdate", nil) end
+    W.Loop(stage, period, v.update)
+end
+
+function S.info.preview(frame) S:DrawPreview(frame) end
+
+-- On the settings page: the sketch scaled to fit, showing more of what the open tab sets.
+function S.info.livePreview(frame, width, height, path)
+    local W = ns.Widgets
+    local stage = frame.hstCombatTextStage
+    if not stage then
+        stage = CreateFrame("Frame", nil, frame)
+        stage:SetSize(W.PREVIEW_WIDTH, W.PREVIEW_HEIGHT)
+        stage:SetPoint("CENTER")
+        frame.hstCombatTextStage = stage
+    end
+    stage:SetScale(max(0.5, min(1.6, (width - 16) / W.PREVIEW_WIDTH, (height - 16) / W.PREVIEW_HEIGHT)))
+    S:DrawPreview(stage, path and path[1])
 end
