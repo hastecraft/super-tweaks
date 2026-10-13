@@ -342,7 +342,7 @@ function D:BuildOptions()
                     end },
             }),
             text = ns.Section("Text", 2, {
-                showText = option("toggle", "showText", "Show text", 1, { desc = "Writes your mana on the bar." }),
+                showText = option("toggle", "showText", "Show text", 1),
                 textFormat = option("select", "textFormat", "Text", 2,
                     { values = texts, sorting = { "mana", "both", "percent" }, disabled = noText }),
                 font = ns.MediaOption(profile, "font", "font", "Font", 3, { disabled = noText }, apply),

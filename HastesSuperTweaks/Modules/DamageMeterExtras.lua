@@ -34,7 +34,7 @@ ns.Configure(D, { summary = true, minSeconds = 20, top = false, deaths = true, r
                 minSeconds = ns.Option(profile, "range", "minSeconds", "Shortest fight", 2, { min = 0, max = 120, step = 1,
                     desc = "Fights shorter than this many seconds get no summary.", disabled = noSummary }),
                 top = ns.Option(profile, "toggle", "top", "Top 3 of the group", 3, { disabled = noSummary,
-                    desc = "Adds a line with the group's three highest damage dealers, in a group." }),
+                    desc = "Adds a line with the group's three highest damage dealers." }),
             }),
             deathNotices = ns.Section("Deaths", 2, {
                 deaths = ns.Option(profile, "toggle", "deaths", "Death notices", 1, { desc = "Says in chat when you or a "

@@ -18,7 +18,7 @@ local defaults = {
     hideBlizzard = true, showTime = true, hideRefill = false,
     warnAt = 10, warnSound = true, warnPulse = true, warnColor = { 1, 0.15, 0.15, 1 },
     width = 240, height = 18, gap = 4, x = 0, y = 284,
-    texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 12, outline = "OUTLINE",
+    texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 12, outline = "OUTLINE", textColor = { 1, 1, 1, 1 },
     border = 1, borderColor = { 0, 0, 0, 1 }, backgroundColor = { 0.035, 0.045, 0.06, 0.9 },
     breathColor = { 0.2, 0.55, 1, 1 }, fatigueColor = { 1, 0.7, 0.1, 1 }, feignColor = { 0.4, 0.85, 0.4, 1 },
 }
@@ -72,6 +72,7 @@ local function Style(bar, p, font, flags)
     for _, text in ipairs({ bar.label, bar.time }) do
         ns.SetFont(text, font, p.fontSize, flags)
         text:SetShadowOffset(shadow, -shadow)
+        text:SetTextColor(unpack(p.textColor))
     end
     bar.time:SetShown(p.showTime)
     bar.shownColor, bar.shownKey = nil, nil
@@ -429,6 +430,7 @@ function B:BuildOptions()
                 fontSize = option("range", "fontSize", "Size", 2, { min = 6, max = 32, step = 1 }),
                 outline = option("select", "outline", "Outline", 3, ns.With({
                     desc = ns.OutlineDesc() }, outlines)),
+                textColor = option("color", "textColor", "Text color", 4),
             }),
         } },
     } }

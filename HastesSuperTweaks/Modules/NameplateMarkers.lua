@@ -77,7 +77,7 @@ ns.Configure(N, { elite = true, rare = true, quest = true, enemiesOnly = true, s
         alert = option("toggle", "alert", "Tell me when a rare is near", 6,
             { desc = "Says so in chat the first time each rare's nameplate shows this session. Rares are seen once their "
                 .. "nameplate shows: turn on enemy nameplates, and raise the distance in Game Settings, to spot them sooner." }),
-        sound = option("toggle", "sound", "With a sound", 7,
+        sound = option("toggle", "sound", "Play a sound", 7,
             { desc = "Plays the raid warning sound with it.", disabled = function() return not m.db.profile.alert end }),
     })
 end, "Refresh")

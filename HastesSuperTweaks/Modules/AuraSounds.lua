@@ -527,7 +527,7 @@ ns.Configure(A, defaults, function(m)
             [key .. "Sound"] = ns.Option(profile, "select", key .. "Sound", "Sound", 2,
                 { values = values, sorting = sorting },
                 function() m:Preview(m.db.profile[key .. "Sound"]); m:Sync() end),
-            [key .. "Play"] = { type = "execute", name = "Play", order = 3, desc = "Plays the sound chosen above.",
+            [key .. "Play"] = { type = "execute", name = "Play", order = 3,
                 func = function() m:Preview(m.db.profile[key .. "Sound"]) end },
         })
     end
@@ -539,7 +539,8 @@ ns.Configure(A, defaults, function(m)
             own = ns.Section("Your own auras", 2, own),
             playback = ns.Section("Playback", 3, {
                 channel = ns.Option(profile, "select", "channel", "Sound channel", 1, {
-                    desc = "Master plays at your master volume, even with sound effects turned off.",
+                    desc = "Which of the game's volume settings the sounds follow. Master plays them even with sound "
+                        .. "effects turned off.",
                     values = { Master = "Master", SFX = "Sound effects", Ambience = "Ambience", Music = "Music",
                         Dialog = "Dialog" },
                     sorting = { "Master", "SFX", "Ambience", "Music", "Dialog" } }, function() m:Sync() end),
