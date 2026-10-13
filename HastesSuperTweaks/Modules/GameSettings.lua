@@ -32,7 +32,7 @@ G.SETTINGS = {
         desc = "Lets the camera zoom out farther than the options' slider allows (it stops at 2). Players use up to 3.34." },
     { key = "nameplates", cvar = "nameplateMaxDistance", name = "Nameplate distance", value = "nameplateDistance",
         valueName = "Yards", min = 20, max = 41, step = 1, section = "world",
-        desc = "How far away, in yards, nameplates show. The options don't offer it on WoW Forever." },
+        desc = "How far away, in yards, nameplates show." },
     { key = "weather", cvar = "weatherDensity", name = "Weather density", value = "weatherLevel",
         valueName = "Density", min = 0, max = 3, step = 1, section = "world",
         desc = "How much rain, snow and sand the weather draws: 0 is the least, 3 the most. The game's particle density "
@@ -45,8 +45,7 @@ G.SETTINGS = {
     -- forever: why only WoW Forever can). Casting on key press isn't here: it's the game's default already, and the
     -- game guards that setting (ActionButtonUseKeyDown is secure).
     { key = "threat", cvar = "threatShowNumeric", on = "1", name = "Threat percentage", section = "combat", check = true,
-        desc = "Shows your threat as a percentage above your target's frame, colored like its threat glow. The game's "
-            .. "options don't offer it." },
+        desc = "Shows your threat as a percentage above your target's frame, colored like its threat glow." },
     { key = "threat", cvar = "threatWarning", value = "threatWhen", valueName = "Show threat", section = "combat",
         check = true, values = { ["3"] = "Always", ["2"] = "In a group", ["1"] = "In instances" }, sorting = { "3", "2", "1" },
         valueDesc = "When your target's frame shows threat at all, its red glow included." },
@@ -54,30 +53,25 @@ G.SETTINGS = {
         valueName = "Show debuffs", section = "combat", check = true,
         values = { ["1"] = "Every player's", ["0"] = "Only yours" }, sorting = { "1", "0" },
         desc = "Which debuffs your target's frame shows on mobs: every player's (the game's default), such as Sunder "
-            .. "Armor, Faerie Fire and other players' damage over time, or only yours and those the game always shows. "
-            .. "The game's options don't offer it." },
+            .. "Armor, Faerie Fire and other players' damage over time, or only yours and those the game always shows." },
     { key = "outline", cvar = "Outline", name = "NPC and object outlines", value = "outlineMode", valueName = "Outline",
         section = "world", check = true, forever = "Classic Era's own options have it.",
         values = { ["0"] = "Off", ["1"] = "Quest objectives", ["2"] = "Plus mouseover", ["3"] = "Plus your target" },
         sorting = { "0", "1", "2", "3" },
-        desc = "Outlines quest objectives in the world, plus what you point at, plus your target, as the game's other "
-            .. "clients do. WoW Forever turns them off and took the setting out of its options." },
+        desc = "Outlines quest objectives in the world, plus what you point at, plus your target." },
     { key = "navigation", cvar = "showInGameNavigation", on = "1", name = "Navigation marker", section = "world",
         check = true, forever = "Classic Era's own options have it.",
-        desc = "A marker on your screen points to the quest or map pin you track, with its distance, as on the game's "
-            .. "other clients. WoW Forever turns it off and took it out of its options." },
+        desc = "A marker on your screen points to the quest or map pin you track, with its distance." },
     { key = "compare", cvar = "alwaysCompareItems", name = "Item comparison", value = "compareWhen", valueName = "Compare",
         section = "interface", check = true, values = { ["1"] = "Always", ["0"] = "Only with Shift" }, sorting = { "1", "0" },
         desc = "Whether item tooltips show the gear you have on beside them all the time, or only while you hold "
-            .. "Shift. The game's options don't offer it; only WoW Forever's gamepad menus do." },
+            .. "Shift." },
     { key = "mapFade", cvar = "mapFade", on = "0", name = "No map fade", section = "interface", check = true,
         forever = "Classic Era's map doesn't fade.",
-        desc = "The world map stays solid while you move, instead of fading to half unless you point at it. WoW "
-            .. "Forever's options don't offer it." },
+        desc = "The world map stays solid while you move, instead of fading to half unless you point at it." },
     { key = "questWatch", cvar = "autoQuestWatch", on = "0", name = "No automatic quest tracking", section = "interface",
         check = true, forever = "Classic Era's own options have it.",
-        desc = "Quests you accept or make progress on aren't added to your quest tracker: you choose what it tracks. "
-            .. "WoW Forever's options don't offer it." },
+        desc = "Quests you accept or make progress on aren't added to your quest tracker: you choose what it tracks." },
     { key = "praise", cvar = "PraiseTheSun", on = "1", name = "Praise the Sun", section = "interface", check = true,
         desc = "Boss kill banners say \"You Defeated\" instead of the boss's name, a Dark Souls joke the game keeps "
             .. "behind a console setting." },
