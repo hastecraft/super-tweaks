@@ -16,40 +16,13 @@ local function GetMOTD()
     if get then return (get()) end
 end
 
--- Settings preview: a small copy of the popup, fading in and out as it does (shown at most 3 seconds here).
-function M.info.preview(frame)
-    local W = ns.Widgets
-    local band = frame.hstBand
-    if not band then
-        band = CreateFrame("Frame", nil, frame)
-        frame.hstBand = band
-        band:SetSize(216, 58)
-        band:SetPoint("CENTER")
-        W.Fill(band, { 0, 0, 0, 0.6 }):SetAllPoints()
-        local top, bottom = W.FadeLine(band, W.C.accent, 0.8), W.FadeLine(band, W.C.accent, 0.8)
-        top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT")
-        bottom:SetPoint("BOTTOMLEFT"); bottom:SetPoint("BOTTOMRIGHT")
-        local header = W.Text(band, "GameFontNormalSmall", W.C.accent, "CENTER")
-        header:SetPoint("TOP", 0, -9)
-        header:SetText("Guild Message of the Day")
-        local text = W.Text(band, "GameFontHighlight", { 1, 1, 1 }, "CENTER")
-        text:SetPoint("TOP", header, "BOTTOM", 0, -6)
-        text:SetText("Raid tonight at 8. Bring flasks!")
-    end
-    local shown = math.min(M.db.profile.duration, 3) + FADE * 2
-    W.Loop(frame, shown + 1, function(t) band:SetAlpha(W.Window(t, 0.3, 0.3 + shown, FADE)) end)
-end
+-- The message Play sample shows outside a guild, and the preview always.
+local SAMPLE = "Raid tonight at 8 server time. Bring flasks!"
 
-M.defaults = { profile = { duration = 8, size = 18, outline = "", y = 220, sound = false, onlyChanged = true },
-    char = { lastSeen = "" } }
-
-function M:CreatePopup()
+-- The popup's band: a dark strip between two lines, its header, and the message under it, width wide.
+local function BuildBand(f, width)
     local W = ns.Widgets
-    local f = CreateFrame("Button", "HastesSuperTweaksGuildMOTD", UIParent)
-    self.popup = f
-    f:SetFrameStrata("HIGH")
-    f:SetSize(640, 60)
-    f:Hide()
+    f:SetSize(width, 60)
     f.band = W.Fill(f, { 0, 0, 0, 0.55 })
     f.band:SetAllPoints()
     f.top, f.bottom = W.FadeLine(f, W.C.accent, 0.8), W.FadeLine(f, W.C.accent, 0.8)
@@ -60,7 +33,51 @@ function M:CreatePopup()
     f.header:SetText("Guild Message of the Day")
     f.text = W.Text(f, nil, { 1, 1, 1 }, "CENTER")
     f.text:SetPoint("TOP", f.header, "BOTTOM", 0, -6)
-    f.text:SetWidth(600)
+    f.text:SetWidth(width - 40)
+end
+
+-- The message in the chosen font, size and outline, with the band's height fitted to it.
+function M:SetMessage(f, motd)
+    local p = self.db.profile
+    ns.SetFont(f.text, ns.Media("font", p.font), p.size, ns.OutlineFlags(p.outline))
+    f.text:SetShadowColor(0, 0, 0, 1)
+    f.text:SetShadowOffset(1, -1)
+    f.text:SetText(motd)
+    f:SetHeight(f.text:GetStringHeight() + 44)
+end
+
+-- Settings preview: the popup as the settings draw it, at 0.6 of its size in a band narrower than the screen,
+-- fading in and out as it does (staying up at most 5 seconds here), and how long and where it shows.
+local PREVIEW_SCALE, PREVIEW_BAND = 0.6, 360
+function M.info.preview(frame)
+    local W, p = ns.Widgets, M.db.profile
+    local band, caption = frame.hstBand, frame.hstCaption
+    if not band then
+        band = CreateFrame("Frame", nil, frame)
+        frame.hstBand = band
+        BuildBand(band, PREVIEW_BAND)
+        band:SetScale(PREVIEW_SCALE)
+        caption = W.Caption(frame, "")
+        frame.hstCaption = caption
+    end
+    M:SetMessage(band, SAMPLE)
+    local where = p.y == 0 and "in the middle of the screen"
+        or ("%d %s the middle of the screen"):format(math.abs(p.y), p.y > 0 and "above" or "below")
+    caption:SetText(("Shows for %d seconds%s\n%s"):format(p.duration, p.sound and ", with a sound" or "", where))
+    W.Column(frame, { band, 8, caption })
+    local shown = math.min(p.duration, 5) + FADE * 2
+    W.Loop(frame, shown + 1, function(t) band:SetAlpha(W.Window(t, 0.3, 0.3 + shown, FADE)) end)
+end
+
+M.defaults = { profile = { duration = 8, font = "Inter Semi Bold", size = 18, outline = "", y = 220, sound = false, onlyChanged = true },
+    char = { lastSeen = "" } }
+
+function M:CreatePopup()
+    local f = CreateFrame("Button", "HastesSuperTweaksGuildMOTD", UIParent)
+    self.popup = f
+    f:SetFrameStrata("HIGH")
+    f:Hide()
+    BuildBand(f, 640)
     f:SetScript("OnClick", function() f:Hide() end)
     f:SetScript("OnUpdate", function(_, elapsed)
         f.elapsed = f.elapsed + elapsed
@@ -75,13 +92,9 @@ end
 function M:Show(motd)
     if not self.popup then self:CreatePopup() end
     local p, f = self.db.profile, self.popup
-    ns.SetFont(f.text, ns.Media("font", "Inter Semi Bold"), p.size, ns.OutlineFlags(p.outline))
-    f.text:SetShadowColor(0, 0, 0, 1)
-    f.text:SetShadowOffset(1, -1)
-    f.text:SetText(motd)
+    self:SetMessage(f, motd)
     f:ClearAllPoints()
     f:SetPoint("CENTER", UIParent, "CENTER", 0, p.y)
-    f:SetHeight(f.text:GetStringHeight() + 44)
     f.elapsed, f.shownAlpha = 0, 0
     f:SetAlpha(0)
     f:Show()
@@ -153,16 +166,17 @@ function M:BuildOptions()
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra) end
     return ns.OnePage("Guild Message Popup", "popup", "Popup", {
         duration = option("range", "duration", "Duration", 1, { min = 3, max = 30, step = 1, desc = "Seconds before it fades out." }),
-        size = option("range", "size", "Text size", 2, { min = 10, max = 32, step = 1 }),
-        outline = option("select", "outline", "Outline", 3, ns.With({
+        font = ns.MediaOption(profile, "font", "font", "Font", 2),
+        size = option("range", "size", "Text size", 3, { min = 10, max = 32, step = 1 }),
+        outline = option("select", "outline", "Outline", 4, ns.With({
             desc = ns.OutlineDesc() }, ns.OutlineChoices("Drop shadow"))),
-        y = option("range", "y", "Vertical position", 4, { min = -500, max = 500, step = 5, desc = "Distance above the middle of the screen." }),
-        sound = option("toggle", "sound", "Play a sound", 5, { desc = "The raid warning sound." }),
-        onlyChanged = option("toggle", "onlyChanged", "At login, only if changed", 6,
+        y = option("range", "y", "Vertical position", 5, { min = -500, max = 500, step = 5, desc = "Distance above the middle of the screen." }),
+        sound = option("toggle", "sound", "Play a sound", 6, { desc = "The raid warning sound." }),
+        onlyChanged = option("toggle", "onlyChanged", "At login, only if changed", 7,
             { desc = "Shows it at login only when the message changed since this character last saw it." }),
-        test = { type = "execute", name = "Test", order = 7, func = function()
+        test = { type = "execute", name = "Play sample", order = 8, func = function()
             local motd = IsInGuild() and GetMOTD()
-            if ns.IsSecret(motd) or not motd or motd == "" then motd = "Raid tonight at 8 server time. Bring flasks!" end
+            if ns.IsSecret(motd) or not motd or motd == "" then motd = SAMPLE end
             M:Show(motd)
         end },
     })

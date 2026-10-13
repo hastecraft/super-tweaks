@@ -23,7 +23,7 @@ function S:BuildOptions()
             values = game and { HERE = "Here", GAME = "Game's combat text", OFF = "Off" } or { HERE = "Here", OFF = "Off" },
             sorting = game and { "HERE", "GAME", "OFF" } or { "HERE", "OFF" },
             desc = game and (desc and desc .. " " or "") .. "Game's combat text needs the game's Show Combat Text option "
-                .. "on, and a change to or from it shows there after a /reload." or desc,
+                .. "on. Switching to or from it takes a /reload." or desc,
             get = function()
                 local p = S.db.profile
                 return p[key] and "HERE" or game and p.gameNotices[key] and "GAME" or "OFF"
@@ -34,43 +34,57 @@ function S:BuildOptions()
                 apply()
             end }
     end
-    -- Disabled unless enemy damage shows this way.
+    -- Hidden unless enemy damage shows this way.
     local function mode(which) return function() return S.db.profile.enemyMode ~= which end end
-    -- Enemy damage settings are for the numbers shown here, not the game's own.
+    -- Enemy damage settings are for the numbers shown here, not the game's own: hidden otherwise.
     local function notOurs() local m = S.db.profile.enemyMode; return m ~= "NAMEPLATE" and m ~= "AREA" end
     local function enemyOption(kind, key, name, order, extra)
-        return option(kind, key, name, order, ns.With({ disabled = notOurs }, extra))
+        return option(kind, key, name, order, ns.With({ hidden = notOurs }, extra))
+    end
+
+    -- A switch of the game's own damage numbers (see S.GAME_NUMBER_CVARS): as the game has it until it's set here.
+    local function gameSwitch(key, name, order, desc)
+        return { type = "toggle", name = name, order = order, desc = desc,
+            hidden = function() return S:GameNumberOn(key) == nil end,
+            get = function() return S:GameNumberOn(key) end,
+            set = function(_, value) S.db.profile[key] = value; apply() end }
     end
 
     -- A scroll area's movement, text and position.
-    local function areaSection(key, order, disabled)
+    local function areaSection(key, order, hidden)
         local function area() return S.db.profile[key] end
         local function opt(kind, field, name, o, extra) return ns.Option(area, kind, field, name, o, extra, apply) end
         return Section("Scroll area", order, {
             animation = opt("select", "animation", "Animation", 1, ns.With({
                 desc = "Arc curves texts out to alternating sides as they rise. Stay and fade stacks them in place, newest "
                     .. "at the bottom." }, ANIMATIONS)),
-            align = opt("select", "align", "Text alignment", 2, ALIGNS),
+            align = opt("select", "align", "Text alignment", 2, ns.With({
+                desc = "Lines texts up on the left, middle or right of the area. Move the area itself with Horizontal "
+                    .. "and Vertical below, or in Edit Mode." }, ALIGNS)),
             fontSize = opt("range", "fontSize", "Text size", 3, { min = 8, max = 40, step = 1 }),
             height = opt("range", "height", "Scroll distance", 4, { min = 20, max = 400, step = 5,
                 desc = "How far texts travel. Also the height of the area's box in Edit Mode." }),
             duration = opt("range", "duration", "Show for (seconds)", 5, { min = 0.5, max = 6, step = 0.1 }),
-            reset = { type = "execute", name = "Reset position", order = 6,
+            x = opt("range", "x", "Horizontal", 6, { min = -2000, max = 2000, step = 1,
+                desc = "Where the area's center is, from the middle of the screen. You can also drag it in Edit Mode." }),
+            y = opt("range", "y", "Vertical", 7, { min = -1200, max = 1200, step = 1,
+                desc = "Where the area's center is, from the middle of the screen. You can also drag it in Edit Mode." }),
+            reset = { type = "execute", name = "Reset position", order = 8,
                 desc = "Moves the area back to its default spot.",
                 func = function()
                     local a, default = area(), S.AREA_DEFAULTS[key]
                     a.x, a.y = default.x, default.y
                     apply()
                 end },
-        }, disabled and { disabled = disabled })
+        }, hidden and { hidden = hidden })
     end
 
     local options = { name = S.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             main = Section("Combat text", 1, {
                 replaceBlizzard = toggle("replaceBlizzard", "Replace the game's combat text", 1,
-                    "Stops the game's own combat text from showing what this already shows, so nothing appears twice. "
-                        .. "Turning this off puts the game's settings back; its notices follow after a /reload."),
+                    "Stops the game's own combat text from showing the same things, so nothing appears twice. Its "
+                        .. "notices come back after a /reload when you turn this off."),
                 sample = { type = "execute", name = "Play sample", order = 2,
                     desc = "Shows sample texts in every area in use.",
                     func = function() S:PlaySample() end },
@@ -83,15 +97,13 @@ function S:BuildOptions()
                     desc = ns.OutlineDesc(true) }, outlines)),
                 slug = option("toggle", "slug", "Slug outline", 4, {
                     desc = "Smoother than the game's outline, but a little thicker. EllesmereUI uses it by default.",
-                    disabled = function() local o = S.db.profile.outline; return o == "" or o == "EUI" end }),
+                    hidden = function() local o = S.db.profile.outline; return o == "" or o == "EUI" end }),
                 numbers = option("select", "numbers", "Numbers", 5, {
                     values = { SHORT = "12.3k", GROUPED = "12,345", FULL = "12345" }, sorting = { "SHORT", "GROUPED", "FULL" },
                     desc = "12.3k shortens amounts from 10,000 up, and writes millions as 1.2m." }),
                 schoolColors = toggle("schoolColors", "Color spells by school", 6,
                     "Colors spell damage on enemies and your pet: fire orange, frost light blue, nature green, shadow "
-                        .. "purple, arcane pink, holy yellow. Damage you take stays uncolored, since the game doesn't give "
-                        .. "its school."),
-                icons = toggle("icons", "Spell icons", 7, "Shows the spell's icon next to spell alerts and auras."),
+                        .. "purple, arcane pink, holy yellow."),
                 fadeIn = toggle("fadeIn", "Fade in", 8, "Texts fade in over " .. S.FADE_IN * 1000
                     .. " milliseconds instead of appearing at once."),
             }),
@@ -103,7 +115,8 @@ function S:BuildOptions()
                 critScale = option("range", "critScale", "Size", 1, { min = 1, max = 3, step = 0.05, isPercent = true,
                     desc = "How much larger critical hits and crushing blows are than other texts." }),
                 critPop = toggle("critPop", "Pop", 2, "Critical hits start twice as large and shrink into place."),
-                stickyCrits = toggle("stickyCrits", "Stay in the middle", 3,
+                critShake = toggle("critShake", "Shake", 3, "Critical hits jolt about for a moment as they land."),
+                stickyCrits = toggle("stickyCrits", "Stay in the middle", 4,
                     "Critical hits stay in the middle of their scroll area while they fade."),
             }),
         } },
@@ -137,12 +150,12 @@ function S:BuildOptions()
                 enemyMode = option("select", "enemyMode", "Show", 1, {
                     values = { NAMEPLATE = "On their nameplates", AREA = "Your target's, in a scroll area",
                         GAME = "The game's own numbers", OFF = "Off" },
-                    sorting = { "NAMEPLATE", "AREA", "GAME", "OFF" },
+                    sorting = { "GAME", "NAMEPLATE", "AREA", "OFF" },
                     desc = "Nameplates and the scroll area show everyone's damage, since the game doesn't tell addons who "
                         .. "dealt it, and nameplate numbers need enemy nameplates shown. The game's own numbers shows only "
                         .. "your damage, with this font and the size under The game's numbers." }),
                 hideWorldDamage = enemyOption("toggle", "hideWorldDamage", "Hide the game's damage numbers", 2, {
-                    desc = "Turns off the game's floating damage numbers while this shows its own. Turning it off puts them back." }),
+                    desc = "Turns off the game's floating damage numbers while this shows its own." }),
                 skipTapped = enemyOption("toggle", "skipTapped", "Skip other players' mobs", 3,
                     { desc = "Shows nothing on mobs tapped by players outside your group." }),
                 enemyMisses = enemyOption("toggle", "enemyMisses", "Misses, dodges and parries", 4),
@@ -174,16 +187,24 @@ function S:BuildOptions()
                         .. "interface frames on lower layers." }),
                 plateLevel = option("range", "plateLevel", "Frame level", 8, { min = 0, max = 500, step = 1,
                     desc = "Higher levels draw over lower ones in the same layer." }),
-            }, { disabled = mode("NAMEPLATE") }),
+            }, { hidden = mode("NAMEPLATE") }),
             area = areaSection("outgoing", 3, mode("AREA")),
             game = Section("The game's numbers", 4, {
                 note = { type = "description", order = 1,
-                    name = "Only the font and size of the game's numbers can change. They use the font chosen under "
-                        .. "General, starting from your next login." },
+                    name = "The game draws these numbers itself: only their font, size and the switches below change. "
+                        .. "They use the font chosen under General, starting from your next login." },
                 gameDamageSize = option("range", "gameDamageSize", "Size", 2, { min = 0.5, max = 2, step = 0.05,
                     isPercent = true,
                     desc = "Also resizes the game's other floating text, such as XP gains." }),
-            }, { disabled = mode("GAME") }),
+                gameDirectional = gameSwitch("gameDirectional", "Fly out to the sides", 3,
+                    "Numbers fly out from the mob in different directions instead of rising straight up."),
+                gameAllAutos = gameSwitch("gameAllAutos", "Every auto attack", 4,
+                    "Shows a number for each of your auto attacks, not only the ones that stand out."),
+                gamePetMelee = gameSwitch("gamePetMelee", "Your pet's melee damage", 5),
+                gamePetSpells = gameSwitch("gamePetSpells", "Your pet's spell damage", 6),
+                gamePeriodic = gameSwitch("gamePeriodic", "Damage over time", 7,
+                    "Shows each tick of your damage over time spells."),
+            }, { hidden = mode("GAME") }),
         } },
         notices = { type = "group", name = "Notices", order = 4, args = {
             show = Section("Show", 1, {
@@ -202,7 +223,6 @@ function S:BuildOptions()
                     desc = "A new alert replaces the one already showing for that ability instead of stacking up.",
                     disabled = function() return not S.db.profile.reactives end }),
                 reactiveBlink = option("toggle", "reactiveBlink", "Blink spell alerts", 4.5, {
-                    desc = "Alerts blink until they fade.",
                     disabled = function() return not S.db.profile.reactives end }),
                 comboPoints = toggle("comboPoints", "Combo points", 5),
                 buffs = notice("buffs", "Buffs gained", 6),
