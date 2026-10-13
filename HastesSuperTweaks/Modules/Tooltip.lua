@@ -53,10 +53,10 @@ T.POLL, T.RECOLOR_EVERY, T.NOTES_EVERY = 0.1, 5, 15
 -- the game hides is read on every redraw. So is the guild of a player who shows none: a player just come into view
 -- may have no guild or name yet (the game is still asking the server for them), which looks the same.
 local UNKNOWN_NAME = UNKNOWNOBJECT or "Unknown"
--- Each faction's emblem, for its tooltip line.
-local FACTION_ICONS = { Alliance = "Interface\\Icons\\PVPCurrency-Honor-Alliance", Horde = "Interface\\Icons\\PVPCurrency-Honor-Horde" }
--- Each faction's logo, for the tooltip's corner: the flat PvP emblem of the game's unit frames where the client has it
--- (WoW Forever), else the classic PvP flag trimmed to its emblem. Worked out once per faction, with its width per height.
+local FACTIONS = { Alliance = true, Horde = true }
+-- Each faction's logo, for the tooltip's corner and its line: the flat PvP emblem of the game's unit frames where the
+-- client has it (WoW Forever), else the classic PvP flag trimmed to its emblem. Worked out once per faction, with its
+-- width per height.
 local LOGOS = setmetatable({}, { __index = function(list, faction)
     local atlas = "UI-HUD-UnitFrame-Player-PVP-" .. faction .. "Icon"
     local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
@@ -80,6 +80,12 @@ local function SetLogo(texture, faction)
     end
     return logo.aspect
 end
+-- A faction's logo as text markup, size pixels tall.
+local function LogoMarkup(faction, size)
+    local logo = LOGOS[faction]
+    if logo.atlas then return "|A:" .. logo.atlas .. ":" .. size .. ":" .. floor(size * logo.aspect + 0.5) .. "|a" end
+    return "|T" .. logo.file .. ":" .. size .. ":" .. size .. ":0:0:64:64:0:42:0:42|t"
+end
 function T:ReadUnit(unit, guid)
     if not guid or guid ~= self.readGuid then
         self.readGuid = guid
@@ -89,7 +95,7 @@ function T:ReadUnit(unit, guid)
         self.guildName, self.guildRank, self.guildRealm, self.myGuild, self.rosterName = nil, nil, nil, nil, nil
         -- Its faction: Alliance or Horde (nil for none, or when the game hides it), and that faction's name as shown.
         local faction, factionName = UnitFactionGroup(unit)
-        if IsSecret(faction) or IsSecret(factionName) or not FACTION_ICONS[faction] or type(factionName) ~= "string" then
+        if IsSecret(faction) or IsSecret(factionName) or not FACTIONS[faction] or type(factionName) ~= "string" then
             faction, factionName = nil, nil
         end
         self.faction, self.factionName = faction, factionName
@@ -423,14 +429,14 @@ function T:LayoutLogo()
 end
 
 -- Shows the faction line ("Alliance", "Horde") as its faction's logo in the corner, taking the line out; or rewrites it
--- in its faction's color, with its emblem after it when chosen. Only a line that is the faction's name and nothing else
--- is, so a guild or name holding the word is left alone. The text is kept while what it's made from stays the same.
+-- in its faction's color, with the same logo after it when chosen. Only a line that is the faction's name and nothing
+-- else is, so a guild or name holding the word is left alone. The text is kept while what it's made from stays the same.
 function T:FormatFaction(tip, style)
     local faction, name = self.faction, self.factionName
     if not faction then return end
+    local line = ns.FindTooltipLine(tip, name, true)
+    if not line then return end
     if style == "LOGO" then
-        local line = ns.FindTooltipLine(tip, name, true)
-        if not line then return end
         line:SetText("")
         line:Hide()
         return self:ShowLogo(faction)
@@ -440,12 +446,14 @@ function T:FormatFaction(tip, style)
     if made.name ~= name or made.color ~= color or made.icon ~= icon then
         made.name, made.color, made.icon = name, color, icon
         local text = Hex(color) .. name .. "|r"
-        -- The icon is as tall as the line; its border trimmed off.
-        if icon then text = text .. " |T" .. FACTION_ICONS[faction] .. ":0:0:0:0:64:64:5:59:5:59|t" end
+        -- The logo is as tall as the line's text.
+        if icon then
+            local _, size = line:GetFont()
+            text = text .. " " .. LogoMarkup(faction, floor((size or 12) + 0.5))
+        end
         made.text = text
     end
-    local line = ns.FindTooltipLine(tip, name, true)
-    if line then line:SetText(made.text) end
+    line:SetText(made.text)
 end
 
 -- Public and officer guild notes by player name: "Name" for your realm, "Name-Realm" for any (on WoW Forever, the whole
@@ -672,8 +680,8 @@ function T:BuildOptions()
                 logoSize = option("range", "logoSize", "Size", 2, { min = 12, max = 64, step = 1 }),
             }, { disabled = notStyle("LOGO") }),
             line = section("Line", 3, {
-                factionIcon = option("toggle", "factionIcon", "Show faction emblem", 1,
-                    { desc = "Adds the faction's emblem after its name." }),
+                factionIcon = option("toggle", "factionIcon", "Show faction logo", 1,
+                    { desc = "Adds the faction's logo after its name." }),
                 allianceColor = option("color", "allianceColor", "Alliance color", 2),
                 hordeColor = option("color", "hordeColor", "Horde color", 3),
             }, { disabled = notStyle("LINE") }),
