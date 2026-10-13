@@ -12,7 +12,7 @@ local T = HST:NewFeature("QuestTracker", {
     summary = "Hides the quest tracker in dungeons, in combat, or always.",
     examples = { "instances", "pvp", "combat", "always" },
     description = "Hides the quest tracker where you choose: in dungeons and raids, in battlegrounds and arenas, in "
-        .. "combat, or always. It comes back as you leave, and while Edit Mode is open.",
+        .. "combat, or always.",
 })
 ns.QuestTracker = T
 -- Classic Era has no ObjectiveTrackerFrame (its quest watch list is another frame).
@@ -28,7 +28,7 @@ ns.Configure(T, { instances = true, pvp = false, combat = false, always = false 
         pvp = option("pvp", "In battlegrounds and arenas", 2),
         combat = option("combat", "In combat", 3, "Hidden as combat starts and back when it ends. A fight that "
             .. "starts before it can hide leaves it up until the fight is over."),
-        always = option("always", "Always", 4, "Edit Mode still shows it, so you can move it."),
+        always = option("always", "Always", 4),
     })
 end, "Update")
 

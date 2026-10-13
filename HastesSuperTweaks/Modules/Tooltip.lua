@@ -490,7 +490,7 @@ function T:BuildOptions()
         health = { type = "group", name = "Health bar", order = 1, args = {
             bar = section("Health bar", 1, {
                 healthBar = option("toggle", "healthBar", "Show health bar", 1, {
-                    desc = "Replaces Blizzard's thin health bar under unit tooltips." }),
+                    desc = "Replaces the game's thin health bar under unit tooltips." }),
                 barText = option("select", "barText", "Text", 2, { disabled = noBar,
                     values = { VALUE = "4215 / 5100", PERCENT = "83%", BOTH = "4215 / 5100 (83%)", NONE = "None" },
                     sorting = { "VALUE", "PERCENT", "BOTH", "NONE" } }),
@@ -533,8 +533,7 @@ function T:BuildOptions()
                 guildColor = option("color", "guildColor", "Guild color", 3, { disabled = unset("guildLine") }),
                 rankColor = option("color", "rankColor", "Rank color", 4,
                     { disabled = function() return not (T.db.profile.guildLine and T.db.profile.guildRank) end }),
-                highlightGuild = option("toggle", "highlightGuild", "Highlight your guild", 5, { disabled = unset("guildLine"),
-                    desc = "Your guild's members get their own color." }),
+                highlightGuild = option("toggle", "highlightGuild", "Highlight your guild", 5, { disabled = unset("guildLine") }),
                 ownGuildColor = option("color", "ownGuildColor", "Your guild color", 6,
                     { disabled = function() return not (T.db.profile.guildLine and T.db.profile.highlightGuild) end }),
             }),
