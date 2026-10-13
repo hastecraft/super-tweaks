@@ -43,7 +43,7 @@ ns.CampfireHelper = C
 
 local defaults = {
     -- The campfire on screen.
-    display = true, nearby = true, keepShown = true, warnAt = 5, remind = true, sound = false,
+    display = true, nearby = true, nearbyFirst = true, keepShown = true, warnAt = 5, remind = true, sound = false,
     style = "campfire", x = 0, y = 200,
     -- Campfire: its size and what it draws.
     size = 56, ring = "classic", fireArt = true, animate = true, glow = true, backdrop = true,
@@ -571,7 +571,7 @@ function C:Refresh(now)
     elseif self.editMode then
         -- A sample to place: the minute of sitting, a third gone, standing still.
         state, start, length, ends = "sitting", now - 20, 60, now + 40
-    elseif b.on then
+    elseif b.on and not (n.on and p.nearby and p.nearbyFirst) then
         local left = b.ends - now
         warning = p.warnAt > 0 and left <= self:WarnAt()
         if p.keepShown or warning then state, start, length, ends = "buffs", b.ends - b.length, b.length, b.ends end
@@ -624,6 +624,7 @@ function C:ShowTooltip(owner)
     elseif state == "nearby" then
         GameTooltip:SetText(SpellName(NEARBY, "Campfire Nearby"))
         Line("Sit down near the fire for " .. Span(60) .. " to get camp buffs for an hour.", WHITE)
+        if b.on then Line("Your camp buffs last " .. Span(b.ends - now) .. " more.", GREY) end
     else
         GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
         Line("Your camp buffs ended. Sit by a campfire for " .. Span(60) .. " for new ones.", WHITE)
@@ -1103,9 +1104,12 @@ function C:BuildOptions()
                 nearby = option("toggle", "nearby", "Near a campfire", 1, { disabled = off, desc =
                     "When you're close enough to a fire to get camp buffs by sitting down. The minute you sit "
                         .. "always shows." }),
-                keepShown = option("toggle", "keepShown", "The whole hour of camp buffs", 2, { disabled = off,
+                nearbyFirst = option("toggle", "nearbyFirst", "Even with camp buffs", 2, {
+                    disabled = function() return off() or not C.db.profile.nearby end, desc =
+                    "Near a campfire, shows that and the minute you sit instead of your camp buffs' countdown." }),
+                keepShown = option("toggle", "keepShown", "The whole hour of camp buffs", 3, { disabled = off,
                     desc = "Off, it shows only once they're about to end." }),
-                remind = option("toggle", "remind", "After camp buffs end", 3, { disabled = off, desc =
+                remind = option("toggle", "remind", "After camp buffs end", 4, { disabled = off, desc =
                     "Blinks until you sit by a campfire again or click it." }),
             }),
             ending = ns.Section("Ending soon", 3, {
