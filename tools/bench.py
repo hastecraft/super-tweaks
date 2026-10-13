@@ -458,6 +458,8 @@ Section('Level-Up Screenshot', function()
 end)
 
 Section('Campfire Helper', function()
+    -- On a whole second, so its once-a-second countdown ticks land the same way whatever ran before.
+    AdvanceTime(math.ceil(GetTime()) - GetTime())
     local UPDATED, ADDED, REMOVED = { updatedAuraInstanceIDs = { 7 } }, { addedAuras = { {} } }, { removedAuraInstanceIDs = { 8 } }
     local LOST = { removedAuraInstanceIDs = { 103 } }
     Measure('Campfire Helper: aura refreshed, none gained or lost', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', UPDATED) end)
