@@ -183,6 +183,49 @@ Section('Tooltips', function()
     Script(tip, 'OnTooltipCleared'); tip.unit = nil
 end)
 
+-- WoW Forever's Recent Allies, which the client of the other scenarios doesn't have (as on Classic Era): Better Tooltips
+-- asks for them once in the world, and they arrive. Jaina is a pinned ally with a note, last met in The Deadmines two
+-- days ago; Thrall isn't one. As the game's, GetRecentAllyByGUID makes new tables on every call.
+Section('Tooltips: Recent Allies (WoW Forever)', function()
+    -- A copy of the addon from before the line (a base to compare with) has nothing to measure here.
+    if T.db.profile.recentAllies == nil then return end
+    local NOW, ALLY_GUID, loaded = 1760000000, 'Player-2', false
+    local serverTime = GetServerTime
+    function GetServerTime() return NOW + math.floor(state.time) end
+    C_RecentAllies = {
+        IsSystemSupported = function() return true end,
+        IsSystemEnabled = function() return true end,
+        IsRecentAllyDataReady = function() return loaded end,
+        TryRequestRecentAlliesData = function() loaded = true end,
+        IsRecentAllyByGUID = function(guid) if loaded then return guid == ALLY_GUID end end,
+        GetRecentAllyByGUID = function(guid)
+            if not loaded or guid ~= ALLY_GUID then return nil end
+            return {
+                stateData = { isOnline = true, isDND = false, isAFK = false, isConvertedLegacyFriend = false,
+                    pinExpirationDate = NOW + 20 * 86400, friendRequestSentThisSession = false },
+                characterData = { guid = guid, name = 'Jaina', fullName = 'Jaina Proudmoore', realmName = 'TestRealm',
+                    level = 60, classID = 8, raceID = 1, sex = 3 },
+                interactionData = { note = 'Brings water', interactions = { { type = 1, description = 'Party member',
+                    timestamp = NOW - 2 * 86400, contextData = { locationName = 'The Deadmines' } } } },
+            }
+        end,
+    }
+    UNITS.ally = { guid = ALLY_GUID, player = true, class = 'WARRIOR', health = 3000, maxHealth = 3000 }
+    UNIT_DATA.ally = { guid = ALLY_GUID }
+    local ALLY = { 'Jaina', 'Level 60 Human Mage (Player)' }
+    T:Apply()
+    Dispatch('RECENT_ALLIES_DATA_READY')
+    Measure('Tooltip refresh: recent ally (pinned, with a note)', 300, function() hover('ally', ALLY) end)
+    Measure('Tooltip refresh: player, not a recent ally', 300, function() hover('mouseover', PLAYER) end)
+    Measure('Tooltip shown anew: hidden, then a recent ally', 300, function() blizzardHideTooltip(tip); hover('ally', ALLY) end)
+    Measure('Recent ally updated, then their tooltip', 100, function()
+        Dispatch('RECENT_ALLY_DATA_UPDATED', ALLY_GUID); hover('ally', ALLY)
+    end)
+    C_RecentAllies, GetServerTime = nil, serverTime
+    T:Apply()
+    Script(tip, 'OnTooltipCleared'); tip.unit = nil
+end)
+
 Section('Kills to Level', function()
     HST:SetFeatureEnabled('Tooltip', false)
     Measure('Kills to Level alone: mob tooltip', 300, function() hover('npc', NPC) end)
