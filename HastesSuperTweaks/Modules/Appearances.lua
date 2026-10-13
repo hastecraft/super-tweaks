@@ -35,7 +35,10 @@ A.NEW, A.SOURCE, A.ALT, A.WAITING = NEW, SOURCE, ALT, WAITING
 -- while this tweak is on: its events say when your collection changes.
 ---------------------------------------------------------------------------
 local CACHE_SIZE = 1000
--- The source each item link (or item ID) gives, or false when it has no look to collect. That never changes.
+local IsCached = C_Item and C_Item.IsItemDataCachedByID
+local RequestItem = C_Item and C_Item.RequestLoadItemDataByID
+-- The source each item link (or item ID) gives, or false when it has no look to collect. That never changes. WAITING
+-- (not kept) while the game hasn't loaded the item yet; it's asked for.
 local sources, sourceCount = {}, 0
 local function SourceOf(item)
     local source = sources[item]
@@ -43,7 +46,12 @@ local function SourceOf(item)
     source = false
     if type(item) == "number" or item:find("|Hitem:", 1, true) then
         local _, id = TC.GetItemInfo(item)
-        if type(id) == "number" and id > 0 then source = id end
+        if type(id) == "number" and id > 0 then
+            source = id
+        elseif IsCached and not IsCached(item) then
+            if RequestItem then RequestItem(item) end
+            return WAITING
+        end
     end
     if sourceCount >= CACHE_SIZE then wipe(sources); sourceCount = 0 end
     sources[item], sourceCount = source, sourceCount + 1
@@ -76,7 +84,7 @@ end
 function A:State(item)
     if not (AVAILABLE and item) then return false end
     local source = SourceOf(item)
-    if not source then return false end
+    if not source or source == WAITING then return source end
     local keep = self:IsEnabled()
     if keep then
         local state = states[source]
@@ -300,7 +308,6 @@ end
 -- Item details, or the game's answer about a source, arriving: listened to only while a mark waits for them. The
 -- game is asked for the item's details too.
 local WAIT_EVENTS = { "GET_ITEM_INFO_RECEIVED", "TRANSMOG_SOURCE_COLLECTABILITY_UPDATE" }
-local RequestItem = C_Item and C_Item.RequestLoadItemDataByID
 function A:Wait(item)
     if RequestItem then RequestItem(item) end
     if self.waiting then return end
