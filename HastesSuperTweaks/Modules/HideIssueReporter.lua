@@ -8,6 +8,10 @@ local R = HST:NewFeature("HideIssueReporter", {
     description = "Removes the Issue Reporter button that the beta client puts on your screen.",
 })
 ns.HideIssueReporter = R
+-- Only beta and test clients load the reporter (its TOC is OnlyBetaAndPTR, which IsPublicTestClient reflects).
+local testClient = IsPublicTestClient and IsPublicTestClient()
+if testClient == nil then testClient = (IsBetaBuild and IsBetaBuild()) or (IsTestBuild and IsTestBuild()) end
+if testClient == false then R.info.unavailable = "Only the beta and test clients have the Issue Reporter." end
 
 -- Settings preview: the button this module hides, built from the reporter's own art (Blizzard_PTRFeedback), fading
 -- away: a marble box titled Issue Reporter with the info button on its corner, and the bug button under it.
