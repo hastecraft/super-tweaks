@@ -211,6 +211,53 @@ Section('Quest XP in Quest Log', function()
     tip:Hide()
 end)
 
+Section('Quest Progress Sounds', function()
+    if not HST:GetModule('QuestSounds', true) then return end -- a copy of the addon from before this tweak
+    UIErrorsFrame = UIErrorsFrame or CreateFrame('MessageFrame', 'UIErrorsFrame', UIParent)
+    Enable({ 'QuestSounds' }, true)
+    -- A quest with two objectives, of the 20 in the log; progress comes as the game sends it.
+    local quest, objectives = state.quests[3], { false, false }
+    QUEST_OBJECTIVES[quest.questID] = objectives
+    local function progress()
+        Send('QuestSounds', 'QUEST_WATCH_UPDATE', quest.questID)
+        Send('QuestSounds', 'UNIT_QUEST_LOG_CHANGED', 'player')
+        Send('QuestSounds', 'QUEST_LOG_UPDATE')
+    end
+    Measure('Quest progress: a kill counted, nothing done (1 quest read)', 300, progress)
+    Measure('Quest progress: an objective done, then undone (2 reads, 1 sound)', 100, function()
+        objectives[1] = true; progress()
+        objectives[1] = false; progress()
+    end)
+    Measure('Quest progress: quest ready, then not (2 reads, 1 sound and message)', 100, function()
+        objectives[1], objectives[2], quest.complete = true, true, true; progress()
+        objectives[1], objectives[2], quest.complete = false, false, nil; progress()
+    end)
+    Measure('Quest log changed, no quest named, none without objectives', 300, function()
+        Send('QuestSounds', 'UNIT_QUEST_LOG_CHANGED', 'player')
+    end)
+    Measure('Quest log update, nothing progressed', 300, function() Send('QuestSounds', 'QUEST_LOG_UPDATE') end)
+    local new = { questID = 790, title = 'A New Quest' }
+    Measure('Quest accepted (noted without a sound), then abandoned', 100, function()
+        state.quests[#state.quests + 1] = new
+        Send('QuestSounds', 'QUEST_ACCEPTED', new.questID); Send('QuestSounds', 'QUEST_LOG_UPDATE')
+        state.quests[#state.quests] = nil
+        Send('QuestSounds', 'QUEST_REMOVED', new.questID, false)
+    end)
+    -- An escort: no objectives, done when the game says the log changed, without naming it.
+    local escort = { questID = 791, title = 'The Defias Traitor' }
+    QUEST_OBJECTIVES[escort.questID] = {}
+    Measure('Escort quest: accepted, done (log change: sound and message), turned in', 100, function()
+        state.quests[#state.quests + 1], escort.complete = escort, nil
+        Send('QuestSounds', 'QUEST_ACCEPTED', escort.questID); Send('QuestSounds', 'QUEST_LOG_UPDATE')
+        escort.complete = true
+        Send('QuestSounds', 'UNIT_QUEST_LOG_CHANGED', 'player'); Send('QuestSounds', 'QUEST_LOG_UPDATE')
+        state.quests[#state.quests] = nil
+        Send('QuestSounds', 'QUEST_REMOVED', escort.questID, false)
+    end)
+    QUEST_OBJECTIVES[quest.questID], QUEST_OBJECTIVES[escort.questID], quest.complete = nil, nil, nil
+    Enable({ 'QuestSounds' }, false)
+end)
+
 Section('Loot', function()
     local L = mod('LootWindow')
     state.cvars.autoLootDefault = '1'
