@@ -26,7 +26,7 @@ os.environ['HST_ADDON_DIR'] = str(ROOT / 'HastesSuperTweaks')
 # Every copy is measured with this bench's mocks and scenarios, so two versions differ only in the addon.
 sys.path.insert(0, str(HERE))
 import harness  # noqa: E402
-from shared_fixtures import MENU_MOCKS, TOOLTIP_MOCKS, SIMPLE_MOCKS, BREATH_MOCKS, SETTINGS_MOCKS  # noqa: E402
+from shared_fixtures import MENU_MOCKS, TOOLTIP_MOCKS, SIMPLE_MOCKS, BREATH_MOCKS, DRUID_MOCKS, SETTINGS_MOCKS  # noqa: E402
 
 DETAIL, JSON = '--detail' in sys.argv, '--json' in sys.argv
 COUNTERS = (HERE / 'benchmark_mocks.lua').read_text(encoding='utf-8')
@@ -183,6 +183,49 @@ Section('Tooltips', function()
     Script(tip, 'OnTooltipCleared'); tip.unit = nil
 end)
 
+-- WoW Forever's Recent Allies, which the client of the other scenarios doesn't have (as on Classic Era): Better Tooltips
+-- asks for them once in the world, and they arrive. Jaina is a pinned ally with a note, last met in The Deadmines two
+-- days ago; Thrall isn't one. As the game's, GetRecentAllyByGUID makes new tables on every call.
+Section('Tooltips: Recent Allies (WoW Forever)', function()
+    -- A copy of the addon from before the line (a base to compare with) has nothing to measure here.
+    if T.db.profile.recentAllies == nil then return end
+    local NOW, ALLY_GUID, loaded = 1760000000, 'Player-2', false
+    local serverTime = GetServerTime
+    function GetServerTime() return NOW + math.floor(state.time) end
+    C_RecentAllies = {
+        IsSystemSupported = function() return true end,
+        IsSystemEnabled = function() return true end,
+        IsRecentAllyDataReady = function() return loaded end,
+        TryRequestRecentAlliesData = function() loaded = true end,
+        IsRecentAllyByGUID = function(guid) if loaded then return guid == ALLY_GUID end end,
+        GetRecentAllyByGUID = function(guid)
+            if not loaded or guid ~= ALLY_GUID then return nil end
+            return {
+                stateData = { isOnline = true, isDND = false, isAFK = false, isConvertedLegacyFriend = false,
+                    pinExpirationDate = NOW + 20 * 86400, friendRequestSentThisSession = false },
+                characterData = { guid = guid, name = 'Jaina', fullName = 'Jaina Proudmoore', realmName = 'TestRealm',
+                    level = 60, classID = 8, raceID = 1, sex = 3 },
+                interactionData = { note = 'Brings water', interactions = { { type = 1, description = 'Party member',
+                    timestamp = NOW - 2 * 86400, contextData = { locationName = 'The Deadmines' } } } },
+            }
+        end,
+    }
+    UNITS.ally = { guid = ALLY_GUID, player = true, class = 'WARRIOR', health = 3000, maxHealth = 3000 }
+    UNIT_DATA.ally = { guid = ALLY_GUID }
+    local ALLY = { 'Jaina', 'Level 60 Human Mage (Player)' }
+    T:Apply()
+    Dispatch('RECENT_ALLIES_DATA_READY')
+    Measure('Tooltip refresh: recent ally (pinned, with a note)', 300, function() hover('ally', ALLY) end)
+    Measure('Tooltip refresh: player, not a recent ally', 300, function() hover('mouseover', PLAYER) end)
+    Measure('Tooltip shown anew: hidden, then a recent ally', 300, function() blizzardHideTooltip(tip); hover('ally', ALLY) end)
+    Measure('Recent ally updated, then their tooltip', 100, function()
+        Dispatch('RECENT_ALLY_DATA_UPDATED', ALLY_GUID); hover('ally', ALLY)
+    end)
+    C_RecentAllies, GetServerTime = nil, serverTime
+    T:Apply()
+    Script(tip, 'OnTooltipCleared'); tip.unit = nil
+end)
+
 Section('Kills to Level', function()
     HST:SetFeatureEnabled('Tooltip', false)
     Measure('Kills to Level alone: mob tooltip', 300, function() hover('npc', NPC) end)
@@ -209,6 +252,53 @@ Section('Quest XP in Quest Log', function()
     Measure('Quest log redraw (Forever log): 20 titles', 100, function() QuestLogQuests_Update() end)
     Measure('Quest log title hover: reward line', 300, function() QuestMapLogTitleButton_OnEnter(buttons[3]) end)
     tip:Hide()
+end)
+
+Section('Quest Progress Sounds', function()
+    if not HST:GetModule('QuestSounds', true) then return end -- a copy of the addon from before this tweak
+    UIErrorsFrame = UIErrorsFrame or CreateFrame('MessageFrame', 'UIErrorsFrame', UIParent)
+    Enable({ 'QuestSounds' }, true)
+    -- A quest with two objectives, of the 20 in the log; progress comes as the game sends it.
+    local quest, objectives = state.quests[3], { false, false }
+    QUEST_OBJECTIVES[quest.questID] = objectives
+    local function progress()
+        Send('QuestSounds', 'QUEST_WATCH_UPDATE', quest.questID)
+        Send('QuestSounds', 'UNIT_QUEST_LOG_CHANGED', 'player')
+        Send('QuestSounds', 'QUEST_LOG_UPDATE')
+    end
+    Measure('Quest progress: a kill counted, nothing done (1 quest read)', 300, progress)
+    Measure('Quest progress: an objective done, then undone (2 reads, 1 sound)', 100, function()
+        objectives[1] = true; progress()
+        objectives[1] = false; progress()
+    end)
+    Measure('Quest progress: quest ready, then not (2 reads, 1 sound and message)', 100, function()
+        objectives[1], objectives[2], quest.complete = true, true, true; progress()
+        objectives[1], objectives[2], quest.complete = false, false, nil; progress()
+    end)
+    Measure('Quest log changed, no quest named, none without objectives', 300, function()
+        Send('QuestSounds', 'UNIT_QUEST_LOG_CHANGED', 'player')
+    end)
+    Measure('Quest log update, nothing progressed', 300, function() Send('QuestSounds', 'QUEST_LOG_UPDATE') end)
+    local new = { questID = 790, title = 'A New Quest' }
+    Measure('Quest accepted (noted without a sound), then abandoned', 100, function()
+        state.quests[#state.quests + 1] = new
+        Send('QuestSounds', 'QUEST_ACCEPTED', new.questID); Send('QuestSounds', 'QUEST_LOG_UPDATE')
+        state.quests[#state.quests] = nil
+        Send('QuestSounds', 'QUEST_REMOVED', new.questID, false)
+    end)
+    -- An escort: no objectives, done when the game says the log changed, without naming it.
+    local escort = { questID = 791, title = 'The Defias Traitor' }
+    QUEST_OBJECTIVES[escort.questID] = {}
+    Measure('Escort quest: accepted, done (log change: sound and message), turned in', 100, function()
+        state.quests[#state.quests + 1], escort.complete = escort, nil
+        Send('QuestSounds', 'QUEST_ACCEPTED', escort.questID); Send('QuestSounds', 'QUEST_LOG_UPDATE')
+        escort.complete = true
+        Send('QuestSounds', 'UNIT_QUEST_LOG_CHANGED', 'player'); Send('QuestSounds', 'QUEST_LOG_UPDATE')
+        state.quests[#state.quests] = nil
+        Send('QuestSounds', 'QUEST_REMOVED', escort.questID, false)
+    end)
+    QUEST_OBJECTIVES[quest.questID], QUEST_OBJECTIVES[escort.questID], quest.complete = nil, nil, nil
+    Enable({ 'QuestSounds' }, false)
 end)
 
 Section('Loot', function()
@@ -263,6 +353,43 @@ Section('Consumable Macros', function()
     state.combat = true
     Measure('Bags changed in combat: noted for later', 300, function() Send('ConsumableMacros', 'BAG_UPDATE_DELAYED') end)
     state.combat = false; Send('ConsumableMacros', 'PLAYER_REGEN_ENABLED'); AdvanceTime(1)
+end)
+
+-- A hunter with a pet out and a sword and a mace: Feed Pet and both weapon macros are kept too. An addon without them
+-- (an older base) stops here, before changing anything, and these scenarios are compared as new.
+Section('Consumable Macros: hunter with a pet and two weapons', function()
+    local C = mod('ConsumableMacros')
+    assert(C.Hands and C.Pet, 'this version has no Feed Pet or weapon macros')
+    local function restart() HST:SetFeatureEnabled('ConsumableMacros', false); HST:SetFeatureEnabled('ConsumableMacros', true) end
+    UNITS.player.class, C.playerClass, UNITS.pet = 'HUNTER', nil, { level = 30, hunter = true, happiness = 3 }
+    ITEMS[2672] = { name = 'Stringy Wolf Meat', level = 0, ilvl = 5, class = 7, sub = 8 }
+    ITEMS[3731] = { name = 'Lion Meat', level = 0, ilvl = 23, class = 7, sub = 8 }
+    ITEMS[3771] = { name = 'Wild Hog Shank', level = 25, ilvl = 35, spell = 'Food' }
+    ITEMS[7964] = { name = 'Solid Sharpening Stone', level = 25, ilvl = 35, class = 7, spell = 'Sharpen Blade IV', spellID = 9900 }
+    ITEMS[7965] = { name = 'Solid Weightstone', level = 25, ilvl = 35, class = 7, spell = 'Enhance Blunt Weapon IV', spellID = 9903 }
+    ITEMS[1482], ITEMS[1483] = { name = 'Shadowfang', class = 2, sub = 7 }, { name = 'Mace', class = 2, sub = 4 }
+    PET_EATS[2672], PET_EATS[3731], PET_EATS[3771] = true, true, true
+    WIELDED[16], WIELDED[17] = 1482, 1483
+    local bags = BAGS[0]
+    BAGS[0] = { { 4540, 10 }, { 159, 20 }, { 8545, 10 }, { 929, 3 }, { 3827, 4 }, { 2672, 10 }, { 3731, 5 }, { 3771, 6 },
+        { 7964, 4 }, { 7965, 4 } }
+    for i = 11, 16 do BAGS[0][i] = { 2589, 20 } end
+    wipe(C.items); restart(); AdvanceTime(1)
+    Measure('Hunter: bags changed, same picks (Feed Pet, two weapons)', 100, function()
+        Send('ConsumableMacros', 'BAG_UPDATE_DELAYED'); AdvanceTime(0.3)
+    end)
+    Measure('Hunter: pet called, what it eats asked again', 100, function()
+        Send('ConsumableMacros', 'UNIT_PET', 'player'); AdvanceTime(0.3)
+    end)
+    Measure('Weapon swapped: weapons read again, macro check', 100, function()
+        Send('ConsumableMacros', 'PLAYER_EQUIPMENT_CHANGED', 16, true); AdvanceTime(0.3)
+    end)
+    Measure('Gear swapped (not a weapon): ignored', 300, function() Send('ConsumableMacros', 'PLAYER_EQUIPMENT_CHANGED', 5, true) end)
+    Measure('Pet happiness update, unchanged', 300, function() Send('ConsumableMacros', 'UNIT_HAPPINESS', 'pet') end)
+    -- Back to the warrior with no pet or weapons the other scenarios have.
+    UNITS.player.class, C.playerClass, UNITS.pet = 'WARRIOR', nil, nil
+    WIELDED[16], WIELDED[17], BAGS[0] = nil, nil, bags
+    wipe(C.items); restart(); AdvanceTime(1)
 end)
 
 Section('Upgrade Spell Ranks', function()
@@ -328,6 +455,90 @@ Section('Level-Up Screenshot', function()
     Measure('Level up: screenshot after the banner wait', 50, function()
         Send('LevelUpScreenshot', 'PLAYER_LEVEL_UP', 30, 0, 0, 0, 0, 0, 0, 0, 0); AdvanceTime(6)
     end)
+end)
+
+Section('Campfire Helper', function()
+    -- On a whole second, so its once-a-second countdown ticks land the same way whatever ran before.
+    AdvanceTime(math.ceil(GetTime()) - GetTime())
+    local UPDATED, ADDED, REMOVED = { updatedAuraInstanceIDs = { 7 } }, { addedAuras = { {} } }, { removedAuraInstanceIDs = { 8 } }
+    local LOST = { removedAuraInstanceIDs = { 103 } }
+    Measure('Campfire Helper: aura refreshed, none gained or lost', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', UPDATED) end)
+    Measure('Campfire Helper: aura gained, not a camp one', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED) end)
+    Measure('Campfire Helper: a spell cast, not a campfire', 300, function()
+        Send('CampfireHelper', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-1', 78, 0)
+    end)
+    Measure('Campfire Helper: aura changes in combat', 300, function()
+        state.combat = true; Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); state.combat = false
+    end)
+    -- Camp buffs with three camp object buffs, one lost early, then all gone.
+    local benefits = { auraInstanceID = 100, spellId = 1229741, name = 'Camp Benefits', duration = 3600 }
+    local buffs = {}
+    for i = 1, 3 do buffs[i] = { auraInstanceID = 100 + i, spellId = 1300000 + i, name = 'Camp Buff ' .. i, duration = 3600 } end
+    Measure('Campfire Helper: camp buffs land (+1 s), one ends early, all end', 20, function()
+        local ends = GetTime() + 3600
+        benefits.expirationTime = ends
+        PLAYER_AURAS[1229741], PLAYER_BUFFS[1] = benefits, benefits
+        for i = 1, 3 do buffs[i].expirationTime = ends; PLAYER_BUFFS[i + 1] = buffs[i] end
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); AdvanceTime(1)
+        PLAYER_BUFFS[4] = nil
+        Send('CampfireHelper', 'UNIT_AURA', 'player', LOST)
+        PLAYER_AURAS[1229741] = nil; wipe(PLAYER_BUFFS)
+        Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
+        benefits.auraInstanceID = benefits.auraInstanceID + 10
+    end)
+    -- Near a campfire, sitting the minute out (the campfire's text changes every second), then walking away.
+    local nearby = { auraInstanceID = 200, spellId = 1283391, name = 'Campfire Nearby', duration = 0, expirationTime = 0 }
+    local welcome = { auraInstanceID = 300, spellId = 1289723, name = 'Welcoming Campfire', duration = 60 }
+    Measure('Campfire Helper: near a fire, sit a minute (+60 s), walk away', 10, function()
+        PLAYER_AURAS[1283391] = nearby
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED)
+        welcome.expirationTime = GetTime() + 60
+        PLAYER_AURAS[1289723] = welcome
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); AdvanceTime(60)
+        PLAYER_AURAS[1289723], PLAYER_AURAS[1283391] = nil, nil
+        Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
+        nearby.auraInstanceID, welcome.auraInstanceID = nearby.auraInstanceID + 1, welcome.auraInstanceID + 1
+    end)
+    Measure('Campfire Helper: campfire lit (+0.2 s)', 20, function()
+        mod('CampfireHelper').litAt = nil
+        Send('CampfireHelper', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-2', 1229736, 0); AdvanceTime(0.2)
+    end)
+    -- Off, and its timers run out, so none of them fire in the scenarios after this one.
+    HST:SetFeatureEnabled('CampfireHelper', false)
+    AdvanceTime(3700)
+end)
+
+Section('Battleground Alerts', function()
+    local B, queue = mod('BattlegroundAlerts'), { status = 'queued', map = 'Warsong Gulch' }
+    BATTLEFIELDS[1] = queue
+    local function status() Send('BattlegroundAlerts', 'UPDATE_BATTLEFIELD_STATUS', 1) end
+    Measure('Battleground queue update, no invite', 300, status)
+    PVPReadyDialog:Show()
+    Measure('Battleground invite: popped, then entered', 100, function()
+        queue.status, queue.expires = 'confirm', state.time + 80; status()
+        queue.status = 'active'; status()
+    end)
+    -- An invite's last 25 seconds: the countdown ticking, with both reminders, until it's gone.
+    Measure('Battleground invite: last 25 seconds, two reminders', 20, function()
+        queue.status, queue.expires = 'confirm', state.time + 25; status()
+        AdvanceTime(25)
+        queue.status = 'queued'; status()
+    end)
+    queue.status, queue.expires = 'confirm', state.time + 100000; status()
+    Measure('Battleground invite up: one-second tick', 300, function() AdvanceTime(1) end)
+    queue.status = 'active'; status()
+    PVPReadyDialog:Hide()
+    state.instanceType, B.db.profile.gatesWarning = 'pvp', true
+    Measure('Battleground gates: countdown, warning and opening', 50, function()
+        Send('BattlegroundAlerts', 'START_TIMER', 0, 60, 120); AdvanceTime(60)
+    end)
+    local reward = { currencyType = 1792, quantityChanged = 214 }
+    Measure('Battleground over: result line with honor', 50, function()
+        Send('BattlegroundAlerts', 'PVP_MATCH_COMPLETE', 1, 1122)
+        Send('BattlegroundAlerts', 'POST_MATCH_CURRENCY_REWARD_UPDATE', reward)
+        AdvanceTime(2)
+    end)
+    state.instanceType, B.db.profile.gatesWarning, BATTLEFIELDS[1] = 'none', false, nil
 end)
 
 Section('Interface', function()
@@ -484,6 +695,9 @@ COMBAT_TEXT = r'''
 local S = HST:GetModule('CombatText')
 Only({ 'CombatText' })
 S.db.profile.hideWorldText, S.db.profile.hideWorldDamage = false, false
+-- Nameplate numbers, which aren't the default (the game's own numbers are).
+S.db.profile.enemyMode = 'NAMEPLATE'
+S:Apply()
 for i = 1, 8 do
     local plate = CreateFrame('Frame', 'NamePlate' .. i, WorldFrame)
     plate:SetFrameLevel(10 + i)
@@ -718,6 +932,31 @@ Section('Better Breath Meter', function()
 end)
 '''
 
+# Druid Mana in Forms, for a druid in cat form (on any other class it registers nothing), in a runtime of its own.
+DRUID = r'''
+Only({ 'DruidMana' })
+local D = HST:GetModule('DruidMana')
+Section('Druid Mana in Forms (a druid)', function()
+    Measure('Druid mana: mana changed in cat form', 300, function()
+        state.mana = state.mana == 1860 and 1880 or 1860
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'MANA')
+    end)
+    Measure('Druid mana: energy changed in cat form', 300, function() Dispatch('UNIT_POWER_UPDATE', 'player', 'ENERGY') end)
+    D.db.profile.textFormat = 'percent'; D:Apply()
+    Measure('Druid mana: mana changed in cat form, as a percentage', 300, function()
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'MANA')
+    end)
+    D.db.profile.textFormat = 'mana'; D:Apply()
+    Measure('Druid mana: shifted to caster form and back to cat form', 100, function()
+        state.powerType = 0; Dispatch('UNIT_DISPLAYPOWER', 'player')
+        state.powerType = 3; Dispatch('UNIT_DISPLAYPOWER', 'player')
+    end)
+    state.powerType = 0; Dispatch('UNIT_DISPLAYPOWER', 'player')
+    Measure('Druid mana: mana changed in caster form', 300, function() Dispatch('UNIT_POWER_UPDATE', 'player', 'MANA') end)
+    Measure('Druid mana: one second of frames (64 fps)', 100, function() Seconds(1) end)
+end)
+'''
+
 
 def runtime(prelude, scenario, start=True):
     """Loads the addon on these mocks and runs a scenario script; a failure is reported, and the other runtimes go on."""
@@ -747,6 +986,7 @@ def main():
     runtime(full, STARTUP_SETTINGS, start=False)
     runtime(mock('bags_mocks.lua'), BAGS)
     runtime(BREATH_MOCKS, BREATH)
+    runtime(DRUID_MOCKS, DRUID)
     if JSON:
         json.dump(REPORT.results, sys.stdout, indent=1)
         print()
