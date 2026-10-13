@@ -67,25 +67,59 @@ Configure(F, { soloBind = false, speed = "MODERATE" }, function(m)
     })
 end)
 
--- Settings preview: a corpse's loot all taken at once, listed as the Loot Window shows it.
+-- The auto loot key's name, or nil when none is set.
+local KEY_NAMES = { SHIFT = "Shift", CTRL = "Ctrl", ALT = "Alt" }
+local function AutoLootKey()
+    return KEY_NAMES[GetModifiedClick and GetModifiedClick("AUTOLOOTTOGGLE") or "SHIFT"]
+end
+
+-- Settings preview: a corpse's loot all taken at once, listed as the Loot Window would list it, and under it what
+-- Auto Loot and bind-on-pickup items do.
+local FAST_MONEY = { amount = 152 }
 function F.info.preview(frame)
-    local L = ns.LootWindow
-    if not frame.hstWindow then
-        frame.hstWindow = L:BuildWindow(frame)
-        frame.hstWindow:SetScale(0.8)
+    local L, W = ns.LootWindow, ns.Widgets
+    local f, caption = frame.hstWindow, frame.hstCaption
+    if not f then
+        f = L:BuildWindow(frame)
+        frame.hstWindow = f
+        caption = W.Caption(frame, "")
+        frame.hstCaption = caption
     end
-    local W, f = ns.Widgets, frame.hstWindow
-    L:Layout(f, L.samples.fast, false, L:Look({ hotkey = "" }), { amount = 152 })
-    W.Column(frame, { f })
-    -- The list opens and every item lands in it at once, a beat apart, the money last.
-    local count = #L.samples.fast
+    local look = L:Look({ hotkey = "" })
+    local list = L:SampleNotices(look)
+    local money = look.money and FAST_MONEY or nil
+    local empty = #list == 0 and not money
+    local text = F.db.profile.soloBind and "Solo, bind-on-pickup items are taken too"
+        or "Bind-on-pickup items wait for you to confirm"
+    if not GetCVarBool("autoLootDefault") then
+        local key = AutoLootKey()
+        text = (key and "Auto Loot is off: hold " .. key .. " as you loot" or "Auto Loot is off, with no auto loot key")
+            .. "\n" .. text
+    end
+    if empty then text = "Nothing at the Loot Window's lowest quality\n" .. text end
+    caption:SetText(text)
+    f:SetShown(not empty)
+    if empty then
+        frame:SetScript("OnUpdate", nil)
+        return W.Column(frame, { caption })
+    end
+    L:Layout(f, list, false, look, money)
+    -- Most of its size, smaller to fit above the caption.
+    local room = W.PREVIEW_HEIGHT - caption:GetStringHeight() - 14
+    f:SetScale(math.min(0.8, room / f:GetHeight(), (W.PREVIEW_WIDTH - 8) / f:GetWidth()))
+    L:SnapEdges(f, look)
+    W.Column(frame, { f, 6, caption })
+    -- The list opens and every item lands in it at once, a beat apart (newest at the edge it grows toward), the money
+    -- last.
+    local count, up = #list, look.growUp
     W.Loop(frame, 4, function(t)
         f:SetAlpha(W.Window(t, 0.1, 3.8, 0.2))
-        for i = 1, count + 1 do
-            local at = 0.3 + i * 0.1
-            local part = i <= count and f.rows[i] or f.footer
-            part:SetAlpha(W.Ease(t, at, at + 0.15))
+        for i = 1, count do
+            local at = 0.3 + (up and count + 1 - i or i) * 0.1
+            f.rows[i]:SetAlpha(W.Ease(t, at, at + 0.15))
         end
+        local at = 0.3 + (count + 1) * 0.1
+        f.footer:SetAlpha(W.Ease(t, at, at + 0.15))
     end)
 end
 
@@ -369,8 +403,9 @@ L.samples = {
     window = Sample({ BLADE, PEARL, LINEN, CANDLE }),
     -- The settings preview is small: three items fit it.
     preview = Sample({ BLADE, PEARL, CANDLE }),
+    -- Two grey items, so combining junk makes a difference.
     fast = Sample({ { "INV_Fabric_Linen_01", "Linen Cloth", 4, 1, false, 18, 13 }, { "INV_Misc_Pelt_Wolf_01", "Ruined Pelt", 1, 2, false, nil, 55 },
-        { "INV_Misc_Bone_HumanSkull_01", "Junk items", 3, 0, false, nil, 21 } }),
+        { "INV_Misc_Bone_HumanSkull_01", "Cracked Skull", 2, 0, false, nil, 8 }, { "INV_Misc_MonsterClaw_04", "Chipped Claw", 1, 0, false, nil, 5 } }),
     money = 240,
 }
 
@@ -751,6 +786,12 @@ function L:Layout(f, items, manual, p, money, note)
     f.glow:Layout(f, ns.Pixels(f, 2), true)
     f.glow:SetShown(border and lit and p.glow)
     f.glow:SetColor(r, g, b, 0.35)
+end
+
+-- Lays the border and its glow out again on whole pixels, for a preview window scaled after L:Layout.
+function L:SnapEdges(f, p)
+    f.edges:Layout(f, ns.Pixels(f, p.borderSize), false)
+    f.glow:Layout(f, ns.Pixels(f, 2), true)
 end
 
 -- Sets the window's opacity unless it has it already: the notices' animation sets it every frame while they fade.
@@ -1494,27 +1535,38 @@ L.info.livePreview = function(frame, width, height)
         v.takeCaption:SetText("Looting by hand")
         v.listCaption = W.Text(frame, "GameFontDisableSmall", W.C.muted, "CENTER")
         v.off = W.Text(frame, "GameFontDisableSmall", W.C.muted, "CENTER")
-        v.off:SetText("List what you pick up is off")
+        -- Under everything: the window is drawn smaller than its Scale, to fit.
+        v.fit = W.Text(frame, "GameFontDisableSmall", W.C.muted, "CENTER")
+        v.fit:SetPoint("BOTTOM", 0, 4)
+        v.fit:SetText("Shown smaller to fit")
     end
     local p = L.db.profile
     L:Layout(v.take, L.samples.window, true, p, { amount = L.samples.money })
     local notices = L:SampleNotices(p)
     local money = p.money and { amount = L.samples.money } or nil
-    L:Layout(v.list, notices, false, p, money)
-    v.list:SetShown(p.notify)
-    v.off:SetShown(not p.notify)
+    -- Nothing at the lowest quality listed, and no money: the list wouldn't show.
+    local listed = p.notify and (#notices > 0 or money ~= nil)
+    if listed then L:Layout(v.list, notices, false, p, money) end
+    v.list:SetShown(listed)
+    v.off:SetShown(not listed)
+    v.off:SetText(p.notify and "Nothing at this quality or above" or "List what you pick up is off")
     v.listCaption:SetText(p.noticeAlpha > 0 and "While auto looting" or "While auto looting (no background)")
     -- Side by side or one above the other, whichever fits them larger.
     local tw, th = v.take:GetWidth(), v.take:GetHeight()
-    local lw, lh = p.notify and v.list:GetWidth() or 160, p.notify and v.list:GetHeight() or 40
+    local lw, lh = listed and v.list:GetWidth() or 160, listed and v.list:GetHeight() or 40
     local captions, gap, margin = 18, 20, 16
     local wide = math.min((width - margin * 2 - gap) / (tw + lw), (height - margin * 2 - captions) / math.max(th, lh))
     local tall = math.min((width - margin * 2) / math.max(tw, lw), (height - margin * 2 - captions * 2 - gap) / (th + lh))
     local beside = wide >= tall
-    local scale = math.max(0.3, math.min(p.scale, beside and wide or tall))
+    local fit = beside and wide or tall
+    local scale = math.max(0.3, math.min(p.scale, fit))
+    v.fit:SetShown(fit < p.scale)
     v.take:SetScale(scale)
     v.take.close.icon:Fit()
     v.list:SetScale(scale)
+    -- Borders land on whole pixels at the scale just set.
+    L:SnapEdges(v.take, p)
+    L:SnapEdges(v.list, p)
     v.take:ClearAllPoints()
     v.list:ClearAllPoints()
     v.takeCaption:ClearAllPoints()
