@@ -42,6 +42,14 @@ function S:BuildOptions()
         return option(kind, key, name, order, ns.With({ disabled = notOurs }, extra))
     end
 
+    -- A switch of the game's own damage numbers (see S.GAME_NUMBER_CVARS): as the game has it until it's set here.
+    local function gameSwitch(key, name, order, desc)
+        return { type = "toggle", name = name, order = order, desc = desc,
+            hidden = function() return S:GameNumberOn(key) == nil end,
+            get = function() return S:GameNumberOn(key) end,
+            set = function(_, value) S.db.profile[key] = value; apply() end }
+    end
+
     -- A scroll area's movement, text and position.
     local function areaSection(key, order, disabled)
         local function area() return S.db.profile[key] end
@@ -178,11 +186,19 @@ function S:BuildOptions()
             area = areaSection("outgoing", 3, mode("AREA")),
             game = Section("The game's numbers", 4, {
                 note = { type = "description", order = 1,
-                    name = "Only the font and size of the game's numbers can change. They use the font chosen under "
-                        .. "General, starting from your next login." },
+                    name = "The game draws these numbers itself: only their font, size and the switches below change. "
+                        .. "They use the font chosen under General, starting from your next login." },
                 gameDamageSize = option("range", "gameDamageSize", "Size", 2, { min = 0.5, max = 2, step = 0.05,
                     isPercent = true,
                     desc = "Also resizes the game's other floating text, such as XP gains." }),
+                gameDirectional = gameSwitch("gameDirectional", "Fly out to the sides", 3,
+                    "Numbers fly out from the mob in different directions instead of rising straight up."),
+                gameAllAutos = gameSwitch("gameAllAutos", "Every auto attack", 4,
+                    "Shows a number for each of your auto attacks, not only the ones that stand out."),
+                gamePetMelee = gameSwitch("gamePetMelee", "Your pet's melee damage", 5),
+                gamePetSpells = gameSwitch("gamePetSpells", "Your pet's spell damage", 6),
+                gamePeriodic = gameSwitch("gamePeriodic", "Damage over time", 7,
+                    "Shows each tick of your damage over time spells."),
             }, { disabled = mode("GAME") }),
         } },
         notices = { type = "group", name = "Notices", order = 4, args = {
