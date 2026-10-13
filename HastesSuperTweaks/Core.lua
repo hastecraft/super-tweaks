@@ -127,7 +127,7 @@ function HST:Introduce()
         local on, total = self:CountEnabled()
         local minimap = self:GetModule("MinimapButton", true)
         self:Print(on .. " of " .. total .. " tweaks are on. Type /hst" .. (minimap and minimap:IsEnabled() and " or click the minimap button" or "")
-            .. " to see what each one does and choose yours.")
+            .. " to choose yours.")
     end)
 end
 

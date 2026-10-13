@@ -383,8 +383,7 @@ function B:BuildOptions()
     return { name = B.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             main = ns.Section("Breath meter", 1, {
-                hideBlizzard = option("toggle", "hideBlizzard", "Replace the game's bars", 1, {
-                    desc = "Hides the game's own bars while this one shows." }),
+                hideBlizzard = option("toggle", "hideBlizzard", "Replace the game's bars", 1),
                 showTime = option("toggle", "showTime", "Seconds left", 2, {
                     desc = "Shows tenths for the last ten seconds." }),
                 hideRefill = option("toggle", "hideRefill", "Hide while refilling", 3, {

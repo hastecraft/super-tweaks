@@ -229,7 +229,7 @@ Configure(L, defaults, function(m)
         general = { type = "group", name = "General", order = 1, args = {
             window = ns.Section("Loot window", 1, {
                 underMouse = option("toggle", "underMouse", "Open at the mouse", 1,
-                    { desc = "Turned off, it opens where you placed it in Edit Mode." }),
+                    { desc = "When off, it opens where you placed it in Edit Mode." }),
                 ownedCount = option("toggle", "ownedCount", "Show how many you have", 2,
                     { desc = "Adds how many of each item are already in your bags." }),
                 scale = option("range", "scale", "Scale", 3, { min = 0.6, max = 1.6, step = 0.05, isPercent = true }),
@@ -258,16 +258,15 @@ Configure(L, defaults, function(m)
                     desc = "In combat, clicks pass through the list and it fades on time, even under the mouse." }),
                 growUp = { type = "select", name = "Direction", order = 3, disabled = quiet,
                     values = { DOWN = "Grow down", UP = "Grow up" }, sorting = { "DOWN", "UP" },
-                    desc = "Grow down adds new items at the bottom. Grow up adds them on top.",
                     get = function() return m.db.profile.growUp and "UP" or "DOWN" end,
                     set = function(_, value) m.db.profile.growUp = value == "UP"; m:Refresh() end },
                 fade = option("range", "fade", "Show for (seconds)", 4, { min = 2, max = 10, step = 0.5, disabled = quiet,
                     desc = "How long the list stays after the last item arrives." }),
                 maxRows = option("range", "maxRows", "Most items at once", 5, { min = 3, max = 15, step = 1, disabled = quiet }),
                 minQuality = option("select", "minQuality", "Lowest quality listed", 6, { disabled = quiet,
-                    values = qualityNames, sorting = { 0, 1, 2, 3, 4 }, desc = "Quest items are always listed." }),
+                    values = qualityNames, sorting = { 0, 1, 2, 3, 4 } }),
                 combineJunk = option("toggle", "combineJunk", "Combine junk into one line", 7,
-                    { desc = "Grey items share a single line with their total.", disabled = quiet }),
+                    { disabled = quiet }),
                 money = option("toggle", "money", "Show money", 8, { disabled = quiet,
                     desc = "Totals the money you loot, including group shares, at the bottom of the list." }),
                 vendorPrice = option("select", "vendorPrice", "Vendor price", 9, { disabled = quiet,
@@ -290,7 +289,7 @@ Configure(L, defaults, function(m)
                 pageColor = option("color", "pageColor", "Page color", 5, { hasAlpha = false, hidden = otherStyle("PAGE"),
                     disabled = noBackground, desc = "Grain and burn shading are added on top." }),
                 pageAlpha = option("range", "pageAlpha", "Page opacity", 6, { min = 0.05, max = 1, step = 0.05, isPercent = true,
-                    hidden = otherStyle("PAGE"), disabled = noBackground, desc = "Doesn't affect the burnt edge." }),
+                    hidden = otherStyle("PAGE"), disabled = noBackground }),
                 scorchColor = option("color", "scorchColor", "Scorch color", 7, { hasAlpha = false, hidden = otherStyle("PAGE"),
                     disabled = noBackground, desc = "The singed band just inside the charred edge." }),
                 qualityScorch = option("toggle", "qualityScorch", "Scorch in the best item's color", 8,
@@ -316,7 +315,7 @@ Configure(L, defaults, function(m)
             }),
             reset = ns.Section("Reset", 4, {
                 resetLook = { type = "execute", name = "Reset appearance", order = 1, confirm = true,
-                    desc = "Resets this page and Items & text. The window's position stays.",
+                    desc = "Resets this page and Items & text.",
                     confirmText = "Reset the loot window's appearance to its defaults?",
                     func = function()
                         local p = m.db.profile

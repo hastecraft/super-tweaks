@@ -220,7 +220,7 @@ function X:BuildOptions()
                 -- An option's own disabled replaces its group's, so repeat the label check here.
                 font = with(media("font", "font", "Font", 1, "fontPath", key),
                     { disabled = function() return hidden() or X.db.profile.texts[key].fontPath ~= "" end }),
-                size = with(range("size", "Size", 2, 6, 64, 1, key), { desc = "Size at 100% Text size (Text page)." }),
+                size = with(range("size", "Size", 2, 6, 64, 1, key), { desc = "Scaled by Text size on the Text page." }),
                 outline = dropdown("outline", "Outline", 3, labelOutlines, labelOutlineOrder, key),
                 color = color("color", "Color", 4, key),
                 shadow = toggle("shadow", "Shadow", 5, nil, key),

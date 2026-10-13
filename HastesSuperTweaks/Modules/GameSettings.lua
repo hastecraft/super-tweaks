@@ -25,7 +25,7 @@ G.SETTINGS = {
         desc = "Lets the camera zoom out farther than the options' slider allows (it stops at 2). Players use up to 3.34." },
     { key = "nameplates", cvar = "nameplateMaxDistance", name = "Nameplate distance", value = "nameplateDistance",
         valueName = "Yards", min = 20, max = 41, step = 1, section = "world",
-        desc = "How far away, in yards, nameplates show. The options don't offer it on WoW Forever." },
+        desc = "How far away, in yards, nameplates show." },
     { key = "weather", cvar = "weatherDensity", name = "Weather density", value = "weatherLevel",
         valueName = "Density", min = 0, max = 3, step = 1, section = "world",
         desc = "How much rain, snow and sand the weather draws: 0 is the least, 3 the most. The game's particle density "
@@ -155,7 +155,7 @@ end
 function G:Restore()
     local backup = self.db.char.backup
     if not (backup and C_EditMode and C_EditMode.SaveLayouts) then return HST:Print("There's no backup to restore.") end
-    if InCombatLockdown() then return HST:Print("Restoring waits until you're out of combat. Try again then.") end
+    if InCombatLockdown() then return HST:Print("Can't restore during combat. Try again after the fight.") end
     C_EditMode.SaveLayouts(backup.layouts)
     -- Settings switched on above keep their values; the rest go back to the backup's.
     local p = self.db.profile

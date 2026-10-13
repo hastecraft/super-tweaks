@@ -24,7 +24,7 @@ A health bar under unit tooltips, borders in class colors, guild ranks and notes
 
 ![Loot Window](https://media.forgecdn.net/attachments/description/1739405/description_42ed96fa-33b9-4e96-b722-14f2f830b381.png)
 
-A compact loot list with a Take All button and hotkey. While you auto loot, it lists what you picked up for a few seconds. Fast Loot takes everything at once and still lets gathering trackers see the loot. Items being rolled on stay in the window.
+A compact loot list with a Take All button and hotkey. While you auto loot, it lists what you picked up for a few seconds. Fast Loot takes everything at once and still lets gathering trackers see the loot.
 
 ### Sell Junk and Sell Clutter
 
@@ -43,7 +43,7 @@ It keeps quest items, items your RestedXP guide needs, equipment sets, professio
 
 ![Better Scrolling Combat Text](https://media.forgecdn.net/attachments/description/1739405/description_ed4d5513-f2d9-44ca-90f7-fe595d3222da.gif)
 
-Separate scroll areas for damage and healing you take and for notices: entering and leaving combat, low health and mana, combo points, auras, reputation, honor and skill-ups. Damage numbers can show on enemy nameplates. Fonts, colors, animations and filters are all configurable, and each area moves in Edit Mode.
+Separate scroll areas for damage and healing you take and for notices: entering and leaving combat, low health and mana, combo points, auras, reputation, honor and skill-ups. Damage numbers can show on enemy nameplates. Choose fonts, colors, animations and filters, and move each area in Edit Mode.
 
 ## All tweaks
 
@@ -57,7 +57,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 **Group and PvP:** Auto Accept Summons, Auto Accept Resurrection, Auto Release in Battlegrounds, Group Finder Whispers (class, level and race beside each whisper, with click-to-invite).
 
-**Social:** Right-Click Guild Invite, Guild Message Popup, Chat Spam Filter (hides gold selling, boosting and recruitment in public channels; never touches whispers, group, guild or friends).
+**Social:** Right-Click Guild Invite, Guild Message Popup, Chat Spam Filter (hides gold selling, boosting and recruitment in public channels).
 
 **Auto-decline:** Battle.net friend requests, duels, guild charters, join requests, party invites and shared quests. Friends, guildmates and community members can be let through.
 
