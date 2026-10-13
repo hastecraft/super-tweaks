@@ -337,7 +337,7 @@ end
 
 ---------------------------------------------------------------------------
 -- Settings preview: the two sounds as chosen, each playing in turn, as the game says an objective is done and this
--- says the quest is.
+-- says the quest is. With no quest sound, the objective's plays for the quest too, as it does in game.
 ---------------------------------------------------------------------------
 -- A speaker on a dark disc; its waves show while it plays, a cross when there's no sound.
 local function Speaker(parent, size)
@@ -384,8 +384,11 @@ function Q.info.preview(frame)
             local name = W.Text(panel, "GameFontHighlightSmall")
             name:SetPoint("LEFT", row.badge, "RIGHT", 8, 0)
             name:SetText(label)
+            -- A long sound name is cut short rather than run into the label.
             row.sound = W.Text(panel, "GameFontNormalSmall", nil, "RIGHT")
+            row.sound:SetPoint("LEFT", name, "RIGHT", 8, 0)
             row.sound:SetPoint("RIGHT", panel, "TOPRIGHT", -10, y - 7)
+            row.sound:SetWordWrap(false)
             v.rows[i] = row
         end
         -- The game's progress line, then this tweak's, both where the game shows quest progress.
@@ -393,18 +396,21 @@ function Q.info.preview(frame)
         v.progress:SetText(SAMPLE_PROGRESS)
         v.quest = W.Text(frame, "GameFontNormal", { 1, 1, 0 }, "CENTER")
         v.quest:SetText(SAMPLE_QUEST)
-        W.Column(frame, { panel, 14, v.progress, 4, v.quest })
+        v.channel = W.Caption(frame, "Volume: Master") -- one line, laid out with this text
+        W.Column(frame, { panel, 14, v.progress, 4, v.quest, 12, v.channel })
     end
     local p = Q.db.profile
     ShowRow(v.rows[1], p.objectiveSound)
     ShowRow(v.rows[2], p.questSound)
-    local message = p.message
+    v.channel:SetFormattedText("Volume: %s", CHANNELS[Channel(p)])
+    local message, fallback = p.message, p.questSound == ""
     W.Loop(frame, LOOP, function(t)
         local out = 1 - W.Ease(t, LOOP - 0.6, LOOP - 0.2)
         v.progress:SetAlpha(W.Ease(t, PLAYS[1], PLAYS[1] + 0.2) * out)
         v.quest:SetAlpha(message and W.Ease(t, PLAYS[2], PLAYS[2] + 0.2) * out or 0)
         for i, row in ipairs(v.rows) do
-            local playing = row.on and t >= PLAYS[i] and t < PLAYS[i] + PLAY_LENGTH
+            local playing = row.on and (t >= PLAYS[i] and t < PLAYS[i] + PLAY_LENGTH
+                or i == 1 and fallback and t >= PLAYS[2] and t < PLAYS[2] + PLAY_LENGTH)
             if playing ~= row.playing then row.playing = playing; row.badge.waves:SetShown(playing) end
         end
     end)
