@@ -137,10 +137,20 @@ local function ChallengeLink(id)
 end
 
 -- "You have 3 Legacy points to spend: 12 of 85 earned (season cap 40), next reward at 15 points: Riding Training."
-function L:Reminder(s)
-    local at, names = self:NextReward(s.earned)
+local function ReminderText(s, at, names)
     return "You have " .. Points(s.unspent) .. " to spend: " .. EarnedText(s)
         .. (at and (", next " .. RewardText(at, names)) or "") .. ". " .. OPEN
+end
+
+function L:Reminder(s)
+    return ReminderText(s, self:NextReward(s.earned))
+end
+
+-- "+2 Legacy points for [Explore Elwynn Forest] (3 unspent). [Open Legacy]"
+local function ChallengeText(gained, named, unspent)
+    return "+" .. Points(gained) .. (named and (" for " .. named) or "")
+        .. (unspent and (" (" .. unspent .. " unspent)") or "") .. "."
+        .. ((unspent or 0) > 0 and (" " .. OPEN) or "")
 end
 
 function L:SayStatus()
@@ -234,9 +244,7 @@ function L:Report()
         local links = {}
         for _, id in ipairs(challenges) do links[#links + 1] = ChallengeLink(id) end
         local named = #links > 1 and (table.concat(links, ", ", 1, #links - 1) .. " and " .. links[#links]) or links[1]
-        HST:Print("+" .. Points(gained) .. (named and (" for " .. named) or "")
-            .. (s.unspent and (" (" .. s.unspent .. " unspent)") or "") .. "."
-            .. ((s.unspent or 0) > 0 and (" " .. OPEN) or ""))
+        HST:Print(ChallengeText(gained, named, s.unspent))
     end
     wipe(challenges)
 end
@@ -298,10 +306,19 @@ end
 
 ---------------------------------------------------------------------------
 -- Settings preview: your Legacy points on a bar of what challenges give, the season's cap marked on it (sample numbers
--- until the game has yours), and the line a challenge brings.
+-- until the game has yours), and the lines it says in chat: a challenge's, then the login reminder, each while on.
 ---------------------------------------------------------------------------
 local SAMPLE = { earned = 12, total = 85, cap = 40, unspent = 3 }
+local SAMPLE_CHALLENGE = "|cffffff00[Explore Elwynn Forest]|r"
 local BAR_W = 220
+
+-- Sets a chat line's text when it changed.
+local function SetLine(line, text)
+    if line.text ~= text then
+        line.text = text
+        line:SetText(ns.Widgets.Chat(text))
+    end
+end
 
 function L.info.preview(frame)
     local W = ns.Widgets
@@ -324,9 +341,11 @@ function L.info.preview(frame)
         v.details = W.Text(v.card, "GameFontHighlightSmall")
         v.details:SetPoint("TOPLEFT", v.bar, "BOTTOMLEFT", 0, -6)
         v.details:SetWidth(BAR_W)
-        v.line = W.ChatLine(frame, "+2 Legacy points for |cffffff00[Explore Elwynn Forest]|r (3 unspent). "
-            .. "|cff71d5ff[Open Legacy]|r")
+        v.challenge = W.ChatLine(frame, "")
+        v.reminder = W.ChatLine(frame, "")
+        v.caption = W.Caption(frame, "")
     end
+    local p = L.db.profile
     local s, live = SAMPLE, false
     if not L.info.unavailable then
         local read = L:Read()
@@ -343,9 +362,32 @@ function L.info.preview(frame)
     local share = math.min(s.earned / most, 1)
     v.cap:SetShown(s.cap ~= nil and s.cap < most)
     if s.cap then v.cap:SetPoint("LEFT", v.bar, "LEFT", 1 + (BAR_W - 2) * s.cap / most, 0) end
-    W.Column(frame, { v.card, 14, v.line })
-    W.Loop(frame, 6, function(t)
+    -- The chat lines take turns below the card; the reminder only comes while you have points to spend.
+    local announce, remind = p.announce, p.remind and s.unspent > 0
+    if announce then SetLine(v.challenge, ChallengeText(2, SAMPLE_CHALLENGE, s.unspent)) end
+    if remind then SetLine(v.reminder, ReminderText(s, at, names)) end
+    v.challenge:SetShown(announce)
+    v.reminder:SetShown(remind)
+    v.caption:SetShown(not (announce or remind))
+    -- Placed by the taller line shown; the other takes its place.
+    local below, other = v.caption, nil
+    if announce and remind then
+        below, other = v.challenge, v.reminder
+        if v.reminder:GetStringHeight() > v.challenge:GetStringHeight() then below, other = v.reminder, v.challenge end
+    elseif announce or remind then
+        below = announce and v.challenge or v.reminder
+    else
+        v.caption:SetText(p.remind and "No points to spend, so no login reminder." or "Nothing in chat.")
+    end
+    W.Column(frame, { v.card, 14, below })
+    if other then
+        other:ClearAllPoints()
+        other:SetPoint("TOP", below, "TOP")
+    end
+    local both = announce and remind
+    W.Loop(frame, both and 11 or 6, function(t)
         v.fill:SetWidth(math.max(0.01, (BAR_W - 2) * share * W.Ease(t, 0.2, 1.0)))
-        v.line:SetAlpha(W.Window(t, 1.4, 5.6, 0.3))
+        if announce then v.challenge:SetAlpha(W.Window(t, 1.4, 5.6, 0.3)) end
+        if remind then v.reminder:SetAlpha(both and W.Window(t, 6, 10.6, 0.3) or W.Window(t, 1.4, 5.6, 0.3)) end
     end)
 end
