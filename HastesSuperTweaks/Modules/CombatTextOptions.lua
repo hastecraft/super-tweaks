@@ -42,6 +42,14 @@ function S:BuildOptions()
         return option(kind, key, name, order, ns.With({ disabled = notOurs }, extra))
     end
 
+    -- A switch of the game's own damage numbers (see S.GAME_NUMBER_CVARS): as the game has it until it's set here.
+    local function gameSwitch(key, name, order, desc)
+        return { type = "toggle", name = name, order = order, desc = desc,
+            hidden = function() return S:GameNumberOn(key) == nil end,
+            get = function() return S:GameNumberOn(key) end,
+            set = function(_, value) S.db.profile[key] = value; apply() end }
+    end
+
     -- A scroll area's movement, text and position.
     local function areaSection(key, order, disabled)
         local function area() return S.db.profile[key] end
@@ -50,12 +58,18 @@ function S:BuildOptions()
             animation = opt("select", "animation", "Animation", 1, ns.With({
                 desc = "Arc curves texts out to alternating sides as they rise. Stay and fade stacks them in place, newest "
                     .. "at the bottom." }, ANIMATIONS)),
-            align = opt("select", "align", "Text alignment", 2, ALIGNS),
+            align = opt("select", "align", "Text alignment", 2, ns.With({
+                desc = "Lines texts up on the left, middle or right of the area. Move the area itself with Horizontal "
+                    .. "and Vertical below, or in Edit Mode." }, ALIGNS)),
             fontSize = opt("range", "fontSize", "Text size", 3, { min = 8, max = 40, step = 1 }),
             height = opt("range", "height", "Scroll distance", 4, { min = 20, max = 400, step = 5,
                 desc = "How far texts travel. Also the height of the area's box in Edit Mode." }),
             duration = opt("range", "duration", "Show for (seconds)", 5, { min = 0.5, max = 6, step = 0.1 }),
-            reset = { type = "execute", name = "Reset position", order = 6,
+            x = opt("range", "x", "Horizontal", 6, { min = -2000, max = 2000, step = 1,
+                desc = "Where the area's center is, from the middle of the screen. You can also drag it in Edit Mode." }),
+            y = opt("range", "y", "Vertical", 7, { min = -1200, max = 1200, step = 1,
+                desc = "Where the area's center is, from the middle of the screen. You can also drag it in Edit Mode." }),
+            reset = { type = "execute", name = "Reset position", order = 8,
                 desc = "Moves the area back to its default spot.",
                 func = function()
                     local a, default = area(), S.AREA_DEFAULTS[key]
@@ -91,7 +105,6 @@ function S:BuildOptions()
                     "Colors spell damage on enemies and your pet: fire orange, frost light blue, nature green, shadow "
                         .. "purple, arcane pink, holy yellow. Damage you take stays uncolored, since the game doesn't give "
                         .. "its school."),
-                icons = toggle("icons", "Spell icons", 7, "Shows the spell's icon next to spell alerts and auras."),
                 fadeIn = toggle("fadeIn", "Fade in", 8, "Texts fade in over " .. S.FADE_IN * 1000
                     .. " milliseconds instead of appearing at once."),
             }),
@@ -103,7 +116,8 @@ function S:BuildOptions()
                 critScale = option("range", "critScale", "Size", 1, { min = 1, max = 3, step = 0.05, isPercent = true,
                     desc = "How much larger critical hits and crushing blows are than other texts." }),
                 critPop = toggle("critPop", "Pop", 2, "Critical hits start twice as large and shrink into place."),
-                stickyCrits = toggle("stickyCrits", "Stay in the middle", 3,
+                critShake = toggle("critShake", "Shake", 3, "Critical hits jolt about for a moment as they land."),
+                stickyCrits = toggle("stickyCrits", "Stay in the middle", 4,
                     "Critical hits stay in the middle of their scroll area while they fade."),
             }),
         } },
@@ -137,7 +151,7 @@ function S:BuildOptions()
                 enemyMode = option("select", "enemyMode", "Show", 1, {
                     values = { NAMEPLATE = "On their nameplates", AREA = "Your target's, in a scroll area",
                         GAME = "The game's own numbers", OFF = "Off" },
-                    sorting = { "NAMEPLATE", "AREA", "GAME", "OFF" },
+                    sorting = { "GAME", "NAMEPLATE", "AREA", "OFF" },
                     desc = "Nameplates and the scroll area show everyone's damage, since the game doesn't tell addons who "
                         .. "dealt it, and nameplate numbers need enemy nameplates shown. The game's own numbers shows only "
                         .. "your damage, with this font and the size under The game's numbers." }),
@@ -178,11 +192,19 @@ function S:BuildOptions()
             area = areaSection("outgoing", 3, mode("AREA")),
             game = Section("The game's numbers", 4, {
                 note = { type = "description", order = 1,
-                    name = "Only the font and size of the game's numbers can change. They use the font chosen under "
-                        .. "General, starting from your next login." },
+                    name = "The game draws these numbers itself: only their font, size and the switches below change. "
+                        .. "They use the font chosen under General, starting from your next login." },
                 gameDamageSize = option("range", "gameDamageSize", "Size", 2, { min = 0.5, max = 2, step = 0.05,
                     isPercent = true,
                     desc = "Also resizes the game's other floating text, such as XP gains." }),
+                gameDirectional = gameSwitch("gameDirectional", "Fly out to the sides", 3,
+                    "Numbers fly out from the mob in different directions instead of rising straight up."),
+                gameAllAutos = gameSwitch("gameAllAutos", "Every auto attack", 4,
+                    "Shows a number for each of your auto attacks, not only the ones that stand out."),
+                gamePetMelee = gameSwitch("gamePetMelee", "Your pet's melee damage", 5),
+                gamePetSpells = gameSwitch("gamePetSpells", "Your pet's spell damage", 6),
+                gamePeriodic = gameSwitch("gamePeriodic", "Damage over time", 7,
+                    "Shows each tick of your damage over time spells."),
             }, { disabled = mode("GAME") }),
         } },
         notices = { type = "group", name = "Notices", order = 4, args = {
