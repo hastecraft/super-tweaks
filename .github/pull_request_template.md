@@ -7,7 +7,7 @@
 
 ## For the patch notes
 
-<!-- One line for players, in game terms, naming the tweak as the settings window does. The maintainer turns this into
+<!-- One line per change players will notice, in game terms, naming the tweak as the settings window does. The maintainer turns this into
 the patch notes at release time, so don't edit PatchNotes.lua or the TOC version. Write "none" if players won't notice
 (refactors, tooling, docs). -->
 
