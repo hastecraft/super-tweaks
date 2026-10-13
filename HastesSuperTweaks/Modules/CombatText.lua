@@ -25,7 +25,7 @@ local function Area(x, y, animation, height, fontSize, duration)
     return { x = x, y = y, animation = animation, height = height, fontSize = fontSize, duration = duration, align = "CENTER" }
 end
 local defaults = {
-    replaceBlizzard = true, font = "", textScale = 1, outline = "OUTLINE", slug = true, numbers = "SHORT", schoolColors = true, icons = true,
+    replaceBlizzard = true, font = "", textScale = 1, outline = "OUTLINE", slug = true, numbers = "SHORT", schoolColors = true,
     fadeIn = true, critScale = 1.5, critPop = true, critShake = false, stickyCrits = true, missScale = 1,
     incoming = Area(-260, -40, "UP", 160, 18, 2.5),
     inDamage = true, inHeals = true, inMisses = true, inReduction = true, inEnergy = false, inPet = false,
@@ -133,7 +133,7 @@ function S:Amount(amount)
 end
 
 ---------------------------------------------------------------------------
--- Texts: pooled frames (a font string with an icon to its left) that one frame moves every frame while any shows.
+-- Texts: pooled frames (each a font string) that one frame moves every frame while any shows.
 -- Each belongs to a lane: a scroll area, or an enemy's nameplate.
 ---------------------------------------------------------------------------
 -- Texts fade in from half shown, so they're seen the moment their hit arrives (unless Fade in is off: then they show
@@ -142,7 +142,7 @@ S.FADE_IN, S.FADE_FROM, S.FADE_OUT, S.POP = 0.08, 0.5, 0.25, 0.15 -- seconds; al
 -- Shaking critical hits jolt about for SHAKE seconds, up to SHAKE_SIZE of their text size away, settling as they go;
 -- SHAKE_SPEED is how fast (radians a second).
 S.SHAKE, S.SHAKE_SIZE, S.SHAKE_SPEED = 0.3, 0.25, 70
--- Texts without an icon are laid out in a box this wide (see S:Show).
+-- Texts are laid out in a box this wide (see S:Show).
 S.TEXT_BOX = 600
 -- Blinking texts (spell alerts, when chosen) dip to BLINK_LOW of their opacity and back every BLINK seconds.
 S.BLINK, S.BLINK_LOW = 0.5, 0.2
@@ -355,9 +355,7 @@ local function Acquire(onWorld)
         f:SetSize(1, 1)
         f.text = f:CreateFontString(nil, "OVERLAY")
         f.text:SetShadowColor(0, 0, 0, 1)
-        f.icon = f:CreateTexture(nil, "OVERLAY")
-        f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-        f.icon:SetPoint("RIGHT", f.text, "LEFT", -3, 0)
+        f.text:SetWidth(S.TEXT_BOX)
         -- Inside a nameplate, frame levels don't reliably decide what is drawn over what, strata do: nameplate
         -- addons' bars and texts are on MEDIUM (EllesmereUI keeps its glow behind its health bar on BACKGROUND), as
         -- a frame made on the world's frame is. On BACKGROUND, a number in its own nameplate stays under its bars.
@@ -406,8 +404,8 @@ end
 
 -- Shows a text in a lane: fmt filled in with a and b (values the game hides from addons are passed through, never
 -- read). kind: "crit" (larger, and it pops and may stay put), "small" (glancing blows) or "miss" (misses, avoided
--- attacks and hits nothing got through, sized by Miss size); icon: a texture.
-function S:Show(lane, color, kind, icon, fmt, a, b)
+-- attacks and hits nothing got through, sized by Miss size).
+function S:Show(lane, color, kind, fmt, a, b)
     local p = self.db.profile
     local texts = lane.texts
     -- The spot lane holds hits on your target just after its nameplate went (see S:OnTargetHit): shown as a
@@ -465,23 +463,14 @@ function S:Show(lane, color, kind, icon, fmt, a, b)
     if f.shadow ~= shadow then f.shadow = shadow; f.text:SetShadowOffset(shadow, -shadow) end
     -- Colors are never changed in place (settings store a new table), so the same table is the same color.
     if f.shownColor ~= color then f.shownColor = color; f.text:SetTextColor(color[1], color[2], color[3], color[4] or 1) end
-    local showIcon = p.icons and (IsSecret(icon) or icon ~= nil) or false
     -- A font string sized to its text cuts off the outline of its last letter, more so as it's scaled up (critical
-    -- hits, popping). One without an icon is laid out in a box wider than any text, lined up the same way, so nothing
-    -- is cut. One with an icon keeps to its text's size: its icon goes at its left edge.
-    local boxed = not showIcon
-    if f.align ~= align or f.boxed ~= boxed then
-        f.align, f.boxed = align, boxed
+    -- hits, popping), so texts are laid out in a box wider than any text (see Acquire), lined up the same way.
+    if f.align ~= align then
+        f.align = align
         f.text:ClearAllPoints()
         f.text:SetPoint(align, f, "CENTER")
         f.text:SetJustifyH(align)
-        f.text:SetWidth(boxed and self.TEXT_BOX or 0)
     end
-    if showIcon then
-        f.icon:SetTexture(icon)
-        if f.iconSize ~= size then f.iconSize = size; f.icon:SetSize(size, size) end
-    end
-    if f.iconShown ~= showIcon then f.iconShown = showIcon; f.icon:SetShown(showIcon) end
     f.lane, f.born, f.anim, f.height, f.duration, f.size = lane, now, anim, height, duration, size
     f.kindScale = kind == "crit" and p.critScale or kind == "small" and 0.8 or kind == "miss" and p.missScale or 1
     f.pop, f.shake, f.fadeIn = kind == "crit" and p.critPop, kind == "crit" and p.critShake, p.fadeIn
@@ -568,20 +557,20 @@ function S:OnPet(action, flags, amount, school)
         if secret or amount > 0 then
             if not p.inDamage or (not secret and amount < p.inDamageMin) then return end
             local color = p.schoolColors and SchoolColor(school, p.damageColor) or p.damageColor
-            return self:Show(lane, color, Kind(flags), nil, p.inReduction and PET_PARTIAL[flags] or "Pet -%s", self:Amount(amount))
+            return self:Show(lane, color, Kind(flags), p.inReduction and PET_PARTIAL[flags] or "Pet -%s", self:Amount(amount))
         end
         -- Nothing got through: a full block, absorb or resist. Without one of those it was no hit at all (the swing an
         -- on-next-swing ability like Heroic Strike takes the place of arrives so): nothing to show. Misses come as
         -- misses.
         local word = REDUCED[flags]
-        if word and p.inReduction then self:Show(lane, p.missColor, "miss", nil, "Pet %s", word) end
+        if word and p.inReduction then self:Show(lane, p.missColor, "miss", "Pet %s", word) end
     elseif action == "HEAL" then
         if not p.inHeals or (not secret and (amount <= 0 or amount < p.inHealMin)) then return end
-        self:Show(lane, p.healColor, flags == "CRITICAL" and "crit" or nil, nil, "Pet +%s", self:Amount(amount))
+        self:Show(lane, p.healColor, flags == "CRITICAL" and "crit" or nil, "Pet +%s", self:Amount(amount))
     elseif REDUCED[action] then
-        if p.inReduction then self:Show(lane, p.missColor, "miss", nil, "Pet %s", REDUCED[action]) end
+        if p.inReduction then self:Show(lane, p.missColor, "miss", "Pet %s", REDUCED[action]) end
     elseif MISSES[action] then
-        if p.inMisses then self:Show(lane, p.missColor, "miss", nil, "Pet %s", MISSES[action]) end
+        if p.inMisses then self:Show(lane, p.missColor, "miss", "Pet %s", MISSES[action]) end
     end
 end
 
@@ -620,7 +609,7 @@ function S:OnTaken(kind)
         if not p.inDamage then return end
         local amount = TextAmount((CombatTextInfo()))
         if not Shows(amount, p.inDamageMin) then return end
-        return self:Show(lane, p.damageColor, crit and "crit" or nil, nil, "-%s", self:Amount(amount))
+        return self:Show(lane, p.damageColor, crit and "crit" or nil, "-%s", self:Amount(amount))
     end
     crit = TAKEN_HEAL[kind]
     if crit ~= nil then
@@ -629,7 +618,7 @@ function S:OnTaken(kind)
         local _, amount = CombatTextInfo()
         amount = TextAmount(amount)
         if not Shows(amount, p.inHealMin) then return end
-        return self:Show(lane, p.healColor, crit and "crit" or nil, nil, "+%s", self:Amount(amount))
+        return self:Show(lane, p.healColor, crit and "crit" or nil, "+%s", self:Amount(amount))
     end
     if TAKEN_ENERGY[kind] then
         if not p.inEnergy then return end
@@ -641,7 +630,7 @@ function S:OnTaken(kind)
             local _, main = UnitPowerType("player")
             token = not IsSecret(main) and main or nil
         end
-        return self:Show(lane, PowerColor(token), nil, nil, "+%s %s", self:Amount(amount), token and _G[token] or "")
+        return self:Show(lane, PowerColor(token), nil, "+%s %s", self:Amount(amount), token and _G[token] or "")
     end
     local reduced = TAKEN_REDUCED[kind]
     if reduced then
@@ -649,16 +638,16 @@ function S:OnTaken(kind)
         local amount, stopped, critical = CombatTextInfo()
         amount, stopped = TextAmount(amount), TextAmount(stopped)
         if not (Shows(stopped, 0) and Shows(amount, 0)) then
-            if p.inReduction then self:Show(lane, p.missColor, "miss", nil, "%s", REDUCED[reduced]) end
+            if p.inReduction then self:Show(lane, p.missColor, "miss", "%s", REDUCED[reduced]) end
             return
         end
         if not p.inDamage or not Shows(amount, p.inDamageMin) then return end
         local size = not IsSecret(critical) and critical and "crit" or nil
-        if not p.inReduction then return self:Show(lane, p.damageColor, size, nil, "-%s", self:Amount(amount)) end
-        return self:Show(lane, p.damageColor, size, nil, PARTIAL_BY[reduced], self:Amount(amount), self:Amount(stopped))
+        if not p.inReduction then return self:Show(lane, p.damageColor, size, "-%s", self:Amount(amount)) end
+        return self:Show(lane, p.damageColor, size, PARTIAL_BY[reduced], self:Amount(amount), self:Amount(stopped))
     end
     local avoided = TAKEN_AVOIDED[kind]
-    if avoided and p.inMisses then self:Show(lane, p.missColor, "miss", nil, "%s", MISSES[avoided]) end
+    if avoided and p.inMisses then self:Show(lane, p.missColor, "miss", "%s", MISSES[avoided]) end
 end
 
 -- Whether anything you take is shown.
@@ -705,13 +694,13 @@ function S:OnEnemy(plate, unit, action, flags, amount, school)
             local kind = Kind(flags)
             local color = kind == "crit" and p.enemyCritColor
                 or p.schoolColors and SchoolColor(school, p.enemyColor) or p.enemyColor
-            return self:Show(lane, color, kind, nil, "%s", self:Amount(amount))
+            return self:Show(lane, color, kind, "%s", self:Amount(amount))
         end
         -- Nothing got through: a full block, absorb or resist; without one of those, no hit at all (see S:OnPet).
         local word = REDUCED[flags]
-        if word and p.enemyMisses then self:Show(lane, p.missColor, "miss", nil, "%s", word) end
+        if word and p.enemyMisses then self:Show(lane, p.missColor, "miss", "%s", word) end
     elseif p.enemyMisses and (MISSES[action] or REDUCED[action]) then
-        self:Show(lane, p.missColor, "miss", nil, "%s", MISSES[action] or REDUCED[action])
+        self:Show(lane, p.missColor, "miss", "%s", MISSES[action] or REDUCED[action])
     end
 end
 
@@ -861,14 +850,6 @@ S.HIDES_TEXT_INFO = select(4, GetBuildInfo()) >= 16000
 function S:UsesGameCombatText()
     local p = self.db.profile
     return p.replaceBlizzard or Taking(p) or p.reactives or p.buffs or p.debuffs or p.fades or p.reputation or p.honor
-end
-
--- A spell's icon by name, when icons are on. The name may be hidden from addons; so may the icon.
-function S:SpellIcon(name)
-    if not (self.db.profile.icons and C_Spell and C_Spell.GetSpellTexture) then return nil end
-    local ok, icon = pcall(C_Spell.GetSpellTexture, name)
-    if not ok then return nil end
-    return icon
 end
 
 -- Whether a spell can be cast now, its cost aside: a spell alert's ability is still lit up. nil when the game won't say.
@@ -1021,23 +1002,23 @@ function S:OnGameCombatText(kind)
     local lane = self:NoticeLane(kind == "SPELL_ACTIVE" and "noticeAlerts"
         or (option == "buffs" or option == "debuffs" or option == "fades") and "noticeAuras" or "noticeProgress")
     if kind == "SPELL_ACTIVE" then
-        self:Alert(self:Show(lane, COLORS.reactive, "crit", self:SpellIcon(data), "%s!", data), data)
+        self:Alert(self:Show(lane, COLORS.reactive, "crit", "%s!", data), data)
     elseif option == "buffs" or option == "debuffs" then
-        self:Show(lane, option == "buffs" and COLORS.buff or COLORS.debuff, nil, self:SpellIcon(data), "+%s", data)
+        self:Show(lane, option == "buffs" and COLORS.buff or COLORS.debuff, nil, "+%s", data)
     elseif option == "fades" then
-        self:Show(lane, COLORS.fade, nil, self:SpellIcon(data), "-%s", data)
+        self:Show(lane, COLORS.fade, nil, "-%s", data)
     elseif kind == "FACTION" then
         -- data is the faction, amount the change.
-        if IsSecret(amount) then return self:Show(lane, COLORS.reputation, nil, nil, "%s %s", amount, data) end
+        if IsSecret(amount) then return self:Show(lane, COLORS.reputation, nil, "%s %s", amount, data) end
         -- Given as a number or as a string holding one (the game's own combat text reads it with tonumber too).
         amount = tonumber(amount)
         if not amount or amount == 0 then return end
-        self:Show(lane, amount > 0 and COLORS.reputation or COLORS.repLoss, nil, nil, amount > 0 and "+%d %s" or "%d %s", amount, data)
+        self:Show(lane, amount > 0 and COLORS.reputation or COLORS.repLoss, nil, amount > 0 and "+%d %s" or "%d %s", amount, data)
     elseif kind == "HONOR_GAINED" then
         -- data is the honor.
-        if IsSecret(data) then return self:Show(lane, COLORS.honor, nil, nil, "+%s Honor", data) end
+        if IsSecret(data) then return self:Show(lane, COLORS.honor, nil, "+%s Honor", data) end
         local honor = tonumber(data)
-        if honor and honor > 0 then self:Show(lane, COLORS.honor, nil, nil, "+%d Honor", floor(honor + 0.5)) end
+        if honor and honor > 0 then self:Show(lane, COLORS.honor, nil, "+%d Honor", floor(honor + 0.5)) end
     end
 end
 
@@ -1055,7 +1036,7 @@ function S:CheckLowHealth()
     if fraction > 0 and fraction <= self.LOW then
         if not self.lowHealth then
             self.lowHealth = true
-            self:Show(self:NoticeLane("noticeLow"), COLORS.low, "crit", nil, "%s", HEALTH_LOW or "Low Health")
+            self:Show(self:NoticeLane("noticeLow"), COLORS.low, "crit", "%s", HEALTH_LOW or "Low Health")
         end
     elseif fraction > self.RECOVERED or fraction == 0 then
         self.lowHealth = nil
@@ -1087,7 +1068,7 @@ function S:OnPower(token)
         if fraction <= self.LOW then
             if not self.lowMana then
                 self.lowMana = true
-                self:Show(self:NoticeLane("noticeLow"), COLORS.low, "crit", nil, "%s", MANA_LOW or "Low Mana")
+                self:Show(self:NoticeLane("noticeLow"), COLORS.low, "crit", "%s", MANA_LOW or "Low Mana")
             end
         elseif fraction > self.RECOVERED then
             self.lowMana = nil
@@ -1100,7 +1081,7 @@ function S:OnPower(token)
         if points > before then
             local most = UnitPowerMax("player", COMBO)
             local full = not IsSecret(most) and type(most) == "number" and most > 0 and points >= most
-            self:Show(self:NoticeLane("noticeCombo"), COLORS.combo, full and "crit" or nil, nil, COMBAT_TEXT_COMBO_POINTS or "%d Combo Points", points)
+            self:Show(self:NoticeLane("noticeCombo"), COLORS.combo, full and "crit" or nil, COMBAT_TEXT_COMBO_POINTS or "%d Combo Points", points)
         end
     end
 end
@@ -1124,7 +1105,7 @@ function S:OnSkill(message)
     local pattern = SkillPattern()
     if IsSecret(message) or not pattern or type(message) ~= "string" then return end
     local skill, rank = message:match(pattern)
-    if skill then self:Show(self:NoticeLane("noticeProgress"), COLORS.skill, nil, nil, "+%s (%s)", skill, rank) end
+    if skill then self:Show(self:NoticeLane("noticeProgress"), COLORS.skill, nil, "+%s (%s)", skill, rank) end
 end
 
 ---------------------------------------------------------------------------
@@ -1195,10 +1176,10 @@ function S:OnEvent(event, ...)
     if event == "CHAT_MSG_SKILL" then return self:OnSkill(...) end
     if event == "UNIT_SPELLCAST_SUCCEEDED" then return self:OnCast(select(3, ...)) end
     if event == "PLAYER_REGEN_DISABLED" then
-        return self:Show(self:NoticeLane("noticeCombat"), COLORS.combat, nil, nil, "%s", ENTERING_COMBAT or "+Combat")
+        return self:Show(self:NoticeLane("noticeCombat"), COLORS.combat, nil, "%s", ENTERING_COMBAT or "+Combat")
     end
     if event == "PLAYER_REGEN_ENABLED" then
-        return self:Show(self:NoticeLane("noticeCombat"), COLORS.combat, nil, nil, "%s", LEAVING_COMBAT or "-Combat")
+        return self:Show(self:NoticeLane("noticeCombat"), COLORS.combat, nil, "%s", LEAVING_COMBAT or "-Combat")
     end
 end
 
@@ -1460,33 +1441,33 @@ end
 function S:SampleArea(key, n)
     local p = self.db.profile
     if key == "incoming" then
-        if n == 2 then return self:Show(self:Lane(key), p.healColor, nil, nil, "+%s", self:Amount(1250)) end
-        return self:Show(self:Lane(key), p.damageColor, n == 3 and "crit" or nil, nil, "-%s", self:Amount(n == 3 and 14820 or 342))
+        if n == 2 then return self:Show(self:Lane(key), p.healColor, nil, "+%s", self:Amount(1250)) end
+        return self:Show(self:Lane(key), p.damageColor, n == 3 and "crit" or nil, "-%s", self:Amount(n == 3 and 14820 or 342))
     elseif key == "outgoing" then
         if not OwnEnemyNumbers(p) then return end
         local lane = self:Lane(key)
         local plate = p.enemyMode == "NAMEPLATE" and C_NamePlate and C_NamePlate.GetNamePlateForUnit("target")
         if plate then lane = self:PlateLane(plate) end
         local color = n == 3 and p.enemyCritColor or n == 2 and SCHOOLS[16] or p.enemyColor
-        return self:Show(lane, color, n == 3 and "crit" or nil, nil, "%s", self:Amount(n == 3 and 2480 or n == 2 and 615 or 870))
+        return self:Show(lane, color, n == 3 and "crit" or nil, "%s", self:Amount(n == 3 and 2480 or n == 2 and 615 or 870))
     end
     local lane = self:Lane(key)
-    if key == "noticeLow" then return self:Show(lane, COLORS.low, "crit", nil, "%s", HEALTH_LOW or "Low Health") end
+    if key == "noticeLow" then return self:Show(lane, COLORS.low, "crit", "%s", HEALTH_LOW or "Low Health") end
     if key == "noticeCombo" then
-        return self:Show(lane, COLORS.combo, nil, nil, COMBAT_TEXT_COMBO_POINTS or "%d Combo Points", n + 1)
+        return self:Show(lane, COLORS.combo, nil, COMBAT_TEXT_COMBO_POINTS or "%d Combo Points", n + 1)
     end
     if key == "noticeAuras" then
-        if n == 2 then return self:Show(lane, COLORS.fade, nil, nil, "-%s", "Battle Shout") end
-        return self:Show(lane, n == 3 and COLORS.debuff or COLORS.buff, nil, nil, "+%s", n == 3 and "Hamstring" or "Battle Shout")
+        if n == 2 then return self:Show(lane, COLORS.fade, nil, "-%s", "Battle Shout") end
+        return self:Show(lane, n == 3 and COLORS.debuff or COLORS.buff, nil, "+%s", n == 3 and "Hamstring" or "Battle Shout")
     end
     if key == "noticeProgress" then
-        if n == 2 then return self:Show(lane, COLORS.skill, nil, nil, "+%s (%s)", "Swords", 87) end
-        return self:Show(lane, COLORS.reputation, nil, nil, "+%d %s", 25, "Stormwind")
+        if n == 2 then return self:Show(lane, COLORS.skill, nil, "+%s (%s)", "Swords", 87) end
+        return self:Show(lane, COLORS.reputation, nil, "+%d %s", 25, "Stormwind")
     end
     if key == "noticeAlerts" or key == "notices" and n == 2 then
-        return self:Alert(self:Show(lane, COLORS.reactive, "crit", nil, "%s!", "Overpower"))
+        return self:Alert(self:Show(lane, COLORS.reactive, "crit", "%s!", "Overpower"))
     end
-    self:Show(lane, COLORS.combat, nil, nil, "%s", ENTERING_COMBAT or "+Combat")
+    self:Show(lane, COLORS.combat, nil, "%s", ENTERING_COMBAT or "+Combat")
 end
 
 ---------------------------------------------------------------------------
@@ -1669,7 +1650,7 @@ local SPREADS = { 0.7, 0.95, 0.5, 0.85 } -- how far Fountain throws each number 
 -- The game's own numbers: white, yellow for spells.
 local GAME_WHITE, GAME_YELLOW = { 1, 1, 1 }, { 1, 1, 0 }
 -- Notices, by the setting that shows them, in the order they take turns: color, kind, the spell (by ID) whose name
--- and icon they show, and the format with its values.
+-- they show, and the format with its values.
 local NOTICE_SAMPLES = {
     { key = "combatState", color = COLORS.combat, fmt = "%s", a = ENTERING_COMBAT or "+Combat" },
     { key = "lowHealth", color = COLORS.low, kind = "crit", fmt = "%s", a = HEALTH_LOW or "Low Health" },
@@ -1701,12 +1682,6 @@ local GROUP_START = { taken = 0, enemy = 0.3, notices = 0.1 }
 
 local function Clamp(value, limit) return max(-limit, min(limit, value)) end
 local function LiveSize(size) return max(6, floor(size * LIVE_SIZE + 0.5)) end
-
-local function SpellTexture(id)
-    local icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(id)
-    if IsSecret(icon) then return nil end
-    return icon
-end
 
 -- A lane of the bar, kept by key and filled in again on each redraw: index tells lanes apart, level is its texts'
 -- frame level.
@@ -1762,18 +1737,18 @@ local function LiveNoticeLane(v, p, key)
 end
 
 -- Adds a sample to a group's list, from the bar's pool of them.
-local function Add(v, group, lane, color, kind, text, icon, blink)
+local function Add(v, group, lane, color, kind, text, blink)
     v.used = v.used + 1
     local s = v.pool[v.used]
     if not s then s = {}; v.pool[v.used] = s end
-    s.lane, s.color, s.kind, s.text, s.icon, s.blink = lane, color, kind, text, icon, blink
+    s.lane, s.color, s.kind, s.text, s.blink = lane, color, kind, text, blink
     local list = v.lists[group]
     list[#list + 1] = s
     if lane.duration > v.longest then v.longest = lane.duration end
 end
 
 -- The bar's next text, made as Acquire makes texts: a frame, scaled for critical hits and popping, holding a font
--- string with an icon to its left.
+-- string.
 local function NextText(v)
     v.count = v.count + 1
     local f = v.texts[v.count]
@@ -1783,9 +1758,7 @@ local function NextText(v)
         f:Hide()
         f.text = f:CreateFontString(nil, "OVERLAY")
         f.text:SetShadowColor(0, 0, 0, 1)
-        f.icon = f:CreateTexture(nil, "OVERLAY")
-        f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-        f.icon:SetPoint("RIGHT", f.text, "LEFT", -3, 0)
+        f.text:SetWidth(S.TEXT_BOX)
         v.texts[v.count] = f
     end
     return f
@@ -1801,21 +1774,12 @@ local function Style(v, f, s)
     if f.shadow ~= shadow then f.shadow = shadow; f.text:SetShadowOffset(shadow, -shadow) end
     if f.shownText ~= text then f.shownText = text; f.text:SetText(text) end
     if f.shownColor ~= color then f.shownColor = color; f.text:SetTextColor(color[1], color[2], color[3], color[4] or 1) end
-    local icon = s.icon
-    local showIcon = p.icons and icon ~= nil or false
-    local boxed = not showIcon
-    if f.align ~= align or f.boxed ~= boxed then
-        f.align, f.boxed = align, boxed
+    if f.align ~= align then
+        f.align = align
         f.text:ClearAllPoints()
         f.text:SetPoint(align, f, "CENTER")
         f.text:SetJustifyH(align)
-        f.text:SetWidth(boxed and S.TEXT_BOX or 0)
     end
-    if showIcon then
-        f.icon:SetTexture(icon)
-        if f.iconSize ~= size then f.iconSize = size; f.icon:SetSize(size, size) end
-    end
-    if f.iconShown ~= showIcon then f.iconShown = showIcon; f.icon:SetShown(showIcon) end
     -- Set every time: raising the settings window moves every frame level in it.
     f:SetFrameLevel(lane.level)
     local kind = s.kind
@@ -1979,9 +1943,8 @@ function S:DrawLivePreview(stage, w, h, focus)
     for i, area in ipairs(self.NOTICE_AREAS) do AreaLane(v, p, area.key, 3 + i) end
     for _, n in ipairs(NOTICE_SAMPLES) do
         if p[n.key] then
-            local a, icon = n.a, nil
-            if n.spell then a, icon = SpellName(n.spell) or a, SpellTexture(n.spell) end
-            Add(v, "notices", LiveNoticeLane(v, p, n.key), n.color, n.kind, n.fmt:format(a, n.b), icon,
+            local a = n.spell and SpellName(n.spell) or n.a
+            Add(v, "notices", LiveNoticeLane(v, p, n.key), n.color, n.kind, n.fmt:format(a, n.b),
                 n.key == "reactives" and p.reactiveBlink or nil)
         end
     end
