@@ -1198,8 +1198,8 @@ function C:BuildOptions()
                     desc = "Off, it shows only once they're about to end." }),
                 remind = option("toggle", "remind", "After camp buffs end", 3, { disabled = off, desc =
                     "Blinks until you sit by a campfire again or click it." }),
-                missing = option("toggle", "missing", "Whenever you have no camp buffs", 4, { disabled = off }),
-                missingBlink = option("toggle", "missingBlink", "Blink when you have none", 5, { disabled = noMissing }),
+                missing = option("toggle", "missing", "Whenever you have no camp buffs", 8, { disabled = off }),
+                missingBlink = option("toggle", "missingBlink", "Blink when you have none", 9, { disabled = noMissing }),
             }),
             ending = ns.Section("Ending soon", 3, {
                 warnAt = range("warnAt", "Warn at (minutes left)", 1, 0, 30, { disabled = off,
