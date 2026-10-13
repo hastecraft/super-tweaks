@@ -663,7 +663,7 @@ local function ReadStats(id)
     end
     return added > 0
 end
--- A line for each stat the camp buffs give, then the names of camp buffs without one.
+-- A line for each stat the camp buffs give (none for +0), then the names of camp buffs without one.
 local unread = {}
 function C:BuffLines()
     if not GetBuffTooltip then
@@ -677,8 +677,11 @@ function C:BuffLines()
     end
     for i = 1, #statOrder do
         local key = statOrder[i]
-        local sign, percent, name = key:match("^([+-])(%%?) (.+)$")
-        Line(sign .. statAmount[key] .. percent .. " " .. name, WHITE)
+        local amount = statAmount[key]
+        if amount ~= 0 then
+            local sign, percent, name = key:match("^([+-])(%%?) (.+)$")
+            Line(sign .. amount .. percent .. " " .. name, WHITE)
+        end
     end
     for i = 1, #unread do Line(unread[i], WHITE) end
 end
