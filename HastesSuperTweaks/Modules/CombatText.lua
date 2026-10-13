@@ -26,7 +26,7 @@ local function Area(x, y, animation, height, fontSize, duration)
 end
 local defaults = {
     replaceBlizzard = true, font = "", textScale = 1, outline = "OUTLINE", slug = true, numbers = "SHORT", schoolColors = true, icons = true,
-    fadeIn = true, critScale = 1.5, critPop = true, stickyCrits = true, missScale = 1,
+    fadeIn = true, critScale = 1.5, critPop = true, critShake = false, stickyCrits = true, missScale = 1,
     incoming = Area(-260, -40, "UP", 160, 18, 2.5),
     inDamage = true, inHeals = true, inMisses = true, inReduction = true, inEnergy = false, inPet = false,
     inDamageMin = 0, inHealMin = 0,
@@ -139,6 +139,11 @@ end
 -- Texts fade in from half shown, so they're seen the moment their hit arrives (unless Fade in is off: then they show
 -- fully at once), and fade out over the end of their time.
 S.FADE_IN, S.FADE_FROM, S.FADE_OUT, S.POP = 0.08, 0.5, 0.25, 0.15 -- seconds; alpha; share of the duration; seconds
+-- Shaking critical hits jolt about for SHAKE seconds, up to SHAKE_SIZE of their text size away, settling as they go;
+-- SHAKE_SPEED is how fast (radians a second).
+S.SHAKE, S.SHAKE_SIZE, S.SHAKE_SPEED = 0.3, 0.25, 70
+-- Texts without an icon are laid out in a box this wide (see S:Show).
+S.TEXT_BOX = 600
 -- Blinking texts (spell alerts, when chosen) dip to BLINK_LOW of their opacity and back every BLINK seconds.
 S.BLINK, S.BLINK_LOW = 0.5, 0.2
 S.MOST, S.MOST_ON_PLATE = 20, 8
@@ -251,6 +256,10 @@ local function Place(f, now)
     -- Numbers left behind by their nameplate go behind the nameplates still up, or onto the world's frame.
     if f.hostLevel then parent = Host(f, now, plate or WorldFrame) end
     local dx, dy = Motion(f, t)
+    if f.shake and age < S.SHAKE then
+        local reach = f.size * S.SHAKE_SIZE * (1 - age / S.SHAKE)
+        dx, dy = dx + reach * sin(age * S.SHAKE_SPEED), dy + reach * cos(age * S.SHAKE_SPEED * 1.3)
+    end
     local push = f.anim == "DOWN" and -f.push or f.push
     local scale = f.kindScale
     if f.pop and age < S.POP then scale = scale * (2 - age / S.POP) end
@@ -456,12 +465,18 @@ function S:Show(lane, color, kind, icon, fmt, a, b)
     if f.shadow ~= shadow then f.shadow = shadow; f.text:SetShadowOffset(shadow, -shadow) end
     -- Colors are never changed in place (settings store a new table), so the same table is the same color.
     if f.shownColor ~= color then f.shownColor = color; f.text:SetTextColor(color[1], color[2], color[3], color[4] or 1) end
-    if f.align ~= align then
-        f.align = align
+    local showIcon = p.icons and (IsSecret(icon) or icon ~= nil) or false
+    -- A font string sized to its text cuts off the outline of its last letter, more so as it's scaled up (critical
+    -- hits, popping). One without an icon is laid out in a box wider than any text, lined up the same way, so nothing
+    -- is cut. One with an icon keeps to its text's size: its icon goes at its left edge.
+    local boxed = not showIcon
+    if f.align ~= align or f.boxed ~= boxed then
+        f.align, f.boxed = align, boxed
         f.text:ClearAllPoints()
         f.text:SetPoint(align, f, "CENTER")
+        f.text:SetJustifyH(align)
+        f.text:SetWidth(boxed and self.TEXT_BOX or 0)
     end
-    local showIcon = p.icons and (IsSecret(icon) or icon ~= nil) or false
     if showIcon then
         f.icon:SetTexture(icon)
         if f.iconSize ~= size then f.iconSize = size; f.icon:SetSize(size, size) end
@@ -469,7 +484,7 @@ function S:Show(lane, color, kind, icon, fmt, a, b)
     if f.iconShown ~= showIcon then f.iconShown = showIcon; f.icon:SetShown(showIcon) end
     f.lane, f.born, f.anim, f.height, f.duration, f.size = lane, now, anim, height, duration, size
     f.kindScale = kind == "crit" and p.critScale or kind == "small" and 0.8 or kind == "miss" and p.missScale or 1
-    f.pop, f.fadeIn = kind == "crit" and p.critPop, p.fadeIn
+    f.pop, f.shake, f.fadeIn = kind == "crit" and p.critPop, kind == "crit" and p.critShake, p.fadeIn
     f.sticky = kind == "crit" and p.stickyCrits and not onPlate and anim ~= "STATIC"
     f.push, f.shownScale, f.shownAlpha, f.blink, f.spell, f.unmatched, f.vanishAt = 0, nil, nil, nil, nil, nil, nil
     if anim == "ARC" or anim == "FOUNTAIN" then
