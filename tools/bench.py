@@ -346,7 +346,8 @@ end)
 Section('Elite & Rare Markers', function()
     local N = mod('NameplateMarkers')
     -- Eight nameplates as the game's: the unit's token, and a unit frame with the name above the health bar. Three are
-    -- mobs a quest of yours needs. The game lists the nameplates showing in a new table each time it's asked.
+    -- mobs of one kind (NPC ID 6) a quest of yours needs, the rest each of their own kind. The game lists the nameplates
+    -- showing in a new table each time it's asked.
     local plates = {}
     for i = 1, 8 do
         local token = 'nameplate' .. i
@@ -355,7 +356,8 @@ Section('Elite & Rare Markers', function()
         local game = CreateFrame('Frame', nil, plate)
         game.name, game.healthBar = game:CreateFontString(), CreateFrame('StatusBar', nil, game)
         plate.UnitFrame = game
-        PLATES[token], UNITS[token], plates[i] = plate, { guid = 'Creature-' .. (10 + i), quest = i <= 3 }, plate
+        local guid = 'Creature-0-4372-0-12-' .. (i <= 3 and 6 or 40 + i) .. '-00002A' .. i
+        PLATES[token], UNITS[token], plates[i] = plate, { guid = guid, quest = i <= 3 }, plate
     end
     local listPlates = C_NamePlate.GetNamePlates
     C_NamePlate.GetNamePlates = function()

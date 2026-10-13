@@ -43,10 +43,10 @@ local QUEST = { atlas = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Quest", file = 
 ---------------------------------------------------------------------------
 -- Quest mobs. WoW Forever's quest log tells whether a unit is part of a quest you have
 -- (C_QuestLog.UnitIsRelatedToActiveQuest): one call per nameplate. A client without that reads the quest objective
--- lines of the unit's tooltip data instead, which builds a table per read, so only as each nameplate shows (and, as
--- quests change, for those marked). Until the quest log's answer has been yes once this session, a few nameplates it
--- says no to are read that way too, a few more after each quest change: one with an objective of yours still to do
--- means its answers can't be trusted on this client, and tooltip data is used for the rest of the session.
+-- lines of the unit's tooltip data instead, which builds a table per read, so once per kind of mob until quests change.
+-- Until the quest log's answer has been yes once this session, a few nameplates it says no to are read that way too, a
+-- few more after each quest change: one with an objective of yours still to do means its answers can't be trusted on
+-- this client, and tooltip data is used for the rest of the session.
 ---------------------------------------------------------------------------
 local Related = C_QuestLog and C_QuestLog.UnitIsRelatedToActiveQuest
 local UnitData = C_TooltipInfo and C_TooltipInfo.GetUnit
@@ -152,6 +152,7 @@ end
 local markers = {} -- by nameplate frame
 local byUnit = {} -- the marker showing for each nameplate unit
 local questUnits = {} -- nameplate units with the quest mark, as last checked
+local shown = {} -- the nameplate units showing, so quest changes needn't ask the game for its list (a new table each time)
 local queued, flushing = {}, false
 N.alerted = {} -- rares already announced this session, by GUID
 
@@ -187,15 +188,16 @@ function N:Counts(unit)
 end
 
 -- Quest marks go on the units this marks (see N:Counts), and on objects with a nameplate, which can't be attacked.
-function N:QuestCounts(unit)
-    if self:Counts(unit) then return true end
+function N:QuestCounts(unit, counts)
+    if counts == nil then counts = self:Counts(unit) end
+    if counts then return true end
     local object = UnitIsGameObject and UnitIsGameObject(unit)
     return not IsSecret(object) and object == true
 end
 
 -- Whether the unit's tooltip data lists an objective of yours it's part of that isn't done yet. A group member's
 -- objectives come after their name (a QuestPlayer line) under the quest's title.
-local function TooltipNeeds(unit)
+local function ReadTooltip(unit)
     local ok, data = pcall(UnitData, unit) -- in PvP matches some units can't be asked for
     local lines = ok and type(data) == "table" and data.lines
     if type(lines) ~= "table" then return false end
@@ -215,18 +217,31 @@ local function TooltipNeeds(unit)
     return false
 end
 
+-- The tooltip data's answers by NPC ID (a creature or object GUID's sixth part), until quests change: every mob of a
+-- kind has the same objectives. Players are never part of one. A unit whose GUID the game hides (in instances) is read
+-- each time.
+local needs = {}
+local function TooltipNeeds(unit)
+    local guid = UnitGUID(unit)
+    if IsSecret(guid) or not guid then return ReadTooltip(unit) end
+    local id = guid:match("^%a+%-%d+%-%d+%-%d+%-%d+%-(%d+)")
+    if not id then return guid:find("^Player%-") == nil and ReadTooltip(unit) end
+    local need = needs[id]
+    if need == nil then need = ReadTooltip(unit); needs[id] = need end
+    return need
+end
+
 local function RecheckAll() N:RecheckQuests(true) end
 
--- Whether a nameplate's unit gets the quest mark. The unit is a nameplate's token, which is never secret.
-function N:QuestMark(unit)
-    if self.questSource == "tooltip" then return self:QuestCounts(unit) and TooltipNeeds(unit) end
-    local related = Related(unit)
-    if IsSecret(related) then return false end
-    if related then
+-- Whether a nameplate's unit gets the quest mark. The unit is a nameplate's token, which is never secret, and counts is
+-- N:Counts(unit) when already asked. The quest log's answer is never secret: its API documentation flags none.
+function N:QuestMark(unit, counts)
+    if self.questSource == "tooltip" then return self:QuestCounts(unit, counts) and TooltipNeeds(unit) end
+    if Related(unit) then
         trusted = true
-        return self:QuestCounts(unit)
+        return self:QuestCounts(unit, counts)
     end
-    if trusted or checks <= 0 or not self:QuestCounts(unit) then return false end
+    if trusted or checks <= 0 or not self:QuestCounts(unit, counts) then return false end
     checks = checks - 1
     if not TooltipNeeds(unit) then return false end
     -- The quest log said no to a unit an objective of yours needs: tooltip data from now on, for every nameplate.
@@ -243,18 +258,25 @@ local function GameMarks(unit)
     return IsSecret(attackable) or attackable == true
 end
 
--- What a unit is marked with, or nil.
-function N:Mark(unit)
-    local mark = MARKS[UnitClassification(unit) or ""]
-    if not (mark and self.db.profile[mark.key] and self:Counts(unit)) or GameMarks(unit) then return nil end
+-- What a unit is marked with, or nil. mark is its classification's entry in MARKS, and counts N:Counts(unit), when
+-- already known.
+function N:Mark(unit, mark, counts)
+    if mark == nil then mark = MARKS[UnitClassification(unit) or ""] end
+    if not (mark and self.db.profile[mark.key]) then return nil end
+    if counts == nil then counts = self:Counts(unit) end
+    if not counts or GameMarks(unit) then return nil end
     return mark
 end
 
--- Shows or hides the marker on a unit's nameplate. Not on nameplates whose game frame another addon has hidden.
-function N:Place(unit)
+-- Shows or hides the marker on a unit's nameplate. Not on nameplates whose game frame another addon has hidden. mark is
+-- what N:Mark(unit) returns when already known (false for none). The marker keeps its size, level and anchor between
+-- units, so those are set only when they change.
+function N:Place(unit, mark)
     local old = byUnit[unit]
     if old then old:Hide(); byUnit[unit] = nil end
-    local mark, quest = self:Mark(unit), questUnits[unit] == true
+    if mark == nil then mark = self:Mark(unit) end
+    mark = mark or nil
+    local quest = questUnits[unit] == true
     local plate = (mark or quest) and C_NamePlate.GetNamePlateForUnit(unit)
     local game = plate and plate.UnitFrame
     if not (game and game:IsShown() and game:GetAlpha() > 0) then return end
@@ -262,10 +284,14 @@ function N:Place(unit)
     if not anchor then return end
     local marker = Marker(plate)
     local size = self.db.profile.size
-    marker:SetSize(size, size)
-    marker:SetFrameLevel(game:GetFrameLevel() + 10)
-    marker:ClearAllPoints()
-    marker:SetPoint("RIGHT", anchor, "LEFT", -1, 0)
+    if marker.size ~= size then marker.size = size; marker:SetSize(size, size) end
+    local level = game:GetFrameLevel() + 10
+    if marker.level ~= level then marker.level = level; marker:SetFrameLevel(level) end
+    if marker.anchor ~= anchor then
+        marker.anchor = anchor
+        marker:ClearAllPoints()
+        marker:SetPoint("RIGHT", anchor, "LEFT", -1, 0)
+    end
     if mark and marker.atlas ~= mark.atlas then
         marker.atlas = mark.atlas
         SetMark(marker.icon, mark.atlas)
@@ -274,9 +300,12 @@ function N:Place(unit)
     if marker.showsMark ~= dragon then marker.showsMark = dragon; marker.icon:SetShown(dragon) end
     if quest then
         local icon = QuestIcon(marker)
-        icon:SetSize(size, size)
-        icon:ClearAllPoints()
-        icon:SetPoint("LEFT", anchor, "RIGHT", 1, 0)
+        if icon.size ~= size then icon.size = size; icon:SetSize(size, size) end
+        if icon.anchor ~= anchor then
+            icon.anchor = anchor
+            icon:ClearAllPoints()
+            icon:SetPoint("LEFT", anchor, "RIGHT", 1, 0)
+        end
     end
     if marker.quest and marker.showsQuest ~= quest then marker.showsQuest = quest; marker.quest:SetShown(quest) end
     marker:Show()
@@ -287,7 +316,7 @@ end
 local function Flush()
     flushing = false
     if not N:IsEnabled() then return wipe(queued) end
-    for unit in pairs(queued) do N:Place(unit) end
+    for unit, mark in pairs(queued) do N:Place(unit, mark) end
     wipe(queued)
 end
 
@@ -306,11 +335,10 @@ end
 -- Checks the quest marks of the nameplates showing again: every one's while the quest log answers, but with tooltip
 -- data, which builds a table per read, only the marked ones' (to take marks off objectives now done), unless all is set.
 function N:RecheckQuests(all)
-    if not (questOn and C_NamePlate and C_NamePlate.GetNamePlates) then return end
+    if not questOn then return end
     local every = all or self.questSource ~= "tooltip"
-    for _, plate in ipairs(C_NamePlate.GetNamePlates()) do
-        local unit = plate.unitToken
-        if not IsSecret(unit) and unit and (every or questUnits[unit]) then
+    for unit in pairs(shown) do
+        if every or questUnits[unit] then
             local quest = self:QuestMark(unit) or nil
             if quest ~= questUnits[unit] then
                 questUnits[unit] = quest
@@ -328,8 +356,10 @@ function N:OnQuestChange(event)
     if event == "QUEST_LOG_UPDATE" then
         pending = false
         self.events:UnregisterEvent("QUEST_LOG_UPDATE")
+        wipe(needs)
         return self:RecheckQuests()
     end
+    wipe(needs)
     if not trusted then checks = self.CHECKS end
     if not pending then pending = true; self.events:RegisterEvent("QUEST_LOG_UPDATE") end
 end
@@ -347,6 +377,7 @@ end
 
 ns.Listen(N, { "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }, function(self, event, unit)
     if event == "NAME_PLATE_UNIT_REMOVED" then
+        shown[unit] = nil
         queued[unit] = nil
         if questUnits[unit] then questUnits[unit] = nil end
         local marker = byUnit[unit]
@@ -355,19 +386,29 @@ ns.Listen(N, { "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }, function(se
     elseif event ~= "NAME_PLATE_UNIT_ADDED" then
         return self:OnQuestChange(event)
     end
-    local quest = questOn and self:QuestMark(unit) or nil
+    shown[unit] = true
+    -- Whether the unit counts is asked once, and only for a classified unit or a quest mob. What it's marked with is
+    -- worked out now and placed a frame later.
+    local mark, counts = MARKS[UnitClassification(unit) or ""], nil
+    if mark then
+        counts = self:Counts(unit)
+        if mark.rare and counts then self:Alert(unit) end
+        mark = self:Mark(unit, mark, counts) or false
+    end
+    local quest = questOn and self:QuestMark(unit, counts) or nil
     if questUnits[unit] ~= quest then questUnits[unit] = quest end
-    local mark = MARKS[UnitClassification(unit) or ""]
     if not (mark or quest) then return end
-    if mark and mark.rare and self:Counts(unit) then self:Alert(unit) end
-    queued[unit] = true
+    queued[unit] = mark or false
     if not flushing then flushing = true; C_Timer.After(0, Flush) end
 end)
 
 -- Settings changed, or turned on: the nameplates showing now are marked again.
 function N:Refresh()
     for unit, marker in pairs(byUnit) do marker:Hide(); byUnit[unit] = nil end
+    wipe(queued)
     wipe(questUnits)
+    wipe(needs)
+    wipe(shown)
     local on = self:IsEnabled()
     questOn = on and self.db.profile.quest and self.questSource ~= nil or false
     self:ListenToQuests(questOn)
@@ -375,6 +416,7 @@ function N:Refresh()
     for _, plate in ipairs(C_NamePlate.GetNamePlates()) do
         local unit = plate.unitToken
         if not IsSecret(unit) and unit then
+            shown[unit] = true
             if questOn and self:QuestMark(unit) then questUnits[unit] = true end
             self:Place(unit)
         end
@@ -384,7 +426,9 @@ end
 function N:OnListen() self:Refresh() end
 function N:OnUnlisten()
     wipe(queued)
+    wipe(shown)
     wipe(questUnits)
+    wipe(needs)
     questOn, listening, pending = false, false, false
     for unit, marker in pairs(byUnit) do marker:Hide(); byUnit[unit] = nil end
 end
