@@ -206,13 +206,11 @@ C_RestrictedActions = { IsAddOnRestrictionActive = function() return false end }
 -- Campfire Helper: your auras by spell ID (PLAYER_AURAS) and in buff order (PLAYER_BUFFS), WoW Forever's camp spells,
 -- and the campfire kits with the spells they cast.
 PLAYER_AURAS, PLAYER_BUFFS = {}, {}
-C_UnitAuras = {
-    GetPlayerAuraBySpellID = function(id) return PLAYER_AURAS[id] end,
-    GetBuffDataByIndex = function(_, index) return PLAYER_BUFFS[index] end,
-    GetAuraDataByAuraInstanceID = function(_, id)
-        for _, aura in ipairs(PLAYER_BUFFS) do if aura.auraInstanceID == id then return aura end end
-    end,
-}
+C_UnitAuras.GetPlayerAuraBySpellID = function(id) return PLAYER_AURAS[id] end
+C_UnitAuras.GetBuffDataByIndex = function(_, index) return PLAYER_BUFFS[index] end
+C_UnitAuras.GetAuraDataByAuraInstanceID = function(_, id)
+    for _, aura in ipairs(PLAYER_BUFFS) do if aura.auraInstanceID == id then return aura end end
+end
 C_Spell.DoesSpellExist = function() return true end
 ITEMS[279981] = { name = 'Basic Campfire Kit', spell = 'Basic Campfire Kit' }
 ITEMS[279961] = { name = 'Journeyman Campfire Kit', spell = 'Journeyman Campfire Kit' }
