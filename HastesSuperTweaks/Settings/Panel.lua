@@ -73,6 +73,16 @@ local function Hidden(chain, info)
     end
 end
 
+-- Whether a setting's `hidden` (its own, or a section's it's in) is decided as settings change, by a function, rather
+-- than fixed: such a setting is built anyway, and shown or hidden as its page is refreshed.
+local function HidesLater(chain)
+    for i = #chain, 2, -1 do
+        local value = chain[i].hidden
+        if value ~= nil then return type(value) == "function" end
+    end
+    return false
+end
+
 local function Sorted(args)
     local list = {}
     for key, option in pairs(args or {}) do list[#list + 1] = { key = key, option = option } end
@@ -902,7 +912,15 @@ local FULL = { description = true, commands = true, items = true, release = true
 
 function P:BuildPage(group, gate)
     local content = CreateFrame("Frame", nil, self.pageArea.child)
-    local page = { content = content, blocks = {}, controls = {} }
+    -- hiders: the rows and blocks whose `hidden` can change, each with its hiddenWhen (see HidesLater).
+    local page = { content = content, blocks = {}, controls = {}, hiders = {} }
+    -- Settings hidden for good are left out; those hidden for now are built, and hidden as their page is refreshed.
+    local function skip(path, info) return Hidden(path, info) and not HidesLater(path) end
+    local function hider(region, path, info)
+        if not HidesLater(path) then return end
+        region.hiddenWhen = function() return Hidden(path, info) and true or false end
+        page.hiders[#page.hiders + 1] = region
+    end
     local function add(card, key, o, path, info)
         local last = card.rows[#card.rows]
         local parent = o.type == "execute" and (last and last.buttons and last or ButtonBar(card)) or card
@@ -910,21 +928,27 @@ function P:BuildPage(group, gate)
         c.key = key
         page.controls[#page.controls + 1] = c
         if parent ~= card then
-            if parent ~= last then card.rows[#card.rows + 1] = parent end
+            if parent ~= last then
+                card.rows[#card.rows + 1] = parent
+                hider(parent, path, info)
+            end
             parent.buttons[#parent.buttons + 1] = c
         else
             card.rows[#card.rows + 1] = c
+            hider(c, path, info)
         end
     end
     local function fill(card, args, chain)
         for _, entry in ipairs(Sorted(args)) do
             local o = entry.option
             local info, path = { option = o, key = entry.key }, Extend(chain, o)
-            if Hidden(path, info) then
-                -- skipped
+            if skip(path, info) then
+                -- left out
             elseif o.type == "group" then
                 if o.inline then
-                    card.rows[#card.rows + 1] = Subheading(card, Resolve(o.name, info))
+                    local heading = Subheading(card, Resolve(o.name, info))
+                    card.rows[#card.rows + 1] = heading
+                    hider(heading, path, info)
                     fill(card, o.args, path)
                 end
             elseif Build[o.type] then
@@ -936,12 +960,13 @@ function P:BuildPage(group, gate)
     for _, entry in ipairs(Sorted(group.args)) do
         local o = entry.option
         local info, path = { option = o, key = entry.key }, Extend({ group }, o)
-        if Hidden(path, info) or IsPage(o) then
-            -- skipped; sub-pages have tabs of their own
+        if skip(path, info) or IsPage(o) then
+            -- left out; sub-pages have tabs of their own
         elseif o.type == "group" then
             loose = nil
             local card = W.Card(content, Resolve(o.name, info))
             card.rows, card.isCard = {}, true
+            hider(card, path, info)
             fill(card, o.args, path)
             page.blocks[#page.blocks + 1] = card
         elseif FULL[o.type] then
@@ -950,6 +975,7 @@ function P:BuildPage(group, gate)
             c.key = entry.key
             page.controls[#page.controls + 1] = c
             page.blocks[#page.blocks + 1] = c
+            hider(c, path, info)
         elseif Build[o.type] then
             if not loose then
                 loose = W.Card(content)
@@ -969,19 +995,29 @@ local function LayoutCard(card, width, top)
     local y = card.title and 34 or 8
     local previous
     for _, row in ipairs(card.rows) do
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", CARD_PAD, -y)
-        row:SetWidth(inner)
-        local height = row:Layout(inner)
-        row:SetHeight(height)
-        row.top = top + y
-        if row.buttons then for _, b in ipairs(row.buttons) do b.top = top + y + b.barY end end
-        if row.divider then row.divider:SetShown(previous ~= nil and not previous.noDivider) end
-        previous = row
-        y = y + height
+        -- A row hidden for now takes no room.
+        if row.hiddenWhen then row:SetShown(not row.hiddenNow) end
+        if not row.hiddenNow then
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", CARD_PAD, -y)
+            row:SetWidth(inner)
+            local height = row:Layout(inner)
+            row:SetHeight(height)
+            row.top = top + y
+            if row.buttons then for _, b in ipairs(row.buttons) do b.top = top + y + b.barY end end
+            if row.divider then row.divider:SetShown(previous ~= nil and not previous.noDivider) end
+            previous = row
+            y = y + height
+        end
     end
     card:SetSize(width, y + 8)
     return y + 8
+end
+
+-- The next block shown from blocks[i] on, when it's a card: its index. Blocks hidden for now are passed over.
+local function NextCard(blocks, i)
+    while blocks[i] and blocks[i].hiddenNow do i = i + 1 end
+    return blocks[i] and blocks[i].isCard and i or nil
 end
 
 function P:LayoutPage(page, width)
@@ -989,41 +1025,53 @@ function P:LayoutPage(page, width)
     page.width = width
     local wide = width >= TWO_COLUMNS
     local blocks = page.blocks
-    local columns, columnWidth
+    local columns, columnWidth, previous
     local tops = { 0, 0 }
     for b, block in ipairs(blocks) do
-        block:ClearAllPoints()
-        -- Each run of cards between full-width blocks: two columns on a wide page, but only with two cards to fill them.
-        if block.isCard and not (blocks[b - 1] and blocks[b - 1].isCard) then
-            local last = b
-            while blocks[last + 1] and blocks[last + 1].isCard do last = last + 1 end
-            columns = (wide and last > b) and 2 or 1
-            columnWidth = columns == 2 and math.floor((width - GAP) / 2) or width
-        end
-        if block.isCard then
-            local i = (columns == 2 and tops[2] < tops[1]) and 2 or 1
-            block:SetPoint("TOPLEFT", (i - 1) * (columnWidth + GAP), -tops[i])
-            block.top = tops[i]
-            tops[i] = tops[i] + LayoutCard(block, columnWidth, tops[i]) + GAP
-        else
-            local top = math.max(tops[1], tops[2])
-            block:SetPoint("TOPLEFT", 0, -top)
-            block:SetWidth(width)
-            local height = block:Layout(width)
-            block:SetHeight(height)
-            block.top = top
-            tops[1], tops[2] = top + height + GAP, top + height + GAP
+        -- A block hidden for now takes no room.
+        if block.hiddenWhen then block:SetShown(not block.hiddenNow) end
+        if not block.hiddenNow then
+            block:ClearAllPoints()
+            -- Each run of cards between full-width blocks: two columns on a wide page, but only with two cards to
+            -- fill them.
+            if block.isCard and not (previous and previous.isCard) then
+                local count, i = 1, NextCard(blocks, b + 1)
+                while i do count, i = count + 1, NextCard(blocks, i + 1) end
+                columns = (wide and count > 1) and 2 or 1
+                columnWidth = columns == 2 and math.floor((width - GAP) / 2) or width
+            end
+            previous = block
+            if block.isCard then
+                local i = (columns == 2 and tops[2] < tops[1]) and 2 or 1
+                block:SetPoint("TOPLEFT", (i - 1) * (columnWidth + GAP), -tops[i])
+                block.top = tops[i]
+                tops[i] = tops[i] + LayoutCard(block, columnWidth, tops[i]) + GAP
+            else
+                local top = math.max(tops[1], tops[2])
+                block:SetPoint("TOPLEFT", 0, -top)
+                block:SetWidth(width)
+                local height = block:Layout(width)
+                block:SetHeight(height)
+                block.top = top
+                tops[1], tops[2] = top + height + GAP, top + height + GAP
+            end
         end
     end
     page.height = math.max(tops[1], tops[2])
     page.content:SetSize(width, math.max(1, page.height))
 end
 
--- Refreshes the page's controls; a page whose text changed its height is laid out again.
+-- Refreshes the page's controls; a page whose text changed its height, or whose settings hidden for now changed, is
+-- laid out again.
 function P:RefreshPage()
     local page = self.page
     if not page then return end
     local resized = false
+    -- Rows and blocks whose `hidden` changed: the page is laid out again.
+    for _, region in ipairs(page.hiders) do
+        local off = region.hiddenWhen()
+        if region.hiddenNow ~= off then region.hiddenNow, resized = off, true end
+    end
     for _, c in ipairs(page.controls) do
         c:Refresh()
         if c.resized then c.resized = nil; resized = true end
