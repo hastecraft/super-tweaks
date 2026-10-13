@@ -153,6 +153,22 @@ Enum.EventToastEventType = { LevelUp = 1 }
 EventToastManagerFrame = CreateFrame('Frame', 'EventToastManagerFrame', UIParent)
 function EventToastManagerFrame:DisplayToast() end
 
+-- Campfire Helper: your auras by spell ID (PLAYER_AURAS) and in buff order (PLAYER_BUFFS), WoW Forever's camp spells,
+-- and the campfire kits with the spells they cast.
+PLAYER_AURAS, PLAYER_BUFFS = {}, {}
+C_UnitAuras = {
+    GetPlayerAuraBySpellID = function(id) return PLAYER_AURAS[id] end,
+    GetBuffDataByIndex = function(_, index) return PLAYER_BUFFS[index] end,
+    GetAuraDataByAuraInstanceID = function(_, id)
+        for _, aura in ipairs(PLAYER_BUFFS) do if aura.auraInstanceID == id then return aura end end
+    end,
+}
+C_Spell.DoesSpellExist = function() return true end
+ITEMS[279981] = { name = 'Basic Campfire Kit', spell = 'Basic Campfire Kit' }
+ITEMS[279961] = { name = 'Journeyman Campfire Kit', spell = 'Journeyman Campfire Kit' }
+ITEMS[279974] = { name = 'Expert Campfire Kit', spell = 'Expert Campfire Kit' }
+C_Item.GetItemCooldown = C_Item.GetItemCooldown or function() return 0, 0, true end
+
 -- Battleground Alerts: battleground queues (BATTLEFIELDS[i]: status, map, and for an invite the time it runs out), the
 -- game's invite window, the gate countdown's timer type, the alert sounds, and a match's rewards (a new table each
 -- call, as the game's).

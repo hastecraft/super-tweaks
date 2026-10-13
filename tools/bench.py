@@ -377,6 +377,55 @@ Section('Level-Up Screenshot', function()
     end)
 end)
 
+Section('Campfire Helper', function()
+    local UPDATED, ADDED, REMOVED = { updatedAuraInstanceIDs = { 7 } }, { addedAuras = { {} } }, { removedAuraInstanceIDs = { 8 } }
+    local LOST = { removedAuraInstanceIDs = { 103 } }
+    Measure('Campfire Helper: aura refreshed, none gained or lost', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', UPDATED) end)
+    Measure('Campfire Helper: aura gained, not a camp one', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED) end)
+    Measure('Campfire Helper: a spell cast, not a campfire', 300, function()
+        Send('CampfireHelper', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-1', 78, 0)
+    end)
+    Measure('Campfire Helper: aura changes in combat', 300, function()
+        state.combat = true; Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); state.combat = false
+    end)
+    -- Camp buffs with three camp object buffs, one lost early, then all gone.
+    local benefits = { auraInstanceID = 100, spellId = 1229741, name = 'Camp Benefits', duration = 3600 }
+    local buffs = {}
+    for i = 1, 3 do buffs[i] = { auraInstanceID = 100 + i, spellId = 1300000 + i, name = 'Camp Buff ' .. i, duration = 3600 } end
+    Measure('Campfire Helper: camp buffs land (+1 s), one ends early, all end', 20, function()
+        local ends = GetTime() + 3600
+        benefits.expirationTime = ends
+        PLAYER_AURAS[1229741], PLAYER_BUFFS[1] = benefits, benefits
+        for i = 1, 3 do buffs[i].expirationTime = ends; PLAYER_BUFFS[i + 1] = buffs[i] end
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); AdvanceTime(1)
+        PLAYER_BUFFS[4] = nil
+        Send('CampfireHelper', 'UNIT_AURA', 'player', LOST)
+        PLAYER_AURAS[1229741] = nil; wipe(PLAYER_BUFFS)
+        Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
+        benefits.auraInstanceID = benefits.auraInstanceID + 10
+    end)
+    -- Near a campfire, sitting the minute out (the campfire's text changes every second), then walking away.
+    local nearby = { auraInstanceID = 200, spellId = 1283391, name = 'Campfire Nearby', duration = 0, expirationTime = 0 }
+    local welcome = { auraInstanceID = 300, spellId = 1289723, name = 'Welcoming Campfire', duration = 60 }
+    Measure('Campfire Helper: near a fire, sit a minute (+60 s), walk away', 10, function()
+        PLAYER_AURAS[1283391] = nearby
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED)
+        welcome.expirationTime = GetTime() + 60
+        PLAYER_AURAS[1289723] = welcome
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); AdvanceTime(60)
+        PLAYER_AURAS[1289723], PLAYER_AURAS[1283391] = nil, nil
+        Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
+        nearby.auraInstanceID, welcome.auraInstanceID = nearby.auraInstanceID + 1, welcome.auraInstanceID + 1
+    end)
+    Measure('Campfire Helper: campfire lit (+0.2 s)', 20, function()
+        mod('CampfireHelper').litAt = nil
+        Send('CampfireHelper', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-2', 1229736, 0); AdvanceTime(0.2)
+    end)
+    -- Off, and its timers run out, so none of them fire in the scenarios after this one.
+    HST:SetFeatureEnabled('CampfireHelper', false)
+    AdvanceTime(3700)
+end)
+
 Section('Battleground Alerts', function()
     local B, queue = mod('BattlegroundAlerts'), { status = 'queued', map = 'Warsong Gulch' }
     BATTLEFIELDS[1] = queue
