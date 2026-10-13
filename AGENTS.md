@@ -20,8 +20,13 @@ When it finishes, tell the user whether `/reload` is enough or whether a full ga
 
 ## Branches and pull requests
 
-- Work on a branch and open a pull request into `master`; never push to `master`. Several sessions often work on this repo at once, so prefer a git worktree of your own, and never commit or revert changes you didn't make.
-- One change per pull request. Fill in the template, including the one line "For the patch notes" in player terms.
+- Work in a git worktree of your own, on a branch from `origin/master`; never push to `master`. Several sessions often work on this repo at once, so never commit or revert changes you didn't make.
+- Push and open or update a pull request only when the person you're working for asks you to. Until then, commit on your branch so the change can be tested in game.
+- One open pull request per tweak or area. Before opening one, look for an open pull request for the same tweak (`gh pr list --state open --limit 200`, by its scope; the default shows only 30); if there is one, push your commits to its branch instead. Settings previews, wording and review findings for a tweak with an open pull request are commits on that pull request, never a new one.
+- Never base a pull request on another pull request's branch, and don't use code that only exists in another open pull request. If your change needs it, add your change to that pull request, or wait until it merges.
+- Changes that cut across many tweaks (a wording pass, a new settings widget) are their own pull request, opened when no open pull request for those tweaks would conflict with it.
+- Keep the queue short: if more than 8 pull requests are open, say so and ask before opening another.
+- Each commit in a pull request is one logical step with a Conventional Commits message, so the pull request reads as its history. Fill in the template, with one line per player-visible change under "For the patch notes".
 - Commit messages and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): `type(scope): summary`, for example `fix(sell-clutter): keep quest items under collapsed headers`. Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `ci`, `build`, `chore`, `revert`. The scope is optional: the tweak or area, in kebab case. Mark changes players lose or have to redo with `!` (`feat!: ...`) or a `BREAKING CHANGE:` footer. Pull requests are squash-merged, so the title becomes the commit on `master`; CI checks it ([CONTRIBUTING.md](CONTRIBUTING.md#commit-messages-and-pull-request-titles)).
 - Don't edit the patch notes entries in `HastesSuperTweaks/PatchNotes.lua`, the TOC's `## Version` or `CHANGELOG.md`: those are written at release time from the merged pull requests. CI fails pull requests that change them.
 - CI must pass: luacheck, `tools/check.py`, the bench comparison and the package build.

@@ -27,7 +27,7 @@ By contributing, you agree that your work is licensed under the [MPL-2.0](LICENS
 
 ## Making a change
 
-- Work on a branch, and keep each pull request to one change.
+- Work on a branch from `master`. One pull request per tweak: if one is already open for the tweak you're changing, add to it (or ask its author) instead of opening another. Don't base a pull request on another pull request's branch.
 - Match the code around you: its naming, comment style and structure.
 - Test in game. CI can't run the game, so say in the pull request which client you tested on (WoW Forever or Classic Era) and what you did.
 - Mind the cost. The addon promises minimal performance impact. Prefer events over OnUpdate, register frequent events only while needed, make no garbage per event, and make sure a turned-off tweak costs nothing. [AGENTS.md](AGENTS.md#cost-as-little-as-possible) has the details.
