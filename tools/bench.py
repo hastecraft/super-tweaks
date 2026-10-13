@@ -470,6 +470,9 @@ COMBAT_TEXT = r'''
 local S = HST:GetModule('CombatText')
 Only({ 'CombatText' })
 S.db.profile.hideWorldText, S.db.profile.hideWorldDamage = false, false
+-- Nameplate numbers, which aren't the default (the game's own numbers are).
+S.db.profile.enemyMode = 'NAMEPLATE'
+S:Apply()
 for i = 1, 8 do
     local plate = CreateFrame('Frame', 'NamePlate' .. i, WorldFrame)
     plate:SetFrameLevel(10 + i)

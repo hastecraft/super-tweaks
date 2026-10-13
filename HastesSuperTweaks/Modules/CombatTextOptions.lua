@@ -143,7 +143,7 @@ function S:BuildOptions()
                 enemyMode = option("select", "enemyMode", "Show", 1, {
                     values = { NAMEPLATE = "On their nameplates", AREA = "Your target's, in a scroll area",
                         GAME = "The game's own numbers", OFF = "Off" },
-                    sorting = { "NAMEPLATE", "AREA", "GAME", "OFF" },
+                    sorting = { "GAME", "NAMEPLATE", "AREA", "OFF" },
                     desc = "Nameplates and the scroll area show everyone's damage, since the game doesn't tell addons who "
                         .. "dealt it, and nameplate numbers need enemy nameplates shown. The game's own numbers shows only "
                         .. "your damage, with this font and the size under The game's numbers." }),

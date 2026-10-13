@@ -31,7 +31,7 @@ local defaults = {
     inDamage = true, inHeals = true, inMisses = true, inReduction = true, inEnergy = false, inPet = false,
     inDamageMin = 0, inHealMin = 0,
     damageColor = { 1, 0.15, 0.15, 1 }, healColor = { 0.2, 1, 0.2, 1 }, missColor = { 1, 1, 1, 1 },
-    enemyMode = "NAMEPLATE", enemyTargetOnly = false, skipTapped = true, enemyMisses = true, enemyMin = 0,
+    enemyMode = "GAME", enemyTargetOnly = false, skipTapped = true, enemyMisses = true, enemyMin = 0,
     enemyColor = { 1, 1, 1, 1 }, enemyCritColor = { 1, 0.82, 0, 1 }, hideWorldDamage = true, gameDamageSize = 1,
     plateAnimation = "FOUNTAIN", plateSize = 20, plateHeight = 120, plateDuration = 1.6, plateOffset = 60,
     plateLayer = "WORLD", plateLevel = 0,
