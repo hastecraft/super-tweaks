@@ -2,6 +2,64 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 2.0.0 (2026-10-13)
+
+Ten new tweaks, most of them for WoW Forever, and Better Scrolling Combat Text uses the game's own damage numbers by default.
+
+### Campfire Helper
+
+A campfire on screen shows when you're near a fire, counts down the minute you sit, and keeps your camp buffs' time left up.
+
+### Better World Refresh
+
+A countdown bar for WoW Forever's world refresh, which can refresh for you at a safe moment.
+
+### Appearance Collector
+
+A mark on gear whose look you haven't collected, in your bags, at vendors and in the Loot Window, and Sell Clutter keeps it.
+
+### Share your profile
+
+Export your profile as text to share it, and import one from someone else.
+
+### New
+
+- Campfire Helper (WoW Forever): a campfire on screen shows when you're near a fire, counts down the minute you sit, and keeps your camp buffs' time left up, blinking as they run out. /hst camp check lists every camp timer.
+- Better World Refresh (WoW Forever, starts off): a countdown bar for the world refresh, with alerts, click to refresh and a key binding, that can refresh for you at a safe moment.
+- Appearance Collector (WoW Forever): a mark on gear whose look you haven't collected, in your bags, at vendors and in the Loot Window, and a line in item tooltips. Choose a hanger, shirt, sparkle or dot. Sell Clutter Automatically keeps that gear.
+- Battleground Alerts: how long you have left to enter a battleground, a taskbar flash as the invite runs out and as the gates open, and the result in chat.
+- Quest Item Button (starts off): one button and a key for the usable item of the quest you're on.
+- Quest Progress Sounds (starts off): a sound when you finish a quest objective, and another when the quest is ready to turn in.
+- Aura Sounds (starts off): a sound when buffs or debuffs you choose appear, stack or fade, with presets for every class. Works in combat and dungeons.
+- Druid Mana in Forms: your mana under the player frame in cat and bear form.
+- Combo Points on Nameplates: your combo points on your target's nameplate, for rogues and for druids in Cat Form.
+- Legacy Tracker (WoW Forever): says in chat how many Legacy points each challenge gives and how many you have to spend. /hst legacy opens the Legacy window.
+- Better Tooltips: on WoW Forever, players in your Recent Allies show where and when you last played together, and your note on them.
+- Game Settings: switches for settings WoW Forever's options don't show: threat percentage, target frame debuffs, item comparison, outlines, the navigation marker, map fade, automatic quest tracking and the Praise the Sun banner.
+- Consumable Macros: a Feed Pet macro for hunters, and Main Hand and Off Hand macros with your best stone, oil or poison.
+- Restock at Vendors: buys the vendor reagents for the recipes you track, for as many crafts as you choose.
+- Better Scrolling Combat Text: critical hits can shake, scroll areas have Horizontal and Vertical sliders, and with the game's own numbers you choose whether they fly out to the sides and which hits show.
+- Guild Message Popup: choose its font.
+- Better Breath Meter: choose its text color.
+- Profiles: export your profile as text to share it, and import one.
+- The settings window's sidebar can be resized by dragging its edge.
+
+### Changed
+
+- Better Scrolling Combat Text: damage to enemies uses the game's own numbers by default. Numbers on nameplates are still under Enemies > Show.
+- Better Scrolling Combat Text: the Spell icons setting is gone; spell alerts and aura notices show as text.
+- Settings that don't apply to what you've chosen are hidden, and long lists such as Chat Spam Filter's words get taller boxes that wrap and scroll.
+- The settings previews of Better Scrolling Combat Text, Fast Loot, Loot Window, XP Tracker, Better Breath Meter, Guild Message Popup and Mail Gold Guard follow every setting.
+- Shorter, clearer setting descriptions, chat messages and tooltips.
+
+### Fixed
+
+- Better Scrolling Combat Text: damage numbers no longer have their last digit cut off.
+- Mail Gold Guard returns the mail you clicked even when another looks just like it.
+- Turning off Better Breath Meter mid-dive brings back the game's breath bar.
+- On WoW Forever, switching profiles on one character no longer changes the profile other characters with the same first name start with.
+- Settings search: the arrow keys scroll to the highlighted result.
+
 ## 1.2.1 (2026-10-12)
 
 Fixes for surnames and friend requests on WoW Forever.
