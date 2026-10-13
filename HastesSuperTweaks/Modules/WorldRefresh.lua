@@ -34,6 +34,8 @@ local defaults = {
 ns.Configure(R, defaults, function(m) return m:BuildOptions() end, "Apply")
 
 local LABEL, REFRESHING = "World refresh", "Refreshing"
+local REFRESHING_IN = REFRESHING .. " in"
+local AUTO_CHAT = "Refreshing the world now, while it's safe."
 -- Longest wait taken from the game as a real one: it answers 0 while no refresh is waiting.
 local MAX_WAIT = 2 * 60 * 60
 -- Events heard while the tweak is on; the NPC window events only while a refresh is waiting and it may refresh by itself.
@@ -59,6 +61,18 @@ local function Minutes(seconds)
     local minutes = ceil(seconds / 60)
     return minutes == 1 and "1 minute" or (minutes .. " minutes")
 end
+
+-- The chat line as a refresh starts waiting, seconds from now (0: any moment); auto: it refreshes by itself.
+local function StartText(seconds, sample, auto)
+    local prefix = sample and "(Sample) " or ""
+    local when = seconds > 0 and ("The world refreshes in " .. Minutes(seconds) .. ".") or "The world refreshes any moment."
+    local how = auto and " It refreshes by itself once you're somewhere safe; right-click the bar to stop that."
+        or " Click the bar to refresh now."
+    return prefix .. when .. how
+end
+
+-- The last warning's message in the middle of the screen.
+local function WarnText(seconds) return "World refresh in " .. Clock(seconds) end
 
 ---------------------------------------------------------------------------
 -- When it's safe to refresh: why not, or nil.
@@ -229,7 +243,7 @@ function R:Draw(now)
     if self.requested then
         Paint(bar, REFRESHING, "", p.autoColor, value, false)
     elseif self.graceLeft then
-        Paint(bar, REFRESHING .. " in", self.graceLeft .. "s", p.autoColor, value, false)
+        Paint(bar, REFRESHING_IN, self.graceLeft .. "s", p.autoColor, value, false)
     elseif left <= 0 then
         Paint(bar, LABEL, "any moment", p.warnColor, 0, p.warnPulse)
     else
@@ -263,13 +277,7 @@ function R:Start(seconds, sample, quiet)
     -- The last warning comes only on the way down through it.
     self.warned = seconds <= p.warnAt
     if not quiet then
-        if p.chat then
-            local prefix = sample and "(Sample) " or ""
-            local when = seconds > 0 and ("The world refreshes in " .. Minutes(seconds) .. ".") or "The world refreshes any moment."
-            local how = p.autoRefresh ~= "off" and " It refreshes by itself once you're somewhere safe; right-click the bar to stop that."
-                or " Click the bar to refresh now."
-            Print(prefix .. when .. how)
-        end
+        if p.chat then Print(StartText(seconds, sample, p.autoRefresh ~= "off")) end
         Alert(p.startSound and "READY_CHECK", p.flash)
     end
     if self.ticker then self.ticker:Cancel() end
@@ -294,7 +302,7 @@ function R:Tick()
     if not self.warned and left <= p.warnAt then
         self.warned = true
         self.hiddenUntil = nil
-        if p.warnMessage then CenterMessage("World refresh in " .. Clock(left)) end
+        if p.warnMessage then CenterMessage(WarnText(left)) end
         Alert(p.warnSound and "RAID_WARNING", p.flash)
     end
     -- Refreshing by itself: a few seconds' notice once it's safe, called off if that changes.
@@ -324,7 +332,7 @@ function R:RefreshNow(auto)
     end
     self.graceLeft, self.requested = nil, true
     self:ListenToWindows(false)
-    if auto and self.db.profile.chat then Print("Refreshing the world now, while it's safe.") end
+    if auto and self.db.profile.chat then Print(AUTO_CHAT) end
     Confirm()
     self:Draw()
 end
@@ -464,23 +472,97 @@ function R:ApplyEditMode() self:Apply() end
 ns.EditMode.Add(R)
 
 ---------------------------------------------------------------------------
--- Settings preview: the last minute and a half, fast, into the last warning.
+-- Settings preview: the last minute and a half, fast, into the last warning and its message above the bar. Refreshing
+-- by itself, it turns safe on the way down: the notice before refreshing, then the refresh. The chat lines go under it.
 ---------------------------------------------------------------------------
+local AUTO_CAPTIONS = { safe = "Refreshes by itself once you're safe",
+    rested = "Refreshes by itself once you're safe in an inn or city" }
+local RAID_WARNING_COLOR = { r = 1, g = 0.28, b = 0 } -- the game's default, should it have none
+-- The countdown's length in the loop (the bar running out), each second of the notice, and the refresh at the end.
+local COUNT, GRACE_STEP, REFRESHED = 8, 0.5, 1.5
+
 function R.info.preview(frame)
-    local p = R.db.profile
-    local bar = frame.hstWorldRefresh
-    if not bar then
-        bar = CreateBar(frame)
-        frame.hstWorldRefresh = bar
-        bar:SetPoint("CENTER")
+    local W, p = ns.Widgets, R.db.profile
+    local v = frame.hstWorldRefresh
+    if not v then
+        v = { parts = {} }
+        frame.hstWorldRefresh = v
+        v.bar = CreateBar(frame)
+        v.warning = W.Text(frame, "GameFontNormalLarge", nil, "CENTER")
+        v.chat = W.ChatLine(frame, "")
+        v.caption = W.Caption(frame, "")
     end
+    local bar, warnAt, auto = v.bar, p.warnAt, p.autoRefresh ~= "off"
     Style(bar, p, ns.Media("font", p.font), ns.OutlineFlags(p.outline))
-    bar:SetSize(min(p.width, 220), p.height)
-    local from = max(p.warnAt, 10) + 20
-    ns.Widgets.Loop(frame, 8, function(t)
-        local left = from * (1 - t / 8)
-        local warning = left <= p.warnAt
-        Paint(bar, LABEL, Clock(left), warning and p.warnColor or p.barColor, left / from, warning and p.warnPulse)
+    bar:SetSize(min(p.width, 240), p.height)
+    -- Game seconds at the start, and the loop's times: the last warning, the countdown's end (refreshing by itself, a
+    -- while into the warning) and the loop's end.
+    local from = max(warnAt, 10) + 20
+    local speed = from / COUNT
+    local warnFrom = warnAt > 0 and COUNT * (1 - warnAt / from) or COUNT
+    local stop = not auto and COUNT or warnAt > 0 and min(max(warnFrom + 2.5, 5), 7.5) or 5
+    local grace = auto and p.autoDelay or 0
+    local loop = auto and stop + grace * GRACE_STEP + REFRESHED or COUNT
+
+    local message = warnAt > 0 and p.warnMessage
+    v.warning:SetShown(message)
+    if message then
+        local color = ChatTypeInfo and ChatTypeInfo.RAID_WARNING or RAID_WARNING_COLOR
+        v.warning:SetTextColor(color.r, color.g, color.b)
+        v.warning:SetText(WarnText(warnAt))
+    end
+    local startLine, autoLine
+    if p.chat then
+        startLine, autoLine = W.Chat(StartText(from, false, auto)), W.Chat(AUTO_CHAT)
+        v.chat:SetText(startLine) -- the longer of the two, to lay out with
+    end
+    local caption = AUTO_CAPTIONS[p.autoRefresh]
+    if caption then v.caption:SetText(caption) end
+
+    -- Top to bottom: the message, the bar, then the chat line and the caption while they fit. The border sits outside
+    -- the bar, so it's in the gaps.
+    local parts, n, used = v.parts, 0, p.height + 2 * p.border
+    wipe(parts)
+    if message then
+        parts[1], parts[2], n = v.warning, 6 + p.border, 2
+        used = used + v.warning:GetStringHeight() + 6
+    end
+    n = n + 1
+    parts[n] = bar
+    local chat = p.chat and used + 8 + v.chat:GetStringHeight() <= W.PREVIEW_HEIGHT or false
+    if chat then
+        parts[n + 1], parts[n + 2], n = 8 + p.border, v.chat, n + 2
+        used = used + 8 + v.chat:GetStringHeight()
+    end
+    caption = caption and used + 6 + v.caption:GetStringHeight() <= W.PREVIEW_HEIGHT or false
+    if caption then parts[n + 1], parts[n + 2] = chat and 6 or 8 + p.border, v.caption end
+    v.chat:SetShown(chat)
+    v.caption:SetShown(caption)
+    W.Column(frame, parts)
+
+    local seconds, clock, graceShown, graceText, line
+    W.Loop(frame, loop, function(t)
+        if message then v.warning:SetAlpha(W.Window(t, warnFrom, min(warnFrom + 3, loop - 0.1), 0.2)) end
+        local now = startLine
+        if t < stop then
+            local left = from - t * speed
+            local whole = ceil(left)
+            if whole ~= seconds then seconds, clock = whole, Clock(whole) end
+            local warning = left <= warnAt
+            Paint(bar, LABEL, clock, warning and p.warnColor or p.barColor, left / from, warning and p.warnPulse)
+        else
+            -- Safe now: the notice a second at a time, the countdown going on under it, then the refresh.
+            local graceLeft = grace - floor((t - stop) / GRACE_STEP)
+            local value = max(0, from - stop * speed - grace + max(graceLeft, 0)) / from
+            if graceLeft > 0 then
+                if graceLeft ~= graceShown then graceShown, graceText = graceLeft, graceLeft .. "s" end
+                Paint(bar, REFRESHING_IN, graceText, p.autoColor, value, false)
+            else
+                Paint(bar, REFRESHING, "", p.autoColor, value, false)
+                now = autoLine
+            end
+        end
+        if chat and now ~= line then line = now; v.chat:SetText(now) end
     end)
 end
 
