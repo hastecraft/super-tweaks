@@ -3,7 +3,9 @@
 -- addon's own button, so it works with the quest tracker hidden and for quests you don't watch; the tracker's item
 -- buttons are never touched. The item is only ever used when you press the button or its key.
 -- The game doesn't let addons change, move or show a button that uses items in combat, so a new item waits for combat
--- to end. What the button shows (count, cooldown, range, the glow on the right target) follows events: no polling.
+-- to end. What the button shows (count, cooldown, the glow on the right target) follows events; the range and glow
+-- are also checked every 0.2 seconds while the button holds an item and you have a target, as the game's own quest item
+-- buttons do (no event says your target came into range).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -356,8 +358,8 @@ function Q:WaitForCombat()
     self.events:RegisterEvent("PLAYER_REGEN_ENABLED")
 end
 
--- Events about the item on the button are listened to only while it holds one; your movement only while you have a
--- target too, for its range.
+-- Events about the item on the button are listened to only while it holds one; its range is checked only while you
+-- have a target too.
 local ITEM_EVENTS = { "BAG_UPDATE_DELAYED", "BAG_UPDATE_COOLDOWN", "PLAYER_TARGET_CHANGED", "ZONE_CHANGED" }
 function Q:Watch()
     local f = self.events
@@ -369,11 +371,19 @@ function Q:Watch()
             if watch then f:RegisterEvent(event) else f:UnregisterEvent(event) end
         end
     end
-    local moving = watch and UnitExists("target") or false
-    if moving ~= (self.moving or false) then
-        self.moving = moving
-        if moving then f:RegisterEvent("PLAYER_STOPPED_MOVING") else f:UnregisterEvent("PLAYER_STOPPED_MOVING") end
+    self.ranging = watch and UnitExists("target") or false
+    if self.ranging and not self.ticking then
+        self.ticking = true
+        C_Timer.After(self.RANGE_EVERY, self.tick)
     end
+end
+
+-- The range check, again every RANGE_EVERY seconds while there's a target (one timer at a time, no garbage).
+Q.RANGE_EVERY = 0.2
+Q.tick = function()
+    if not Q.ranging then Q.ticking = false; return end
+    Q:CheckTarget()
+    C_Timer.After(Q.RANGE_EVERY, Q.tick)
 end
 
 ---------------------------------------------------------------------------
@@ -420,7 +430,7 @@ local function InRange(index)
     return nil
 end
 
--- Range and glow, checked as your target changes and when you stop moving.
+-- Range and glow, checked as your target changes and every RANGE_EVERY seconds while you have one.
 function Q:CheckTarget()
     local b = self.button
     if not (b and self.link) then return end
@@ -470,13 +480,12 @@ end
 -- Changes that can change which quest is yours, picked again together.
 local REPICK = { QUEST_LOG_UPDATE = true, QUEST_WATCH_LIST_CHANGED = true, SUPER_TRACKING_CHANGED = true,
     ZONE_CHANGED_NEW_AREA = true, ZONE_CHANGED = true }
--- The item's events (ITEM_EVENTS), movement and the end of combat are added while needed (see Q:Watch, WaitForCombat).
+-- The item's events (ITEM_EVENTS) and the end of combat are added while needed (see Q:Watch, WaitForCombat).
 ns.Listen(Q, { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_CHANGED", "ZONE_CHANGED_NEW_AREA",
     "PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED", "PLAYER_ENTERING_WORLD", "UPDATE_BINDINGS" },
     function(self, event, a, b)
         if event == "BAG_UPDATE_COOLDOWN" then return self:UpdateCooldown() end
         if event == "PLAYER_TARGET_CHANGED" then self:Watch(); return self:CheckTarget() end
-        if event == "PLAYER_STOPPED_MOVING" then return self:CheckTarget() end
         if REPICK[event] then return self:Queue() end
         if event == "BAG_UPDATE_DELAYED" then
             self.bag = nil
@@ -505,7 +514,7 @@ end
 
 function Q:OnUnlisten()
     -- Their events went with the rest; the button lets go of its item (once combat ends, in combat).
-    self.watching, self.moving, self.waiting = nil, nil, nil
+    self.watching, self.ranging, self.waiting = nil, nil, nil
     self.pickQuest, self.pickLink, self.pickTexture = nil, nil, nil
     self:UpdateEditMode(false)
     self:Apply()
