@@ -213,7 +213,12 @@ function R:Apply()
     f:ClearAllPoints()
     f:SetPoint("CENTER", UIParent, "CENTER", p.x, p.y)
     Style(f.bar, p, ns.Media("font", p.font), ns.OutlineFlags(p.outline))
-    if self.deadline then self:ListenToWindows(self:AutoWanted()) end
+    if self.deadline then
+        local auto = self:AutoWanted()
+        -- Switched to "Never" during the notice before refreshing: that refresh is off.
+        if not auto then self.graceLeft = nil end
+        self:ListenToWindows(auto)
+    end
     self:Draw()
     self:UpdateBlizzard()
 end
