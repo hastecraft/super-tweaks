@@ -14,6 +14,13 @@ local HST = ns.HST
 -- it a link to that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "2.0.1", date = "2026-10-13",
+        fixed = {
+            { "No more \"blocked from an action only available to the Blizzard UI\" message when you log in on WoW Forever. Better Tooltips' Recent Allies line now shows once you've opened the Social window's Recent Allies list.",
+                module = "Tooltip", path = { "extras" } },
+        },
+    },
+    {
         version = "2.0.0", date = "2026-10-13",
         summary = "Ten new tweaks, most of them for WoW Forever, and Better Scrolling Combat Text uses the game's own damage numbers by default.",
         highlights = {

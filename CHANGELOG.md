@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 2.0.1 (2026-10-13)
+
+### Fixed
+
+- No more "blocked from an action only available to the Blizzard UI" message when you log in on WoW Forever. Better Tooltips' Recent Allies line now shows once you've opened the Social window's Recent Allies list.
+
 ## 2.0.0 (2026-10-13)
 
 Ten new tweaks, most of them for WoW Forever, and Better Scrolling Combat Text uses the game's own damage numbers by default.
