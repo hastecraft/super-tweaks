@@ -32,18 +32,17 @@ end
 
 local C = HST:NewFeature("CampfireHelper", {
     name = "Campfire Helper", category = "leveling", order = 7, command = "camp", unavailable = unavailable,
-    summary = "A campfire on screen: near a fire, the minute to sit, and your camp buffs' hour.",
+    summary = "Timers for sitting by a campfire and for your camp buffs.",
     examples = { "style", "nearby", "keepShown", "warnAt" },
-    description = "Shows a campfire on screen when you're near one, counts down the minute you sit by it, then keeps "
-        .. "your camp buffs' time left up and blinks when they're about to end and when they have. Show it as a "
-        .. "campfire in a ring, a bar or the camp aura's icon, and move it in Edit Mode. Chat messages for your own "
-        .. "campfire, the buffs you got and Boosted Rest can be turned on too. /hst camp check shows every camp timer.",
+    description = "Shows when you're near a campfire, counts down while you sit by it, then shows how long your camp "
+        .. "buffs have left and blinks when they're about to run out. Show it as a ring, a bar or an icon, and move it "
+        .. "in Edit Mode. /hst camp check lists every camp timer.",
 })
 ns.CampfireHelper = C
 
 local defaults = {
     -- The campfire on screen.
-    display = true, nearby = true, keepShown = true, warnAt = 5, without = "ended", blink = true,
+    display = true, nearby = true, nearbyAt = 30, keepShown = true, warnAt = 5, without = "ended", blink = true,
     sound = false,
     style = "campfire", x = 0, y = 200,
     -- Campfire: its size and what it draws.
@@ -95,6 +94,23 @@ end
 local function List(names, count)
     if count == 1 then return names[1] end
     return table.concat(names, ", ", 1, count - 1) .. " and " .. names[count]
+end
+
+-- Chat messages the settings preview shows too.
+local function FireText(cooldown)
+    return "Campfire lit: it burns for " .. Span(FIRE_TIME) .. "."
+        .. (cooldown > 0 and (" You can light another in " .. Span(cooldown) .. ".") or "")
+end
+local function SittingText(left) return "Keep sitting: camp buffs in " .. Span(left) .. "." end
+-- The camp buffs that came with Camp Benefits, or Camp Benefits alone.
+local function BuffsText(left, names, count)
+    if count == 0 then return SpellName(CAMP_BENEFITS, "Camp Benefits") .. " for " .. Span(left) .. "." end
+    return "Camp buffs for " .. Span(left) .. ": " .. List(names, count) .. "."
+end
+local function EndingText(left) return "Your camp buffs end in " .. Span(left) .. "." end
+local function EndedText() return "Your camp buffs ended. Sit by a campfire for " .. Span(60) .. " for new ones." end
+local function RestedText()
+    return SpellName(BOOSTED_REST, "Boosted Rest") .. " is over: a Camp Tent gives you rested XP again."
 end
 
 -- The time on your computer's clock, for timers kept across a /reload or logout.
@@ -454,7 +470,7 @@ local function NewCampfire(parent)
     return d
 end
 
--- The style, size and text the settings choose; scale shrinks it (for the settings preview).
+-- The style, size and text the settings choose; scale shrinks all of it, text too (for the settings preview).
 local function Style(d, p, scale)
     scale = scale or 1
     local style = VIEWS[p.style] and p.style or "campfire"
@@ -490,9 +506,8 @@ local function Style(d, p, scale)
     end
     local font, flags = ns.Media("font", p.font), ns.OutlineFlags(p.outline)
     local shadow = flags == "" and 1 or 0
-    local small = p.labelSize
-    ns.SetFont(time, font, p.fontSize, flags)
-    ns.SetFont(label, font, small, flags)
+    ns.SetFont(time, font, p.fontSize * scale, flags)
+    ns.SetFont(label, font, p.labelSize * scale, flags)
     for _, text in ipairs({ time, label }) do text:SetShadowOffset(shadow, -shadow) end
     time:SetShown(p.showTime)
     label:SetShown(p.showLabel)
@@ -577,7 +592,7 @@ function C:Refresh(now)
     elseif self.editMode then
         -- A sample to place: the minute of sitting, a third gone, standing still.
         state, start, length, ends = "sitting", now - 20, 60, now + 40
-    elseif b.on then
+    elseif b.on and not (n.on and p.nearby and b.ends - now <= p.nearbyAt * 60) then
         local left = b.ends - now
         warning = p.warnAt > 0 and left <= self:WarnAt()
         if p.keepShown or warning then state, start, length, ends = "buffs", b.ends - b.length, b.length, b.ends end
@@ -709,6 +724,7 @@ function C:ShowTooltip(owner)
     elseif state == "nearby" then
         GameTooltip:SetText(SpellName(NEARBY, "Campfire Nearby"))
         Line("Sit down near the fire for " .. Span(60) .. " to get camp buffs for an hour.", WHITE)
+        if b.on then Line("Your camp buffs last " .. Span(b.ends - now) .. " more.", GREY) end
     elseif state == "missing" then
         GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
         Line("No camp buffs. Sit by a campfire for " .. Span(60) .. " to get them.", WHITE)
@@ -800,9 +816,7 @@ end
 
 local function AnnounceFire()
     if not (C:IsEnabled() and Says("fire")) then return end
-    local cooldown = C:FireCooldown()
-    Print("Campfire lit: it burns for " .. Span(FIRE_TIME) .. "."
-        .. (cooldown > 0 and (" You can light another in " .. Span(cooldown) .. ".") or ""))
+    Print(FireText(C:FireCooldown()))
 end
 
 -- A spell you cast: lighting a campfire starts its timers.
@@ -837,9 +851,13 @@ ON_TIMER.buffsEnding = function()
     C.timers.buffsEnding = nil
     if not C.benefits.on then return end
     local p = C.db.profile
-    if Says("ending") then Print("Your camp buffs end in " .. Span(C.benefits.ends - GetTime()) .. ".") end
+    if Says("ending") then Print(EndingText(C.benefits.ends - GetTime())) end
     if p.sound and p.display and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
     C:Refresh()
+end
+ON_TIMER.nearbyFirst = function()
+    C.timers.nearbyFirst = nil
+    if C.near.on then C:Refresh() end
 end
 function C.onTick()
     local due, now = C.tickDue, GetTime()
@@ -847,11 +865,13 @@ function C.onTick()
     C:Refresh(now)
 end
 
--- The warning before the camp buffs end, from now (none when it's off or past).
+-- The warning before the camp buffs end, and the moment a campfire nearby shows over them, from now (none when off or
+-- past).
 function C:TimeWarning()
-    local b = self.benefits
-    local warnAt = self:WarnAt()
-    self:Schedule("buffsEnding", b.on and warnAt > 0 and b.ends - warnAt - GetTime() or nil)
+    local b, now = self.benefits, GetTime()
+    local warnAt, nearbyAt = self:WarnAt(), self.db.profile.nearbyAt * 60
+    self:Schedule("buffsEnding", b.on and warnAt > 0 and b.ends - warnAt - now or nil)
+    self:Schedule("nearbyFirst", b.on and nearbyAt > 0 and b.ends - nearbyAt - now or nil)
 end
 
 ---------------------------------------------------------------------------
@@ -880,12 +900,7 @@ function C:CountBuffs(quiet)
         end
     end
     if quiet or not Says("buffs") then return end
-    local left = Span(b.ends - GetTime())
-    if count == 0 then
-        Print(SpellName(CAMP_BENEFITS, "Camp Benefits") .. " for " .. left .. ".")
-    else
-        Print("Camp buffs for " .. left .. ": " .. List(names, count) .. ".")
-    end
+    Print(BuffsText(b.ends - GetTime(), names, count))
 end
 local function CountLoud() if C:IsEnabled() then C:CountBuffs(false) end end
 local function CountQuiet() if C:IsEnabled() then C:CountBuffs(true) end end
@@ -943,7 +958,7 @@ function C:Check(quiet)
         self:Schedule("buffsEnding", nil)
         if not quiet and wasEnding <= ON_TIME then
             self.ended = true
-            if Says("ending") then Print("Your camp buffs ended. Sit by a campfire for " .. Span(60) .. " for new ones.") end
+            if Says("ending") then Print(EndedText()) end
             if p.sound and p.display and p.without ~= "none" and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
         end
     end
@@ -957,7 +972,7 @@ function C:Check(quiet)
             if b.on and not gained then
                 Print("You still have camp buffs for " .. Span(b.ends - now) .. ", so this campfire gives you none until they end.")
             else
-                Print("Keep sitting: camp buffs in " .. Span(w.ends - now) .. ".")
+                Print(SittingText(w.ends - now))
             end
         end
     elseif change == "gone" and not quiet and Says("sitting") and not gained and not b.on and welcomeLeft > 2 then
@@ -967,7 +982,7 @@ function C:Check(quiet)
     local r = self.boosted
     local restLeft = r.on and r.ends - now
     if Track(r, boosted) == "gone" and not quiet and Says("boosted") and restLeft <= ON_TIME then
-        Print(SpellName(BOOSTED_REST, "Boosted Rest") .. " is over: a Camp Tent gives you rested XP again.")
+        Print(RestedText())
     end
     if changed then self:Refresh() end
 end
@@ -1064,7 +1079,7 @@ function C:Report()
     local cooldown = self:FireCooldown()
     Print(cooldown > 0 and ("You can light a campfire in " .. Span(cooldown) .. ".") or "You can light a campfire.")
     local w, b, r = self.welcome, self.benefits, self.boosted
-    if w.on and not b.on then Print("Keep sitting: camp buffs in " .. Span(w.ends - now) .. ".") end
+    if w.on and not b.on then Print(SittingText(w.ends - now)) end
     if b.on then
         local count = 0
         for _ in pairs(self.campBuffs) do count = count + 1 end
@@ -1084,62 +1099,159 @@ HST.commands.camp = function(text)
 end
 
 ---------------------------------------------------------------------------
--- Settings preview: a camp from start to end, sped up: the fire nearby, the minute of sitting, the buffs' hour running
--- down to the warning, and the reminder once they end.
+-- Settings preview: a camp from start to end, sped up: a campfire lit nearby, the minute of sitting, the buffs' hour
+-- running down to the warning (passing another campfire once they're low enough for it to show), and the reminder once
+-- they end. Each step shows what the settings put on screen, and under it the chat message it brings.
 ---------------------------------------------------------------------------
--- Steps: state, seconds shown, and for a countdown its length and the time left it runs from and to (nil: down to the
--- warning), sped up to the step's seconds; then whether it warns (from the warning down to 0).
-local PREVIEW = {
-    { "nearby", 2.5 },
-    { "sitting", 3, 60, 60, 0 },
-    { "buffs", 3, 3600, 3600, nil },
-    { "buffs", 3, 3600, nil, 0, true },
-    { "ended", 3 },
-    { "missing", 2.5 },
-}
+local HOUR = 3600
+local PAD, CHAT_GAP = 6, 6
+
+-- Adds a step: the state on screen (nil: nothing), its seconds, its chat message (nil: none), and for a countdown its
+-- length and the time left it runs from and to, sped up to the step's seconds, and whether it warns.
+local function Step(steps, state, seconds, chat, length, from, to, warning)
+    if not (state or chat) or seconds <= 0 then return end
+    steps[#steps + 1] = { state = state, seconds = seconds, chat = chat and ns.Widgets.Chat(chat), length = length,
+        from = from, to = to, warning = warning }
+end
+
+-- The camp's steps as the settings show them.
+local function Steps(p, steps)
+    wipe(steps)
+    local shows, says = p.display, p.chat
+    local warn, near = p.warnAt * 60, p.nearby and p.nearbyAt > 0 and p.nearbyAt * 60 or nil
+    -- A campfire lit nearby, and the minute you sit by it (its message comes a moment after it lands).
+    Step(steps, shows and p.nearby and "nearby" or nil, 2.5, says and p.fire and FireText(0) or nil)
+    Step(steps, shows and "sitting" or nil, 3, says and p.sitting and SittingText(59.5) or nil, 60, 60, 0)
+    -- The buffs' hour, in parts: down to the warning, and to where a campfire nearby shows over them. The hour and the
+    -- warning take 3 seconds each.
+    if near and near >= HOUR then Step(steps, shows and "nearby" or nil, 2) end
+    local from = HOUR
+    while from > 0 do
+        local warning = warn > 0 and from <= warn
+        local to = warning and 0 or warn
+        if near and near < from and near > to then to = near end
+        local chat
+        if from == HOUR then chat = says and p.buffs and BuffsText(HOUR - 1, nil, 0)
+        elseif from == warn then chat = says and p.ending and EndingText(warn) end
+        Step(steps, shows and (p.keepShown or warning) and "buffs" or nil, 3 * (from - to) / (warning and warn or HOUR - warn),
+            chat or nil, HOUR, from, to, warning)
+        if to == near then Step(steps, shows and "nearby" or nil, 2) end
+        from = to
+    end
+    -- Once they end: the reminder, and the messages for them and for Boosted Rest.
+    local ended, endedChat, restedChat = shows and p.without == "ended" and "ended" or nil, says and p.ending and EndedText() or nil,
+        says and p.boosted and RestedText() or nil
+    if endedChat and restedChat then
+        Step(steps, ended, 1.5, endedChat)
+        Step(steps, ended, 1.5, restedChat)
+    else
+        Step(steps, ended, 3, endedChat or restedChat)
+    end
+    Step(steps, shows and p.without == "always" and "missing" or nil, 2.5)
+end
+
+-- The widest text the campfire or icon shows under it in these steps, at full size.
+local function Widest(d, p, steps)
+    local widest = 0
+    for _, step in ipairs(steps) do
+        local lines = step.state and LINES[step.state]
+        if lines then
+            if p.showTime then
+                d.time:SetText(lines[1] or Countdown(step.length))
+                widest = max(widest, d.time:GetStringWidth())
+            end
+            if p.showLabel and lines[2] then
+                d.label:SetText(lines[2])
+                widest = max(widest, d.label:GetStringWidth())
+            end
+        end
+    end
+    d.shownMain, d.shownLabel = nil, nil
+    return widest
+end
+
 function C.info.preview(frame)
-    local p = C.db.profile
+    local W, p = ns.Widgets, C.db.profile
     local d = frame.hstCampfire
     if not d then
         d = NewCampfire(frame)
         frame.hstCampfire = d
+        d.steps = {}
+        d.chat = W.ChatLine(frame, "")
+        d.caption = W.Caption(frame, "Nothing on screen.")
     end
-    -- Fits the stage, with its text under it.
-    local scale = p.style == "bar" and min(1, 230 / p.barWidth) or p.style == "campfire" and min(1, 64 / p.size) or 1
-    Style(d, p, scale)
-    local below = p.style ~= "bar" and ((p.showTime and 8 or 0) + (p.showLabel and 6 or 0)) or 0
-    d.frame:ClearAllPoints()
-    d.frame:SetPoint("CENTER", 0, below)
-    d.frame:Show()
-    local steps, total = {}, 0
-    for _, step in ipairs(PREVIEW) do
-        local skip = step[1] == "nearby" and not p.nearby or step[1] == "ended" and p.without ~= "ended"
-            or step[1] == "missing" and p.without ~= "always"
-            or step[6] and p.warnAt == 0 or step[1] == "buffs" and not step[6] and not p.keepShown
-        if not skip then
-            steps[#steps + 1] = step
-            total = total + step[2]
+    local steps = d.steps
+    Steps(p, steps)
+    -- The chat line's room: its tallest message.
+    local chatHeight = 0
+    for _, step in ipairs(steps) do
+        if step.chat then
+            d.chat:SetText(step.chat)
+            chatHeight = max(chatHeight, d.chat:GetStringHeight())
         end
     end
-    local last, began = nil, 0
-    ns.Widgets.Loop(frame, total, function(t)
+    d.chatShown = nil
+    local below = chatHeight > 0 and chatHeight + CHAT_GAP or 0
+    local f = d.frame
+    Shown(f, false)
+    d.caption:SetShown(not p.display)
+    d.chat:ClearAllPoints()
+    if p.display then
+        -- Scaled to fit the stage above the chat line, its text too: the campfire or icon with the lines under it, or
+        -- the bar with its text on it.
+        local width, height, text = p.barWidth, p.barHeight, 0
+        if p.style ~= "bar" then
+            width = p.style == "icons" and p.iconSize or p.size
+            Style(d, p, 1)
+            width, height = max(width, Widest(d, p, steps)), width
+            text = p.showLabel and 4 + p.fontSize + p.labelSize or p.showTime and 3 + p.fontSize or 0
+        end
+        local scale = min(1, (W.PREVIEW_WIDTH - 2 * PAD) / width,
+            (W.PREVIEW_HEIGHT - 2 * PAD - below) / (height + text))
+        Style(d, p, scale)
+        local top = (W.PREVIEW_HEIGHT - (height + text) * scale - below) / 2
+        f:ClearAllPoints()
+        f:SetPoint("TOP", frame, "TOP", 0, -top)
+        d.chat:SetPoint("TOP", frame, "TOP", 0, -top - (height + text) * scale - CHAT_GAP)
+    else
+        W.Column(frame, chatHeight > 0 and { d.caption, CHAT_GAP, d.chat } or { d.caption })
+    end
+    d.chat:SetAlpha(0)
+    if #steps == 0 then return frame:SetScript("OnUpdate", nil) end
+    local total = 0
+    for _, step in ipairs(steps) do total = total + step.seconds end
+    local last, lastT, began, shownLeft = nil, 0, 0, nil
+    W.Loop(frame, total, function(t)
         local at, step = 0, steps[1]
-        for _, s in ipairs(steps) do
-            if t < at + s[2] then step = s; break end
-            at = at + s[2]
+        for i = 1, #steps do
+            local s = steps[i]
+            if t < at + s.seconds then step = s; break end
+            at = at + s.seconds
         end
-        if step ~= last then last, began = step, GetTime() - (t - at) end
-        local seconds, length, warning = step[2], step[3], step[6]
+        -- A new step, or the same one again after the loop starts over.
+        if step ~= last or t < lastT then last, began = step, GetTime() - (t - at) end
+        lastT = t
+        local u, seconds = t - at, step.seconds
+        if d.chatShown ~= step.chat then
+            d.chatShown = step.chat
+            if step.chat then d.chat:SetText(step.chat) end
+        end
+        d.chat:SetAlpha(step.chat and W.Window(u, 0, seconds, 0.25) or 0)
+        Shown(f, step.state ~= nil)
+        if not step.state then return end
+        local length = step.length
         if length then
-            -- The game's ring, sped up: over the step's seconds it runs from `from` left to `to` left.
-            local warnAt = p.warnAt * 60
-            local from, to = step[4] or warnAt, step[5] or warnAt
+            -- The game's ring, sped up: over the step's seconds it runs from `from` left to `to` left. Its text
+            -- changes once a minute, then once a second.
+            local from, to = step.from, step.to
             local duration = seconds * length / (from - to)
             local start = began - duration * (1 - from / length)
-            local left = from - (from - to) * (t - at) / seconds
-            Draw(d, p, step[1], start, duration, Countdown(max(1, left)), warning, false)
+            local left = max(1, from - (from - to) * u / seconds)
+            local shown = left > 60 and ceil(left / 60) or -ceil(left)
+            if shown ~= shownLeft then shownLeft, d.previewLeft = shown, Countdown(left) end
+            Draw(d, p, step.state, start, duration, d.previewLeft, step.warning, false)
         else
-            Draw(d, p, step[1], nil, nil, nil, false, false)
+            Draw(d, p, step.state, nil, nil, nil, false, false)
         end
     end)
 end
@@ -1163,25 +1275,20 @@ function C:BuildOptions()
     local function noWarning() return C.db.profile.warnAt == 0 end
     local outlines = ns.OutlineChoices("Drop shadow")
     -- The countdown's colors, on the ring's and the bar's tabs.
-    local function colors(order, what)
+    local function colors(order)
         return ns.Section("Colors", order, {
-            sittingColor = option("color", "sittingColor", "While you sit", 1, {
-                desc = "The " .. what .. " during the minute you sit by a fire." }),
-            buffsColor = option("color", "buffsColor", "While camp buffs last", 2, {
-                desc = "The " .. what .. " during your camp buffs' hour." }),
-            warnColor = option("color", "warnColor", "Ending soon", 3, { disabled = noWarning,
-                desc = "The " .. what .. " once your camp buffs are about to end." }),
+            sittingColor = option("color", "sittingColor", "While you sit", 1),
+            buffsColor = option("color", "buffsColor", "While camp buffs last", 2),
+            warnColor = option("color", "warnColor", "Ending soon", 3, { disabled = noWarning }),
         })
     end
     return { name = C.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             show = ns.Section("On screen", 1, {
-                display = option("toggle", "display", "Show on screen", 1, { desc =
-                    "Counts down the minute you sit by a fire, then your camp buffs' hour. Move it in Edit Mode." }),
+                display = option("toggle", "display", "Show on screen", 1, { desc = "Move it in Edit Mode." }),
                 style = option("select", "style", "Style", 2, { disabled = off,
                     values = { campfire = "Campfire in a ring", bar = "Bar", icons = "Icon" },
-                    sorting = { "campfire", "bar", "icons" },
-                    desc = "Each style has a tab of its own for its look." }),
+                    sorting = { "campfire", "bar", "icons" } }),
                 reset = { type = "execute", name = "Reset position", order = 3, disabled = off,
                     desc = "Moves it back to the middle of the screen, above your character.",
                     func = function()
@@ -1192,11 +1299,14 @@ function C:BuildOptions()
             }),
             when = ns.Section("When it shows", 2, {
                 nearby = option("toggle", "nearby", "Near a campfire", 1, { disabled = off, desc =
-                    "When you're close enough to a fire to get camp buffs by sitting down. The minute you sit "
-                        .. "always shows." }),
-                keepShown = option("toggle", "keepShown", "The whole hour of camp buffs", 2, { disabled = off,
-                    desc = "Off, it shows only once they're about to end." }),
-                without = option("select", "without", "Without camp buffs", 3, { disabled = off,
+                    "Close enough to sit by it for camp buffs." }),
+                nearbyAt = range("nearbyAt", "Switch to a nearby fire at (minutes left)", 2, 0, 60, {
+                    disabled = function() return off() or not C.db.profile.nearby end, desc =
+                    "Near a campfire, shows the fire instead of your camp buffs once they have this many minutes "
+                        .. "left. 0: never, 60: always." }),
+                keepShown = option("toggle", "keepShown", "While camp buffs last", 3, { disabled = off,
+                    desc = "When off, it only shows once they're about to run out." }),
+                without = option("select", "without", "Without camp buffs", 4, { disabled = off,
                     values = { none = "Never", ended = "Once they end, until clicked", always = "Always" },
                     sorting = { "none", "ended", "always" } }),
                 blink = option("toggle", "blink", "Blink without camp buffs", 9, { disabled = noneWithout }),
@@ -1205,8 +1315,7 @@ function C:BuildOptions()
                 warnAt = range("warnAt", "Warn at (minutes left)", 1, 0, 30, { disabled = off,
                     desc = "Turns red and blinks. 0 turns the warning off." }),
                 sound = option("toggle", "sound", "Play a sound", 2, { disabled = off, desc =
-                    "The raid warning sound when it starts blinking: as your camp buffs are about to end, and when "
-                        .. "they have." }),
+                    "The raid warning sound, when your camp buffs are about to run out and when they do." }),
             }),
         } },
         campfire = { type = "group", name = "Campfire", order = 2, hidden = notStyle("campfire"), disabled = off, args = {
@@ -1218,7 +1327,7 @@ function C:BuildOptions()
                 glow = option("toggle", "glow", "Glow", 5),
                 backdrop = option("toggle", "backdrop", "Dark backdrop", 6),
             }),
-            colors = colors(2, "ring"),
+            colors = colors(2),
         } },
         bar = { type = "group", name = "Bar", order = 2, hidden = notStyle("bar"), disabled = off, args = {
             look = ns.Section("Bar", 1, {
@@ -1227,35 +1336,32 @@ function C:BuildOptions()
                 texture = ns.MediaOption(profile, "statusbar", "texture", "Texture", 3, nil, apply),
                 barIcon = option("select", "barIcon", "Icon", 4, {
                     values = { left = "Left", right = "Right", none = "None" }, sorting = { "left", "right", "none" },
-                    get = function() return IconSide(C.db.profile) end,
-                    desc = "The camp aura's icon beside the bar." }),
+                    get = function() return IconSide(C.db.profile) end }),
             }),
             frame = ns.Section("Border and background", 2, {
                 border = range("border", "Border", 1, 0, 4),
                 borderColor = option("color", "borderColor", "Border color", 2),
                 backgroundColor = option("color", "backgroundColor", "Background", 3),
             }),
-            colors = colors(3, "bar"),
+            colors = colors(3),
         } },
         icons = { type = "group", name = "Icon", order = 2, hidden = notStyle("icons"), disabled = off, args = {
             look = ns.Section("Icon", 1, {
                 iconSize = range("iconSize", "Size", 1, 16, 96),
-                iconSwipe = option("toggle", "iconSwipe", "Countdown sweep", 2, { desc =
-                    "The game's dark sweep across the icon as time runs out." }),
+                iconSwipe = option("toggle", "iconSwipe", "Countdown sweep", 2),
             }),
             frame = ns.Section("Border", 2, {
                 iconBorder = range("iconBorder", "Border", 1, 0, 3),
                 borderColor = option("color", "borderColor", "Border color", 2),
-                warnColor = option("color", "warnColor", "Ending soon", 3, { disabled = noWarning,
-                    desc = "The border once your camp buffs are about to end." }),
+                warnColor = option("color", "warnColor", "Ending soon", 3, { disabled = noWarning }),
             }),
         } },
         text = { type = "group", name = "Text", order = 3, disabled = off, args = {
             lines = ns.Section("Lines", 1, {
                 showTime = option("toggle", "showTime", "Time left", 1, { desc =
-                    "\"42 sec\" or \"52 min\"; or what's going on when nothing counts down (\"Campfire nearby\")." }),
+                    "Such as \"42 sec\", or \"Campfire nearby\" when nothing counts down." }),
                 showLabel = option("toggle", "showLabel", "Status", 2, { desc =
-                    "What to do: \"Keep sitting\", \"Camp buffs\". On the bar, its left side." }),
+                    "Such as \"Keep sitting\" or \"Camp buffs\"." }),
             }),
             font = ns.Section("Font", 2, {
                 font = ns.MediaOption(profile, "font", "font", "Font", 1, nil, apply),
@@ -1272,19 +1378,19 @@ function C:BuildOptions()
         chat = { type = "group", name = "Chat", order = 4, args = {
             chat = ns.Section("Chat messages", 1, {
                 chat = option("toggle", "chat", "Say it in chat", 1, { desc =
-                    "Camp timers and reminders as chat messages too, for the ones chosen below." }),
+                    "Also posts the messages chosen below in chat." }),
                 fire = option("toggle", "fire", "Your campfire", 2, { disabled = quiet, desc =
-                    "Says how long the campfire you light burns and when you can light another, a minute before it "
-                        .. "goes out, and when it has." }),
+                    "How long a campfire you light burns, a warning a minute before it goes out, and when you can "
+                        .. "light another." }),
                 sitting = option("toggle", "sitting", "Keep sitting", 3, { disabled = quiet, desc =
-                    "When you sit by a campfire, says how long until the camp buffs land, and warns when you moved "
-                        .. "too soon or still have camp buffs that keep you from getting new ones." }),
+                    "How long until your camp buffs land, and a warning if you got up too soon or your old camp "
+                        .. "buffs block new ones." }),
                 buffs = option("toggle", "buffs", "Name the camp buffs you got", 4, { disabled = quiet, desc =
-                    "Names the camp buffs that landed, and warns when one of them ends before the others." }),
+                    "Also warns when one of them ends before the others." }),
                 ending = option("toggle", "ending", "Camp buffs ending", 5, { disabled = quiet, desc =
-                    "Says when your camp buffs are about to end (at the warning set on General), and when they have." }),
+                    "At the warning time set on General, and when they're gone." }),
                 boosted = option("toggle", "boosted", "Boosted Rest", 6, { disabled = quiet, desc =
-                    "Says when Boosted Rest ends, so a Camp Tent gives you rested XP again." }),
+                    "Says when it ends, so a Camp Tent gives rested XP again." }),
             }),
         } },
     } }
