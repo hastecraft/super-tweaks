@@ -81,7 +81,7 @@ Search finds tweaks and settings by name, description, section, page or menu cho
 
 ### Profiles and About
 
-Profiles lets you switch, create, copy, delete and reset profiles. Profiles hold every tweak's settings; statistics are saved per character. About lists the commands and credits. The GitHub button sits beside Profiles and About.
+Profiles lets you switch, create, copy, delete and reset profiles, and share them as text. Profiles hold every tweak's settings; which tweaks are on is shared by all characters and statistics are saved per character, so neither is in a profile. Export profile shows the active profile as a profile string, selected for copying (Ctrl+C). Paste one into Import (Ctrl+V) to make a new profile of it, named as you choose, or to replace the active profile's settings once you confirm. Importing takes only the settings this version has, and says in chat how many it left out. Profile strings use the format the game shares Cooldown Manager layouts in: compressed CBOR in Base64, after "HST1:". About lists the commands and credits. The GitHub button sits beside Profiles and About.
 
 ### Other details
 

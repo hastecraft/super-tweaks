@@ -264,8 +264,9 @@ Setup(S, { list = "", weather = false, fizzle = false }, function(s)
         general = { type = "group", name = "General", order = 1, args = {
             presets = ns.Section("Presets", 0, presets),
             mute = ns.Section("Sounds to mute", 1, {
-                list = ns.Option(profile, "input", "list", "Sound file IDs", 1, { width = "full",
-                    desc = "Separate IDs with commas or spaces. Notes without numbers are fine. Press Enter to apply." },
+                list = ns.Option(profile, "input", "list", "Sound file IDs", 1, { multiline = true,
+                    desc = "Separate IDs with commas, spaces or lines. Notes without numbers are fine. "
+                        .. "Press Enter to apply, Shift+Enter for a new line." },
                     function()
                         s:Apply()
                         local _, count = s.Parse(profile().list)

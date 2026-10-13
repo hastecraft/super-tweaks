@@ -34,12 +34,12 @@ function S:BuildOptions()
                 apply()
             end }
     end
-    -- Disabled unless enemy damage shows this way.
+    -- Hidden unless enemy damage shows this way.
     local function mode(which) return function() return S.db.profile.enemyMode ~= which end end
-    -- Enemy damage settings are for the numbers shown here, not the game's own.
+    -- Enemy damage settings are for the numbers shown here, not the game's own: hidden otherwise.
     local function notOurs() local m = S.db.profile.enemyMode; return m ~= "NAMEPLATE" and m ~= "AREA" end
     local function enemyOption(kind, key, name, order, extra)
-        return option(kind, key, name, order, ns.With({ disabled = notOurs }, extra))
+        return option(kind, key, name, order, ns.With({ hidden = notOurs }, extra))
     end
 
     -- A switch of the game's own damage numbers (see S.GAME_NUMBER_CVARS): as the game has it until it's set here.
@@ -51,7 +51,7 @@ function S:BuildOptions()
     end
 
     -- A scroll area's movement, text and position.
-    local function areaSection(key, order, disabled)
+    local function areaSection(key, order, hidden)
         local function area() return S.db.profile[key] end
         local function opt(kind, field, name, o, extra) return ns.Option(area, kind, field, name, o, extra, apply) end
         return Section("Scroll area", order, {
@@ -76,7 +76,7 @@ function S:BuildOptions()
                     a.x, a.y = default.x, default.y
                     apply()
                 end },
-        }, disabled and { disabled = disabled })
+        }, hidden and { hidden = hidden })
     end
 
     local options = { name = S.info.name, type = "group", args = {
@@ -97,7 +97,7 @@ function S:BuildOptions()
                     desc = ns.OutlineDesc(true) }, outlines)),
                 slug = option("toggle", "slug", "Slug outline", 4, {
                     desc = "Smoother than the game's outline, but a little thicker. EllesmereUI uses it by default.",
-                    disabled = function() local o = S.db.profile.outline; return o == "" or o == "EUI" end }),
+                    hidden = function() local o = S.db.profile.outline; return o == "" or o == "EUI" end }),
                 numbers = option("select", "numbers", "Numbers", 5, {
                     values = { SHORT = "12.3k", GROUPED = "12,345", FULL = "12345" }, sorting = { "SHORT", "GROUPED", "FULL" },
                     desc = "12.3k shortens amounts from 10,000 up, and writes millions as 1.2m." }),
@@ -188,7 +188,7 @@ function S:BuildOptions()
                         .. "interface frames on lower layers." }),
                 plateLevel = option("range", "plateLevel", "Frame level", 8, { min = 0, max = 500, step = 1,
                     desc = "Higher levels draw over lower ones in the same layer." }),
-            }, { disabled = mode("NAMEPLATE") }),
+            }, { hidden = mode("NAMEPLATE") }),
             area = areaSection("outgoing", 3, mode("AREA")),
             game = Section("The game's numbers", 4, {
                 note = { type = "description", order = 1,
@@ -205,7 +205,7 @@ function S:BuildOptions()
                 gamePetSpells = gameSwitch("gamePetSpells", "Your pet's spell damage", 6),
                 gamePeriodic = gameSwitch("gamePeriodic", "Damage over time", 7,
                     "Shows each tick of your damage over time spells."),
-            }, { disabled = mode("GAME") }),
+            }, { hidden = mode("GAME") }),
         } },
         notices = { type = "group", name = "Notices", order = 4, args = {
             show = Section("Show", 1, {

@@ -266,10 +266,12 @@ function HST:ValidProfileName(name)
 end
 
 -- The Profiles and About pages, built the first time the settings window shows them (see ns.LazyOptions).
--- Profiles cover every module's settings; module on/off states and statistics are separate.
+-- Profiles cover every module's settings; module on/off states and statistics are separate. The Export and Import
+-- cards are ProfileStrings.lua's.
 function HST:ProfileOptions()
     if self.profileOptions then return self.profileOptions end
     local db = self.db
+    local share = self:ProfileShareOptions()
     local function values(list)
         local result = {}; for _, item in ipairs(list) do result[item] = item end; return result
     end
@@ -312,6 +314,8 @@ function HST:ProfileOptions()
             reset = { type = "execute", name = "Reset profile", order = 3, confirm = true,
                 confirmText = "Restore the active profile to default settings?", func = function() db:ResetProfile() end },
         } },
+        export = share.export,
+        import = share.import,
     } }
     return self.profileOptions
 end
