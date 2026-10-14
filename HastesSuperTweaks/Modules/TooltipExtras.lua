@@ -264,18 +264,16 @@ function T:BuildOptions()
     return options
 end
 
--- The settings preview gets an item tooltip with the line, under the player's.
+-- The settings preview gets an item tooltip with the line, under the player's tooltip, its bar and logo. It's part of
+-- the sample, so the two are scaled to fit the stage and centered together, and it's laid out again only when the
+-- sample's height changes.
 local COUNT_SAMPLE = ACCOUNT_BANK and "14 (bags 4, bank 8, account 2)" or "12 (bags 4, bank 8)"
-local ITEM_TIP_HEIGHT = 38
-local DrawWithoutCounts = T.DrawPreview
-function T:DrawPreview(frame)
-    DrawWithoutCounts(self, frame)
-    local v, p = frame.hstTip, self.db.profile
-    if not v then return end
+local ITEM_TIP_HEIGHT, ITEM_TIP_GAP = 38, 6
+function T:PreviewUnder(v, p, height)
     local shown = p.itemCounts
     if shown and not v.item then
         local W = ns.Widgets
-        v.item = W.Panel(frame, 150, ITEM_TIP_HEIGHT)
+        v.item = W.Panel(v.box, 150, ITEM_TIP_HEIGHT)
         local name = W.Text(v.item, "GameFontNormal", { 1, 1, 1 })
         name:SetPoint("TOPLEFT", 8, -7)
         name:SetText("Linen Cloth")
@@ -285,25 +283,19 @@ function T:DrawPreview(frame)
         local count = W.Text(v.item, "GameFontHighlightSmall", nil, "RIGHT")
         count:SetPoint("TOPRIGHT", -8, -21)
         count:SetText(COUNT_SAMPLE)
-        v.item:SetWidth(math.max(150, label:GetStringWidth() + count:GetStringWidth() + 28))
+        v.itemWidth = math.max(150, label:GetStringWidth() + count:GetStringWidth() + 28)
+        v.item:SetWidth(v.itemWidth)
     end
     if not v.item then return end
-    -- It goes under the player's tooltip and its health bar (as the preview sizes the bar), the two centered together,
-    -- laid out again only when that changes.
-    local top, gap
-    if shown then
-        gap = 6 + (p.healthBar and (math.min(p.barGap, 4) + 2 * p.barBorderSize + math.min(p.barHeight, 14)) or 0)
-        top = (ns.Widgets.PREVIEW_HEIGHT - v.box:GetHeight() - gap - ITEM_TIP_HEIGHT) / 2
+    if v.itemShown ~= shown then
+        v.itemShown = shown
+        v.item:SetShown(shown)
     end
-    if top == v.itemTop and gap == v.itemGap then return end
-    v.itemTop, v.itemGap = top, gap
-    v.item:SetShown(shown)
-    v.box:ClearAllPoints()
-    if shown then
-        v.box:SetPoint("TOP", 0, -top)
+    if not shown then return end
+    if v.itemTop ~= height then
+        v.itemTop = height
         v.item:ClearAllPoints()
-        v.item:SetPoint("TOP", v.box, "BOTTOM", 0, -gap)
-    else
-        v.box:SetPoint("CENTER", 0, 6) -- where it sits alone
+        v.item:SetPoint("TOP", v.box, "TOP", 0, -(height + ITEM_TIP_GAP))
     end
+    return ITEM_TIP_GAP + ITEM_TIP_HEIGHT, v.itemWidth
 end

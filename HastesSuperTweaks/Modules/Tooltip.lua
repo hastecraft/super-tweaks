@@ -908,6 +908,10 @@ local function DrawLines(v, p)
     return rows, width
 end
 
+-- What the extras put under the sample, in its units, given how far down the sample reaches: returns how much taller
+-- and how wide that makes it, or nothing (see TooltipExtras).
+function T:PreviewUnder() end
+
 function T:DrawPreview(frame)
     local W, p = ns.Widgets, self.db.profile
     local v = frame.hstTip
@@ -959,11 +963,14 @@ function T:DrawPreview(frame)
     end
     v.logo:SetShown(logo)
 
-    -- The tooltip, its bar and a logo taller than it, scaled down when they wouldn't fit the stage, and centered on it.
+    -- The tooltip, its bar, a logo taller than it and what the extras put under them, scaled down together when they
+    -- wouldn't fit the stage, and centered on it.
     local height = boxHeight + (p.healthBar and (p.barGap + p.barHeight + 2 * p.barBorderSize) or 0)
     if logo then height = max(height, 4 + p.logoSize) end
+    local wide, underHeight, underWidth = boxWidth, self:PreviewUnder(v, p, height)
+    if underHeight then height, wide = height + underHeight, max(wide, underWidth) end
     local stageWidth, stageHeight = W.PREVIEW_WIDTH, W.PREVIEW_HEIGHT
-    local scale = min(1, (stageHeight - 12) / height, (stageWidth - 12) / boxWidth)
+    local scale = min(1, (stageHeight - 12) / height, (stageWidth - 12) / wide)
     local top = (stageHeight - height * scale) / 2
     if v.scale ~= scale or v.top ~= top then
         v.scale, v.top = scale, top
