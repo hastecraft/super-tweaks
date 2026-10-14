@@ -16,6 +16,12 @@ local owners = {} -- sound file ID -> set of modules muting it
 local function Mute(id) return (pcall(MuteSoundFile, id)) end
 local function Unmute(id) pcall(UnmuteSoundFile, id) end
 
+-- Made once something is muted (both tweaks start off).
+local logout
+local function UnmuteAll()
+    for id in pairs(owners) do Unmute(id) end
+end
+
 -- Mutes exactly the sound files in `wanted` (ID -> true) for this module.
 local function SetMuted(module, wanted)
     for id, by in pairs(owners) do
@@ -29,13 +35,12 @@ local function SetMuted(module, wanted)
         if not by and Mute(id) then by = {}; owners[id] = by end
         if by then by[module] = true end
     end
+    if not logout and next(owners) then
+        logout = CreateFrame("Frame")
+        logout:RegisterEvent("PLAYER_LOGOUT")
+        logout:SetScript("OnEvent", UnmuteAll)
+    end
 end
-
-local logout = CreateFrame("Frame")
-logout:RegisterEvent("PLAYER_LOGOUT")
-logout:SetScript("OnEvent", function()
-    for id in pairs(owners) do Unmute(id) end
-end)
 
 -- Gives a module profile settings, re-applied when the profile changes, and muting that
 -- follows the module's on/off state. module:Wanted() returns the sound file IDs to mute.
