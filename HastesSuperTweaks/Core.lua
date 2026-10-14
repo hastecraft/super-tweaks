@@ -28,13 +28,26 @@ HST.categories = {
 -- Module on/off states are account-wide; module settings live in profiles.
 HST.defaults = { global = { modules = { ["*"] = true } } }
 
--- Chat output for the addon and its modules, prefixed with the addon title.
+-- A chat window by its number, and its name, while it's open (shown, or a tab docked with the others); never the
+-- combat log.
+local function ChatWindow(index)
+    if not (index and GetChatWindowInfo) then return nil end
+    local name, _, _, _, _, _, shown, _, docked = GetChatWindowInfo(index)
+    local frame = _G["ChatFrame" .. index]
+    if not (frame and name and name ~= "" and (shown or docked)) then return nil end
+    if IsCombatLog and IsCombatLog(frame) then return nil end
+    return frame, name
+end
+
+-- Chat output for the addon and its modules, prefixed with the addon title, in the chat window chosen for it (the
+-- default one when that's closed).
 local CHAT_PREFIX = "|cffffcc66" .. HST.title .. ":|r "
 ns.CHAT_PREFIX = CHAT_PREFIX
 function HST:Print(text, ...)
     text = tostring(text)
     for i = 1, select("#", ...) do text = text .. " " .. tostring((select(i, ...))) end
-    DEFAULT_CHAT_FRAME:AddMessage(CHAT_PREFIX .. text)
+    local frame = self.db and ChatWindow(self.db.global.chatFrame) or DEFAULT_CHAT_FRAME
+    frame:AddMessage(CHAT_PREFIX .. text)
 end
 
 -- Registers a feature module. info: name, category, order, summary (one short line for the settings list), description,
@@ -391,6 +404,30 @@ function HST:GeneralOptions()
                     if on then self.db.global.classAccent = nil else self.db.global.classAccent = false end
                     self:ApplyAccent()
                 end },
+        } },
+        chat = { type = "group", inline = true, name = "Chat", order = 3, args = {
+            -- The chat windows open now, in their order; saved only when not the first.
+            chatFrame = { type = "select", order = 1, name = "Show chat messages in",
+                values = function()
+                    local names = {}
+                    for i = 1, NUM_CHAT_WINDOWS or 10 do
+                        local _, name = ChatWindow(i)
+                        if name then names[i] = name end
+                    end
+                    return names
+                end,
+                sorting = function()
+                    local order = {}
+                    for i = 1, NUM_CHAT_WINDOWS or 10 do
+                        if ChatWindow(i) then order[#order + 1] = i end
+                    end
+                    return order
+                end,
+                get = function()
+                    local index = self.db.global.chatFrame
+                    return ChatWindow(index) and index or 1
+                end,
+                set = function(_, index) self.db.global.chatFrame = index ~= 1 and index or nil end },
         } },
     } }
     return self.generalOptions
