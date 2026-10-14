@@ -735,8 +735,9 @@ function S:WatchPlate(plate, unit)
         watchers[plate] = watcher
     end
     if watcher.unit == unit then return end
+    -- One without a unit listens to nothing.
+    if watcher.unit then watcher:UnregisterAllEvents() end
     watcher.unit = unit
-    watcher:UnregisterAllEvents()
     if unit and not IsYou(unit) then watcher:RegisterUnitEvent("UNIT_COMBAT", unit) end
 end
 
