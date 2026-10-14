@@ -587,9 +587,11 @@ function M:HasIcon(index, name, icon)
 end
 
 -- Writes a macro when its text or icon changed, creating it (account-wide) if it's missing. OWN_ICON keeps the icon
--- it has.
+-- it has. A macro found as wanted isn't read again until macros change (UPDATE_MACROS, whoever changed them).
+local verifiedBody, verifiedIcon = {}, {}
 function M:SetMacro(name, body, icon)
     icon = icon or self.ICON
+    if verifiedBody[name] == body and verifiedIcon[name] == icon then return end
     local own = icon == self.OWN_ICON
     local index = GetMacroIndexByName(name)
     if index and index > 0 then
@@ -597,11 +599,13 @@ function M:SetMacro(name, body, icon)
         local _, _, current = GetMacroInfo(index)
         local changed = current ~= body and (current or ""):gsub("%s+$", "") ~= body
         if own then
-            if changed then EditMacro(index, name, C_Macro.GetSelectedMacroIcon(index), body) end
+            if changed then EditMacro(index, name, C_Macro.GetSelectedMacroIcon(index), body)
+            else verifiedBody[name], verifiedIcon[name] = body, icon end
             self.icons[name] = nil
             return
         end
-        if changed or not self:HasIcon(index, name, icon) then EditMacro(index, name, icon, body) end
+        if changed or not self:HasIcon(index, name, icon) then EditMacro(index, name, icon, body)
+        else verifiedBody[name], verifiedIcon[name] = body, icon end
         self.icons[name] = icon
         return
     end
@@ -718,8 +722,9 @@ end)
 -- Leaving combat and coming back to life (PLAYER_ALIVE also comes on releasing, still a ghost) write what waited.
 local RESUME = { PLAYER_REGEN_ENABLED = true, PLAYER_ALIVE = true, PLAYER_UNGHOST = true }
 ns.Listen(M, { "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "PLAYER_ALIVE", "PLAYER_UNGHOST",
-    "SKILL_LINES_CHANGED" },
+    "SKILL_LINES_CHANGED", "UPDATE_MACROS" },
     function(self, event, arg)
+        if event == "UPDATE_MACROS" then wipe(verifiedBody); wipe(verifiedIcon); return end
         if event == "UNIT_HAPPINESS" then return self:Mood() end
         if event == "UNIT_PET" then
             -- Another pet, or none: what it eats is asked again.
@@ -742,4 +747,4 @@ ns.Listen(M, { "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", 
         self:Queue()
     end)
 function M:OnListen() self:Refresh() end
-function M:OnUnlisten() wipe(watched); self.itemEvents = nil end -- every event was unregistered
+function M:OnUnlisten() wipe(watched); wipe(verifiedBody); wipe(verifiedIcon); self.itemEvents = nil end -- every event was unregistered
