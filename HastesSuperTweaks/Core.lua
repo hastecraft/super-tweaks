@@ -591,10 +591,10 @@ function ns.HookUnitTooltip(fn)
     if #unitTooltipHooks == 1 then TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnUnitTooltip) end
 end
 
--- The first left-hand tooltip line after the title whose text contains `text`, and that text. Lines holding secret
--- text are skipped. Line names are built once per tooltip and index.
+-- The first left-hand tooltip line after the title whose text contains `text` (with exact, is `text`), and that text.
+-- Lines holding secret text are skipped. Line names are built once per tooltip and index.
 local lineNames = {}
-function ns.FindTooltipLine(tip, text)
+function ns.FindTooltipLine(tip, text, exact)
     local prefix = tip:GetName()
     if not prefix then return nil end
     local names = lineNames[prefix]
@@ -604,7 +604,7 @@ function ns.FindTooltipLine(tip, text)
         if not name then name = prefix .. "TextLeft" .. i; names[i] = name end
         local line = _G[name]
         local current = line and line:GetText()
-        if not IsSecret(current) and current and current:find(text, 1, true) then
+        if not IsSecret(current) and current and (current == text or not exact and current:find(text, 1, true)) then
             return line, current
         end
     end

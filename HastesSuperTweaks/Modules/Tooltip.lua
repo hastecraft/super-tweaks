@@ -1,4 +1,5 @@
--- Better Tooltips: a health bar under unit tooltips, class-colored borders, and a "<Guild> Rank" line.
+-- Better Tooltips: a health bar under unit tooltips, class-colored borders, a "<Guild> Rank" line, and the faction as a
+-- see-through logo in the corner (or its line in its faction's color).
 -- Works on Blizzard's tooltip and on skinned ones (EllesmereUI and others).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -6,28 +7,77 @@ local HST = ns.HST
 local T = HST:NewFeature("Tooltip", {
     name = "Better Tooltips", category = "interface", order = 1, command = "tooltip",
     summary = "Health bars, class borders and guild info on tooltips.", examples = { "healthBar", { "barText", "Health text" }, "classBorder", { "guildLine", "Guild line" }, "guildNotes" },
-    description = "Adds a health bar under player and mob tooltips, colors the border by class, and shows guild ranks and notes.",
+    description = "Adds a health bar under player and mob tooltips, colors the border by class, shows guild ranks and "
+        .. "notes, and turns the Alliance and Horde line into a faction logo.",
 })
 ns.Tooltip = T
 local WHITE = ns.WHITE
 local floor, max, min = math.floor, math.max, math.min
 
 ns.Configure(T, {
-    healthBar = true, barText = "VALUE", classColors = true, healthColor = { 0.2, 0.8, 0.2, 1 },
+    healthBar = true, barText = "VALUE", colorBy = "CLASS", healthColor = { 0.2, 0.8, 0.2, 1 },
     barHeight = 8, barGap = 2, texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 10, outline = "OUTLINE",
     backgroundColor = { 0.035, 0.045, 0.06, 0.9 }, barBorderColor = { 0, 0, 0, 1 }, barBorderSize = 1,
     classBorder = true, reactionBorder = false, borderSize = 1,
     guildLine = true, guildRank = true, highlightGuild = true, guildNotes = true, officerNotes = true,
     guildColor = { 0.25, 1, 0.25, 1 }, ownGuildColor = { 0.4, 0.8, 1, 1 }, rankColor = { 0.7, 0.7, 0.7, 1 },
+    factionStyle = "LOGO", logoAlpha = 0.35, logoSize = 32, factionIcon = true, allianceColor = { 0.3, 0.55, 1, 1 }, hordeColor = { 1, 0.2, 0.2, 1 },
 }, function(m) return m:BuildOptions() end, "Apply")
 T.info.preview = function(frame) return T:DrawPreview(frame) end
 
+-- Profiles from before the Color choice turned class colors off with classColors = false: that's One color now. Those
+-- from before the faction logo turned the faction line off with factionLine = false: that's the game's line now.
+function T:Migrate()
+    local p = self.db.profile
+    if p.classColors ~= nil then
+        if p.classColors == false then p.colorBy = "CUSTOM" end
+        p.classColors = nil
+    end
+    if p.factionLine ~= nil then
+        if p.factionLine == false then p.factionStyle = "NONE" end
+        p.factionLine = nil
+    end
+end
+local Initialize = T.OnInitialize
+function T:OnInitialize()
+    Initialize(self)
+    self:Migrate()
+end
+
 local IsSecret, Hex = ns.IsSecret, ns.ColorCode
 local Pixels, CreateEdges = ns.Pixels, ns.CreateEdges
--- The health bar reads the unit's health every POLL seconds while it shows, and what colors it (whether a mob is
--- tapped, its reaction) every RECOLOR_EVERY readings. Guild notes are read from the roster at most every NOTES_EVERY
--- seconds.
+-- The health bar follows its unit by the game's health events when the tooltip names it by a token they come with (see
+-- HANDOFF). Otherwise (the mouseover) it reads the unit's health every POLL seconds while it shows, and what colors it
+-- (whether a mob is tapped, its reaction) every RECOLOR_EVERY readings. Guild notes are read from the roster at most
+-- every NOTES_EVERY seconds.
 T.POLL, T.RECOLOR_EVERY, T.NOTES_EVERY = 0.1, 5, 15
+
+-- Unit tokens the game sends health events for, each with the event after which it may name another unit (true for
+-- "player", which never does). Other tokens ("mouseover", soft targets) are false: their units are polled. Worked out
+-- once per token.
+local HANDOFF = setmetatable({}, { __index = function(list, token)
+    local event = false
+    if token == "player" then
+        event = true
+    elseif token == "target" then
+        event = "PLAYER_TARGET_CHANGED"
+    elseif token == "focus" then
+        event = "PLAYER_FOCUS_CHANGED"
+    elseif token:find("^nameplate%d+$") then
+        event = "NAME_PLATE_UNIT_REMOVED"
+    elseif token:find("^party%d$") or token:find("^raid%d+$") then
+        event = "GROUP_ROSTER_UPDATE"
+    end
+    list[token] = event
+    return event
+end })
+
+-- Colored by health: red when low, yellow at half, green when full, blended in between. While the game hides health,
+-- it colors the bar itself through a curve with the same three points (see SecretHealthColor).
+local function HealthColor(fraction)
+    if fraction < 0.5 then return 1, fraction * 2, 0, 1 end
+    return (1 - fraction) * 2, 1, 0, 1
+end
 
 -- Reads what stays the same about the unit a tooltip shows: whether it's a player (nil when the game hides that),
 -- its class color, guild, rank, whether it's in your guild (nil when that can't be told) and its name in the guild
@@ -36,6 +86,39 @@ T.POLL, T.RECOLOR_EVERY, T.NOTES_EVERY = 0.1, 5, 15
 -- the game hides is read on every redraw. So is the guild of a player who shows none: a player just come into view
 -- may have no guild or name yet (the game is still asking the server for them), which looks the same.
 local UNKNOWN_NAME = UNKNOWNOBJECT or "Unknown"
+local FACTIONS = { Alliance = true, Horde = true }
+-- Each faction's logo, for the tooltip's corner and its line: the flat PvP emblem of the game's unit frames where the
+-- client has it (WoW Forever), else the classic PvP flag trimmed to its emblem. Worked out once per faction, with its
+-- width per height.
+local LOGOS = setmetatable({}, { __index = function(list, faction)
+    local atlas = "UI-HUD-UnitFrame-Player-PVP-" .. faction .. "Icon"
+    local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
+    local logo
+    if info and info.width and info.height and info.height > 0 then
+        logo = { atlas = atlas, aspect = info.width / info.height }
+    else
+        logo = { file = "Interface\\TargetingFrame\\UI-PVP-" .. faction, aspect = 1 }
+    end
+    list[faction] = logo
+    return logo
+end })
+-- Puts a faction's logo on a texture; returns its width per height.
+local function SetLogo(texture, faction)
+    local logo = LOGOS[faction]
+    if logo.atlas then
+        texture:SetAtlas(logo.atlas)
+    else
+        texture:SetTexture(logo.file)
+        texture:SetTexCoord(0, 0.65625, 0, 0.65625)
+    end
+    return logo.aspect
+end
+-- A faction's logo as text markup, size pixels tall.
+local function LogoMarkup(faction, size)
+    local logo = LOGOS[faction]
+    if logo.atlas then return "|A:" .. logo.atlas .. ":" .. size .. ":" .. floor(size * logo.aspect + 0.5) .. "|a" end
+    return "|T" .. logo.file .. ":" .. size .. ":" .. size .. ":0:0:64:64:0:42:0:42|t"
+end
 function T:ReadUnit(unit, guid)
     if not guid or guid ~= self.readGuid then
         self.readGuid = guid
@@ -43,6 +126,12 @@ function T:ReadUnit(unit, guid)
         if IsSecret(isPlayer) then isPlayer = nil else isPlayer = isPlayer and true or false end
         self.isPlayer, self.classColor, self.guildRead = isPlayer, nil, false
         self.guildName, self.guildRank, self.guildRealm, self.myGuild, self.rosterName = nil, nil, nil, nil, nil
+        -- Its faction: Alliance or Horde (nil for none, or when the game hides it), and that faction's name as shown.
+        local faction, factionName = UnitFactionGroup(unit)
+        if IsSecret(faction) or IsSecret(factionName) or not FACTIONS[faction] or type(factionName) ~= "string" then
+            faction, factionName = nil, nil
+        end
+        self.faction, self.factionName = faction, factionName
         if isPlayer ~= false then
             local _, class = UnitClass(unit)
             self.classColor = not IsSecret(class) and class and RAID_CLASS_COLORS[class] or nil
@@ -108,14 +197,16 @@ function T:CreateFrames()
     bar.edges = CreateEdges(bar)
     bar.text = bar:CreateFontString(nil, "OVERLAY")
     bar.text:SetPoint("CENTER", bar, "CENTER", 0, 0)
-    self.shownColor, self.savedBorder, self.guildText = {}, {}, {}
+    self.shownColor, self.savedBorder, self.guildText, self.factionText = {}, {}, {}, {}
     local waited, polls = 0, 0
-    bar:SetScript("OnUpdate", function(_, elapsed)
+    self.poll = function(_, elapsed)
         waited = waited + elapsed
         if waited < self.POLL then return end
         waited, polls = 0, polls + 1
         self:UpdateHealth(polls % self.RECOLOR_EVERY == 0)
-    end)
+    end
+    bar:SetScript("OnUpdate", self.poll)
+    bar:SetScript("OnEvent", function(_, event, token) self:OnHealthEvent(event, token) end)
     -- Drawn over tooltip skins that replace Blizzard's border.
     self.overlay = CreateFrame("Frame", nil, tip)
     self.overlay:SetAllPoints(tip)
@@ -124,6 +215,7 @@ function T:CreateFrames()
 end
 
 function T:Apply()
+    self:Migrate() -- a profile switched to may be from before the Color choice or the faction logo
     if not (self.bar and self:IsEnabled()) then return end
     local p, bar, tip = self.db.profile, self.bar, GameTooltip
     local px = Pixels(bar, p.barBorderSize)
@@ -134,7 +226,9 @@ function T:Apply()
     bar:SetHeight(p.barHeight)
     bar:SetFrameLevel(tip:GetFrameLevel() + 2)
     bar:SetStatusBarTexture(ns.Media("statusbar", p.texture))
-    wipe(self.shownColor) -- colored again with the new texture
+    -- Colored again with the new texture, and redrawn: colored by health, the color comes with the reading.
+    wipe(self.shownColor)
+    self.shownCurrent = nil
     bar.background:SetVertexColor(unpack(p.backgroundColor))
     bar.edges:Layout(bar, px, true)
     bar.edges:SetColor(unpack(p.barBorderColor))
@@ -143,6 +237,7 @@ function T:Apply()
     bar.text:SetShadowColor(0, 0, 0, 0.9)
     bar.text:SetShadowOffset(1, -1)
     bar.text:SetShown(p.barText ~= "NONE")
+    self:LayoutLogo()
     self:UpdateScreenClamp()
     self:UpdateBlizzardBar()
     if self.unit then self:UpdateBorder(); self:ShowBar() end
@@ -226,7 +321,42 @@ function T:ShowBar(guid)
         self:UpdateHealth(true, guid)
     else
         self.bar:Hide()
+        self:Watch(nil)
     end
+end
+
+-- Follows the unit shown by the health events of its token, one HANDOFF says the game sends them for, or by polling it
+-- (token nil). The events are registered on the bar and kept while a unit frame redraws its tooltip (cleared, then
+-- filled in again with the same unit); the tooltip hiding or showing another unit drops them.
+function T:Watch(token)
+    local old, bar = self.watched, self.bar
+    if token == old then return end
+    self.watched = token
+    if not token then
+        bar:UnregisterAllEvents()
+        bar:SetScript("OnUpdate", self.poll)
+        return
+    end
+    bar:RegisterUnitEvent("UNIT_HEALTH", token)
+    bar:RegisterUnitEvent("UNIT_MAXHEALTH", token)
+    bar:RegisterUnitEvent("UNIT_FACTION", token) -- reaction, and a mob becoming tapped
+    local before, after = old and HANDOFF[old], HANDOFF[token]
+    if before ~= after then
+        if type(before) == "string" then bar:UnregisterEvent(before) end
+        if type(after) == "string" then bar:RegisterEvent(after) end
+    end
+    if not old then bar:SetScript("OnUpdate", nil) end
+end
+
+-- The unit shown changed health or what colors it, or its token may name another unit now (a new target or focus, a
+-- group change), which UpdateHealth tells by the GUID. A nameplate's removal is sent while its token still names the
+-- unit, so the unit is polled from then on, which finds it again once the nameplate is gone. An event left over from a
+-- unit no longer shown drops them all.
+function T:OnHealthEvent(event, token)
+    if not self.unit then return self:Watch(nil) end
+    if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then return self:UpdateHealth(false) end
+    if event ~= "NAME_PLATE_UNIT_REMOVED" then return self:UpdateHealth(true) end
+    if token == self.watched then self:Watch(nil) end
 end
 
 local function Disconnected(unit)
@@ -234,31 +364,62 @@ local function Disconnected(unit)
     return not IsSecret(connected) and not connected
 end
 
--- Reads the unit's health into the bar; with recolor, its color too. guid, when given, is the unit's, just read.
+-- Sets the bar's color when it changed. What was set is remembered rather than read back, as the bar may hold a hidden
+-- color.
+function T:SetBarColor(r, g, b, a)
+    local color = self.shownColor
+    if color[1] == r and color[2] == g and color[3] == b and color[4] == a then return end
+    color[1], color[2], color[3], color[4] = r, g, b, a
+    self.bar:SetStatusBarColor(r, g, b, a)
+end
+
+-- Colored by health while the game hides health from addons: the game reads the health through a color curve itself,
+-- and the bar takes the hidden color that comes back. Hidden colors can't be compared, so it's set each time, and the
+-- next color that can be read is set again. The curve is made the first time it's needed; a client without curves
+-- hides no health either.
+local healthCurve
+function T:SecretHealthColor(unit)
+    if healthCurve == nil then
+        healthCurve = false
+        if C_CurveUtil and C_CurveUtil.CreateColorCurve and UnitHealthPercent and CreateColor then
+            healthCurve = C_CurveUtil.CreateColorCurve()
+            if Enum.LuaCurveType then healthCurve:SetType(Enum.LuaCurveType.Linear) end
+            healthCurve:AddPoint(0, CreateColor(1, 0, 0, 1))
+            healthCurve:AddPoint(0.5, CreateColor(1, 1, 0, 1))
+            healthCurve:AddPoint(1, CreateColor(0, 1, 0, 1))
+        end
+    end
+    if not healthCurve then return end
+    local color = UnitHealthPercent(unit, false, healthCurve)
+    if IsSecret(color) or not color then return end
+    self.bar:SetStatusBarColor(color:GetRGBA())
+    self.shownColor[1] = nil
+end
+
+-- Reads the unit's health into the bar; with recolor, its class, reaction or one color too (colored by health, the
+-- color follows every reading). guid, when given, is the unit's, just read.
 function T:UpdateHealth(recolor, guid)
     local unit, bar, p = self.unit, self.bar, self.db.profile
     if not unit then return end
     -- The unit token names another unit now ("mouseover" moves on while the tooltip fades; the token the game gave, which
     -- can be "target" or a nameplate, may change hands): find the unit again by its GUID, or keep the last reading
-    -- rather than show another unit.
+    -- rather than show another unit (and poll until it's found, if ever).
     guid = guid or UnitGUID(unit)
     if not IsSecret(guid) and (not guid or (self.guid and guid ~= self.guid)) then
         local token = self.guid and UnitTokenFromGUID and UnitTokenFromGUID(self.guid)
-        if IsSecret(token) or not token then return end
+        if IsSecret(token) or not token then return self:Watch(nil) end
         unit, self.unit = token, token
     end
+    local follow = HANDOFF[unit] and unit or nil
+    if follow ~= self.watched then self:Watch(follow) end
     -- Class and reaction colors are solid; the custom color keeps its opacity, as the settings preview shows it.
     -- Set only when it changes (a mob becoming tapped, another unit, a setting).
-    if recolor then
+    local byHealth = p.colorBy == "HEALTH"
+    if recolor and not byHealth then
         local r, g, b, a
-        if p.classColors then r, g, b = self:UnitColor(true) end
+        if p.colorBy == "CLASS" then r, g, b = self:UnitColor(true) end
         if not r then r, g, b, a = unpack(p.healthColor) end
-        a = a or 1
-        local color = self.shownColor
-        if color[1] ~= r or color[2] ~= g or color[3] ~= b or color[4] ~= a then
-            color[1], color[2], color[3], color[4] = r, g, b, a
-            bar:SetStatusBarColor(r, g, b, a)
-        end
+        self:SetBarColor(r, g, b, a or 1)
     end
     local current, maximum = UnitHealth(unit), UnitHealthMax(unit)
     local status
@@ -273,17 +434,22 @@ function T:UpdateHealth(recolor, guid)
         bar:SetMinMaxValues(0, maximum)
         bar:SetValue(current)
         self.shownMode = nil
-        -- With no text shown, none is put together (ten times a second, as hidden values can't be told apart).
+        -- A hidden color by health is a new table each time: while polled, it's taken with the other colors (every
+        -- RECOLOR_EVERY readings); followed by events, every reading is a change.
+        if byHealth and (recolor or self.watched) then self:SecretHealthColor(unit) end
+        -- With no text shown, none is put together (on every reading, as hidden values can't be told apart).
         if p.barText == "NONE" then return end
         return self:SecretHealthText(unit, current, maximum)
     end
-    -- Polled ten times a second: redraw only when the reading or the text mode changed. What was drawn
+    -- Read ten times a second while polled: redraw only when the reading or the text mode changed. What was drawn
     -- is remembered rather than read back, since the font string may hold a hidden value.
     if current == self.shownCurrent and maximum == self.shownMax and status == self.shownStatus and p.barText == self.shownMode then return end
     self.shownCurrent, self.shownMax, self.shownStatus, self.shownMode = current, maximum, status, p.barText
     bar:SetMinMaxValues(0, 1)
     local fraction = maximum > 0 and max(0, min(1, current / maximum)) or 0
     bar:SetValue(fraction)
+    -- In steps of 1%, so a little health coming back sets no new color.
+    if byHealth then self:SetBarColor(HealthColor(floor(fraction * 100 + 0.5) / 100)) end
     -- Only the text shown is put together.
     local mode, text = p.barText, status
     if mode == "NONE" then return end
@@ -316,6 +482,13 @@ function T:SecretHealthText(unit, current, maximum)
     end
 end
 
+-- "<Guild> Rank" in the chosen colors (realm and rank: nil for none). The settings preview draws it too.
+local function GuildText(guild, realm, color, rank, rankColor)
+    local text = Hex(color) .. "<" .. (realm and (guild .. "-" .. realm) or guild) .. ">|r"
+    if rank then text = text .. " " .. Hex(rankColor) .. rank .. "|r" end
+    return text
+end
+
 -- Rewrites the guild line as "<Guild> Rank". Built from the unit's guild, not from the line's own text, so a rank
 -- another addon appended (EllesmereUI's "Guild [Rank]") is replaced rather than repeated. The text is kept while
 -- what it's made from stays the same, so redrawing a tooltip puts no new text together.
@@ -329,12 +502,79 @@ function T:FormatGuild(tip)
     local realm, rankColor = self.guildRealm, rank and p.rankColor
     if made.guild ~= guild or made.realm ~= realm or made.rank ~= rank or made.color ~= color or made.rankColor ~= rankColor then
         made.guild, made.realm, made.rank, made.color, made.rankColor = guild, realm, rank, color, rankColor
-        local text = Hex(color) .. "<" .. (realm and (guild .. "-" .. realm) or guild) .. ">|r"
-        if rank then text = text .. " " .. Hex(rankColor) .. rank .. "|r" end
-        made.text = text
+        made.text = GuildText(guild, realm, color, rank, rankColor)
     end
     local line, current = ns.FindTooltipLine(tip, guild)
     if line and current ~= made.text then line:SetText(made.text) end
+end
+
+-- The faction logo in the tooltip's top right, under the text. Made when first shown.
+function T:ShowLogo(faction)
+    local logo = self.logo
+    if not logo then
+        logo = GameTooltip:CreateTexture(nil, "ARTWORK", nil, -8)
+        logo:SetPoint("TOPRIGHT", GameTooltip, "TOPRIGHT", -6, -6)
+        self.logo = logo
+    end
+    if logo.faction ~= faction then
+        logo.faction, logo.aspect = faction, SetLogo(logo, faction)
+        self:LayoutLogo()
+    end
+    if not self.logoShown then
+        self.logoShown = true
+        logo:Show()
+    end
+end
+
+function T:HideLogo()
+    if not self.logoShown then return end
+    self.logoShown = false
+    self.logo:Hide()
+end
+
+-- Sizes the logo as tall as chosen and as wide as its faction's emblem, at the chosen opacity.
+function T:LayoutLogo()
+    local logo, p = self.logo, self.db.profile
+    if not logo then return end
+    logo:SetSize(p.logoSize * (logo.aspect or 1), p.logoSize)
+    logo:SetAlpha(p.logoAlpha)
+    if p.factionStyle ~= "LOGO" then self:HideLogo() end
+end
+
+-- A faction's name in its color, with its logo after it, size pixels tall, when a size is given. The settings preview
+-- draws it too.
+local function FactionText(faction, name, color, size)
+    local text = Hex(color) .. name .. "|r"
+    if size then text = text .. " " .. LogoMarkup(faction, size) end
+    return text
+end
+
+-- Shows the faction line ("Alliance", "Horde") as its faction's logo in the corner, taking the line out; or rewrites it
+-- in its faction's color, with the same logo after it when chosen. Only a line that is the faction's name and nothing
+-- else is, so a guild or name holding the word is left alone. The text is kept while what it's made from stays the same.
+function T:FormatFaction(tip, style)
+    local faction, name = self.faction, self.factionName
+    if not faction then return end
+    local line = ns.FindTooltipLine(tip, name, true)
+    if not line then return end
+    if style == "LOGO" then
+        line:SetText("")
+        line:Hide()
+        return self:ShowLogo(faction)
+    end
+    local p, made = self.db.profile, self.factionText
+    local color, icon = faction == "Alliance" and p.allianceColor or p.hordeColor, p.factionIcon
+    if made.name ~= name or made.color ~= color or made.icon ~= icon then
+        made.name, made.color, made.icon = name, color, icon
+        -- The logo is as tall as the line's text.
+        local size
+        if icon then
+            local _, height = line:GetFont()
+            size = floor((height or 12) + 0.5)
+        end
+        made.text = FactionText(faction, name, color, size)
+    end
+    line:SetText(made.text)
 end
 
 -- Public and officer guild notes by player name: "Name" for your realm, "Name-Realm" for any (on WoW Forever, the whole
@@ -418,6 +658,8 @@ function T:OnUnitTooltip(tip, data, unit)
     -- second (unit frames refresh theirs) redraws nothing that didn't change.
     self.unit, self.guid = unit, guid
     if self.db.profile.guildLine then self:FormatGuild(tip) end
+    local style = self.db.profile.factionStyle
+    if style ~= "NONE" then self:FormatFaction(tip, style) end
     self:AddNotes(tip)
     self:UpdateBorder()
     self:ShowBar(guid)
@@ -428,6 +670,7 @@ function T:Clear()
     if not (self.bar and (self.unit or self.borderSaved)) then return end
     self.unit, self.guid = nil, nil
     self.bar:Hide()
+    self:HideLogo()
     self:UpdateBorder()
 end
 
@@ -439,7 +682,7 @@ function T:HookTooltip()
     local tip = GameTooltip
     ns.HookUnitTooltip(function(tooltip, data, unit) self:OnUnitTooltip(tooltip, data, unit) end)
     if tip:HasScript("OnTooltipCleared") then tip:HookScript("OnTooltipCleared", function() self:Clear() end) end
-    tip:HookScript("OnHide", function() self:Clear() end)
+    tip:HookScript("OnHide", function() self:Clear(); self:Watch(nil) end)
     -- Skins restyle the border when the tooltip shows, after the unit is set.
     tip:HookScript("OnShow", function() if self.unit then self:UpdateBorder() end end)
 end
@@ -469,6 +712,7 @@ end
 function T:OnUnlisten()
     HST.LSM.UnregisterCallback(self, "LibSharedMedia_Registered")
     self:Clear()
+    self:Watch(nil)
     self:UpdateScreenClamp()
     self:UpdateBlizzardBar()
 end
@@ -484,6 +728,7 @@ function T:BuildOptions()
     local function media(kind, key, name, order)
         return ns.MediaOption(profile, kind, key, name, order, { disabled = unset("healthBar") }, apply)
     end
+    local function notStyle(style) return function() return T.db.profile.factionStyle ~= style end end
     local section = ns.Section
     local noBar = unset("healthBar")
     return { name = "Better Tooltips", type = "group", args = {
@@ -494,10 +739,14 @@ function T:BuildOptions()
                 barText = option("select", "barText", "Text", 2, { disabled = noBar,
                     values = { VALUE = "4215 / 5100", PERCENT = "83%", BOTH = "4215 / 5100 (83%)", NONE = "None" },
                     sorting = { "VALUE", "PERCENT", "BOTH", "NONE" } }),
-                classColors = option("toggle", "classColors", "Class & reaction colors", 3, { disabled = noBar,
-                    desc = "Players by class, NPCs by reaction: red hostile, yellow neutral, green friendly, grey when tapped by others." }),
+                colorBy = option("select", "colorBy", "Color", 3, { disabled = noBar,
+                    values = { CLASS = "Class & reaction", HEALTH = "By health", CUSTOM = "One color" },
+                    sorting = { "CLASS", "HEALTH", "CUSTOM" },
+                    desc = "Class & reaction: players by class, NPCs by reaction (red hostile, yellow neutral, green friendly, "
+                        .. "grey when tapped by others). By health: green when full, yellow at half and red when low, also "
+                        .. "in combat and dungeons." }),
                 healthColor = option("color", "healthColor", "Bar color", 4, {
-                    disabled = function() return not T.db.profile.healthBar or T.db.profile.classColors end }),
+                    hidden = function() return T.db.profile.colorBy ~= "CUSTOM" end, disabled = noBar }),
             }),
             size = section("Size", 2, {
                 barHeight = option("range", "barHeight", "Height", 1, { min = 2, max = 30, step = 1 }),
@@ -543,54 +792,223 @@ function T:BuildOptions()
                     { desc = "Only if your guild rank can read officer notes." }),
             }),
         } },
+        faction = { type = "group", name = "Faction", order = 4, args = {
+            faction = section("Faction", 1, {
+                factionStyle = option("select", "factionStyle", "Show faction as", 1, {
+                    values = { LOGO = "Logo in the corner", LINE = "Colored line", NONE = "The game's line" },
+                    sorting = { "LOGO", "LINE", "NONE" },
+                    desc = "Logo in the corner: the Alliance or Horde line becomes a see-through emblem in the tooltip's "
+                        .. "top right. Colored line: the line in its faction's color." }),
+            }),
+            logo = section("Logo", 2, {
+                logoAlpha = option("range", "logoAlpha", "Opacity", 1, { min = 0.05, max = 1, step = 0.05, isPercent = true }),
+                logoSize = option("range", "logoSize", "Size", 2, { min = 12, max = 64, step = 1 }),
+            }, { hidden = notStyle("LOGO") }),
+            line = section("Line", 3, {
+                factionIcon = option("toggle", "factionIcon", "Show faction logo", 1,
+                    { desc = "Adds the faction's logo after its name." }),
+                allianceColor = option("color", "allianceColor", "Alliance color", 2),
+                hordeColor = option("color", "hordeColor", "Horde color", 3),
+            }, { hidden = notStyle("LINE") }),
+        } },
     } }
 end
 
--- Settings preview: a sample player tooltip drawn with the active profile's settings.
+---------------------------------------------------------------------------
+-- Settings preview: a sample player tooltip drawn with the active profile's settings. The player is your guildmate,
+-- of your faction until a faction's color is changed, then of that faction.
+---------------------------------------------------------------------------
+local ROW, INSET = 14, 8 -- the sample's line pitch and how far its text is inset
+local GREY = "|cff999999" -- the labels of two-column lines (see AddNote)
+local MAGE = { r = 0.25, g = 0.78, b = 0.92 }
+local RACES = { Alliance = "Gnome", Horde = "Undead" }
+local FACTION_NAMES = { Alliance = FACTION_ALLIANCE or "Alliance", Horde = FACTION_HORDE or "Horde" }
+local function Mage() return RAID_CLASS_COLORS and RAID_CLASS_COLORS.MAGE or MAGE end
+
+-- The sample's lines, in the order the game shows them. Each gives its text for the profile and the sample (and the
+-- right-hand text of a two-column line), or nothing when it doesn't show. The extras and Recent Allies add theirs.
+local previewLines = {}
+function T:PreviewLine(order, text)
+    previewLines[#previewLines + 1] = { order = order, text = text }
+    table.sort(previewLines, function(a, b) return a.order < b.order end)
+end
+T:PreviewLine(1, function() return Hex(Mage()) .. "Haste Forever|r" end)
+T:PreviewLine(2, function(p)
+    if not p.guildLine then return "Exertion" end
+    return GuildText("Exertion", nil, p.highlightGuild and p.ownGuildColor or p.guildColor, p.guildRank and "Guild Master" or nil, p.rankColor)
+end)
+T:PreviewLine(3, function(_, v) return "Level 60 " .. RACES[v.faction] .. " Mage" end)
+T:PreviewLine(4, function(p, v)
+    local style, name = p.factionStyle, FACTION_NAMES[v.faction]
+    if style == "LOGO" then return nil end
+    if style == "NONE" then return name end
+    return FactionText(v.faction, name, v.faction == "Alliance" and p.allianceColor or p.hordeColor, p.factionIcon and v.lineSize or nil)
+end)
+T:PreviewLine(5, function(p) if p.guildNotes then return GREY .. "Note|r", "Main tank" end end)
+T:PreviewLine(6, function(p) if p.officerNotes then return GREY .. "Officer note|r", "Alt of Swiftblade" end end)
+
+-- The sample's nth line (its left-hand text), made when first needed.
+local function Line(v, n)
+    local line = v.left[n]
+    if not line then
+        line = ns.Widgets.Text(v.box, n == 1 and "GameFontNormal" or "GameFontHighlightSmall")
+        line:SetPoint("TOPLEFT", INSET, -7 - (n - 1) * ROW)
+        v.left[n] = line
+    end
+    return line
+end
+
+-- Sets a line's text and shows it; returns its width. What didn't change since the last draw isn't set again.
+local function SetLine(line, text)
+    if line.hstText ~= text then
+        line.hstText = text
+        line:SetText(text)
+        line.hstWidth = line:GetStringWidth()
+    end
+    if not line.hstShown then
+        line.hstShown = true
+        line:Show()
+    end
+    return line.hstWidth
+end
+local function HideLine(line)
+    if line and line.hstShown ~= false then
+        line.hstShown = false
+        line:Hide()
+    end
+end
+
+-- Shows the sample's lines; returns how many and the widest's width.
+local function DrawLines(v, p)
+    local rows, width = 0, 0
+    for i = 1, #previewLines do
+        local text, right = previewLines[i].text(p, v)
+        if text then
+            rows = rows + 1
+            local lineWidth = SetLine(Line(v, rows), text)
+            local other = v.right[rows]
+            if right then
+                if not other then
+                    other = ns.Widgets.Text(v.box, "GameFontHighlightSmall", nil, "RIGHT")
+                    other:SetPoint("TOPRIGHT", -INSET, -7 - (rows - 1) * ROW)
+                    v.right[rows] = other
+                end
+                lineWidth = lineWidth + 12 + SetLine(other, right)
+            else
+                HideLine(other)
+            end
+            width = max(width, lineWidth)
+        end
+    end
+    for i = rows + 1, #v.left do
+        HideLine(v.left[i])
+        HideLine(v.right[i])
+    end
+    return rows, width
+end
+
+-- What the extras put under the sample, in its units, given how far down the sample reaches: returns how much taller
+-- and how wide that makes it, or nothing (see TooltipExtras).
+function T:PreviewUnder() end
+
 function T:DrawPreview(frame)
     local W, p = ns.Widgets, self.db.profile
     local v = frame.hstTip
     if not v then
-        v = {}
+        v = { left = {}, right = {} }
         frame.hstTip = v
         v.box = CreateFrame("Frame", nil, frame)
-        v.box:SetSize(150, 52)
-        v.box:SetPoint("CENTER", 0, 6)
         W.Fill(v.box, { 0.02, 0.02, 0.02, 0.95 }):SetAllPoints()
-        v.setBorder = W.Border(v.box)
-        v.lines = {}
-        for i = 1, 3 do
-            v.lines[i] = W.Text(v.box, i == 1 and "GameFontNormal" or "GameFontHighlightSmall")
-            v.lines[i]:SetPoint("TOPLEFT", 8, -7 - (i - 1) * 14)
-        end
+        v.edges = CreateEdges(v.box)
+        v.logo = v.box:CreateTexture(nil, "ARTWORK", nil, -8)
+        v.logo:SetPoint("TOPRIGHT", -4, -4)
         v.bar = CreateFrame("StatusBar", nil, v.box)
         v.bar:SetMinMaxValues(0, 1)
+        v.bar:SetValue(0.83)
         v.bar.background = W.Fill(v.bar, { 0, 0, 0, 1 })
         v.bar.background:SetAllPoints()
         v.bar.edges = CreateEdges(v.bar)
         v.bar.text = v.bar:CreateFontString(nil, "OVERLAY")
         v.bar.text:SetPoint("CENTER")
+        v.bar.text:SetShadowColor(0, 0, 0, 0.9)
+        v.bar.text:SetShadowOffset(1, -1)
+        -- A logo in a line is as tall as its text (see FormatFaction).
+        local _, size = Line(v, 2):GetFont()
+        v.lineSize = floor((size or 10) + 0.5)
+        local faction = UnitFactionGroup("player")
+        v.faction = not IsSecret(faction) and FACTIONS[faction] and faction or "Alliance"
+        v.allianceColor, v.hordeColor = p.allianceColor, p.hordeColor
     end
-    local class = RAID_CLASS_COLORS.MAGE or { r = 0.25, g = 0.78, b = 0.92 }
-    v.setBorder(p.classBorder and { class.r, class.g, class.b, 1 } or { 0.35, 0.35, 0.35, 1 })
-    v.lines[1]:SetText("Haste Forever"); v.lines[1]:SetTextColor(class.r, class.g, class.b)
-    local guild = p.guildLine and (Hex(p.guildColor) .. "<Exertion>|r" .. (p.guildRank and (" " .. Hex(p.rankColor) .. "Guild Master|r") or ""))
-        or "Exertion"
-    v.lines[2]:SetText(guild)
-    v.lines[3]:SetText("Level 60 Gnome Mage")
-    v.bar:SetShown(p.healthBar)
-    v.bar:ClearAllPoints()
+    -- A faction's color changed (a new table each time): the sample turns to that faction. A profile switch changes
+    -- both, and keeps it.
+    local alliance, horde = p.allianceColor ~= v.allianceColor, p.hordeColor ~= v.hordeColor
+    if alliance ~= horde then v.faction = alliance and "Alliance" or "Horde" end
+    v.allianceColor, v.hordeColor = p.allianceColor, p.hordeColor
+
+    local rows, width = DrawLines(v, p)
+    local boxWidth, boxHeight = max(150, floor(width + 2 * INSET + 1)), 10 + rows * ROW
+    if v.width ~= boxWidth or v.height ~= boxHeight then
+        v.width, v.height = boxWidth, boxHeight
+        v.box:SetSize(boxWidth, boxHeight)
+    end
+    local logo = p.factionStyle == "LOGO"
+    if logo and v.logoFaction ~= v.faction then
+        v.logoFaction = v.faction
+        v.logoAspect = SetLogo(v.logo, v.faction)
+    end
+    if logo then
+        v.logo:SetSize(p.logoSize * v.logoAspect, p.logoSize)
+        v.logo:SetAlpha(p.logoAlpha)
+    end
+    v.logo:SetShown(logo)
+
+    -- The tooltip, its bar, a logo taller than it and what the extras put under them, scaled down together when they
+    -- wouldn't fit the stage, and centered on it.
+    local height = boxHeight + (p.healthBar and (p.barGap + p.barHeight + 2 * p.barBorderSize) or 0)
+    if logo then height = max(height, 4 + p.logoSize) end
+    local wide, underHeight, underWidth = boxWidth, self:PreviewUnder(v, p, height)
+    if underHeight then height, wide = height + underHeight, max(wide, underWidth) end
+    local stageWidth, stageHeight = W.PREVIEW_WIDTH, W.PREVIEW_HEIGHT
+    local scale = min(1, (stageHeight - 12) / height, (stageWidth - 12) / wide)
+    local top = (stageHeight - height * scale) / 2
+    if v.scale ~= scale or v.top ~= top then
+        v.scale, v.top = scale, top
+        v.box:SetScale(scale)
+        v.box:ClearAllPoints()
+        v.box:SetPoint("TOP", frame, "TOP", 0, -top / scale)
+    end
+
+    -- The border as drawn over tooltips other addons restyle (see UpdateBorder). Sizes here are in the stage's units.
+    local class = Mage()
+    if p.classBorder then
+        v.edges:Layout(v.box, p.borderSize, false)
+        v.edges:SetColor(class.r, class.g, class.b, 1)
+    else
+        v.edges:Layout(v.box, 1, false)
+        v.edges:SetColor(0.35, 0.35, 0.35, 1)
+    end
+    v.edges:SetShown(true)
+
+    local bar = v.bar
+    bar:SetShown(p.healthBar)
+    if not p.healthBar then return end
     local edge = p.barBorderSize
-    v.bar:SetPoint("TOPLEFT", v.box, "BOTTOMLEFT", edge, -(min(p.barGap, 4) + edge))
-    v.bar:SetPoint("TOPRIGHT", v.box, "BOTTOMRIGHT", -edge, -(min(p.barGap, 4) + edge))
-    v.bar:SetHeight(min(p.barHeight, 14))
-    v.bar:SetStatusBarTexture(ns.Media("statusbar", p.texture))
-    if p.classColors then v.bar:SetStatusBarColor(class.r, class.g, class.b, 1) else v.bar:SetStatusBarColor(unpack(p.healthColor)) end
-    v.bar:SetValue(0.83)
-    v.bar.background:SetColorTexture(unpack(p.backgroundColor))
-    v.bar.edges:Layout(v.bar, edge, true)
-    v.bar.edges:SetColor(unpack(p.barBorderColor))
-    v.bar.edges:SetShown(edge > 0)
-    ns.SetFont(v.bar.text, ns.Media("font", p.font), min(p.fontSize, 12), ns.OutlineFlags(p.outline))
-    v.bar.text:SetText(p.barText == "PERCENT" and "83%" or p.barText == "BOTH" and "4215 / 5100 (83%)" or p.barText == "NONE" and "" or "4215 / 5100")
+    bar:ClearAllPoints()
+    bar:SetPoint("TOPLEFT", v.box, "BOTTOMLEFT", edge, -(p.barGap + edge))
+    bar:SetPoint("TOPRIGHT", v.box, "BOTTOMRIGHT", -edge, -(p.barGap + edge))
+    bar:SetHeight(p.barHeight)
+    bar:SetStatusBarTexture(ns.Media("statusbar", p.texture))
+    if p.colorBy == "CLASS" then
+        bar:SetStatusBarColor(class.r, class.g, class.b, 1)
+    elseif p.colorBy == "HEALTH" then
+        bar:SetStatusBarColor(HealthColor(0.83))
+    else
+        bar:SetStatusBarColor(unpack(p.healthColor))
+    end
+    bar.background:SetColorTexture(unpack(p.backgroundColor))
+    bar.edges:Layout(bar, edge, true)
+    bar.edges:SetColor(unpack(p.barBorderColor))
+    bar.edges:SetShown(edge > 0)
+    ns.SetFont(bar.text, ns.Media("font", p.font), p.fontSize, ns.OutlineFlags(p.outline))
+    bar.text:SetText(p.barText == "PERCENT" and "83%" or p.barText == "BOTH" and "4215 / 5100 (83%)" or p.barText == "NONE" and "" or "4215 / 5100")
 end
