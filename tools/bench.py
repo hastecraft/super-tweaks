@@ -543,6 +543,52 @@ Section('Social', function()
     end)
 end)
 
+Section('Chat Spam Filter (one guild muted)', function()
+    local F = mod('ChatFilter')
+    Enable({ 'ChatFilter' }, true)
+    F.db.profile.mutedGuilds = 'Horde Guard'
+    F:Apply()
+    UNITS.nameplate2 = { guid = 'Player-3', player = true, class = 'ROGUE', health = 100, maxHealth = 100, guild = 'Horde Guard' }
+    local line = 1000
+    -- A public channel message (zone channel 2), a new line each time, from sender with this GUID.
+    local function channel(text, guid)
+        line = line + 1
+        return F.Filter(nil, 'CHAT_MSG_CHANNEL', text, 'Grunt-TestRealm', '', '', '', '', 2, 0, '', 0, line, guid)
+    end
+    Measure('Muted guild: a nameplate learned', 300, function()
+        CallIn(F.learner.scripts.OnEvent, F.learner, 'NAME_PLATE_UNIT_ADDED', 'nameplate2')
+    end)
+    Measure('Muted guild: mouseover learned (not a member)', 300, function()
+        CallIn(F.learner.scripts.OnEvent, F.learner, 'UPDATE_MOUSEOVER_UNIT')
+    end)
+    for i = 1, 4 do UNITS['party' .. i] = { guid = 'Player-' .. (10 + i), player = true, class = 'MAGE', health = 100, maxHealth = 100, guild = i % 2 == 0 and 'Horde Guard' or 'Other' } end
+    state.groupSize = 5
+    Measure('Muted guild: group roster update (party of 5)', 300, function()
+        CallIn(F.learner.scripts.OnEvent, F.learner, 'GROUP_ROSTER_UPDATE')
+    end)
+    -- A /who answer of 50 players, half of them in the muted guild.
+    local who = {}
+    for i = 1, 50 do who[i] = { fullName = 'Peon' .. i, fullGuildName = i % 2 == 0 and 'Horde Guard' or '', level = 30 } end
+    C_FriendList.GetNumWhoResults = function() return #who, #who end
+    C_FriendList.GetWhoInfo = function(i) return who[i] end
+    Measure('Muted guild: /who answer (50 players)', 100, function()
+        CallIn(F.learner.scripts.OnEvent, F.learner, 'WHO_LIST_UPDATE')
+    end)
+    Measure('Chat filter: channel message, nobody known', 300, function() channel('LFM Deadmines', 'Player-9') end)
+    Measure('Chat filter: channel message, muted guild member', 300, function() channel('LFM Deadmines', 'Player-3') end)
+    Measure('Chat filter: channel message, member known from /who', 300, function()
+        line = line + 1
+        F.Filter(nil, 'CHAT_MSG_CHANNEL', 'LFM Deadmines', 'Peon2-TestRealm', '', '', '', '', 2, 0, '', 0, line, 'Player-99')
+    end)
+    Measure('Chat filter: channel message naming a muted <Guild>', 300, function()
+        channel('<Horde Guard> is a fine guild', 'Player-9')
+    end)
+    F.db.profile.mutedGuilds = ''
+    Enable({ 'ChatFilter' }, false)
+    UNITS.nameplate2, state.groupSize = nil, nil
+    for i = 1, 4 do UNITS['party' .. i] = nil end
+end)
+
 Section('Level-Up Screenshot', function()
     Measure('Level up: screenshot after the banner wait', 50, function()
         Send('LevelUpScreenshot', 'PLAYER_LEVEL_UP', 30, 0, 0, 0, 0, 0, 0, 0, 0); AdvanceTime(6)

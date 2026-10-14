@@ -7,7 +7,9 @@ UNITS.player = { guid = 'Player-0', player = true, class = 'WARRIOR', health = 4
 UNITS.target = UNITS.npc
 Enum.TooltipDataType.Item = 0
 function UnitPlayerControlled(unit) local u = UNITS[unit]; return u ~= nil and (u.player == true or u.controlled == true) end
-function UnitTokenFromGUID(guid) for _, token in ipairs({ 'mouseover', 'target', 'npc' }) do if UNITS[token] and UNITS[token].guid == guid then return token end end end
+-- Made once: the game's UnitTokenFromGUID makes no garbage.
+local GUID_TOKENS = { 'mouseover', 'target', 'npc' }
+function UnitTokenFromGUID(guid) for _, token in ipairs(GUID_TOKENS) do if UNITS[token] and UNITS[token].guid == guid then return token end end end
 -- Your bags hold ITEM_COUNTS[item] (12 unless set); the bank and WoW Forever's account bank hold BANK_COUNTS[item] and
 -- ACCOUNT_COUNTS[item], counted when asked for. Forever's C_Bank has functions (Classic Era's has none).
 BANK_COUNTS, ACCOUNT_COUNTS = {}, {}
@@ -21,6 +23,19 @@ C_Bank = { CanViewBank = function() return false end }
 function UnitAffectingCombat() return state.combat == true end
 MailFrame = CreateFrame('Frame', 'MailFrame', UIParent); MailFrame:Hide()
 MerchantFrame = CreateFrame('Frame', 'MerchantFrame', UIParent); MerchantFrame:Hide()
+-- Your group: state.groupSize players, you included.
+function GetNumGroupMembers() return state.groupSize or 0 end
+function GetNumSubgroupMembers() return math.max(0, (state.groupSize or 0) - 1) end
+-- Chat message filters, kept per event as the game keeps them (scenarios call them themselves).
+CHAT_FILTERS = {}
+function ChatFrame_AddMessageEventFilter(event, fn)
+    CHAT_FILTERS[event] = CHAT_FILTERS[event] or {}
+    table.insert(CHAT_FILTERS[event], fn)
+end
+function ChatFrame_RemoveMessageEventFilter(event, fn)
+    local filters = CHAT_FILTERS[event] or {}
+    for i = #filters, 1, -1 do if filters[i] == fn then table.remove(filters, i) end end
+end
 state.power, state.powerMax, state.powerType = 2600, 3000, 'MANA'
 
 -- Right-click menus: Menu.ModifyMenu (the menu fixtures) with a root description to add to.
