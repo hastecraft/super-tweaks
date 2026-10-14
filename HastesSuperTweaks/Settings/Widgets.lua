@@ -140,6 +140,7 @@ local function FillPalette(into, theme)
     Fade(made("shade"), into.window, 0.82)
     Fade(made("veil"), into.window, 0.6)
     Fade(made("accentWash"), into.accent, 0.12)
+    Fade(made("halo"), into.accent, 0.25)
     return into
 end
 
@@ -866,7 +867,145 @@ local function ValueBox(parent, width)
     return e
 end
 
--- A Blizzard stepper slider with a box showing (and taking) the exact value.
+---------------------------------------------------------------------------
+-- Slider: a stepper at each end and a track between them, filled in the accent up to a round thumb. Pressing the track
+-- moves the thumb there and dragging moves it along (following the cursor once a frame, only while dragging); the
+-- steppers move it a step. Values snap to steps. s:SetRange(low, high, step), s:SetValue(value) (which doesn't call
+-- back), s.onChange(value) for each new value picked, s:SetDisabledLook(off).
+---------------------------------------------------------------------------
+local THUMB, RAIL, STEPPER_W = 12, 4, 14
+
+local function SnapValue(s, value)
+    local steps = math.floor((value - s.low) / s.step + 0.5)
+    return math.min(s.high, math.max(s.low, s.low + steps * s.step))
+end
+
+-- Puts the thumb and the end of the fill at the value.
+local function PlaceThumb(s)
+    local width = s.track:GetWidth()
+    if not (s.value and width and width > THUMB) then return end
+    local span = s.high - s.low
+    local x = THUMB / 2 + (span > 0 and (s.value - s.low) / span or 0) * (width - THUMB)
+    if x == s.thumbX then return end
+    s.thumbX = x
+    s.knob:SetPoint("CENTER", s.track, "LEFT", x, 0)
+    s.fill:SetWidth(math.max(RAIL, x))
+end
+
+-- A stepper dims at the end it can't go past; whatever is pointed at or dragged lights.
+local function PaintSlider(s)
+    local off = s.off
+    W.Paint(s.less.icon, (off or s.value == s.low) and C.disabled or s.less.lit and C.bright or C.header)
+    W.Paint(s.more.icon, (off or s.value == s.high) and C.disabled or s.more.lit and C.bright or C.header)
+    s.halo:SetShown(not off and (s.lit or s.dragging) == true)
+end
+
+local function Pick(s, value)
+    value = SnapValue(s, value)
+    if value == s.value then return end
+    s.value = value
+    PlaceThumb(s)
+    PaintSlider(s)
+    if s.onChange then s.onChange(value) end
+end
+
+local function FollowCursor(s)
+    local track = s.track
+    local left, width = track:GetLeft(), track:GetWidth()
+    if not left or width <= THUMB then return end
+    local x = GetCursorPosition() / track:GetEffectiveScale()
+    local f = math.min(1, math.max(0, (x - left - THUMB / 2) / (width - THUMB)))
+    Pick(s, s.low + f * (s.high - s.low))
+end
+
+local function StopDrag(s)
+    if not s.dragging then return end
+    s.dragging = nil
+    s:SetScript("OnUpdate", nil)
+    PaintSlider(s)
+end
+
+local function Stepper(s, direction, step)
+    local b = CreateFrame("Button", nil, s)
+    b:SetSize(STEPPER_W, 20)
+    b.icon = W.Chevron(b, 10, C.header)
+    b.icon:SetPoint("CENTER")
+    b.icon:Point(direction)
+    b:SetScript("OnClick", function()
+        if s.off then return end
+        Play("U_CHAT_SCROLL_BUTTON")
+        Pick(s, (s.value or s.low) + step * s.step)
+    end)
+    b:SetScript("OnEnter", function(self) self.lit = true; PaintSlider(s) end)
+    b:SetScript("OnLeave", function(self) self.lit = nil; PaintSlider(s) end)
+    return b
+end
+
+function W.Slider(parent)
+    local s = CreateFrame("Frame", nil, parent)
+    s:SetHeight(20)
+    s.low, s.high, s.step = 0, 1, 1
+    s.less, s.more = Stepper(s, "LEFT", -1), Stepper(s, "RIGHT", 1)
+    s.less:SetPoint("LEFT")
+    s.more:SetPoint("RIGHT")
+    local track = CreateFrame("Frame", nil, s)
+    s.track = track
+    track:SetPoint("TOPLEFT", s.less, "TOPRIGHT", 2, 0)
+    track:SetPoint("BOTTOMRIGHT", s.more, "BOTTOMLEFT", -2, 0)
+    track:EnableMouse(true)
+    local rail = CreateFrame("Frame", nil, track)
+    rail:SetHeight(RAIL)
+    rail:SetPoint("LEFT")
+    rail:SetPoint("RIGHT")
+    W.Round(rail)(C.trackOff)
+    s.fill = CreateFrame("Frame", nil, track)
+    s.fill:SetHeight(RAIL)
+    s.fill:SetPoint("LEFT")
+    s.fill:SetFrameLevel(rail:GetFrameLevel() + 1)
+    W.Round(s.fill)(C.trackOn)
+    s.knob = CreateFrame("Frame", nil, track)
+    s.knob:SetSize(THUMB, THUMB)
+    s.knob:SetFrameLevel(rail:GetFrameLevel() + 2)
+    s.halo = W.Dot(s.knob, THUMB + 8, C.halo, nil, "BACKGROUND")
+    s.halo:SetPoint("CENTER")
+    s.halo:Hide()
+    W.Dot(s.knob, THUMB, C.knobOn):SetPoint("CENTER")
+    track:SetScript("OnSizeChanged", function() s.thumbX = nil; PlaceThumb(s) end)
+    track:SetScript("OnEnter", function() s.lit = true; PaintSlider(s) end)
+    track:SetScript("OnLeave", function() s.lit = nil; PaintSlider(s) end)
+    track:SetScript("OnMouseDown", function(_, button)
+        if button ~= "LeftButton" or s.off then return end
+        s.dragging = true
+        FollowCursor(s)
+        PaintSlider(s)
+        s:SetScript("OnUpdate", FollowCursor)
+    end)
+    track:SetScript("OnMouseUp", function() StopDrag(s) end)
+    s:SetScript("OnHide", StopDrag)
+    function s:SetRange(low, high, step)
+        self.low, self.high, self.step = low, high, step or 1
+        self.thumbX = nil
+        PlaceThumb(self)
+    end
+    function s:SetValue(value)
+        if value == self.value then return end
+        self.value = value
+        PlaceThumb(self)
+        PaintSlider(self)
+    end
+    function s:SetDisabledLook(off)
+        off = off and true or false
+        if off == self.off then return end
+        self.off = off
+        if off then StopDrag(self) end
+        self:SetAlpha(off and 0.4 or 1)
+        PaintSlider(self)
+    end
+    PaintSlider(s)
+    return s
+end
+
+-- A slider with a box showing (and taking) the exact value.
 local VALUE_W = 50
 function W.SliderRow(parent)
     local c = NewRow(parent)
@@ -874,32 +1013,22 @@ function W.SliderRow(parent)
     c.value = ValueBox(c, VALUE_W)
     c.value:SetPoint("TOPRIGHT", -2, -ROW_PAD - (HEAD - 20) / 2)
     c.value.onCommit = function(text) if c.onText then c.onText(text) end end
-    c.slider = CreateFrame("Frame", nil, c, "MinimalSliderWithSteppersTemplate")
-    c.slider:SetHeight(20)
+    c.slider = W.Slider(c)
     c.slider:SetPoint("RIGHT", c.value, "LEFT", -6, 0)
-    c.slider:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, value)
-        if not c.updating and c.onChange then c.onChange(value) end
-    end, c)
-    function c:Setup(low, high, step)
-        self.updating = true
-        self.slider:Init(low, low, high, math.max(1, math.floor((high - low) / step + 0.5)), {})
-        self.updating = false
-    end
+    c.slider.onChange = function(value) if c.onChange then c.onChange(value) end end
+    function c:Setup(low, high, step) self.slider:SetRange(low, high, step) end
     function c:Layout(width)
         local control = W.ControlWidth(width)
         self.slider:SetWidth(control - VALUE_W - 6)
         return (PlaceText(self, width, control))
     end
     function c:SetValue(value, text, off)
-        self.updating = true
         self.slider:SetValue(value)
-        self.updating = false
         if text ~= self.shownText then self.shownText = text; self.value:SetValueText(text) end
-        -- The game's slider recolors all its parts each time it's enabled; every refresh of the page comes here.
         off = off and true or false
         if off == self.off then return end
         self.off = off
-        if self.slider.SetEnabled then self.slider:SetEnabled(not off) else self.slider.Slider:SetEnabled(not off) end
+        self.slider:SetDisabledLook(off)
         self.value:SetEnabled(not off)
         W.Paint(self.value, off and C.disabled or C.bright)
         DimLabel(self, off)
