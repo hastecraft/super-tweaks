@@ -1792,7 +1792,7 @@ function P:CreateCpuGraph(bottom)
     graph:SetHeight(CPU_GRAPH)
     local floor = W.Fill(graph, C.divider, "BORDER")
     floor:SetPoint("BOTTOMLEFT"); floor:SetPoint("BOTTOMRIGHT"); floor:SetHeight(1)
-    cpu.bars, cpu.samples, cpu.head, cpu.pct, cpu.ms = {}, {}, 1, 0, 0
+    cpu.bars, cpu.samples, cpu.head, cpu.ms = {}, {}, 1, 0
     for i = 1, CPU_BARS do
         local bar = W.Fill(graph, C.accent, "ARTWORK")
         bar:SetHeight(1)
@@ -1819,20 +1819,12 @@ function P:CreateCpuGraph(bottom)
         line.value:SetText("0 ms")
         cpu.figures[i] = line
     end
-    local function tip()
-        local fps = GetFramerate()
-        W.ShowTooltip(cpu, "CPU use", ("How long %s takes to run each frame, in milliseconds, as the game's AddOns "
-            .. "list measures it. Each bar is one second while this window is open.\n\n"
-            .. "Now: the last second, %s of the frame.\nAvg: since you logged in.\n"
-            .. "Peak: the slowest frame since login. Loading screens count.\n\n"
-            .. "At %d FPS, a whole frame is %.1f ms."):format(HST.title, FormatSmall(cpu.pct, "%"),
-            math.floor(fps + 0.5), fps > 0 and 1000 / fps or 0))
-    end
-    cpu.tip = tip
-    cpu:SetScript("OnEnter", function() cpu.hovered = true; tip() end)
-    cpu:SetScript("OnLeave", function() cpu.hovered = nil; W.HideTooltip(cpu) end)
-    -- Frames since the last reading; the readings, the addon's and the frames' time and the seconds since the last bar.
-    local frames, readings, addonTime, frameTime, seconds = 0, 0, 0, 0, 0
+    cpu:SetScript("OnEnter", function()
+        W.ShowTooltip(cpu, "CPU use", "How long " .. HST.title .. " takes to run each frame.")
+    end)
+    cpu:SetScript("OnLeave", function() W.HideTooltip(cpu) end)
+    -- Frames since the last reading; the readings, the addon's time and the seconds since the last bar.
+    local frames, readings, addonTime, seconds = 0, 0, 0, 0
     cpu:SetScript("OnUpdate", function(_, elapsed)
         frames, seconds = frames + 1, seconds + elapsed
         if frames < CPU_WINDOW then return end
@@ -1840,17 +1832,15 @@ function P:CreateCpuGraph(bottom)
         local profiler = CpuProfiler()
         if not profiler then return end
         local metric = Enum.AddOnProfilerMetric.RecentAverageTime
-        local addon = profiler.GetAddOnMetric(ADDON, metric)
-        readings, addonTime = readings + 1, addonTime + addon
-        frameTime = frameTime + profiler.GetApplicationMetric(metric) - profiler.GetOverallMetric(metric) + addon
+        readings, addonTime = readings + 1, addonTime + profiler.GetAddOnMetric(ADDON, metric)
         if seconds < 1 then return end
-        self:AddCpuBar(addonTime / readings, frameTime > 0 and addonTime / frameTime * 100 or 0)
-        readings, addonTime, frameTime, seconds = 0, 0, 0, 0
+        self:AddCpuBar(addonTime / readings)
+        readings, addonTime, seconds = 0, 0, 0
     end)
     -- A new open starts counting afresh, so the time the window was closed isn't in the first bar; Avg and Peak
     -- show at once.
     cpu:SetScript("OnShow", function()
-        frames, readings, addonTime, frameTime, seconds = 0, 0, 0, 0, 0
+        frames, readings, addonTime, seconds = 0, 0, 0, 0
         self:PaintCpuFigures()
     end)
     self:ApplyCpuGraph()
@@ -1866,13 +1856,13 @@ function P:PaintCpuFigures()
     figures[3].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.PeakTime), " ms"))
 end
 
--- ms: the addon's average time a frame over the bar's readings; pct: its share of those frames' time.
-function P:AddCpuBar(ms, pct)
+-- ms: the addon's average time a frame over the bar's readings.
+function P:AddCpuBar(ms)
     local cpu = self.cpu
     local samples = cpu.samples
     samples[cpu.head] = ms
     cpu.head = cpu.head % CPU_BARS + 1
-    cpu.pct, cpu.ms = pct, ms
+    cpu.ms = ms
     local most = 0
     for i = 1, CPU_BARS do
         if samples[i] > most then most = samples[i] end
@@ -1890,7 +1880,6 @@ function P:AddCpuBar(ms, pct)
         end
     end
     self:PaintCpuFigures()
-    if cpu.hovered then cpu.tip() end
 end
 
 -- Shows or hides the graph for its setting; the sidebar's list ends above whatever shows.
