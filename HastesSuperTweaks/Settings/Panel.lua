@@ -2927,22 +2927,34 @@ function P:SetHeader(title, crumb, text)
     local header = self.pageHeader
     header.title:SetText(title)
     header.crumb:SetText(crumb or "")
-    header.crumb:Show()
-    for _, part in ipairs(header.parts) do part:Hide(); part.sep:Hide() end
-    header.crumbNote:Hide()
+    -- A tweak's page shows its crumb in parts (P:SetCrumbs); other pages, as it is.
+    if self.view ~= "module" and header.crumbCount then
+        header.crumbCount = nil
+        header.crumb:Show()
+        for _, part in ipairs(header.parts) do part:Hide(); part.sep:Hide() end
+        header.crumbNote:Hide()
+    end
     header.text:SetText(text or "")
 end
 
--- A part of a tweak's crumb, from its pool: a category or page name, with the > before it.
+-- A part of a tweak's crumb, from its pool: a category or page name, after the part before it and a >.
 function P:CrumbPart(index)
     local header = self.pageHeader
     local part = header.parts[index]
     if part then return part end
     part = CreateFrame("Button", nil, header)
+    part:SetHeight(18)
     part.label = W.Text(part, "GameFontNormalSmall", C.header)
     part.label:SetPoint("LEFT")
     part.sep = W.Text(header, "GameFontNormalSmall", C.header)
     part.sep:SetText(">")
+    local previous = header.parts[index - 1]
+    if previous then
+        part.sep:SetPoint("LEFT", previous, "RIGHT", 7, 0)
+        part:SetPoint("LEFT", part.sep, "RIGHT", 7, 0)
+    else
+        part:SetPoint("LEFT", header.crumb, "LEFT")
+    end
     part:SetScript("OnEnter", function(b) W.Paint(b.label, C.bright) end)
     part:SetScript("OnLeave", function(b) W.Paint(b.label, C.header) end)
     part:SetScript("OnClick", function() self:CrumbClick(index) end)
@@ -2953,31 +2965,34 @@ end
 -- A tweak's crumb: its category, then the names of the pages down to the open one. Each but the last is a link.
 function P:SetCrumbs(category, names)
     local header = self.pageHeader
-    header.crumb:Hide()
-    local count, previous = #names + 1, nil
+    local count = #names + 1
+    -- Only what changed is written: moving between pages mostly changes the last part.
     for i = 1, count do
         local part = self:CrumbPart(i)
-        part.label:SetText(i == 1 and category or names[i - 1])
-        W.Paint(part.label, C.header)
-        part:SetSize(math.ceil(part.label:GetStringWidth()), 18)
-        part:ClearAllPoints()
-        part.sep:ClearAllPoints()
-        if previous then
-            part.sep:SetPoint("LEFT", previous, "RIGHT", 7, 0)
-            part.sep:Show()
-            part:SetPoint("LEFT", part.sep, "RIGHT", 7, 0)
-        else
-            part.sep:Hide()
-            part:SetPoint("LEFT", header.crumb, "LEFT")
+        local text = i == 1 and category or names[i - 1]
+        if part.text ~= text then
+            part.text = text
+            part.label:SetText(text)
+            part:SetWidth(math.ceil(part.label:GetStringWidth()))
         end
         -- The last part is where you are.
-        part:EnableMouse(i < count)
-        part:Show()
-        previous = part
+        local link = i < count
+        if part.link ~= link then
+            part.link = link
+            part:EnableMouse(link)
+            W.Paint(part.label, C.header)
+        end
     end
-    for i = count + 1, #header.parts do header.parts[i]:Hide(); header.parts[i].sep:Hide() end
-    header.crumbNote:ClearAllPoints()
-    header.crumbNote:SetPoint("LEFT", previous, "RIGHT", 12, 0)
+    if header.crumbCount ~= count then
+        header.crumbCount = count
+        header.crumb:Hide()
+        for i, part in ipairs(header.parts) do
+            part:SetShown(i <= count)
+            part.sep:SetShown(i > 1 and i <= count)
+        end
+        header.crumbNote:ClearAllPoints()
+        header.crumbNote:SetPoint("LEFT", header.parts[count], "RIGHT", 12, 0)
+    end
 end
 
 -- A crumb part clicked: its category in the tweak list, or its page.
