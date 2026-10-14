@@ -10,7 +10,7 @@ local R = HST:NewFeature("LootRolls", {
     summary = "Move the Need, Greed and Pass rolls in Edit Mode.",
     examples = { "scale" },
     description = "Lets you move the group loot rolls (Need, Greed and Pass) in Edit Mode, where a sample shows, and "
-        .. "size them. Until you move them they stay where the game puts them.",
+        .. "size them.",
 })
 ns.LootRolls = R
 

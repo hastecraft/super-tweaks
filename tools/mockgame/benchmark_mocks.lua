@@ -17,6 +17,7 @@ local helpers = {}
 for name in ([[CreateFrame LibStub CallIn RunTimers AdvanceTime PendingTimers AcceptPopup AddModernQuest HoverItem
     Slot Put Equip ItemLink BagButton CopyItemInfo Measure Dispatch RenderFrame Script Section Handlers CountNewAPIs MarkAddonGlobals
     EMIT QuestLog_Update QuestLogQuests_Update QuestMapLogTitleButton_OnEnter UpdateInviteConfirmationDialogs SendMail
+    MerchantFrame_UpdateMerchantInfo MerchantFrame_UpdateBuybackInfo
     EventRegistry.TriggerEvent ColorPickerFrame.Pick]]):gmatch('%S+') do helpers[name] = true end
 -- Lowercase game functions the addon calls (Lua's libraries and WoW's aliases for them, such as wipe, aren't counted).
 local LOWERCASE = { issecretvalue = true, securecallfunction = true, securecall = true, hooksecurefunc = true, strlenutf8 = true }

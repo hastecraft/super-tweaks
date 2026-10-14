@@ -166,6 +166,27 @@ end
 '''
 
 
+DRUID_MOCKS = r'''
+PERMISSIVE_FRAMES = true
+-- A druid in cat form: energy shown (power type 3), mana (0) kept under it.
+function UnitClass() return 'Druid', 'DRUID', 11 end
+Enum.PowerType = { Mana = 0, Rage = 1, Energy = 3 }
+state.powerType, state.mana, state.maxMana = 3, 1860, 3000
+function UnitPowerType() if state.powerType == 0 then return 0, 'MANA' end; return 3, 'ENERGY' end
+function UnitPower(_, kind) if kind == 0 then return state.mana end; return 60 end
+function UnitPowerMax(_, kind) if kind == 0 then return state.maxMana end; return 100 end
+CurveConstants = { ScaleTo100 = 'ScaleTo100' }
+function UnitPowerPercent(_, kind, _, curve)
+    assert(kind == 0 and curve == 'ScaleTo100'); return state.mana / state.maxMana * 100
+end
+PlayerFrame = CreateFrame('Button', 'PlayerFrame', UIParent)
+PlayerFrame:SetSize(232, 100)
+-- No target and no nameplates (Combo Points on Nameplates turns on for druids as the addon loads).
+function UnitExists(unit) return unit == 'player' end
+C_NamePlate = { GetNamePlateForUnit = function() return nil end }
+'''
+
+
 SETTINGS_MOCKS = r'''
 PERMISSIVE_FRAMES = true
 function ReloadUI() RELOADED = true end
