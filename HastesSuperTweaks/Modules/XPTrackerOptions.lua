@@ -10,25 +10,26 @@ local function choices(list)
     for i = 1, #list, 2 do result[list[i]] = list[i + 1]; order[#order + 1] = list[i] end
     return result, order
 end
-local anchors, anchorOrder = choices({ "TOPLEFT", "Top left", "TOP", "Top", "TOPRIGHT", "Top right",
-    "LEFT", "Left", "CENTER", "Center", "RIGHT", "Right",
-    "BOTTOMLEFT", "Bottom left", "BOTTOM", "Bottom", "BOTTOMRIGHT", "Bottom right" })
-local aligns, alignOrder = choices({ "LEFT", "Left", "CENTER", "Center", "RIGHT", "Right" })
-local stratas, strataOrder = choices({ "BACKGROUND", "Background", "LOW", "Low", "MEDIUM", "Medium", "HIGH", "High", "DIALOG", "Dialog" })
-local OUTLINES = { "", "None", "OUTLINE", "Outline", "THICKOUTLINE", "Thick outline",
-    "MONOCHROME", "Monochrome", "MONOCHROME,OUTLINE", "Monochrome outline" }
-local outlines, outlineOrder = choices(OUTLINES)
-local labelOutlines, labelOutlineOrder = choices({ "INHERIT", "Global outline", unpack(OUTLINES) })
 -- "||" displays a literal pipe; a bare "|n" would render as a line break.
 local TOKENS = "Tokens:\n{level}\n{xp}  {max}  {remaining}  {percent}  {remainingpercent}\n{rested}  {restedpercent}  rested XP\n"
     .. "{quest}  {questpercent}  completed quest XP\n{rate} XP per hour,  {ttl} time to level\n{session}  {gained}  session time and XP\n"
     .. "{leveltime}  {played}  time this level and in total\n{status}  \"MAX LEVEL\" at maximum level\n\n||n starts a new line."
-local HIDDEN = { max = "hidden at maximum level", xpoff = "hidden while your XP is turned off", dungeon = "hidden in a dungeon",
-    raid = "hidden in a raid", combat = "hidden in combat" }
 
 function X:BuildOptions()
     local with, section = ns.With, ns.Section
-    if ns.AddOnLoaded("EllesmereUI") and not outlines.EUI then
+    -- Built here, with the settings page: most sessions never open it.
+    local anchors, anchorOrder = choices({ "TOPLEFT", "Top left", "TOP", "Top", "TOPRIGHT", "Top right",
+        "LEFT", "Left", "CENTER", "Center", "RIGHT", "Right",
+        "BOTTOMLEFT", "Bottom left", "BOTTOM", "Bottom", "BOTTOMRIGHT", "Bottom right" })
+    local aligns, alignOrder = choices({ "LEFT", "Left", "CENTER", "Center", "RIGHT", "Right" })
+    local stratas, strataOrder = choices({ "BACKGROUND", "Background", "LOW", "Low", "MEDIUM", "Medium", "HIGH", "High", "DIALOG", "Dialog" })
+    local OUTLINES = { "", "None", "OUTLINE", "Outline", "THICKOUTLINE", "Thick outline",
+        "MONOCHROME", "Monochrome", "MONOCHROME,OUTLINE", "Monochrome outline" }
+    local outlines, outlineOrder = choices(OUTLINES)
+    local labelOutlines, labelOutlineOrder = choices({ "INHERIT", "Global outline", unpack(OUTLINES) })
+    local HIDDEN = { max = "hidden at maximum level", xpoff = "hidden while your XP is turned off", dungeon = "hidden in a dungeon",
+        raid = "hidden in a raid", combat = "hidden in combat" }
+    if ns.AddOnLoaded("EllesmereUI") then
         outlines.EUI, labelOutlines.EUI = "Match EllesmereUI", "Match EllesmereUI"
         table.insert(outlineOrder, 1, "EUI")
         table.insert(labelOutlineOrder, 2, "EUI")
