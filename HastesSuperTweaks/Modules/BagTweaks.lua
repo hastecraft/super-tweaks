@@ -273,7 +273,9 @@ function B:Apply()
     if self.db.profile.freeSlots then self:UpdateFreeSlots() else RecountBackpack() end
 end
 
+-- Only the first entering the world after login matters; later ones are loading screens.
 ns.Listen(B, { "PLAYER_ENTERING_WORLD" }, function(self, event, initial)
+    self.events:UnregisterEvent("PLAYER_ENTERING_WORLD")
     if initial then self:SetDirections() end
 end)
 function B:OnListen() self:Apply() end
