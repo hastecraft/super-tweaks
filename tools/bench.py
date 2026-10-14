@@ -95,6 +95,24 @@ local FRAME = 1 / 64 -- a rendered frame at 64 fps (exact in binary, so the cloc
 local function Seconds(n) for _ = 1, n * 64 do RenderFrame(FRAME) end end
 '''
 
+# Counters are installed before the TOC files load. Keep that cold work separate from ADDON_LOADED/PLAYER_LOGIN;
+# memory here includes compiling the embedded libraries and addon chunks, as well as executing them.
+FILE_LOAD = r'''
+local loadMemory
+function finish_file_load()
+    local bytes = (collectgarbage('count') - loadMemory) * 1024
+    collectgarbage('restart')
+    local api, widget = 0, 0
+    for _, count in pairs(API) do api = api + count end
+    for _, count in pairs(WIDGET) do widget = widget + count end
+    Section('Addon files (cold load, including embedded libraries)')
+    EMIT('result', 'Addon files: cold load, before login', api, widget, CREATED.frames, CREATED.regions,
+        bytes, ADDON_CALLS, 1, DETAIL and 'allocation includes compiled chunks and embedded libraries' or nil)
+end
+collectgarbage(); collectgarbage(); collectgarbage('stop')
+loadMemory = collectgarbage('count')
+'''
+
 # The main runtime: every tweak's mocks at once (fixtures, then full_mocks.lua), with the tweaks on by default and those
 # listed here; each section measures one tweak's own work, delivering events to that tweak alone.
 MAIN = r'''
@@ -1031,6 +1049,17 @@ Section('Combo Points on Nameplates off', function()
 end)
 '''
 
+# One merchant offer for the no-purchase Restock path, using the current client's table-returning API.
+RESTOCK_MOCKS = r'''
+function GetMerchantNumItems() return 1 end
+function GetMerchantItemID(index) if index == 1 then return 2320 end end
+C_MerchantFrame = { GetItemInfo = function(index)
+    if index == 1 then
+        return { price = 10, stackCount = 1, numAvailable = -1, isPurchasable = true, hasExtendedCost = false }
+    end
+end }
+'''
+
 # Selling, quest and group automation, and auto-decline, in a runtime of their own (on the automation mocks).
 AUTOMATION = r'''
 local S = HST:GetModule('SellClutter')
@@ -1065,6 +1094,10 @@ Section('Sell Clutter (with Sell Junk and Repair on)', function()
     end)
     Measure('Item tooltip: clutter, facts still fresh', 300, function() HoverItem(101) end)
     Measure('Item tooltip: not clutter, facts still fresh', 300, function() HoverItem(103) end)
+    -- Slot 8 holds the meat stack; a bag button owner makes the tooltip check that particular copy's sale eligibility.
+    local owner, previousOwner = BagButton(0, 8), GameTooltip.owner
+    Measure('Bag item tooltip: clutter, facts still fresh', 300, function() HoverItem(101, owner) end)
+    GameTooltip.owner = previousOwner
     Measure('Item tooltip: clutter, facts looked up again', 100, function() state.time = state.time + 5; HoverItem(101) end)
     Measure('Irrelevant item tooltip: expired facts', 100, function() state.time = state.time + 5; HoverItem(130) end)
     Measure('Bags changed away from a vendor (protection events)', 300, function()
@@ -1077,6 +1110,16 @@ Section('Repair Automatically', function()
         REPAIR.cost = 500
         Dispatch('MERCHANT_SHOW'); AdvanceTime(5); Dispatch('MERCHANT_CLOSED'); AdvanceTime(1)
     end)
+    Only()
+end)
+
+Section('Restock at Vendors', function()
+    local R = HST:GetModule('Restock')
+    R.db.profile.items[2320] = 20
+    R.db.profile.ammoWarning = false
+    Only({ 'Restock' })
+    ITEM_COUNTS[2320] = 20
+    Measure('Restock: vendor plan, listed item already stocked', 300, function() R:Plan() end)
     Only()
 end)
 
@@ -1243,6 +1286,11 @@ for bag = 1, 4 do Equip(bag, 4499); for slot = 1, 12 do Put(bag, slot, 2589) end
 for slot = 1, 16 do Put(0, slot, 2589) end
 Send('AutoBags', 'BAG_UPDATE_DELAYED')
 Section('Auto-Equip Bags (64 occupied slots)', function()
+    -- A newly encountered bag's capacity comes from its tooltip; clear only that item so every run reads the lines.
+    Measure('Auto bags: uncached bag capacity tooltip lookup', 300, function()
+        B.sizes[4496] = nil
+        B:Size(4496)
+    end)
     Measure('Auto bags: unchanged inventory event', 100, function() Send('AutoBags', 'BAG_UPDATE_DELAYED') end)
     -- Each run: a smaller bag in the last slot (one bag event), then a bigger one looted and put on (two more).
     -- The bag mocks allocate their slots' contents: that part alone is the control, subtracted.
@@ -1330,12 +1378,15 @@ end)
 '''
 
 
-def runtime(prelude, scenario, start=True):
+def runtime(prelude, scenario, start=True, measure_load=False):
     """Loads the addon on these mocks and runs a scenario script; a failure is reported, and the other runtimes go on."""
     quiet = "print = function(...) io.stderr:write(table.concat({ ... }, '\\t'), '\\n') end\n" if JSON else ''
     try:
-        lua = harness.new_runtime(quiet + prelude + ('DETAIL = true\n' if DETAIL else '') + COUNTERS)
+        lua = harness.new_runtime(quiet + prelude + ('DETAIL = true\n' if DETAIL else '') + COUNTERS
+                                  + (FILE_LOAD if measure_load else ''))
         lua.globals().EMIT = REPORT.emit
+        if measure_load:
+            lua.globals().finish_file_load()
         lua.execute('MarkAddonGlobals()')
         if start:
             harness.start(lua)
@@ -1355,9 +1406,9 @@ def main():
     runtime(full, EVERYTHING, start=False)
     runtime(mock('combattext_mocks.lua'), COMBAT_TEXT)
     runtime(mock('combattext_mocks.lua') + mock('combopoints_mocks.lua'), COMBO_POINTS)
-    runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua'), AUTOMATION)
+    runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + RESTOCK_MOCKS, AUTOMATION)
     runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + mock('appearance_mocks.lua'), APPEARANCES)
-    runtime(full, STARTUP_SETTINGS, start=False)
+    runtime(full, STARTUP_SETTINGS, start=False, measure_load=True)
     runtime(mock('bags_mocks.lua'), BAGS)
     runtime(BREATH_MOCKS, BREATH)
     runtime(SWING_MOCKS, SWING)
