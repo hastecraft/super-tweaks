@@ -154,6 +154,63 @@ MirrorTimerContainer.mirrorTimers = { {}, {}, {} }
 '''
 
 
+SWING_MOCKS = r'''
+PERMISSIVE_FRAMES = true
+-- WoW Forever's swing timer (Blizzard_SwingTimer): its three bars, with the methods the game starts, ends and dims a
+-- swing with. Shortened: the game's also set the bar's value, pip and time text, and fill it in an OnUpdate.
+C_SwingTimer = { EnableRangeCheck = function() end, IsTargetWithinSwingRange = function() return nil end }
+local swingBar = {}
+function swingBar:GetBackground() return self.Background end
+function swingBar:GetBorder() return self.Border end
+function swingBar:GetStatusBar() return self.StatusBar end
+function swingBar:GetStatusBarPip() return self.StatusBar.Pip end
+function swingBar:ResetSwingTimer(duration) if duration and duration > 0 then self.swingDuration = duration end end
+function swingBar:ClearSwingTimer() self.swingDuration = nil end
+function swingBar:ApplyRangePresentation()
+    local alpha = self.isOutOfRange and not self.isInEditMode and 0.4 or 1
+    self.Background:SetAlpha(alpha); self.Border:SetAlpha(alpha); self.StatusBar:SetAlpha(alpha)
+end
+function swingBar:SetOutOfRange(out)
+    if self.isOutOfRange == out then return end
+    self.isOutOfRange = out
+    self:ApplyRangePresentation()
+end
+function swingBar:SetIsInEditMode(editing) self.isInEditMode = editing; self:ApplyRangePresentation() end
+local function fill(self) return self.Fill end
+for _, hand in ipairs({ 'MainHand', 'OffHand', 'Ranged' }) do
+    local bar = CreateFrame('Frame', 'SwingTimer' .. hand .. 'Frame', UIParent)
+    for name, fn in pairs(swingBar) do bar[name] = fn end
+    bar.barTexture = 'ui-swingtimerbar-filling-' .. hand:lower()
+    bar.Background, bar.Border = bar:CreateTexture(), bar:CreateTexture()
+    bar.StatusBar = CreateFrame('StatusBar', nil, bar)
+    bar.StatusBar.Fill, bar.StatusBar.Pip = bar.StatusBar:CreateTexture(), bar.StatusBar:CreateTexture()
+    bar.StatusBar.GetStatusBarTexture = fill
+    bar.StatusBar:SetStatusBarTexture(bar.barTexture)
+end
+'''
+
+
+DRUID_MOCKS = r'''
+PERMISSIVE_FRAMES = true
+-- A druid in cat form: energy shown (power type 3), mana (0) kept under it.
+function UnitClass() return 'Druid', 'DRUID', 11 end
+Enum.PowerType = { Mana = 0, Rage = 1, Energy = 3 }
+state.powerType, state.mana, state.maxMana = 3, 1860, 3000
+function UnitPowerType() if state.powerType == 0 then return 0, 'MANA' end; return 3, 'ENERGY' end
+function UnitPower(_, kind) if kind == 0 then return state.mana end; return 60 end
+function UnitPowerMax(_, kind) if kind == 0 then return state.maxMana end; return 100 end
+CurveConstants = { ScaleTo100 = 'ScaleTo100' }
+function UnitPowerPercent(_, kind, _, curve)
+    assert(kind == 0 and curve == 'ScaleTo100'); return state.mana / state.maxMana * 100
+end
+PlayerFrame = CreateFrame('Button', 'PlayerFrame', UIParent)
+PlayerFrame:SetSize(232, 100)
+-- No target and no nameplates (Combo Points on Nameplates turns on for druids as the addon loads).
+function UnitExists(unit) return unit == 'player' end
+C_NamePlate = { GetNamePlateForUnit = function() return nil end }
+'''
+
+
 SETTINGS_MOCKS = r'''
 PERMISSIVE_FRAMES = true
 function ReloadUI() RELOADED = true end
