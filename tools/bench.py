@@ -26,7 +26,7 @@ os.environ['HST_ADDON_DIR'] = str(ROOT / 'HastesSuperTweaks')
 # Every copy is measured with this bench's mocks and scenarios, so two versions differ only in the addon.
 sys.path.insert(0, str(HERE))
 import harness  # noqa: E402
-from shared_fixtures import MENU_MOCKS, TOOLTIP_MOCKS, SIMPLE_MOCKS, BREATH_MOCKS, DRUID_MOCKS, SETTINGS_MOCKS  # noqa: E402
+from shared_fixtures import MENU_MOCKS, TOOLTIP_MOCKS, SIMPLE_MOCKS, BREATH_MOCKS, SWING_MOCKS, DRUID_MOCKS, SETTINGS_MOCKS  # noqa: E402
 
 DETAIL, JSON = '--detail' in sys.argv, '--json' in sys.argv
 COUNTERS = (HERE / 'benchmark_mocks.lua').read_text(encoding='utf-8')
@@ -1131,6 +1131,35 @@ Section('Better Breath Meter', function()
 end)
 '''
 
+# Swing Timer Style restyles the game's own bars from hooks on their methods: the scenarios call those methods as the
+# game does (each swing starts and ends one bar; the game's own filling, an OnUpdate, isn't the addon's).
+SWING = r'''
+Section('Swing Timer Style', function()
+    Only({ 'SwingTimer' }); AdvanceTime(10)
+    local main, off, ranged = SwingTimerMainHandFrame, SwingTimerOffHandFrame, SwingTimerRangedFrame
+    Measure('Swing timer: a melee swing, then idle (start, end, idle check)', 300, function()
+        main:ResetSwingTimer(2); AdvanceTime(2); main:ClearSwingTimer(); AdvanceTime(1.5)
+    end)
+    Measure('Swing timer: steady melee swings (each ends as the next starts)', 300, function()
+        main:ClearSwingTimer(); main:ResetSwingTimer(2); AdvanceTime(2)
+    end)
+    Measure('Swing timer: melee, then shooting (the bars take turns)', 100, function()
+        main:ResetSwingTimer(2); AdvanceTime(2); main:ClearSwingTimer()
+        ranged:ResetSwingTimer(3); AdvanceTime(3); ranged:ClearSwingTimer(); AdvanceTime(1.5)
+    end)
+    Measure('Swing timer: target out of range and back', 300, function() main:SetOutOfRange(true); main:SetOutOfRange(false) end)
+    Measure('Swing timer: Edit Mode opened and closed', 100, function()
+        main:SetIsInEditMode(true); off:SetIsInEditMode(true); ranged:SetIsInEditMode(true)
+        main:SetIsInEditMode(false); off:SetIsInEditMode(false); ranged:SetIsInEditMode(false)
+    end)
+    Measure('Swing timer idle: one second of frames (64 fps)', 100, function() Seconds(1) end)
+    Only()
+    Measure('Swing timer turned off: a melee swing (its hooks stay, and return)', 300, function()
+        main:ResetSwingTimer(2); AdvanceTime(2); main:ClearSwingTimer(); AdvanceTime(1.5)
+    end)
+end)
+'''
+
 # Druid Mana in Forms, for a druid in cat form (on any other class it registers nothing), in a runtime of its own.
 DRUID = r'''
 Only({ 'DruidMana' })
@@ -1176,7 +1205,7 @@ def runtime(prelude, scenario, start=True):
 
 def main():
     full = ('MODERN_SPELLBOOK = true\n' + TOOLTIP_MOCKS + mock('items_mocks.lua') + mock('loot_mocks.lua') + SIMPLE_MOCKS
-            + MENU_MOCKS + BREATH_MOCKS + SETTINGS_MOCKS + mock('full_mocks.lua')
+            + MENU_MOCKS + BREATH_MOCKS + SWING_MOCKS + SETTINGS_MOCKS + mock('full_mocks.lua')
             + 'function UnitIsInMyGuild(unit) return MY_GUILD == true and unit == "mouseover" end\n')
     runtime(full, MAIN)
     runtime(full, EVERYTHING, start=False)
@@ -1187,6 +1216,7 @@ def main():
     runtime(full, STARTUP_SETTINGS, start=False)
     runtime(mock('bags_mocks.lua'), BAGS)
     runtime(BREATH_MOCKS, BREATH)
+    runtime(SWING_MOCKS, SWING)
     runtime(DRUID_MOCKS, DRUID)
     if JSON:
         json.dump(REPORT.results, sys.stdout, indent=1)
