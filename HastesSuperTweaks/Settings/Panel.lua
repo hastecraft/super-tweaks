@@ -1745,10 +1745,12 @@ function P:CreateSidebar(f)
     self.navArea.child:SetWidth(SIDEBAR - 9)
 end
 
--- The CPU graph above Profiles and About: this addon's time per frame, averaged over the last 60 frames as the game's
--- AddOns list counts it, sampled once a second while the window is open. Bars run oldest to newest, scaled to the
--- highest sample shown or 0.05 ms, whichever is more. Nothing runs while the window is closed or the graph is off.
-local CPU_BARS, CPU_ROW, CPU_FLOOR = 40, 18, 0.05
+-- The CPU graph above Profiles and About: this addon's time per frame, as the game's AddOns list counts it, while the
+-- window is open. The game averages the last 60 frames; reading it every 60th frame covers every frame once, so a
+-- burst between readings is never missed. Each bar is a second or more of those readings, oldest to newest, scaled to
+-- the highest bar shown or 0.005 ms, whichever is more. The frame count runs only while the graph shows: OnUpdate
+-- stops with the window, and the graph turned off is hidden.
+local CPU_BARS, CPU_ROW, CPU_FLOOR, CPU_WINDOW = 40, 18, 0.005, 60
 
 local function CpuProfiler()
     local profiler = C_AddOnProfiler
@@ -1792,13 +1794,11 @@ function P:CreateCpuGraph(bottom)
             bar:SetWidth(math.max(1, step - 1))
         end
     end)
-    -- The graph and its label are the last 60 frames, which is 0 while every tweak sits idle; since login and the
-    -- peak (loading screens count) show what the addon costs over time.
     local function tip()
         local profiler, metric = CpuProfiler(), Enum.AddOnProfilerMetric
         if not profiler then return end
         W.ShowTooltip(cpu, "CPU use",
-            ("Last 60 frames: %s a frame, %s of the frame time.\nSince login: %s a frame, peak %s."):format(
+            ("Last second: %s a frame, %s of the frame time.\nSince login: %s a frame, peak %s."):format(
             FormatSmall(cpu.ms, " ms"), FormatSmall(cpu.pct, "%"),
             FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), " ms"),
             FormatSmall(profiler.GetAddOnMetric(ADDON, metric.PeakTime), " ms")))
@@ -1806,24 +1806,34 @@ function P:CreateCpuGraph(bottom)
     cpu.tip = tip
     cpu:SetScript("OnEnter", function() cpu.hovered = true; tip() end)
     cpu:SetScript("OnLeave", function() cpu.hovered = nil; W.HideTooltip(cpu) end)
-    cpu:SetScript("OnShow", function() self:StartCpuGraph() end)
-    cpu:SetScript("OnHide", function()
-        if cpu.ticker then cpu.ticker:Cancel(); cpu.ticker = nil end
+    -- Frames since the last reading; the readings, the addon's and the frames' time and the seconds since the last bar.
+    local frames, readings, addonTime, frameTime, seconds = 0, 0, 0, 0, 0
+    cpu:SetScript("OnUpdate", function(_, elapsed)
+        frames, seconds = frames + 1, seconds + elapsed
+        if frames < CPU_WINDOW then return end
+        frames = 0
+        local profiler = CpuProfiler()
+        if not profiler then return end
+        local metric = Enum.AddOnProfilerMetric.RecentAverageTime
+        local addon = profiler.GetAddOnMetric(ADDON, metric)
+        readings, addonTime = readings + 1, addonTime + addon
+        frameTime = frameTime + profiler.GetApplicationMetric(metric) - profiler.GetOverallMetric(metric) + addon
+        if seconds < 1 then return end
+        self:AddCpuBar(addonTime / readings, frameTime > 0 and addonTime / frameTime * 100 or 0)
+        readings, addonTime, frameTime, seconds = 0, 0, 0, 0
     end)
+    -- A new open starts counting afresh, so the time the window was closed isn't in the first bar.
+    cpu:SetScript("OnShow", function() frames, readings, addonTime, frameTime, seconds = 0, 0, 0, 0, 0 end)
     self:ApplyCpuGraph()
 end
 
-function P:SampleCpu()
-    local cpu, profiler = self.cpu, CpuProfiler()
-    if not profiler then return end
-    local metric = Enum.AddOnProfilerMetric.RecentAverageTime
-    local addon = profiler.GetAddOnMetric(ADDON, metric)
-    local total = profiler.GetApplicationMetric(metric) - profiler.GetOverallMetric(metric) + addon
-    local pct = total > 0 and addon / total * 100 or 0
+-- ms: the addon's average time a frame over the bar's readings; pct: its share of those frames' time.
+function P:AddCpuBar(ms, pct)
+    local cpu = self.cpu
     local samples = cpu.samples
-    samples[cpu.head] = addon
+    samples[cpu.head] = ms
     cpu.head = cpu.head % CPU_BARS + 1
-    cpu.pct, cpu.ms = pct, addon
+    cpu.pct, cpu.ms = pct, ms
     local most = CPU_FLOOR
     for i = 1, CPU_BARS do
         if samples[i] > most then most = samples[i] end
@@ -1832,15 +1842,8 @@ function P:SampleCpu()
     for i, bar in ipairs(cpu.bars) do
         bar:SetHeight(math.max(1, samples[(cpu.head + i - 2) % CPU_BARS + 1] / most * height))
     end
-    cpu.text:SetText("CPU " .. FormatSmall(addon, " ms"))
+    cpu.text:SetText("CPU " .. FormatSmall(ms, " ms"))
     if cpu.hovered then cpu.tip() end
-end
-
-function P:StartCpuGraph()
-    local cpu = self.cpu
-    if cpu.ticker or not cpu:IsVisible() then return end
-    self:SampleCpu()
-    cpu.ticker = C_Timer.NewTicker(1, function() self:SampleCpu() end)
 end
 
 -- Shows or hides the graph for its setting; the sidebar's list ends above whatever shows.
@@ -1848,7 +1851,6 @@ function P:ApplyCpuGraph()
     local on = HST.db.global.cpuGraph ~= false and CpuProfiler() ~= nil
     self.cpu:SetShown(on)
     self.sidebarBottom:SetHeight(on and 24 + CPU_ROW + 8 or 24)
-    if on then self:StartCpuGraph() end
 end
 
 -- The sidebar's right edge: drag it to widen or narrow the sidebar, right-click for its default width. It lights while
