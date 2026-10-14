@@ -1798,8 +1798,7 @@ function P:CreateCpuGraph(bottom)
         local profiler, metric = CpuProfiler(), Enum.AddOnProfilerMetric
         if not profiler then return end
         W.ShowTooltip(cpu, "CPU use",
-            ("Last 60 frames: %s a frame, %s of the frame time.
-Since login: %s a frame, peak %s."):format(
+            ("Last 60 frames: %s a frame, %s of the frame time.\nSince login: %s a frame, peak %s."):format(
             FormatSmall(cpu.ms, " ms"), FormatSmall(cpu.pct, "%"),
             FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), " ms"),
             FormatSmall(profiler.GetAddOnMetric(ADDON, metric.PeakTime), " ms")))
