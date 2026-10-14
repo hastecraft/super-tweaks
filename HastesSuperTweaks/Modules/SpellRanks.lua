@@ -205,6 +205,7 @@ function R:Apply(spells)
     spells = spells or self:Scan()
     local changed = self:Swap(swaps, spells)
     if self.db.profile.summary then self:Report(changed, spells) end
+    self:Watch()
 end
 
 -- Upgrades for spells learned since the last scan: the buttons holding each spell's previous best rank (or, with
@@ -251,6 +252,7 @@ function R:Update()
     self.spells = spells
     self:Apply(spells)
     if self.upgradeAllPending then self:UpgradeAll(spells, true) end
+    self:Watch()
 end
 
 function R:QueueScan()
@@ -284,6 +286,7 @@ function R:UpgradeAll(spells, deferred)
         end
     end
     self.upgradeAllPending = waiting
+    self:Watch()
     local changed = self:Report(self:Swap(swaps, spells), spells)
     if waiting and not wasWaiting then HST:Print("Spell ranks are still loading. Your buttons upgrade once they're ready.")
     elseif not waiting and not wasWaiting and changed == 0 then HST:Print("Your action buttons already have your highest ranks.") end
@@ -291,10 +294,21 @@ end
 
 -- LEARNED_SPELL_IN_TAB on Classic clients, LEARNED_SPELL_IN_SKILL_LINE on newer ones; each client knows one.
 -- Only a rank the game says you learned upgrades anything, so the spellbook is only read while one is waiting for it;
--- other spellbook changes (forms, stances) don't cost a scan.
+-- other spellbook changes (forms, stances) don't cost a scan. The cursor (which changes with every item picked up) and
+-- the end of combat are listened to only while upgrades wait for them.
 R.KEEP_LEARNED = 60
-ns.Listen(R, { "SPELLS_CHANGED", "SPELL_TEXT_UPDATE", "LEARNED_SPELL_IN_TAB", "LEARNED_SPELL_IN_SKILL_LINE",
-    "PLAYER_REGEN_ENABLED", "CURSOR_CHANGED" }, function(self, event, spellID)
+local RESUME_EVENTS = { "PLAYER_REGEN_ENABLED", "CURSOR_CHANGED" }
+function R:Watch()
+    local frame = self.events
+    if not frame then return end
+    local resume = self:IsEnabled() and (next(self.pending) ~= nil or self.upgradeAllPending) or false
+    if resume == self.watching then return end
+    self.watching = resume
+    for _, event in ipairs(RESUME_EVENTS) do
+        if resume then frame:RegisterEvent(event) else frame:UnregisterEvent(event) end
+    end
+end
+ns.Listen(R, { "SPELLS_CHANGED", "SPELL_TEXT_UPDATE", "LEARNED_SPELL_IN_TAB", "LEARNED_SPELL_IN_SKILL_LINE" }, function(self, event, spellID)
     if event == "PLAYER_REGEN_ENABLED" or event == "CURSOR_CHANGED" then
         -- Our own spells passing through the cursor: the upgrade under way isn't started over for each button.
         if self.swapping or not (next(self.pending) or self.upgradeAllPending) then return end
@@ -312,9 +326,12 @@ function R:OnListen()
     self.scanQueued, self.upgradeAllPending = false, false
     self.pending, self.learned, self.nameOf, self.swapping = {}, {}, {}, false
     self.spells = self:Scan()
+    self.watching = nil
+    self:Watch()
 end
 function R:OnUnlisten()
     self.generation = (self.generation or 0) + 1
     self.scanQueued, self.upgradeAllPending = false, false
     self.pending, self.learned = {}, {}
+    self.watching = nil -- every event was unregistered
 end
