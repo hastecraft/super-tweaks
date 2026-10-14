@@ -557,7 +557,7 @@ end
 
 -- The New Patch Dot switch and its label, as one button; toggle:Refresh() shows the setting.
 local function NotesDotToggle(parent)
-    local tip = "Blinks a dot on the version beside the title while there are patch notes you haven't opened."
+    local tip = HST.NOTES_DOT_TIP
     local toggle = CreateFrame("Button", nil, parent)
     toggle:SetHeight(24)
     local switch = W.Switch(toggle)
@@ -3461,6 +3461,10 @@ function HST:OpenSettings(moduleKey)
     if P.view == "module" and P.openModule then return P:OpenModule(P.openModule) end
     if P.mode == "page" and P.view then return P:ShowTab(P.view) end
     P:ShowModules()
+end
+
+function HST:PaintSettingsPip()
+    if P.versionPip then P:PaintPip() end
 end
 
 function HST:RefreshSettings()

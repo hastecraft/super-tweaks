@@ -385,6 +385,9 @@ function HST:ApplyAccent()
     ns.Widgets.SetAccent(color)
 end
 
+-- The New Patch Dot's description, on the patch notes page and in the settings window's own settings.
+HST.NOTES_DOT_TIP = "Blinks a dot on the version beside the title while there are patch notes you haven't opened."
+
 -- The settings window's own settings, behind the cog in its title bar; saved account-wide. "theme" is drawn by the
 -- settings window only (Settings/Panel.lua).
 function HST:GeneralOptions()
@@ -414,6 +417,9 @@ function HST:GeneralOptions()
                     if on then self.db.global.sounds = nil else self.db.global.sounds = false end
                     ns.Widgets.SetSounds(on)
                 end },
+            notesDot = { type = "toggle", order = 2, name = "New Patch Dot", desc = HST.NOTES_DOT_TIP,
+                get = function() return self:NotesDotOn() end,
+                set = function(_, on) self:SetNotesDot(on); self:PaintSettingsPip() end },
         } },
         chat = { type = "group", inline = true, name = "Chat", order = 3, args = {
             -- The chat windows open now, in their order; saved only when not the first.
@@ -1023,6 +1029,7 @@ end
 function HST:OpenSettings() end
 function HST:RefreshSettings() end
 function HST:ToggleSettings() end
+function HST:PaintSettingsPip() end
 
 -- Addon compartment (minimap addon menu) entry.
 function HastesSuperTweaks_OnAddonCompartmentClick()
