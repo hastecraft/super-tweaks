@@ -492,12 +492,12 @@ local function FitRound(t)
     local k = n / 2
     local left = k * k - 1 -- the even sizes before n, each with its gap
     -- A ring's stroke is a unit, in whole pixels.
-    local top = t.art == RING and (math.min(2, math.max(1, math.floor(1 / px + 0.5))) - 1) * 64 or 0
+    local row = t.art == RING and (math.min(2, math.max(1, math.floor(1 / px + 0.5))) - 1) * 64 or 0
     local w, h = ROUND_WIDTH, t.art.height
     local part, strip = PARTS[t.piece], STRIPS[t.piece]
     if part then
-        t:SetTexCoord((left + n * part[1]) / w, (left + n * part[2]) / w, (top + n * part[3]) / h,
-            (top + n * part[4]) / h)
+        t:SetTexCoord((left + n * part[1]) / w, (left + n * part[2]) / w, (row + n * part[3]) / h,
+            (row + n * part[4]) / h)
         t:SetSize(n * px * (part[2] - part[1]), n * px * (part[4] - part[3]))
         local way = not t.size and INSETS[t.piece]
         if way then
@@ -507,9 +507,9 @@ local function FitRound(t)
         end
     elseif strip[1] then
         local u = (left + k - 0.5) / w -- the middle column's texel centers
-        t:SetTexCoord(u, u, (top + n * strip[2]) / h, (top + n * strip[3]) / h)
+        t:SetTexCoord(u, u, (row + n * strip[2]) / h, (row + n * strip[3]) / h)
     else
-        local v = (top + k - 0.5) / h
+        local v = (row + k - 0.5) / h
         t:SetTexCoord((left + n * strip[2]) / w, (left + n * strip[3]) / w, v, v)
     end
 end
