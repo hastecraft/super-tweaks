@@ -1045,7 +1045,7 @@ end
 local mediaChoices = {}
 function ns.MediaChoices(kind, blank)
     local names = HST.LSM:List(kind) or {}
-    local id = blank and (kind .. ":blank") or kind
+    local id = blank and (kind .. ":blank:" .. blank) or kind
     local cached = mediaChoices[id]
     if not cached or cached.count ~= #names then
         cached = { count = #names, values = {}, order = {} }
