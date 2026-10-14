@@ -2625,6 +2625,11 @@ function P:CreatePageView(main)
     header.crumb = W.Text(header, "GameFontNormalSmall", C.header)
     header.crumb:SetPoint("TOPLEFT", header.title, "BOTTOMLEFT", 0, -6)
     header.crumb:SetWordWrap(false)
+    -- On a tweak's page the crumb is in parts that take you back (P:SetCrumbs), and why the tweak isn't available
+    -- follows them. The crumb keeps its text, hidden, so the header measures the same.
+    header.parts = {}
+    header.crumbNote = W.Text(header, "GameFontNormalSmall", C.warning)
+    header.crumbNote:SetWordWrap(false)
     header.text = W.Text(header, "GameFontHighlight", C.body)
     header.text:SetSpacing(3)
     -- The module's own switch, with "On" or "Off" beside it.
@@ -2922,7 +2927,64 @@ function P:SetHeader(title, crumb, text)
     local header = self.pageHeader
     header.title:SetText(title)
     header.crumb:SetText(crumb or "")
+    header.crumb:Show()
+    for _, part in ipairs(header.parts) do part:Hide(); part.sep:Hide() end
+    header.crumbNote:Hide()
     header.text:SetText(text or "")
+end
+
+-- A part of a tweak's crumb, from its pool: a category or page name, with the > before it.
+function P:CrumbPart(index)
+    local header = self.pageHeader
+    local part = header.parts[index]
+    if part then return part end
+    part = CreateFrame("Button", nil, header)
+    part.label = W.Text(part, "GameFontNormalSmall", C.header)
+    part.label:SetPoint("LEFT")
+    part.sep = W.Text(header, "GameFontNormalSmall", C.header)
+    part.sep:SetText(">")
+    part:SetScript("OnEnter", function(b) W.Paint(b.label, C.bright) end)
+    part:SetScript("OnLeave", function(b) W.Paint(b.label, C.header) end)
+    part:SetScript("OnClick", function() self:CrumbClick(index) end)
+    header.parts[index] = part
+    return part
+end
+
+-- A tweak's crumb: its category, then the names of the pages down to the open one. Each but the last is a link.
+function P:SetCrumbs(category, names)
+    local header = self.pageHeader
+    header.crumb:Hide()
+    local count, previous = #names + 1, nil
+    for i = 1, count do
+        local part = self:CrumbPart(i)
+        part.label:SetText(i == 1 and category or names[i - 1])
+        W.Paint(part.label, C.header)
+        part:SetSize(math.ceil(part.label:GetStringWidth()), 18)
+        part:ClearAllPoints()
+        part.sep:ClearAllPoints()
+        if previous then
+            part.sep:SetPoint("LEFT", previous, "RIGHT", 7, 0)
+            part.sep:Show()
+            part:SetPoint("LEFT", part.sep, "RIGHT", 7, 0)
+        else
+            part.sep:Hide()
+            part:SetPoint("LEFT", header.crumb, "LEFT")
+        end
+        -- The last part is where you are.
+        part:EnableMouse(i < count)
+        part:Show()
+        previous = part
+    end
+    for i = count + 1, #header.parts do header.parts[i]:Hide(); header.parts[i].sep:Hide() end
+    header.crumbNote:ClearAllPoints()
+    header.crumbNote:SetPoint("LEFT", previous, "RIGHT", 12, 0)
+end
+
+-- A crumb part clicked: its category in the tweak list, or its page.
+function P:CrumbClick(index)
+    if index == 1 then return self:NavClick({ kind = "category", key = self.pageInfo.category }) end
+    W.Play("IG_CHARACTER_INFO_TAB")
+    self:OpenModule(self.openModule, { unpack(self.openPath, 1, index - 1) })
 end
 
 -- The header's switch and its On/Off, and the overlay over the settings while the module is off.
@@ -2955,11 +3017,8 @@ function P:RefreshHeader()
         header.state:SetText(on and "On" or "Off")
         W.Paint(header.state, on and C.accent or C.muted)
     end
-    local crumb = self.crumb
-    if info.unavailable then
-        crumb = crumb .. "   " .. Hex(C.warning) .. info.unavailable .. "|r"
-    end
-    header.crumb:SetText(crumb)
+    header.crumbNote:SetText(info.unavailable or "")
+    header.crumbNote:SetShown(info.unavailable ~= nil)
     self:RefreshOffOverlay(module, on)
 end
 
@@ -3080,8 +3139,9 @@ function P:OpenModule(key, path, focus)
     else
         for _, part in ipairs(path) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
     end
-    self.crumb = CategoryName(info.category) .. (#names > 0 and ("  >  " .. table.concat(names, "  >  ")) or "")
-    self:SetHeader(info.name, self.crumb, info.description)
+    local category = CategoryName(info.category)
+    self:SetHeader(info.name, category .. (#names > 0 and ("  >  " .. table.concat(names, "  >  ")) or ""), info.description)
+    self:SetCrumbs(category, names)
     self:BuildTabs()
     self.tabsChange = PagesChange(options)
     self:RefreshHeader()
