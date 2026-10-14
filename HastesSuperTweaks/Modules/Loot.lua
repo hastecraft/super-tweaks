@@ -580,7 +580,7 @@ local function NoticeMouse(p)
     return p.hoverStay and not (p.combatClickThrough and (inCombat or InCombatLockdown()))
 end
 
--- Fills a row; notices (manual false) show what arrived as "+N name".
+-- Fills a row; notices (manual false) show what arrived as "+N name". Returns the row's text.
 local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     local C = ns.Widgets.INGAME
     row.item = item
@@ -621,6 +621,7 @@ local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     local owned = p.ownedCount and L.Owned(item)
     row.shownOwned = owned
     row.owned:SetText(owned and owned > 0 and (owned .. " owned") or "")
+    return text
 end
 
 local NO_HOVER = { 0, 0, 0, 0 }
@@ -700,6 +701,8 @@ end
 -- shows when looting by hand; with a note (what auto looting left, and why), the note shows in it, and Take All
 -- without its key. placed: the caller places the rows itself right after (the auto loot list's animation).
 function L:Layout(f, items, manual, p, money, note, placed)
+    -- Rows past the last layout's are hidden already.
+    local before = f.itemCount or #f.rows
     f.itemCount = #items
     local header = manual
     local inset, edge, extra = Insets(p)
@@ -740,7 +743,7 @@ function L:Layout(f, items, manual, p, money, note, placed)
     for i, item in ipairs(items) do
         local row = f.rows[i] or CreateRow(f)
         f.rows[i] = row
-        FillRow(row, item, manual, p, font, flags, noticeMouse)
+        local text = FillRow(row, item, manual, p, font, flags, noticeMouse)
         if not placed then
             row:ClearAllPoints()
             row:SetPoint("TOPLEFT", 0, -(top + (i - 1) * rowHeight))
@@ -749,11 +752,11 @@ function L:Layout(f, items, manual, p, money, note, placed)
         end
         row.animX, row.animY, row.animAlpha = nil, nil, nil -- placed anew; the notices' animation starts over
         row:Show()
-        f.measure:SetText(row.label:GetText())
+        f.measure:SetText(text)
         widest = math.max(widest, p.iconSize + 8 + f.measure:GetStringWidth() + row.owned:GetStringWidth() + 18)
         best = math.max(best, item.quality or 1)
     end
-    for i = #items + 1, #f.rows do f.rows[i]:Hide() end
+    for i = #items + 1, math.min(before, #f.rows) do f.rows[i]:Hide() end
     -- Money on its own line at the bottom: "+9" and the coin while auto looting.
     local footer, footerHeight = f.footer, 0
     footer:SetShown(money ~= nil)
