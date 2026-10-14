@@ -453,7 +453,10 @@ local function FitRound(t)
         x, top, bottom = math.floor(t.insetX / px + 0.5), math.floor(t.insetTop / px + 0.5),
             math.floor(t.insetBottom / px + 0.5)
         local fit = math.min(math.floor(width / px + 0.5) - 2 * x, math.floor(height / px + 0.5) - top - bottom)
-        n = t.radius and math.min(2 * math.floor((t.radius - t.insetX) / px + 0.5), fit) or fit
+        -- Corners keep their radius until the frame is laid out (a frame anchored to a hidden one can read 0 wide
+        -- when this runs, and isn't always fitted again when it shows), then shrink only to fit a smaller frame.
+        local corner = t.radius and 2 * math.floor((t.radius - t.insetX) / px + 0.5)
+        if corner then n = (width > 0 and height > 0) and math.min(corner, fit) or corner else n = fit end
         n = n - n % 2
     end
     n = math.max(2, math.min(n, ROUND_MAX))
