@@ -352,9 +352,10 @@ def sizes_atlas(draw):
 
 def close_x(n):
     """An n-by-n X: both diagonals through pixel centers, cut square by the box, so it has all eight symmetries of the
-    square. Lines are a pixel's diagonal wide (on-line pixels solid, their neighbors half), twice that from 20 pixels."""
-    half = (math.sqrt(2) if n < 20 else 2 * math.sqrt(2)) / 2
-    return coverage(n, n, lambda x, y: min(abs(x - y), abs(x + y - n)) / math.sqrt(2) <= half, samples=16)
+    square. Lines are one and a half pixel diagonals wide (on-line pixels solid, their neighbors mostly), twice that
+    from 20 pixels, and weighted as the cog is, so the two weigh the same side by side."""
+    half = (1.5 if n < 20 else 3) * math.sqrt(2) / 2
+    return weighted(coverage(n, n, lambda x, y: min(abs(x - y), abs(x + y - n)) / math.sqrt(2) <= half, samples=16))
 
 
 def magnifier(size=64, samples=4, radius=0.27, stroke=0.085, handle=0.105):
