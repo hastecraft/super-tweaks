@@ -202,7 +202,7 @@ end
 -- its tooltip five times a second: the counts are read each time, but the text is only put together again when one
 -- changed.
 ---------------------------------------------------------------------------
-T.defaults.profile.itemCounts, T.defaults.profile.itemCountsNone = true, false
+T.defaults.profile.itemCounts, T.defaults.profile.itemCountsNone = false, false
 
 local ItemCount = C_Item and C_Item.GetItemCount or GetItemCount
 -- Only WoW Forever's C_Bank has functions, and an account bank to count; Classic Era counts bags and the bank.
@@ -262,40 +262,4 @@ function T:BuildOptions()
             desc = "Says You have 0 rather than leaving the line out." }),
     })
     return options
-end
-
--- The settings preview gets an item tooltip with the line, under the player's tooltip, its bar and logo. It's part of
--- the sample, so the two are scaled to fit the stage and centered together, and it's laid out again only when the
--- sample's height changes.
-local COUNT_SAMPLE = ACCOUNT_BANK and "14 (bags 4, bank 8, account 2)" or "12 (bags 4, bank 8)"
-local ITEM_TIP_HEIGHT, ITEM_TIP_GAP = 38, 6
-function T:PreviewUnder(v, p, height)
-    local shown = p.itemCounts
-    if shown and not v.item then
-        local W = ns.Widgets
-        v.item = W.Panel(v.box, 150, ITEM_TIP_HEIGHT)
-        local name = W.Text(v.item, "GameFontNormal", { 1, 1, 1 })
-        name:SetPoint("TOPLEFT", 8, -7)
-        name:SetText("Linen Cloth")
-        local label = W.Text(v.item, "GameFontHighlightSmall", ID_COLOR)
-        label:SetPoint("TOPLEFT", 8, -21)
-        label:SetText(COUNT_LABEL)
-        local count = W.Text(v.item, "GameFontHighlightSmall", nil, "RIGHT")
-        count:SetPoint("TOPRIGHT", -8, -21)
-        count:SetText(COUNT_SAMPLE)
-        v.itemWidth = math.max(150, label:GetStringWidth() + count:GetStringWidth() + 28)
-        v.item:SetWidth(v.itemWidth)
-    end
-    if not v.item then return end
-    if v.itemShown ~= shown then
-        v.itemShown = shown
-        v.item:SetShown(shown)
-    end
-    if not shown then return end
-    if v.itemTop ~= height then
-        v.itemTop = height
-        v.item:ClearAllPoints()
-        v.item:SetPoint("TOP", v.box, "TOP", 0, -(height + ITEM_TIP_GAP))
-    end
-    return ITEM_TIP_GAP + ITEM_TIP_HEIGHT, v.itemWidth
 end
