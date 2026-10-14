@@ -256,6 +256,7 @@ function HST:OnInitialize()
     self:ListProfiles()
     ns.Widgets.SetTheme(self.db.global.theme)
     self:ApplyAccent()
+    ns.Widgets.SetSounds(self.db.global.sounds ~= false)
     for _, module in ipairs(self:Features()) do
         module:SetEnabledState(self.db.global.modules[module:GetName()] and not module.info.unavailable)
     end
@@ -403,6 +404,15 @@ function HST:GeneralOptions()
                     -- Saved only when off.
                     if on then self.db.global.classAccent = nil else self.db.global.classAccent = false end
                     self:ApplyAccent()
+                end },
+        } },
+        window = { type = "group", inline = true, name = "Window", order = 2, args = {
+            sounds = { type = "toggle", order = 1, name = "Play click sounds",
+                get = function() return self.db.global.sounds ~= false end,
+                set = function(_, on)
+                    -- Saved only when off.
+                    if on then self.db.global.sounds = nil else self.db.global.sounds = false end
+                    ns.Widgets.SetSounds(on)
                 end },
         } },
         chat = { type = "group", inline = true, name = "Chat", order = 3, args = {

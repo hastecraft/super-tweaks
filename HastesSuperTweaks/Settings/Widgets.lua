@@ -262,7 +262,11 @@ end
 local ART = "Interface\\AddOns\\HastesSuperTweaks\\Art\\"
 W.ART = ART
 
+-- The window's click sounds, unless turned off.
+local quiet = false
+function W.SetSounds(on) quiet = not on end
 local function Play(sound)
+    if quiet then return end
     if SOUNDKIT and SOUNDKIT[sound] then PlaySound(SOUNDKIT[sound]) end
 end
 W.Play = Play
