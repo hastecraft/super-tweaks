@@ -1029,13 +1029,16 @@ function L:ShowManual(items, money)
     self.mode, self.money = auto and "leftovers" or "loot", money
     wipe(self.notices)
     self.noticeMoney = 0
-    f:SetScript("OnUpdate", nil)
-    f:EnableMouse(true)
+    -- Already up with loot to take (only this puts it there), the window is set as it needs.
+    if not shown then
+        f:SetScript("OnUpdate", nil)
+        f:EnableMouse(true)
+    end
     self:CloseOnEscape(true)
     self:Layout(f, items, true, self.db.profile, money, auto and self:LeftNote(items) or nil)
     if not shown then self:Place(not auto and self.db.profile.underMouse) end
     WindowAlpha(f, 1)
-    f:Show()
+    if not shown then f:Show() end
     f:Raise()
     if flash then self:Flash(f) end
     self:UpdateHotkey()
