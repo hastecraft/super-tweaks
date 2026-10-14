@@ -1492,6 +1492,17 @@ function P:SetScale(scale)
     self:SavePlace()
 end
 
+-- Back to where, how big and how scaled the window first opens; nothing is remembered until it's moved again.
+function P:ResetWindow()
+    local f = self.frame
+    self:ApplyScale(1)
+    self:SetSize(DEFAULT_W, DEFAULT_H)
+    f:ClearAllPoints()
+    f:SetPoint("CENTER")
+    local state = State()
+    state.x, state.y, state.width, state.height, state.scale = nil, nil, nil, nil, nil
+end
+
 function P:CreateTitleBar(f)
     local bar = CreateFrame("Frame", nil, f)
     self.titleBar = bar
@@ -3465,6 +3476,10 @@ end
 
 function HST:PaintSettingsPip()
     if P.versionPip then P:PaintPip() end
+end
+
+function HST:ResetSettingsWindow()
+    if P.frame then P:ResetWindow() end
 end
 
 function HST:RefreshSettings()

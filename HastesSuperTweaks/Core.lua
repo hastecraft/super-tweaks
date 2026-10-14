@@ -420,6 +420,9 @@ function HST:GeneralOptions()
             notesDot = { type = "toggle", order = 2, name = "New Patch Dot", desc = HST.NOTES_DOT_TIP,
                 get = function() return self:NotesDotOn() end,
                 set = function(_, on) self:SetNotesDot(on); self:PaintSettingsPip() end },
+            reset = { type = "execute", order = 3, name = "Reset window",
+                desc = "Back to the middle of the screen, at the default size and scale.",
+                func = function() self:ResetSettingsWindow() end },
         } },
         chat = { type = "group", inline = true, name = "Chat", order = 3, args = {
             -- The chat windows open now, in their order; saved only when not the first.
@@ -1030,6 +1033,7 @@ function HST:OpenSettings() end
 function HST:RefreshSettings() end
 function HST:ToggleSettings() end
 function HST:PaintSettingsPip() end
+function HST:ResetSettingsWindow() end
 
 -- Addon compartment (minimap addon menu) entry.
 function HastesSuperTweaks_OnAddonCompartmentClick()
