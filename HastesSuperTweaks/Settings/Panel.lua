@@ -1755,7 +1755,8 @@ end
 local CPU_BARS, CPU_WINDOW = 40, 60
 local CPU_LOW, CPU_TOP = math.log10(0.00001), math.log10(0.01)
 -- The header, graph and figures lines, and the gaps between them.
-local CPU_HEAD, CPU_GRAPH, CPU_FIGURES, CPU_GAP = 12, 24, 12, 4
+local CPU_HEAD, CPU_GRAPH, CPU_LINE, CPU_GAP = 12, 24, 12, 4
+local CPU_FIGURES = 3 * CPU_LINE + 2 * 2
 local CPU_ROW = CPU_HEAD + CPU_GRAPH + CPU_FIGURES + 2 * CPU_GAP
 
 local function CpuProfiler()
@@ -1806,26 +1807,18 @@ function P:CreateCpuGraph(bottom)
             bar:SetWidth(math.max(1, step - 1))
         end
     end)
-    -- Now, Avg and Peak across the bottom, each a label and its figure.
+    -- Now, Avg and Peak under the graph, a line each: the label at the left, its figure at the right.
     cpu.figures = {}
     for i, label in ipairs({ "Now", "Avg", "Peak" }) do
-        local cell = CreateFrame("Frame", nil, cpu)
-        cell:SetHeight(CPU_FIGURES)
-        cell:SetPoint("BOTTOMLEFT", cpu, "BOTTOMLEFT", 0, 0)
-        cell.label = W.Text(cell, "GameFontNormalSmall", C.muted)
-        cell.label:SetPoint("LEFT")
-        cell.label:SetText(label)
-        cell.value = W.Text(cell, "GameFontNormalSmall", C.text)
-        cell.value:SetPoint("LEFT", cell.label, "RIGHT", 3, 0)
-        cell.value:SetText("0")
-        cpu.figures[i] = cell
+        local y = -(CPU_HEAD + CPU_GRAPH + 2 * CPU_GAP + (i - 1) * (CPU_LINE + 2))
+        local line = { label = W.Text(cpu, "GameFontNormalSmall", C.muted),
+            value = W.Text(cpu, "GameFontNormalSmall", C.text, "RIGHT") }
+        line.label:SetPoint("TOPLEFT", 0, y)
+        line.label:SetText(label)
+        line.value:SetPoint("TOPRIGHT", 0, y)
+        line.value:SetText("0 ms")
+        cpu.figures[i] = line
     end
-    cpu:SetScript("OnSizeChanged", function(_, width)
-        for i, cell in ipairs(cpu.figures) do
-            cell:SetPoint("BOTTOMLEFT", cpu, "BOTTOMLEFT", (i - 1) * width / 3, 0)
-            cell:SetWidth(width / 3)
-        end
-    end)
     local function tip()
         local fps = GetFramerate()
         W.ShowTooltip(cpu, "CPU use", ("How long %s takes to run each frame, in milliseconds, as the game's AddOns "
@@ -1868,9 +1861,9 @@ function P:PaintCpuFigures()
     if not profiler then return end
     local metric = Enum.AddOnProfilerMetric
     local figures = cpu.figures
-    figures[1].value:SetText(FormatSmall(cpu.ms, ""))
-    figures[2].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), ""))
-    figures[3].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.PeakTime), ""))
+    figures[1].value:SetText(FormatSmall(cpu.ms, " ms"))
+    figures[2].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), " ms"))
+    figures[3].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.PeakTime), " ms"))
 end
 
 -- ms: the addon's average time a frame over the bar's readings; pct: its share of those frames' time.
