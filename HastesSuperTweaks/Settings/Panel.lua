@@ -27,6 +27,8 @@ local SIDE_LEAST, SIDE_MOST, TOP_LEAST, TOP_MOST = 260, 380, 92, 192
 -- The box over a tweak that's off: its padding, its width, the height of the tweak's preview in it, and the size of its
 -- struck-through logo (over the dimmed preview, or above the title without one).
 local OFF_PAD, OFF_WIDTH, OFF_PREVIEW, OFF_ICON = 20, 460, 190, 56
+-- Round boxes inside cards are a little less round; round hover and selection tints in lists are this round.
+local INNER, TINT, NAV_TINT = { radius = 6 }, { radius = 6 }, { radius = 6, x = 6, top = 1, bottom = 1 }
 
 -- How the window was left, saved account-wide: size, scale, place, sidebar width, whether previews show and which
 -- sidebar categories are open.
@@ -363,17 +365,25 @@ function Build.commands(parent, o, chain, info)
     box:SetPoint("TOPLEFT", 0, -head)
     box:SetPoint("TOPRIGHT", 0, -head)
     box:SetHeight(#o.list * COMMAND_ROW + 2)
-    W.Fill(box, C.field):SetAllPoints()
-    W.Border(box, C.border)
+    W.Box(box, C.field, C.border, INNER)
     local tops, widest = {}, 0
     c.texts = {}
+    -- Every other row striped, clear of a round box's corners.
+    local stripes = {}
+    local function placeStripes()
+        local x = W.theme.round and INNER.radius or 1
+        for _, stripe in ipairs(stripes) do
+            stripe:SetPoint("TOPLEFT", x, -stripe.top)
+            stripe:SetPoint("TOPRIGHT", -x, -stripe.top)
+        end
+    end
     for i, entry in ipairs(o.list) do
         local top = 1 + (i - 1) * COMMAND_ROW
         if i % 2 == 0 then
             local stripe = W.Fill(box, C.hover, "BACKGROUND", 1)
-            stripe:SetPoint("TOPLEFT", 1, -top)
-            stripe:SetPoint("TOPRIGHT", -1, -top)
+            stripe.top = top
             stripe:SetHeight(COMMAND_ROW)
+            stripes[#stripes + 1] = stripe
         end
         local command = W.Text(box, "GameFontNormal", C.accent)
         command:SetPoint("LEFT", box, "TOPLEFT", 12, -top - COMMAND_ROW / 2)
@@ -388,6 +398,8 @@ function Build.commands(parent, o, chain, info)
     for i, text in ipairs(c.texts) do
         text:SetPoint("LEFT", box, "TOPLEFT", column, -tops[i] - COMMAND_ROW / 2)
     end
+    placeStripes()
+    if #stripes > 0 then W.OnTheme(placeStripes) end
     function c:Refresh() end
     function c:Layout(width)
         for _, text in ipairs(self.texts) do text:SetWidth(width - column - 12) end
@@ -456,12 +468,12 @@ local function NoteLine(parent, note)
         line.arrow:SetPoint("RIGHT", -2, 0)
         LinkNote(line, note, module, function(self, on)
             self.hover:SetShown(on)
-            self.arrow:SetVertexColor(unpack(on and C.accent or C.header))
+            W.Paint(self.arrow, on and C.accent or C.header)
             if self.title then
-                self.title:SetTextColor(unpack(on and C.bright or C.text))
-                self.text:SetTextColor(unpack(on and C.body or C.muted))
+                W.Paint(self.title, on and C.bright or C.text)
+                W.Paint(self.text, on and C.body or C.muted)
             else
-                self.text:SetTextColor(unpack(on and C.bright or C.body))
+                W.Paint(self.text, on and C.bright or C.body)
             end
         end)
     end
@@ -484,15 +496,21 @@ end
 local function NoteCard(parent, note)
     local module = NoteModule(note)
     local card = CreateFrame(module and "Button" or "Frame", nil, parent)
-    W.Fill(card, C.pane):SetAllPoints()
-    card.SetBorderColor = W.Border(card, C.border)
+    local box = W.Box(card, C.pane, C.border, INNER)
+    card.SetBorderColor = function(color) box:SetRim(color) end
+    -- The rule runs between a round box's corners.
     local rule = W.Fill(card, C.line, "ARTWORK")
-    rule:SetPoint("TOPLEFT", 1, -1)
-    rule:SetPoint("TOPRIGHT", -1, -1)
     rule:SetHeight(1)
+    local function placeRule()
+        local x = W.theme.round and INNER.radius or 1
+        rule:SetPoint("TOPLEFT", x, -1)
+        rule:SetPoint("TOPRIGHT", -x, -1)
+    end
+    placeRule()
+    W.OnTheme(placeRule)
     local title = type(note) == "table" and note.title
     if title then
-        card.title = W.Text(card, "GameFontNormal", C.accent)
+        card.title = W.Text(card, "GameFontNormal", C.title)
         card.title:SetPoint("TOPLEFT", NOTE_PAD, -NOTE_PAD)
         card.title:SetText(title)
     end
@@ -504,8 +522,8 @@ local function NoteCard(parent, note)
         card.arrow:SetPoint("TOPRIGHT", -NOTE_PAD, -NOTE_PAD - 1)
         LinkNote(card, note, module, function(self, on)
             self.SetBorderColor(on and C.accent or C.border)
-            self.arrow:SetVertexColor(unpack(on and C.accent or C.header))
-            if self.title then self.title:SetTextColor(unpack(on and C.bright or C.accent)) end
+            W.Paint(self.arrow, on and C.accent or C.header)
+            if self.title then W.Paint(self.title, on and C.bright or C.title) end
         end)
     end
     function card:Layout(width)
@@ -556,7 +574,7 @@ local function NotesDotToggle(parent)
     end
     local function lit(on)
         switch:SetLit(on)
-        label:SetTextColor(unpack(on and C.bright or C.text))
+        W.Paint(label, on and C.bright or C.text)
     end
     switch.onClick = set
     switch.onEnter = function() lit(true) end
@@ -578,12 +596,17 @@ end
 function Build.release(parent, o)
     local release, index = o.release, o.index
     local c = CreateFrame("Frame", nil, parent)
-    W.Fill(c, C.card):SetAllPoints()
-    W.Border(c, C.border)
+    W.Box(c, C.card, C.border)
+    -- A bar down its left edge, between a round box's corners.
     c.edge = W.Fill(c, C.line, "ARTWORK")
-    c.edge:SetPoint("TOPLEFT", 1, -1)
-    c.edge:SetPoint("BOTTOMLEFT", 1, 1)
     c.edge:SetWidth(2)
+    local function placeEdge()
+        local corner = W.Corner()
+        c.edge:SetPoint("TOPLEFT", 1, -corner)
+        c.edge:SetPoint("BOTTOMLEFT", 1, corner)
+    end
+    placeEdge()
+    W.OnTheme(placeEdge)
     local left = CARD_PAD + 4
     c.rule = W.Fill(c, C.divider, "BORDER")
     c.rule:SetPoint("TOPLEFT", left, -RELEASE_HEAD)
@@ -593,32 +616,34 @@ function Build.release(parent, o)
     head:SetPoint("TOPLEFT")
     head:SetPoint("TOPRIGHT")
     head:SetHeight(RELEASE_HEAD)
-    head.hover = W.Fill(head, C.hover)
-    head.hover:SetPoint("TOPLEFT", 3, -1)
-    head.hover:SetPoint("BOTTOMRIGHT", -1, 0)
+    local inside = { x = 1, top = 1, bottom = 0 }
+    head.hover = W.Tint(head, C.hover, { radius = W.BOX_RADIUS - 1, x = 1, top = 1, bottom = 0 }, inside)
     head.version = W.Text(head, "GameFontNormalLarge", C.text)
     head.version:SetPoint("TOPLEFT", left, -11)
     head.version:SetText("Version " .. release.version)
     if index == 1 then
         local tag = CreateFrame("Frame", nil, head)
-        local rim = W.Over({ C.accent[1], C.accent[2], C.accent[3], 0.5 }, C.card)
-        W.Outline(tag, nil, rim, W.Over(C.selected, C.card))
+        W.Outline(tag, nil, C.tagRim, C.tagFill)
         local label = W.Text(tag, "GameFontNormalSmall", C.accent, "CENTER")
         label:SetPoint("CENTER", 0, 0)
         label:SetText("Latest")
         tag:SetSize(math.floor(label:GetStringWidth() + 18), 16)
         tag:SetPoint("LEFT", head.version, "RIGHT", 10, 0)
     end
-    -- The kind of update, then how many changes of each kind.
-    local counts = { Hex(C.header) .. ReleaseKind(index) .. "|r" }
-    local function count(name, list)
-        if list and #list > 0 then counts[#counts + 1] = name .. ": " .. Hex(C.text) .. #list .. "|r" end
-    end
-    count("Highlights", release.highlights)
-    for _, kind in ipairs(HST.patchNoteKinds) do count(kind.name, release[kind.key]) end
+    -- The kind of update, then how many changes of each kind (written again in a new theme's colors).
     head.counts = W.Text(head, "GameFontNormalSmall", C.muted)
     head.counts:SetPoint("TOPLEFT", head.version, "BOTTOMLEFT", 0, -6)
-    head.counts:SetText(table.concat(counts, "     "))
+    local function writeCounts()
+        local counts = { Hex(C.header) .. ReleaseKind(index) .. "|r" }
+        local function count(name, list)
+            if list and #list > 0 then counts[#counts + 1] = name .. ": " .. Hex(C.text) .. #list .. "|r" end
+        end
+        count("Highlights", release.highlights)
+        for _, kind in ipairs(HST.patchNoteKinds) do count(kind.name, release[kind.key]) end
+        head.counts:SetText(table.concat(counts, "     "))
+    end
+    writeCounts()
+    W.OnTheme(writeCounts)
     head.chevron = W.Chevron(head, 12, C.header)
     head.chevron:SetPoint("RIGHT", -CARD_PAD - 2, 0)
     head.date = W.Text(head, "GameFontNormalSmall", C.muted, "RIGHT")
@@ -627,10 +652,10 @@ function Build.release(parent, o)
     local function paint()
         local open, lit = c.open, head.lit
         head.hover:SetShown(lit == true)
-        head.version:SetTextColor(unpack((open or lit) and C.bright or C.text))
-        head.chevron:SetVertexColor(unpack(lit and C.accent or C.header))
+        W.Paint(head.version, (open or lit) and C.bright or C.text)
+        W.Paint(head.chevron, lit and C.accent or C.header)
         head.chevron:Point(open and "UP" or "DOWN")
-        c.edge:SetColorTexture(unpack(open and C.accent or C.line))
+        W.Paint(c.edge, open and C.accent or C.line)
     end
     head:SetScript("OnEnter", function(self) self.lit = true; paint() end)
     head:SetScript("OnLeave", function(self) self.lit = nil; paint() end)
@@ -745,8 +770,7 @@ function Build.items(parent, o, chain, info, gate)
     box:SetPoint("TOPLEFT", 0, -28)
     box:SetPoint("TOPRIGHT", 0, -28)
     box:SetHeight(rows * (ITEM_SLOT + ITEM_GAP) + ITEM_GAP)
-    W.Fill(box, C.field):SetAllPoints()
-    W.Border(box, C.border)
+    W.Box(box, C.field, C.border, INNER)
     c.hint = W.Text(box, "GameFontDisableSmall", C.header)
     c.hint:SetPoint("TOPLEFT", ITEM_SLOT + ITEM_GAP * 4, -ITEM_GAP - ITEM_SLOT / 2 + 6)
     c.hint:SetText("Drop an item here, or click + while holding one.")
@@ -837,7 +861,7 @@ function Build.items(parent, o, chain, info, gate)
         local name = Resolve(o.name, info)
         self.title:SetText(name)
         self.off = IsOff(self)
-        self.title:SetTextColor(unpack(self.off and C.disabled or C.text))
+        W.Paint(self.title, self.off and C.disabled or C.text)
         box:SetAlpha(self.off and 0.5 or 1)
         local list, columns = self.list, self.columns
         wipe(list)
@@ -858,6 +882,151 @@ function Build.items(parent, o, chain, info, gate)
         end
         self.hint:SetShown(#list == 0)
     end
+    return c
+end
+
+-- Themes (o.type "theme"): a tile for each, a sketch of the settings window in its colors over its name. Clicking one
+-- switches to it; the chosen one is rimmed in the accent.
+local SKETCH_W, SKETCH_H, TILE_PAD, TILE_GAP, TILE_MOST = 200, 116, 8, 12, 240
+
+-- A flat rectangle in the sketch, x and y from its top left.
+local function SketchRect(sketch, x, y, w, h, color, layer)
+    local t = W.Fill(sketch, color, layer or "ARTWORK")
+    t:SetPoint("TOPLEFT", x, -y)
+    t:SetSize(w, h)
+    return t
+end
+
+-- A rounded shape in the sketch (a pill without a radius), with a rim when given one.
+local function SketchRound(sketch, x, y, w, h, fill, radius, rim)
+    local f = CreateFrame("Frame", nil, sketch)
+    f:SetPoint("TOPLEFT", x, -y)
+    f:SetSize(w, h)
+    W.Round(f, radius, 0, "BACKGROUND")(fill)
+    if rim then W.Round(f, radius, 0, "BORDER", 0, true)(rim) end
+    return f
+end
+
+-- A switch in the sketch, on or off.
+local function SketchSwitch(sketch, x, y, colors, on)
+    local s = SketchRound(sketch, x, y, 16, 9, on and colors.trackOn or colors.trackOff)
+    local knob = W.Dot(s, 5, on and colors.knobOn or colors.knob, nil, "ARTWORK")
+    knob:SetPoint(on and "RIGHT" or "LEFT", on and -2 or 2, 0)
+end
+
+-- The settings window drawn small in a theme's colors and shapes: title bar, sidebar with a row selected, and a card
+-- with two switches and a button. Text is drawn as lines, on a frame over the shapes.
+local function ThemeSketch(parent, theme)
+    local colors, round = theme.palette, theme.round
+    local s = CreateFrame("Frame", nil, parent)
+    s:SetSize(SKETCH_W, SKETCH_H)
+    local window = colors.window
+    SketchRect(s, 0, 0, SKETCH_W, SKETCH_H, { window[1], window[2], window[3], 1 }, "BACKGROUND")
+    W.Border(s, colors.border, "OVERLAY")
+    SketchRect(s, 0, 0, SKETCH_W, 14, colors.titlebar)
+    SketchRect(s, 0, 14, SKETCH_W, 1, colors.border)
+    SketchRect(s, 0, 15, 58, SKETCH_H - 15, colors.sidebar)
+    SketchRect(s, 58, 15, 1, SKETCH_H - 15, colors.border)
+    SketchRound(s, 5, 20, 48, 9, colors.field, nil, colors.border)
+    if round then
+        SketchRound(s, 4, 43, 50, 9, colors.selected, 3)
+    else
+        SketchRect(s, 1, 43, 57, 9, colors.selected)
+        SketchRect(s, 1, 43, 2, 9, colors.accent)
+    end
+    local cardW, cardH = SKETCH_W - 75, SKETCH_H - 42
+    if round then
+        SketchRound(s, 67, 34, cardW, cardH, colors.card, 5, colors.border)
+    else
+        local card = CreateFrame("Frame", nil, s)
+        card:SetPoint("TOPLEFT", 67, -34)
+        card:SetSize(cardW, cardH)
+        W.Fill(card, colors.card):SetAllPoints()
+        W.Border(card, colors.border)
+    end
+    local top = CreateFrame("Frame", nil, s)
+    top:SetAllPoints()
+    top:SetFrameLevel(s:GetFrameLevel() + 3)
+    SketchRect(top, 8, 6, 34, 3, colors.title)
+    for i, width in ipairs({ 30, 36, 26, 32 }) do
+        SketchRect(top, 9, 36 + (i - 1) * 10, width, 2, i == 2 and colors.bright or colors.text)
+    end
+    SketchRect(top, 67, 22, 46, 4, colors.bright)
+    SketchRect(top, 75, 41, 30, 2, colors.title)
+    for row = 0, 1 do
+        local y = 51 + row * 22
+        SketchRect(top, 75, y, row == 0 and 50 or 40, 2, colors.text)
+        SketchRect(top, 75, y + 6, row == 0 and 66 or 56, 2, colors.muted)
+        SketchSwitch(top, 67 + cardW - 24, y - 1, colors, row == 0)
+    end
+    SketchRect(top, 75, 66, cardW - 16, 1, colors.divider)
+    SketchRound(top, 75, 92, 26, 8, colors.trackOn)
+    return s
+end
+
+function Build.theme(parent, o, chain, info)
+    local c = CreateFrame("Frame", nil, parent)
+    c.option, c.chain, c.info = o, chain, info
+    c.label = W.Text(c, "GameFontHighlight", C.text)
+    c.label:SetPoint("TOPLEFT", 2, -8)
+    local themes = {}
+    for _, theme in pairs(W.THEMES) do themes[#themes + 1] = theme end
+    table.sort(themes, function(a, b) return a.order < b.order end)
+    c.tiles = {}
+    local function paint(tile)
+        local chosen, lit = tile.theme.key == c.value, tile:IsMouseOver()
+        tile.box:SetRim(chosen and C.accent or lit and C.line or C.border)
+        W.Paint(tile.name, (chosen or lit) and C.bright or C.text)
+        tile.check:SetShown(chosen)
+    end
+    for i, theme in ipairs(themes) do
+        local tile = CreateFrame("Button", nil, c)
+        tile.theme = theme
+        tile.box = W.Box(tile, C.well, C.border)
+        tile.sketch = ThemeSketch(tile, theme)
+        tile.sketch:SetPoint("TOPLEFT", TILE_PAD, -TILE_PAD)
+        tile.name = W.Text(tile, "GameFontHighlight", C.text)
+        tile.name:SetPoint("BOTTOMLEFT", TILE_PAD + 2, TILE_PAD + 2)
+        tile.name:SetText(theme.name)
+        tile.check = W.Dot(tile, 6, C.accent)
+        tile.check:SetPoint("BOTTOMRIGHT", -TILE_PAD - 4, TILE_PAD + 6)
+        tile:SetScript("OnEnter", paint)
+        tile:SetScript("OnLeave", paint)
+        tile:SetScript("OnClick", function(self)
+            if self.theme.key == c.value then return end
+            W.Play("IG_MAINMENU_OPTION_CHECKBOX_ON")
+            Write(o, info, self.theme.key)
+        end)
+        c.tiles[i] = tile
+    end
+    function c:Refresh()
+        local name = Resolve(o.name, info)
+        if name ~= self.shownName then self.shownName = name; self.label:SetText(name or "") end
+        self.value = o.get(info)
+        for _, tile in ipairs(self.tiles) do paint(tile) end
+    end
+    -- Tiles side by side, as wide as fit (up to TILE_MOST), their sketches scaled to match.
+    function c:Layout(width)
+        local count = #self.tiles
+        local tileWidth = math.min(TILE_MOST, math.floor((width - TILE_GAP * (count - 1)) / count))
+        local scale = (tileWidth - TILE_PAD * 2) / SKETCH_W
+        local height = math.floor(TILE_PAD + SKETCH_H * scale + 8 + self.tiles[1].name:GetStringHeight() + TILE_PAD + 4)
+        local refit = false
+        for i, tile in ipairs(self.tiles) do
+            tile:ClearAllPoints()
+            tile:SetPoint("TOPLEFT", (i - 1) * (tileWidth + TILE_GAP), -30)
+            tile:SetSize(tileWidth, height)
+            if tile.sketch:GetScale() ~= scale then
+                -- Its offset is in its own, scaled, units.
+                tile.sketch:SetScale(scale)
+                tile.sketch:SetPoint("TOPLEFT", TILE_PAD / scale, -TILE_PAD / scale)
+                refit = true
+            end
+        end
+        if refit then W.FitIcons() end
+        return 30 + height + 10
+    end
+    c:Refresh()
     return c
 end
 
@@ -1136,11 +1305,11 @@ local function TextButton(parent, text, font)
     b.SetHover = W.Round(b, nil, 0, "BACKGROUND")
     b.SetHover(CLEAR)
     b:SetScript("OnEnter", function(self)
-        self.SetHover(C.hover); self.label:SetTextColor(unpack(C.bright))
+        self.SetHover(C.hover); W.Paint(self.label, C.bright)
         W.ShowTooltip(self, self.tipTitle, self.tipText, "ANCHOR_BOTTOM")
     end)
     b:SetScript("OnLeave", function(self)
-        self.SetHover(CLEAR); self.label:SetTextColor(unpack(C.header))
+        self.SetHover(CLEAR); W.Paint(self.label, C.header)
         W.HideTooltip(self)
     end)
     return b
@@ -1148,7 +1317,6 @@ end
 
 -- A small pill button: the list filters, sub-page tabs, Profiles and About. The selected one is tinted and rimmed
 -- with the accent.
-local SELECTED_FILL = W.Over(C.selected, C.pane)
 local function Chip(parent, text)
     local b = CreateFrame("Button", nil, parent)
     b:SetHeight(22)
@@ -1162,9 +1330,9 @@ local function Chip(parent, text)
     end
     function b:SetSelected(selected)
         self.isSelected = selected
-        self.SetFill(selected and SELECTED_FILL or C.pane)
+        self.SetFill(selected and C.selectedFill or C.pane)
         self.SetBorderColor(selected and C.accent or C.border)
-        self.label:SetTextColor(unpack(selected and C.bright or C.text))
+        W.Paint(self.label, selected and C.bright or C.text)
     end
     b:SetScript("OnEnter", function(self) if not self.isSelected then self.SetBorderColor(C.line) end end)
     b:SetScript("OnLeave", function(self) if not self.isSelected then self.SetBorderColor(C.border) end end)
@@ -1212,7 +1380,7 @@ function P:Create()
     grip.icon = W.PixelIcon(grip, W.ART .. "Grip", 12, C.header)
     grip.icon:SetPoint("BOTTOMRIGHT", -3, 3)
     local function paint()
-        grip.icon:SetVertexColor(unpack(self.sizing and C.accent or grip:IsMouseOver() and C.bright or C.header))
+        W.Paint(grip.icon, self.sizing and C.accent or grip:IsMouseOver() and C.bright or C.header)
     end
     grip:RegisterForClicks("RightButtonUp")
     grip:SetScript("OnMouseDown", function(_, button)
@@ -1232,6 +1400,8 @@ function P:Create()
     end)
     grip:SetScript("OnLeave", function(g) paint(); W.HideTooltip(g) end)
     self:CreateSidebarEdge(f, grip:GetFrameLevel())
+    -- A new theme's colors are painted on their own; the sidebar's selected row changes shape too.
+    W.OnTheme(function() if self.mode then self:RefreshNav() end end)
     self:ApplyScale(state.scale or 1)
     self:SetSize(state.width or DEFAULT_W, state.height or DEFAULT_H)
     f:ClearAllPoints()
@@ -1337,7 +1507,7 @@ function P:CreateTitleBar(f)
     bar:SetScript("OnDragStop", function() f:StopMovingOrSizing(); self:SavePlace() end)
     local logo = W.PixelIcon(bar, W.ART .. "Logo", 24)
     logo:SetPoint("LEFT", PAD - 2, 0)
-    local title = W.Text(bar, "GameFontNormalLarge", C.accent)
+    local title = W.Text(bar, "GameFontNormalLarge", C.title)
     title:SetPoint("LEFT", logo, "RIGHT", 8, 0)
     title:SetText("Super Tweaks")
     self.titleText = title
@@ -1353,15 +1523,37 @@ function P:CreateTitleBar(f)
     close:SetScript("OnClick", function() f:Hide() end)
     close:SetScript("OnEnter", function()
         close.hover:Show()
-        close.icon:SetVertexColor(unpack(C.bright))
+        W.Paint(close.icon, C.bright)
     end)
     close:SetScript("OnLeave", function()
         close.hover:Hide()
-        close.icon:SetVertexColor(unpack(C.header))
+        W.Paint(close.icon, C.header)
+    end)
+    -- Settings for the window itself: a cog, lit while its page shows.
+    local cog = CreateFrame("Button", nil, bar)
+    self.cog = cog
+    cog:SetSize(TITLE - 8, TITLE - 8)
+    cog:SetPoint("RIGHT", close, "LEFT", -2, 0)
+    cog.hover = W.Dot(cog, TITLE - 8, C.hover)
+    cog.hover:SetDrawLayer("BACKGROUND")
+    cog.hover:SetPoint("CENTER")
+    cog.hover:Hide()
+    cog.icon = W.PixelIcon(cog, W.ART .. "Cog", 16, C.header)
+    cog.icon:SetPoint("CENTER")
+    cog:SetScript("OnClick", function() W.Play("IG_MAINMENU_OPTION"); self:ShowGeneral() end)
+    cog:SetScript("OnEnter", function()
+        cog.hovered = true
+        self:PaintCog()
+        W.ShowTooltip(cog, "Settings", nil, "ANCHOR_BOTTOM")
+    end)
+    cog:SetScript("OnLeave", function()
+        cog.hovered = nil
+        self:PaintCog()
+        W.HideTooltip(cog)
     end)
     -- Scale: smaller, the current scale (click for 100%), larger; the mouse wheel over them works too.
     local larger = TextButton(bar, "+", "GameFontNormalLarge")
-    larger:SetPoint("RIGHT", close, "LEFT", -10, 0)
+    larger:SetPoint("RIGHT", cog, "LEFT", -8, 0)
     local text = TextButton(bar, "100%", "GameFontNormalSmall")
     text:SetWidth(44)
     text:SetPoint("RIGHT", larger, "LEFT", -2, 0)
@@ -1386,12 +1578,9 @@ end
 local function NavButton(parent)
     local b = CreateFrame("Button", nil, parent)
     b:SetHeight(NAV_ROW)
-    b.highlight = W.Fill(b, C.hover)
-    b.highlight:SetAllPoints()
-    b.highlight:Hide()
-    b.selected = W.Fill(b, C.selected)
-    b.selected:SetAllPoints()
-    b.selected:Hide()
+    -- Square tints span the row, the selected one with a bar at its left; round ones sit inside it, with no bar.
+    b.highlight = W.Tint(b, C.hover, NAV_TINT)
+    b.selected = W.Tint(b, C.selected, NAV_TINT)
     b.bar = W.Fill(b, C.accent, "ARTWORK")
     b.bar:SetPoint("TOPLEFT"); b.bar:SetPoint("BOTTOMLEFT"); b.bar:SetWidth(2)
     b.bar:Hide()
@@ -1405,7 +1594,7 @@ local function NavButton(parent)
     b.chevron:SetPoint("LEFT", 8, 0)
     b:SetScript("OnEnter", function(self)
         self.highlight:Show()
-        self.label:SetTextColor(unpack(C.bright))
+        W.Paint(self.label, C.bright)
     end)
     b:SetScript("OnLeave", function(self)
         self.highlight:Hide()
@@ -1415,16 +1604,12 @@ local function NavButton(parent)
     function b:Paint()
         local entry = self.entry
         local category = entry.kind == "category"
-        self.label:SetTextColor(unpack(entry.selected and C.bright or category and C.header or C.text))
+        W.Paint(self.label, entry.selected and C.bright or category and C.header or C.text)
         self.selected:SetShown(entry.selected == true)
-        self.bar:SetShown(entry.selected == true)
+        self.bar:SetShown(entry.selected == true and not W.theme.round)
     end
     return b
 end
-
--- The version pip's bar, and its bar while pointed at or while the patch notes show.
-local PIP_TINT = { C.border[1], C.border[2], C.border[3], 0.7 }
-local PIP_LIT = { C.line[1], C.line[2], C.line[3], 0.55 }
 
 function P:CreateSidebar(f)
     local sidebar = CreateFrame("Frame", nil, f)
@@ -1500,11 +1685,11 @@ function P:CreateSidebar(f)
             b.icon = W.PixelIcon(b, link.icon, 16, C.muted)
             b.icon:SetPoint("CENTER")
             b:SetScript("OnEnter", function()
-                b.icon:SetVertexColor(unpack(C.accent))
+                W.Paint(b.icon, C.accent)
                 W.ShowTooltip(b, link.name, link.url)
             end)
             b:SetScript("OnLeave", function()
-                b.icon:SetVertexColor(unpack(C.muted))
+                W.Paint(b.icon, C.muted)
                 W.HideTooltip(b)
             end)
             b:SetScript("OnClick", function()
@@ -1534,7 +1719,7 @@ function P:CreateSidebarEdge(f, level)
     local function paint()
         local dragging = grab ~= nil
         edge.line:SetShown(dragging or edge:IsMouseOver())
-        edge.line:SetColorTexture(unpack(dragging and C.accent or C.line))
+        W.Paint(edge.line, dragging and C.accent or C.line)
     end
     local function follow()
         local x = GetCursorPosition() / f:GetEffectiveScale()
@@ -1588,8 +1773,8 @@ function P:CreateSearch(sidebar)
     clear:SetPoint("RIGHT", -6, 0)
     clear.icon = W.CloseIcon(clear, 8)
     clear:SetScript("OnClick", function() e:SetText(""); e:ClearFocus() end)
-    clear:SetScript("OnEnter", function() clear.icon:SetVertexColor(unpack(C.bright)) end)
-    clear:SetScript("OnLeave", function() clear.icon:SetVertexColor(unpack(C.header)) end)
+    clear:SetScript("OnEnter", function() W.Paint(clear.icon, C.bright) end)
+    clear:SetScript("OnLeave", function() W.Paint(clear.icon, C.header) end)
     local function paint()
         local text = e:GetText()
         placeholder:SetShown(text == "" and not e:HasFocus())
@@ -1720,7 +1905,7 @@ function P:PaintNav()
             local on = module:IsEnabled()
             if b.shownOn ~= on then
                 b.shownOn = on
-                b.dot:SetVertexColor(unpack(module.info.unavailable and C.warning or on and C.accent or C.border))
+                W.Paint(b.dot, module.info.unavailable and C.warning or on and C.accent or C.border)
                 if b.switch and b.switch:IsShown() then
                     b.switch:SetOn(on, true)
                     b.switch:SetDisabledLook(module.info.unavailable ~= nil)
@@ -1778,10 +1963,18 @@ function P:PaintPip()
     local lit = open or pip.hovered == true
     if pip.lit ~= lit then
         pip.lit = lit
-        local tint = lit and PIP_LIT or PIP_TINT
+        local tint = lit and C.pipLit or C.pipTint
         pip.paint(tint)
     end
-    pip.text:SetTextColor(unpack(pip.hovered and C.bright or open and C.accent or C.muted))
+    W.Paint(pip.text, pip.hovered and C.bright or open and C.accent or C.muted)
+    self:PaintCog()
+end
+
+-- The cog: lit while pointed at, in the accent while its page shows.
+function P:PaintCog()
+    local cog = self.cog
+    cog.hover:SetShown(cog.hovered == true)
+    W.Paint(cog.icon, cog.hovered and C.bright or self.mode == "page" and self.view == "general" and C.accent or C.header)
 end
 
 ---------------------------------------------------------------------------
@@ -1894,13 +2087,11 @@ function P:CreateDetail(view)
     d:SetPoint("TOPRIGHT", -PAD, -PAD)
     d:SetPoint("BOTTOMRIGHT", -PAD, PAD)
     d:SetWidth(DETAIL_MOST)
-    W.Fill(d, C.card):SetAllPoints()
-    W.Border(d, C.border)
+    W.Box(d, C.card, C.border)
     d.preview = CreateFrame("Frame", nil, d)
     d.preview:SetPoint("TOPLEFT", 12, -12)
     d.preview:SetPoint("TOPRIGHT", -12, -12)
-    W.Fill(d.preview, C.field):SetAllPoints()
-    W.Border(d.preview, C.border)
+    W.Box(d.preview, C.well, C.border, INNER)
     d.icon = d.preview:CreateTexture(nil, "ARTWORK")
     d.icon:SetSize(48, 48)
     d.icon:SetPoint("CENTER")
@@ -2037,9 +2228,7 @@ function P:ExampleRow(index)
     row = CreateFrame("Button", nil, d)
     d.examples[index] = row
     row:SetHeight(22)
-    row.highlight = W.Fill(row, C.hover)
-    row.highlight:SetAllPoints()
-    row.highlight:Hide()
+    row.highlight = W.Tint(row, C.hover, TINT)
     row.label = W.Text(row, "GameFontHighlightSmall", C.body)
     row.label:SetPoint("LEFT", 4, 0)
     row.label:SetPoint("RIGHT", -96, 0)
@@ -2051,8 +2240,8 @@ function P:ExampleRow(index)
     row.swatch = W.Fill(row, { 1, 1, 1, 1 }, "ARTWORK")
     row.swatch:SetSize(26, 12)
     row.swatch:SetPoint("RIGHT", -4, 0)
-    row:SetScript("OnEnter", function(r) r.highlight:Show(); r.label:SetTextColor(unpack(C.bright)) end)
-    row:SetScript("OnLeave", function(r) r.highlight:Hide(); r.label:SetTextColor(unpack(C.body)) end)
+    row:SetScript("OnEnter", function(r) r.highlight:Show(); W.Paint(r.label, C.bright) end)
+    row:SetScript("OnLeave", function(r) r.highlight:Hide(); W.Paint(r.label, C.body) end)
     row:SetScript("OnClick", function(r) self:OpenModule(r.item.owner, r.item.path, r.item.option) end)
     return row
 end
@@ -2084,11 +2273,11 @@ function P:ShowExamples(module)
         elseif o.type == "toggle" then
             local on = o.get({ option = o, key = item.key })
             row.value:SetText(on and "On" or "Off")
-            row.value:SetTextColor(unpack(on and C.accent or C.muted))
+            W.Paint(row.value, on and C.accent or C.muted)
         else
             local text = ValueText(o)
             row.value:SetText(text ~= nil and text ~= "" and text or "None")
-            row.value:SetTextColor(unpack(text ~= nil and text ~= "" and C.header or C.muted))
+            W.Paint(row.value, text ~= nil and text ~= "" and C.header or C.muted)
         end
         row:Show()
     end
@@ -2120,12 +2309,8 @@ function P:ModuleRow(index)
     row = CreateFrame("Button", nil, self.list.child)
     self.rows[index] = row
     row:SetHeight(MODULE_ROW)
-    row.highlight = W.Fill(row, C.hover)
-    row.highlight:SetAllPoints()
-    row.highlight:Hide()
-    row.cursor = W.Fill(row, C.selected)
-    row.cursor:SetAllPoints()
-    row.cursor:Hide()
+    row.highlight = W.Tint(row, C.hover, TINT)
+    row.cursor = W.Tint(row, C.selected, TINT)
     row.label = W.Text(row, "GameFontNormal", C.text)
     row.label:SetPoint("TOPLEFT", 12, -8)
     row.label:SetPoint("RIGHT", -100, 0)
@@ -2143,14 +2328,14 @@ function P:ModuleRow(index)
     row.arrow:SetPoint("RIGHT", -10, 0)
     row:SetScript("OnEnter", function(r)
         r.highlight:Show()
-        r.label:SetTextColor(unpack(C.bright))
-        r.arrow:SetVertexColor(unpack(C.accent))
+        W.Paint(r.label, C.bright)
+        W.Paint(r.arrow, C.accent)
         self:ShowDetail(r.module)
     end)
     row:SetScript("OnLeave", function(r)
         r.highlight:Hide()
-        r.label:SetTextColor(unpack(r.module.info.unavailable and C.disabled or C.text))
-        r.arrow:SetVertexColor(unpack(C.header))
+        W.Paint(r.label, r.module.info.unavailable and C.disabled or C.text)
+        W.Paint(r.arrow, C.header)
     end)
     row:SetScript("OnClick", function(r)
         if HasPage(r.module) then return self:OpenModule(r.module:GetName()) end
@@ -2184,7 +2369,7 @@ function P:WelcomeCard()
     if card then return card end
     card = W.Card(self.list.child)
     self.welcome = card
-    card.heading = W.Text(card, "GameFontNormalLarge", C.accent)
+    card.heading = W.Text(card, "GameFontNormalLarge", C.title)
     card.heading:SetPoint("TOPLEFT", WELCOME_PAD, -WELCOME_PAD)
     card.heading:SetText("Welcome to " .. HST.title)
     card.text = W.Text(card, "GameFontHighlight", C.body)
@@ -2308,8 +2493,8 @@ function P:RefreshRows()
                 row.drawn = module
                 row.label:SetText(info.name)
                 row.sub:SetText(info.unavailable or info.summary or info.description)
-                row.sub:SetTextColor(unpack(info.unavailable and C.warning or C.muted))
-                row.label:SetTextColor(unpack(info.unavailable and C.disabled or C.text))
+                W.Paint(row.sub, info.unavailable and C.warning or C.muted)
+                W.Paint(row.label, info.unavailable and C.disabled or C.text)
                 row.switch:SetDisabledLook(info.unavailable ~= nil)
                 row.switch.tipTitle = info.name
                 local page = HasPage(module)
@@ -2424,7 +2609,7 @@ function P:CreatePageView(main)
     live.area:SetPoint("TOPLEFT", 1, -1)
     live.area:SetPoint("BOTTOMRIGHT", -1, 1)
     if live.area.SetClipsChildren then live.area:SetClipsChildren(true) end
-    W.Fill(live.area, C.field):SetAllPoints()
+    W.Box(live.area, C.well, nil, { radius = W.BOX_RADIUS - 1 })
     live:Hide()
     -- Over the tabs, settings and preview while the module is off: a dimmed backdrop that takes the mouse, and a
     -- box in its middle with the module's preview, dimmed under the struck-through logo (or the logo alone), saying
@@ -2437,7 +2622,7 @@ function P:CreatePageView(main)
     off:EnableMouse(true)
     off:EnableMouseWheel(true)
     off:SetScript("OnMouseWheel", function() end)
-    W.Fill(off, { C.window[1], C.window[2], C.window[3], 0.82 }):SetAllPoints()
+    W.Fill(off, C.shade):SetAllPoints()
     local box = W.Card(off)
     off.box = box
     box:SetPoint("CENTER")
@@ -2447,14 +2632,13 @@ function P:CreatePageView(main)
     box.preview:SetPoint("TOPRIGHT", -OFF_PAD, -OFF_PAD)
     box.preview:SetHeight(OFF_PREVIEW)
     if box.preview.SetClipsChildren then box.preview:SetClipsChildren(true) end
-    W.Fill(box.preview, C.field):SetAllPoints()
-    W.Border(box.preview, C.border)
+    W.Box(box.preview, C.well, C.border, INNER)
     box.stages = {}
     -- Above the preview's stages: a dark veil and the logo in its middle.
     local veil = CreateFrame("Frame", nil, box.preview)
     veil:SetAllPoints()
     veil:SetFrameLevel(box.preview:GetFrameLevel() + 100)
-    W.Fill(veil, { C.window[1], C.window[2], C.window[3], 0.6 }):SetAllPoints()
+    W.Box(veil, C.veil, nil, INNER)
     W.PixelIcon(veil, W.ART .. "LogoOff", OFF_ICON, C.text):SetPoint("CENTER")
     box.icon = W.PixelIcon(box, W.ART .. "LogoOff", OFF_ICON, C.muted)
     box.icon:SetPoint("TOP", 0, -OFF_PAD)
@@ -2524,10 +2708,10 @@ function P:TabButton(pool, index, chip)
         function b:SetSelected(selected)
             self.isSelected = selected
             self.line:SetShown(selected)
-            self.label:SetTextColor(unpack(selected and C.accent or C.text))
+            W.Paint(self.label, selected and C.accent or C.text)
         end
-        b:SetScript("OnEnter", function(self) if not self.isSelected then self.label:SetTextColor(unpack(C.bright)) end end)
-        b:SetScript("OnLeave", function(self) self.label:SetTextColor(unpack(self.isSelected and C.accent or C.text)) end)
+        b:SetScript("OnEnter", function(self) if not self.isSelected then W.Paint(self.label, C.bright) end end)
+        b:SetScript("OnLeave", function(self) W.Paint(self.label, self.isSelected and C.accent or C.text) end)
     end
     b:SetScript("OnClick", function(self)
         W.Play("IG_CHARACTER_INFO_TAB")
@@ -2699,7 +2883,7 @@ function P:RefreshHeader()
     header.module = module
     header.toggle:SetDisabledLook(info.unavailable ~= nil)
     header.state:SetText(on and "On" or "Off")
-    header.state:SetTextColor(unpack(on and C.accent or C.muted))
+    W.Paint(header.state, on and C.accent or C.muted)
     local crumb = self.crumb
     if info.unavailable then
         crumb = crumb .. "   " .. Hex(C.warning) .. info.unavailable .. "|r"
@@ -2861,6 +3045,17 @@ function P:ShowAbout()
     self:RefreshNav()
 end
 
+-- The window's own settings (the cog).
+function P:ShowGeneral()
+    self:ClearSearch()
+    self:SetMode("page", "general")
+    self.pageInfo, self.pageOptions = nil, nil
+    self:SetHeader("Settings")
+    self:RefreshHeader()
+    self:ShowPage("general", HST:GeneralOptions())
+    self:RefreshNav()
+end
+
 -- Opening the patch notes counts as reading them: the pip's dot goes out.
 function P:ShowNotes()
     self:ClearSearch()
@@ -2873,11 +3068,12 @@ function P:ShowNotes()
     self:RefreshNav()
 end
 
--- "modules", "profiles", "about" or "notes"; a module's page when one was open.
+-- "modules", "profiles", "about", "notes" or "general"; a module's page when one was open.
 function P:ShowTab(tab)
     if tab == "profiles" then return self:ShowProfiles() end
     if tab == "about" then return self:ShowAbout() end
     if tab == "notes" then return self:ShowNotes() end
+    if tab == "general" then return self:ShowGeneral() end
     self:ShowModules()
 end
 
@@ -2979,12 +3175,8 @@ function P:ResultRow(index)
     row = CreateFrame("Button", nil, self.list.child)
     self.results[index] = row
     row:SetHeight(RESULT_ROW)
-    row.highlight = W.Fill(row, C.hover)
-    row.highlight:SetAllPoints()
-    row.highlight:Hide()
-    row.cursor = W.Fill(row, C.selected)
-    row.cursor:SetAllPoints()
-    row.cursor:Hide()
+    row.highlight = W.Tint(row, C.hover, TINT)
+    row.cursor = W.Tint(row, C.selected, TINT)
     row.label = W.Text(row, "GameFontNormal", C.text)
     row.label:SetPoint("TOPLEFT", 12, -6)
     row.label:SetPoint("RIGHT", -130, 0)
@@ -3008,12 +3200,12 @@ function P:ResultRow(index)
     end
     row:SetScript("OnEnter", function(r)
         r.highlight:Show()
-        r.label:SetTextColor(unpack(C.bright))
+        W.Paint(r.label, C.bright)
         self:ShowResultDetail(r.result)
     end)
     row:SetScript("OnLeave", function(r)
         r.highlight:Hide()
-        r.label:SetTextColor(unpack(C.text))
+        W.Paint(r.label, C.text)
     end)
     row.switch.onEnter = function() row:GetScript("OnEnter")(row) end
     row.switch.onLeave = function() row:GetScript("OnLeave")(row) end
@@ -3222,7 +3414,7 @@ function P:CreateBlizzardCategory()
     canvas:Hide()
     canvas:SetScript("OnShow", function()
         canvas:SetScript("OnShow", nil)
-        local title = W.Text(canvas, "GameFontNormalLarge", C.accent)
+        local title = W.Text(canvas, "GameFontNormalLarge", C.title)
         title:SetPoint("TOPLEFT", 16, -16)
         title:SetText(HST.title)
         local text = W.Text(canvas, "GameFontHighlight", C.body)

@@ -241,6 +241,8 @@ function HST:OnInitialize()
         self.db.RegisterCallback(self, event, "OnProfileEvent")
     end
     self:ListProfiles()
+    ns.Widgets.SetTheme(self.db.global.theme)
+    self:ApplyAccent()
     for _, module in ipairs(self:Features()) do
         module:SetEnabledState(self.db.global.modules[module:GetName()] and not module.info.unavailable)
     end
@@ -358,9 +360,47 @@ function HST:AboutOptions()
     return self.aboutOptions
 end
 
+-- Graphite's accent: the player's class color, unless that's turned off.
+function HST:ApplyAccent()
+    local color
+    if self.db.global.classAccent ~= false then
+        local class = select(2, UnitClass("player"))
+        local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+        if c then color = { c.r, c.g, c.b } end
+    end
+    ns.Widgets.SetAccent(color)
+end
+
+-- The settings window's own settings, behind the cog in its title bar; saved account-wide. "theme" is drawn by the
+-- settings window only (Settings/Panel.lua).
+function HST:GeneralOptions()
+    if self.generalOptions then return self.generalOptions end
+    self.generalOptions = { type = "group", name = "Settings", args = {
+        appearance = { type = "group", inline = true, name = "Appearance", order = 1, args = {
+            theme = { type = "theme", order = 1, name = "Theme",
+                get = function() return ns.Widgets.theme.key end,
+                set = function(_, key)
+                    self.db.global.theme = key ~= ns.Widgets.DEFAULT_THEME and key or nil
+                    ns.Widgets.SetTheme(key)
+                end },
+            classAccent = { type = "toggle", order = 2, name = "Accent in your class color",
+                hidden = function() return not ns.Widgets.theme.accentable end,
+                get = function() return self.db.global.classAccent ~= false end,
+                set = function(_, on)
+                    -- Saved only when off.
+                    if on then self.db.global.classAccent = nil else self.db.global.classAccent = false end
+                    self:ApplyAccent()
+                end },
+        } },
+    } }
+    return self.generalOptions
+end
+
 function HST:OnEnable()
     -- Runs before the modules' OnEnable, so they read per-character data under the right key.
     self:FixCharacterKey()
+    -- The class may not be known yet while addons load.
+    self:ApplyAccent()
     ns.RegisterMedia()
     self.events = CreateFrame("Frame")
     self.events:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -638,6 +678,9 @@ function ns.ColorCode(color)
     end
     return code
 end
+
+-- For a color table whose values changed (the settings window's palette, on a theme change).
+function ns.ForgetColorCode(color) colorCodes[color] = nil end
 
 -- True when a character at `level`, needing `cap` XP for the next one, can't gain XP: at the level cap (worked out as
 -- the game's XP bar does), or with no XP to gain. Without arguments it asks about the player, whose XP may also be

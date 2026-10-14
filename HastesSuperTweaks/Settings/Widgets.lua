@@ -6,33 +6,258 @@ local ADDON, ns = ...
 local W = {}
 ns.Widgets = W
 
--- Palette: warm dark panels, parchment text, gold accent.
-local C = {
-    window = { 0.067, 0.058, 0.051, 0.98 },
-    titlebar = { 0.047, 0.041, 0.036, 1 },
-    sidebar = { 0.055, 0.048, 0.042, 1 },
-    pane = { 0.098, 0.084, 0.073, 1 },
-    card = { 0.090, 0.078, 0.068, 1 },
-    field = { 0.035, 0.030, 0.027, 1 },
-    border = { 0.25, 0.21, 0.16, 1 },
-    divider = { 0.25, 0.21, 0.16, 0.45 },
-    line = { 0.50, 0.41, 0.30, 1 },
-    text = { 0.86, 0.77, 0.65 },
-    bright = { 1, 1, 1 },
-    header = { 0.66, 0.55, 0.43 },
-    body = { 0.72, 0.69, 0.64 },
-    muted = { 0.56, 0.52, 0.47 },
-    accent = { 1, 0.80, 0.40 },
-    warning = { 0.95, 0.52, 0.22 },
-    disabled = { 0.45, 0.45, 0.45 },
-    hover = { 1, 0.86, 0.60, 0.07 },
-    selected = { 1, 0.80, 0.40, 0.13 },
-    knob = { 0.66, 0.58, 0.49, 1 },
-    knobOn = { 1, 0.97, 0.90, 1 },
-    trackOff = { 0.14, 0.12, 0.105, 1 },
-    trackOn = { 0.86, 0.62, 0.24, 1 },
+-- Themes for the settings window. Both step lighter from the title bar and sidebar to the page, its cards and their
+-- controls, with near-black only for the wells previews sit in. Graphite: greys, an accent in your class color (or
+-- violet, see W.SetAccent) and round-cornered boxes. Ember: warm browns, parchment text and a gold accent. Moonwell:
+-- night blues, silvered text and a moonwell-teal accent, round-cornered. The game draws these darks a little darker
+-- than their values, so neighboring steps are kept well apart.
+local THEMES = {
+    graphite = { name = "Graphite", order = 1, round = true, accentable = true, colors = {
+        window = { 0.106, 0.106, 0.106, 0.98 },
+        titlebar = { 0.075, 0.075, 0.075, 1 },
+        sidebar = { 0.075, 0.075, 0.075, 1 },
+        pane = { 0.165, 0.165, 0.165, 1 },
+        card = { 0.137, 0.137, 0.137, 1 },
+        field = { 0.098, 0.098, 0.098, 1 },
+        well = { 0.055, 0.055, 0.055, 1 },
+        border = { 0.192, 0.192, 0.192, 1 },
+        divider = { 0.176, 0.176, 0.176, 1 },
+        line = { 0.32, 0.32, 0.32, 1 },
+        text = { 0.92, 0.92, 0.92 },
+        bright = { 1, 1, 1 },
+        title = { 1, 1, 1 },
+        header = { 0.52, 0.52, 0.52 },
+        body = { 0.74, 0.74, 0.74 },
+        muted = { 0.60, 0.60, 0.60 },
+        accent = { 0.651, 0.490, 0.949 },
+        onAccent = { 0.08, 0.05, 0.14 },
+        warning = { 0.96, 0.60, 0.26 },
+        disabled = { 0.40, 0.40, 0.40 },
+        hover = { 1, 1, 1, 0.05 },
+        selected = { 1, 1, 1, 0.08 },
+        knob = { 1, 1, 1, 1 },
+        knobOn = { 1, 1, 1, 1 },
+        trackOff = { 0.235, 0.235, 0.235, 1 },
+        trackOn = { 0.651, 0.490, 0.949, 1 },
+    } },
+    ember = { name = "Ember", order = 2, colors = {
+        window = { 0.118, 0.102, 0.090, 0.98 },
+        titlebar = { 0.086, 0.075, 0.065, 1 },
+        sidebar = { 0.086, 0.075, 0.065, 1 },
+        pane = { 0.188, 0.163, 0.141, 1 },
+        card = { 0.153, 0.133, 0.116, 1 },
+        field = { 0.102, 0.088, 0.078, 1 },
+        well = { 0.059, 0.051, 0.045, 1 },
+        border = { 0.27, 0.225, 0.17, 1 },
+        divider = { 0.22, 0.19, 0.155, 1 },
+        line = { 0.50, 0.41, 0.30, 1 },
+        text = { 0.86, 0.77, 0.65 },
+        bright = { 1, 1, 1 },
+        title = { 1, 0.80, 0.40 },
+        header = { 0.66, 0.55, 0.43 },
+        body = { 0.72, 0.69, 0.64 },
+        muted = { 0.58, 0.54, 0.49 },
+        accent = { 1, 0.80, 0.40 },
+        onAccent = { 0.12, 0.08, 0.03 },
+        warning = { 0.95, 0.52, 0.22 },
+        disabled = { 0.45, 0.45, 0.45 },
+        hover = { 1, 0.86, 0.60, 0.07 },
+        selected = { 1, 0.80, 0.40, 0.13 },
+        knob = { 0.66, 0.58, 0.49, 1 },
+        knobOn = { 1, 0.97, 0.90, 1 },
+        trackOff = { 0.25, 0.215, 0.18, 1 },
+        trackOn = { 0.86, 0.62, 0.24, 1 },
+    } },
+    moonwell = { name = "Moonwell", order = 3, round = true, colors = {
+        window = { 0.075, 0.102, 0.122, 0.98 },
+        titlebar = { 0.055, 0.075, 0.090, 1 },
+        sidebar = { 0.055, 0.075, 0.090, 1 },
+        pane = { 0.125, 0.165, 0.192, 1 },
+        card = { 0.098, 0.133, 0.157, 1 },
+        field = { 0.066, 0.090, 0.108, 1 },
+        well = { 0.035, 0.050, 0.062, 1 },
+        border = { 0.16, 0.215, 0.25, 1 },
+        divider = { 0.14, 0.188, 0.22, 1 },
+        line = { 0.27, 0.36, 0.41, 1 },
+        text = { 0.82, 0.88, 0.92 },
+        bright = { 1, 1, 1 },
+        title = { 0.72, 0.93, 0.94 },
+        header = { 0.48, 0.58, 0.64 },
+        body = { 0.70, 0.77, 0.82 },
+        muted = { 0.54, 0.62, 0.68 },
+        accent = { 0.36, 0.84, 0.82 },
+        onAccent = { 0.03, 0.10, 0.11 },
+        warning = { 0.98, 0.62, 0.38 },
+        disabled = { 0.38, 0.43, 0.47 },
+        hover = { 0.70, 0.90, 1, 0.06 },
+        selected = { 0.36, 0.84, 0.82, 0.12 },
+        knob = { 0.62, 0.70, 0.76, 1 },
+        knobOn = { 0.94, 1, 1, 1 },
+        trackOff = { 0.17, 0.225, 0.26, 1 },
+        trackOn = { 0.30, 0.74, 0.72, 1 },
+    } },
 }
+
+-- The original Ember colors, which windows shown in play (the Loot window, the whispers list, the guild message) keep
+-- whatever the theme (W.INGAME).
+local INGAME = { colors = {
+        window = { 0.067, 0.058, 0.051, 0.98 },
+        titlebar = { 0.047, 0.041, 0.036, 1 },
+        sidebar = { 0.055, 0.048, 0.042, 1 },
+        pane = { 0.098, 0.084, 0.073, 1 },
+        card = { 0.090, 0.078, 0.068, 1 },
+        field = { 0.035, 0.030, 0.027, 1 },
+        well = { 0.035, 0.030, 0.027, 1 },
+        border = { 0.25, 0.21, 0.16, 1 },
+        divider = { 0.25, 0.21, 0.16, 0.45 },
+        line = { 0.50, 0.41, 0.30, 1 },
+        text = { 0.86, 0.77, 0.65 },
+        bright = { 1, 1, 1 },
+        title = { 1, 0.80, 0.40 },
+        header = { 0.66, 0.55, 0.43 },
+        body = { 0.72, 0.69, 0.64 },
+        muted = { 0.56, 0.52, 0.47 },
+        accent = { 1, 0.80, 0.40 },
+        onAccent = { 0.12, 0.08, 0.03 },
+        warning = { 0.95, 0.52, 0.22 },
+        disabled = { 0.45, 0.45, 0.45 },
+        hover = { 1, 0.86, 0.60, 0.07 },
+        selected = { 1, 0.80, 0.40, 0.13 },
+        knob = { 0.66, 0.58, 0.49, 1 },
+        knobOn = { 1, 0.97, 0.90, 1 },
+        trackOff = { 0.14, 0.12, 0.105, 1 },
+        trackOn = { 0.86, 0.62, 0.24, 1 },
+} }
+local DEFAULT_THEME = "graphite"
+for key, theme in pairs(THEMES) do theme.key = key end
+W.THEMES, W.DEFAULT_THEME = THEMES, DEFAULT_THEME
+
+-- `over` (a color with alpha, or with `alpha` in its place) laid over the opaque `base`, as one opaque color, written
+-- into `into`.
+local function Mix(into, over, base, alpha)
+    local a = alpha or over[4] or 1
+    into[1], into[2], into[3], into[4] = base[1] + (over[1] - base[1]) * a, base[2] + (over[2] - base[2]) * a,
+        base[3] + (over[3] - base[3]) * a, 1
+end
+
+local function Fade(into, color, alpha)
+    into[1], into[2], into[3], into[4] = color[1], color[2], color[3], alpha
+end
+
+local WHITE = { 1, 1, 1 }
+
+-- The accent Graphite takes in place of its violet ({ r, g, b }: the player's class color), or nil (W.SetAccent).
+local accent
+
+-- Whether a color is light enough that a white knob on it would hardly show (relative luminance over a half).
+local function Light(color)
+    local l = 0
+    for i, weight in ipairs({ 0.2126, 0.7152, 0.0722 }) do
+        local c = color[i]
+        l = l + weight * (c <= 0.04045 and c / 12.92 or ((c + 0.055) / 1.055) ^ 2.4)
+    end
+    return l > 0.5
+end
+
+-- Fills a palette (`into`) with a theme's colors and the colors made from them, each in a table of its own.
+local function FillPalette(into, theme)
+    for key, color in pairs(theme.colors) do
+        local c = into[key] or {}
+        into[key] = c
+        c[1], c[2], c[3], c[4] = color[1], color[2], color[3], color[4]
+    end
+    if theme.accentable and accent then
+        local a, track, knob = into.accent, into.trackOn, into.knobOn
+        a[1], a[2], a[3], a[4] = accent[1], accent[2], accent[3], nil
+        track[1], track[2], track[3], track[4] = accent[1], accent[2], accent[3], 1
+        local k = Light(accent) and 0.1 or 1
+        knob[1], knob[2], knob[3], knob[4] = k, k, k, 1
+    end
+    local function made(key)
+        into[key] = into[key] or {}
+        return into[key]
+    end
+    Mix(made("selectedFill"), into.selected, into.pane)
+    Mix(made("tagFill"), into.selected, into.card)
+    Mix(made("tagRim"), into.accent, into.card, 0.5)
+    Mix(made("buttonLit"), into.hover, into.pane)
+    Mix(made("primaryLit"), WHITE, into.trackOn, 0.12)
+    Fade(made("menuHover"), into.hover, into.hover[4] + 0.03)
+    Fade(made("pipTint"), into.border, 0.7)
+    Fade(made("pipLit"), into.line, 0.55)
+    Fade(made("thumb"), into.line, 0.7)
+    Fade(made("shade"), into.window, 0.82)
+    Fade(made("veil"), into.window, 0.6)
+    Fade(made("accentWash"), into.accent, 0.12)
+    Fade(made("halo"), into.accent, 0.25)
+    return into
+end
+
+-- The palette the settings window paints with: the chosen theme's colors. A theme change copies the new colors into
+-- these same tables, then paints again everything that was painted with them (W.Paint).
+local C = FillPalette({}, THEMES[DEFAULT_THEME])
 W.C = C
+W.theme = THEMES[DEFAULT_THEME]
+W.INGAME = FillPalette({}, INGAME)
+
+-- The palette's colors, and each theme's own (theme.palette, for drawing it as it looks).
+local palette = {}
+for _, color in pairs(C) do palette[color] = true end
+for _, theme in pairs(THEMES) do
+    theme.palette = FillPalette({}, theme)
+    for _, color in pairs(theme.palette) do palette[color] = true end
+end
+
+-- What each region was last painted with, when that was a palette color.
+local painted = setmetatable({}, { __mode = "k" })
+
+local function Apply(region, color)
+    local r, g, b, a = color[1], color[2], color[3], color[4] or 1
+    if region.hstFade then
+        region:SetGradient("HORIZONTAL", CreateColor(r, g, b, region.hstFade), CreateColor(r, g, b, 0))
+    elseif region.SetTextColor then
+        region:SetTextColor(r, g, b, a)
+    elseif region.hstFlat then
+        region:SetColorTexture(r, g, b, a)
+    else
+        region:SetVertexColor(r, g, b, a)
+    end
+end
+
+-- Paints text (its color), a flat fill (W.Fill, W.Border), a fading line (W.FadeLine) or other art (its tint).
+function W.Paint(region, color)
+    painted[region] = palette[color] and color or nil
+    Apply(region, color)
+end
+
+-- Run after every theme change, for what isn't simply painted: text with colors in it, boxes changing shape.
+local themed = {}
+function W.OnTheme(run) themed[#themed + 1] = run end
+
+-- Fills the palettes again and paints everything painted with them.
+local function Repaint()
+    FillPalette(C, W.theme)
+    for _, theme in pairs(THEMES) do FillPalette(theme.palette, theme) end
+    for color in pairs(palette) do ns.ForgetColorCode(color) end
+    for region, color in pairs(painted) do Apply(region, color) end
+    for i = 1, #themed do themed[i]() end
+end
+
+-- Switches the settings window to a theme (by key; the default for one that doesn't exist).
+function W.SetTheme(key)
+    local theme = THEMES[key] or THEMES[DEFAULT_THEME]
+    if theme == W.theme then return end
+    W.theme = theme
+    Repaint()
+end
+
+-- Gives Graphite this accent ({ r, g, b }), or its violet back (nil).
+function W.SetAccent(color)
+    if color == accent or color and accent and color[1] == accent[1] and color[2] == accent[2]
+        and color[3] == accent[3] then return end
+    accent = color
+    Repaint()
+end
 
 local ART = "Interface\\AddOns\\HastesSuperTweaks\\Art\\"
 W.ART = ART
@@ -44,29 +269,31 @@ W.Play = Play
 
 function W.Fill(parent, color, layer, sublevel)
     local t = parent:CreateTexture(nil, layer or "BACKGROUND", nil, sublevel)
-    t:SetColorTexture(unpack(color))
+    t.hstFlat = true
+    W.Paint(t, color)
     return t
 end
 
--- One-unit border inside the frame's edges; returns a setter for its color.
+-- One-unit border inside the frame's edges; returns a setter for its color, and its edges.
 function W.Border(frame, color, layer)
     local edges = {}
     local function edge(a, b, horizontal)
         local t = frame:CreateTexture(nil, layer or "BORDER")
+        t.hstFlat = true
         t:SetPoint(a); t:SetPoint(b)
         if horizontal then t:SetHeight(1) else t:SetWidth(1) end
         edges[#edges + 1] = t
     end
     edge("TOPLEFT", "TOPRIGHT", true); edge("BOTTOMLEFT", "BOTTOMRIGHT", true)
     edge("TOPLEFT", "BOTTOMLEFT"); edge("TOPRIGHT", "BOTTOMRIGHT")
-    local function set(c) for _, t in ipairs(edges) do t:SetColorTexture(unpack(c)) end end
+    local function set(c) for _, t in ipairs(edges) do W.Paint(t, c) end end
     set(color or C.border)
-    return set
+    return set, edges
 end
 
 function W.Text(parent, font, color, justify)
     local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlight")
-    if color then fs:SetTextColor(unpack(color)) end
+    if color then W.Paint(fs, color) end
     fs:SetJustifyH(justify or "LEFT")
     return fs
 end
@@ -76,8 +303,8 @@ function W.FadeLine(parent, color, alpha)
     local line = parent:CreateTexture(nil, "ARTWORK")
     line:SetColorTexture(1, 1, 1, 1)
     line:SetHeight(1)
-    local r, g, b = unpack(color or C.line)
-    line:SetGradient("HORIZONTAL", CreateColor(r, g, b, alpha or 0.8), CreateColor(r, g, b, 0))
+    line.hstFade = alpha or 0.8
+    W.Paint(line, color or C.line)
     return line
 end
 
@@ -88,8 +315,7 @@ function W.Header(parent, text)
     h.label = W.Text(h, "GameFontNormal", C.header)
     h.label:SetPoint("BOTTOMLEFT", 2, 8)
     h.label:SetText(text)
-    local diamond = h:CreateTexture(nil, "ARTWORK")
-    diamond:SetColorTexture(unpack(C.line))
+    local diamond = W.Fill(h, C.line, "ARTWORK")
     diamond:SetSize(5, 5)
     diamond:SetPoint("CENTER", h, "BOTTOMLEFT", 3, 3)
     diamond:SetRotation(math.rad(45))
@@ -182,7 +408,7 @@ end
 local function Icon(parent, atlas, big, size, color, layer, sublevel)
     local t = parent:CreateTexture(nil, layer or "ARTWORK", nil, sublevel)
     t:SetSnapToPixelGrid(true)
-    if color then t:SetVertexColor(unpack(color)) end
+    if color then W.Paint(t, color) end
     t.atlas, t.big, t.size, t.Fit = atlas, big, size, FitIcon
     return Track(t)
 end
@@ -249,36 +475,41 @@ local function FitRound(t)
     if scale == t.fitScale and screen == t.fitScreen and width == t.fitWidth and height == t.fitHeight then return end
     t.fitScale, t.fitScreen, t.fitWidth, t.fitHeight = scale, screen, width, height
     local px = 768 / screen / scale -- units per screen pixel here
-    local n, inset = 0, 0
+    local n, x, top, bottom = 0, 0, 0, 0
     if t.size then
         n = 2 * math.floor(t.size / px / 2 + 0.5)
     else
-        inset = math.floor(t.inset / px + 0.5)
-        local fit = math.floor(math.min(width, height) / px + 0.5) - 2 * inset
-        n = t.radius and math.min(2 * math.floor((t.radius - t.inset) / px + 0.5), fit) or fit
+        x, top, bottom = math.floor(t.insetX / px + 0.5), math.floor(t.insetTop / px + 0.5),
+            math.floor(t.insetBottom / px + 0.5)
+        local fit = math.min(math.floor(width / px + 0.5) - 2 * x, math.floor(height / px + 0.5) - top - bottom)
+        -- Corners keep their radius until the frame is laid out (a frame anchored to a hidden one can read 0 wide
+        -- when this runs, and isn't always fitted again when it shows), then shrink only to fit a smaller frame.
+        local corner = t.radius and 2 * math.floor((t.radius - t.insetX) / px + 0.5)
+        if corner then n = (width > 0 and height > 0) and math.min(corner, fit) or corner else n = fit end
         n = n - n % 2
     end
     n = math.max(2, math.min(n, ROUND_MAX))
     local k = n / 2
     local left = k * k - 1 -- the even sizes before n, each with its gap
     -- A ring's stroke is a unit, in whole pixels.
-    local top = t.art == RING and (math.min(2, math.max(1, math.floor(1 / px + 0.5))) - 1) * 64 or 0
+    local row = t.art == RING and (math.min(2, math.max(1, math.floor(1 / px + 0.5))) - 1) * 64 or 0
     local w, h = ROUND_WIDTH, t.art.height
     local part, strip = PARTS[t.piece], STRIPS[t.piece]
     if part then
-        t:SetTexCoord((left + n * part[1]) / w, (left + n * part[2]) / w, (top + n * part[3]) / h,
-            (top + n * part[4]) / h)
+        t:SetTexCoord((left + n * part[1]) / w, (left + n * part[2]) / w, (row + n * part[3]) / h,
+            (row + n * part[4]) / h)
         t:SetSize(n * px * (part[2] - part[1]), n * px * (part[4] - part[3]))
         local way = not t.size and INSETS[t.piece]
         if way then
+            local y = way[2] < 0 and -top or way[2] > 0 and bottom or (bottom - top) / 2
             t:ClearAllPoints()
-            t:SetPoint(t.piece, way[1] * inset * px, way[2] * inset * px)
+            t:SetPoint(t.piece, way[1] * x * px, y * px)
         end
     elseif strip[1] then
         local u = (left + k - 0.5) / w -- the middle column's texel centers
-        t:SetTexCoord(u, u, (top + n * strip[2]) / h, (top + n * strip[3]) / h)
+        t:SetTexCoord(u, u, (row + n * strip[2]) / h, (row + n * strip[3]) / h)
     else
-        local v = (top + k - 0.5) / h
+        local v = (row + k - 0.5) / h
         t:SetTexCoord((left + n * strip[2]) / w, (left + n * strip[3]) / w, v, v)
     end
 end
@@ -294,7 +525,7 @@ end
 -- A round dot, as the sidebar shows a module being on; with half "LEFT" or "RIGHT", that half of it.
 function W.Dot(parent, size, color, half, layer, sublevel)
     local t = Round(parent, DISC, half or "WHOLE", layer, sublevel)
-    t:SetVertexColor(unpack(color or C.accent))
+    W.Paint(t, color or C.accent)
     t.size = size
     Track(t)
     t:Fit()
@@ -302,18 +533,21 @@ function W.Dot(parent, size, color, half, layer, sublevel)
 end
 
 local function Painter(pieces)
-    return function(c) for i = 1, #pieces do pieces[i]:SetVertexColor(unpack(c)) end end
+    return function(c) for i = 1, #pieces do W.Paint(pieces[i], c) end end
 end
 
--- A shape filling `frame`, `inset` units in from its edges: a rectangle with corners `radius` units round, or, with
--- no radius, a pill whose ends follow the frame's height. With `ring`, only its outline, a unit wide. Returns a setter
--- for its color.
+-- A shape filling `frame`, `inset` units in from its edges (or { x =, top =, bottom = } units in from its sides, top
+-- and bottom): a rectangle with corners `radius` units round (less the inset, so shapes inside one another stay
+-- concentric), or, with no radius, a pill whose ends follow the frame's height. With `ring`, only its outline, a unit
+-- wide. Returns a setter for its color, and its pieces.
 function W.Round(frame, radius, inset, layer, sublevel, ring)
     local art = ring and RING or DISC
     local pieces = {}
+    local x, top, bottom = inset or 0, inset or 0, inset or 0
+    if type(inset) == "table" then x, top, bottom = inset.x or 0, inset.top or 0, inset.bottom or 0 end
     local function piece(name)
         local t = Round(frame, art, name, layer, sublevel)
-        t.inset, t.radius = inset or 0, radius
+        t.insetX, t.insetTop, t.insetBottom, t.radius = x, top, bottom, radius
         pieces[#pieces + 1] = t
         return t
     end
@@ -347,7 +581,7 @@ function W.Round(frame, radius, inset, layer, sublevel, ring)
             pieces[i]:Fit()
         end
     end
-    return Painter(pieces)
+    return Painter(pieces), pieces
 end
 
 -- A rounded control's look: its fill, and a rim a unit wide around its edge (a pill with no radius), in `layer`
@@ -359,11 +593,118 @@ function W.Outline(frame, radius, rim, fill, layer)
     return setRim, setFill
 end
 
--- `over` (a color with alpha) laid over the opaque `base`, as one opaque color.
-function W.Over(over, base)
-    local a = over[4] or 1
-    return { base[1] + (over[1] - base[1]) * a, base[2] + (over[2] - base[2]) * a, base[3] + (over[3] - base[3]) * a, 1 }
+-- Boxes: a fill and a rim a unit wide (either can be nil), square-cornered, or round-cornered in a theme with round
+-- boxes, and changing with the theme. W.Box(frame, fill, rim, round, square) fills `frame`; `round` says how round
+-- ones look ({ radius =, pill = true, x =, top =, bottom = }: the corners' radius, BOX_RADIUS unless given, or a pill;
+-- how far in from the frame's sides, top and bottom, out for less than 0), and `square` how far in square ones are
+-- ({ x =, top =, bottom = }).
+-- The parts for a shape are made the first time the box shows in it. Returns the box: box:SetFill(color),
+-- box:SetRim(color), box:SetShown(shown) (with Show, Hide and IsShown).
+local BOX_RADIUS = 8
+W.BOX_RADIUS = BOX_RADIUS
+local NONE, UNMADE = {}, { textures = {} }
+local Box = {}
+Box.__index = Box
+local boxes = {}
+
+local function BoxParts(box, round)
+    local frame, parts, textures = box.frame, {}, {}
+    parts.textures = textures
+    local function add(list) for i = 1, #list do textures[#textures + 1] = list[i] end end
+    if round then
+        local shape = box.round
+        local radius = not shape.pill and (shape.radius or BOX_RADIUS) + (shape.x or 0) or nil
+        if box.fill then
+            local set, pieces = W.Round(frame, radius, shape, "BACKGROUND", box.sublevel, false)
+            parts.fill = set
+            add(pieces)
+        end
+        if box.rim then
+            local set, pieces = W.Round(frame, radius, shape, "BORDER", 0, true)
+            parts.rim = set
+            add(pieces)
+        end
+    else
+        local inset = box.square
+        local x, top, bottom = inset.x or 0, inset.top or 0, inset.bottom or 0
+        if box.fill then
+            local t = W.Fill(frame, box.fill, "BACKGROUND", box.sublevel)
+            t:SetPoint("TOPLEFT", x, -top)
+            t:SetPoint("BOTTOMRIGHT", -x, bottom)
+            parts.fill = function(c) W.Paint(t, c) end
+            textures[#textures + 1] = t
+        end
+        if box.rim then
+            local set, edges = W.Border(frame, box.rim)
+            parts.rim = set
+            add(edges)
+        end
+    end
+    return parts
 end
+
+-- Shows the box in the shape the theme gives it; a hidden box takes it when it next shows.
+function Box:Shape()
+    local round = W.theme.round == true
+    if self.isRound == round then return end
+    for _, t in ipairs(self.parts.textures) do t:Hide() end
+    if not self.shown then
+        self.parts, self.isRound = UNMADE, nil
+        return
+    end
+    self.isRound = round
+    local key = round and "roundParts" or "squareParts"
+    local parts = self[key] or BoxParts(self, round)
+    self[key], self.parts = parts, parts
+    if parts.fill then parts.fill(self.fill) end
+    if parts.rim then parts.rim(self.rim) end
+    for _, t in ipairs(parts.textures) do t:Show() end
+end
+
+function Box:SetFill(color)
+    self.fill = color
+    if self.parts.fill then self.parts.fill(color) end
+end
+
+function Box:SetRim(color)
+    self.rim = color
+    if self.parts.rim then self.parts.rim(color) end
+end
+
+function Box:SetShown(shown)
+    shown = shown and true or false
+    if shown == self.shown then return end
+    self.shown = shown
+    if shown then self:Shape() end
+    for _, t in ipairs(self.parts.textures) do t:SetShown(shown) end
+end
+function Box:Show() self:SetShown(true) end
+function Box:Hide() self:SetShown(false) end
+function Box:IsShown() return self.shown end
+
+local function NewBox(frame, fill, rim, round, square, sublevel, shown)
+    local box = setmetatable({ frame = frame, fill = fill, rim = rim, round = round or NONE, square = square or NONE,
+        sublevel = sublevel or 0, shown = shown, parts = UNMADE }, Box)
+    boxes[#boxes + 1] = box
+    box:Shape()
+    return box
+end
+
+-- sublevel: the fill's, in the BACKGROUND layer (0 unless given).
+function W.Box(frame, fill, rim, round, square, sublevel)
+    return NewBox(frame, fill, rim, round, square, sublevel, true)
+end
+
+-- A hover or selection tint: a box with only a fill, hidden, and made the first time it shows.
+function W.Tint(frame, color, round, square)
+    return NewBox(frame, color, nil, round, square, 0, false)
+end
+
+-- Boxes take the new theme's shape before anything else follows a theme change.
+table.insert(themed, 1, function() for i = 1, #boxes do boxes[i]:Shape() end end)
+
+-- How far in from a box's corners its straight sides start: where things along its edges begin and end.
+function W.Corner() return W.theme.round and BOX_RADIUS or 1 end
 
 -- A count in a small pill, as the sidebar shows them. SetText("") or nil hides it, the first call included.
 local BADGE_H, BADGE_PAD = 14, 5
@@ -412,7 +753,7 @@ function W.Switch(parent)
         local on, lit = self.on, self.lit and not self.off
         self.SetRim(lit and (on and C.bright or C.accent) or on and C.trackOn or C.border)
         self.SetTrack(on and C.trackOn or C.trackOff)
-        self.knob:SetVertexColor(unpack(on and C.knobOn or C.knob))
+        W.Paint(self.knob, on and C.knobOn or C.knob)
     end
     -- Only what changed is set: every settings change refreshes the page. animate slides the knob there, except the
     -- first time (the switch is drawn off until then).
@@ -518,16 +859,14 @@ end
 W.SetTexts = SetTexts
 
 local function DimLabel(c, off)
-    c.label:SetTextColor(unpack(off and C.disabled or (c.lit and C.bright or C.text)))
+    W.Paint(c.label, off and C.disabled or (c.lit and C.bright or C.text))
     c.desc:SetAlpha(off and 0.6 or 1)
 end
 
 -- A row that is one big button: hovering lights it, clicking it does what its control does.
+local ROW_HOVER = { x = -6 }
 local function Clickable(c)
-    c.hover = W.Fill(c, C.hover)
-    c.hover:SetPoint("TOPLEFT", -6, 0)
-    c.hover:SetPoint("BOTTOMRIGHT", 6, 0)
-    c.hover:Hide()
+    c.hover = W.Tint(c, C.hover, { radius = 6, x = -6 }, ROW_HOVER)
     c:SetMotionScriptsWhileDisabled(true)
     c:SetScript("OnEnter", function(self)
         if self.off then return end
@@ -599,7 +938,145 @@ local function ValueBox(parent, width)
     return e
 end
 
--- A Blizzard stepper slider with a box showing (and taking) the exact value.
+---------------------------------------------------------------------------
+-- Slider: a stepper at each end and a track between them, filled in the accent up to a round thumb. Pressing the track
+-- moves the thumb there and dragging moves it along (following the cursor once a frame, only while dragging); the
+-- steppers move it a step. Values snap to steps. s:SetRange(low, high, step), s:SetValue(value) (which doesn't call
+-- back), s.onChange(value) for each new value picked, s:SetDisabledLook(off).
+---------------------------------------------------------------------------
+local THUMB, RAIL, STEPPER_W = 12, 4, 14
+
+local function SnapValue(s, value)
+    local steps = math.floor((value - s.low) / s.step + 0.5)
+    return math.min(s.high, math.max(s.low, s.low + steps * s.step))
+end
+
+-- Puts the thumb and the end of the fill at the value.
+local function PlaceThumb(s)
+    local width = s.track:GetWidth()
+    if not (s.value and width and width > THUMB) then return end
+    local span = s.high - s.low
+    local x = THUMB / 2 + (span > 0 and (s.value - s.low) / span or 0) * (width - THUMB)
+    if x == s.thumbX then return end
+    s.thumbX = x
+    s.knob:SetPoint("CENTER", s.track, "LEFT", x, 0)
+    s.fill:SetWidth(math.max(RAIL, x))
+end
+
+-- A stepper dims at the end it can't go past; whatever is pointed at or dragged lights.
+local function PaintSlider(s)
+    local off = s.off
+    W.Paint(s.less.icon, (off or s.value == s.low) and C.disabled or s.less.lit and C.bright or C.header)
+    W.Paint(s.more.icon, (off or s.value == s.high) and C.disabled or s.more.lit and C.bright or C.header)
+    s.halo:SetShown(not off and (s.lit or s.dragging) == true)
+end
+
+local function Pick(s, value)
+    value = SnapValue(s, value)
+    if value == s.value then return end
+    s.value = value
+    PlaceThumb(s)
+    PaintSlider(s)
+    if s.onChange then s.onChange(value) end
+end
+
+local function FollowCursor(s)
+    local track = s.track
+    local left, width = track:GetLeft(), track:GetWidth()
+    if not left or width <= THUMB then return end
+    local x = GetCursorPosition() / track:GetEffectiveScale()
+    local f = math.min(1, math.max(0, (x - left - THUMB / 2) / (width - THUMB)))
+    Pick(s, s.low + f * (s.high - s.low))
+end
+
+local function StopDrag(s)
+    if not s.dragging then return end
+    s.dragging = nil
+    s:SetScript("OnUpdate", nil)
+    PaintSlider(s)
+end
+
+local function Stepper(s, direction, step)
+    local b = CreateFrame("Button", nil, s)
+    b:SetSize(STEPPER_W, 20)
+    b.icon = W.Chevron(b, 10, C.header)
+    b.icon:SetPoint("CENTER")
+    b.icon:Point(direction)
+    b:SetScript("OnClick", function()
+        if s.off then return end
+        Play("U_CHAT_SCROLL_BUTTON")
+        Pick(s, (s.value or s.low) + step * s.step)
+    end)
+    b:SetScript("OnEnter", function(self) self.lit = true; PaintSlider(s) end)
+    b:SetScript("OnLeave", function(self) self.lit = nil; PaintSlider(s) end)
+    return b
+end
+
+function W.Slider(parent)
+    local s = CreateFrame("Frame", nil, parent)
+    s:SetHeight(20)
+    s.low, s.high, s.step = 0, 1, 1
+    s.less, s.more = Stepper(s, "LEFT", -1), Stepper(s, "RIGHT", 1)
+    s.less:SetPoint("LEFT")
+    s.more:SetPoint("RIGHT")
+    local track = CreateFrame("Frame", nil, s)
+    s.track = track
+    track:SetPoint("TOPLEFT", s.less, "TOPRIGHT", 2, 0)
+    track:SetPoint("BOTTOMRIGHT", s.more, "BOTTOMLEFT", -2, 0)
+    track:EnableMouse(true)
+    local rail = CreateFrame("Frame", nil, track)
+    rail:SetHeight(RAIL)
+    rail:SetPoint("LEFT")
+    rail:SetPoint("RIGHT")
+    W.Round(rail)(C.trackOff)
+    s.fill = CreateFrame("Frame", nil, track)
+    s.fill:SetHeight(RAIL)
+    s.fill:SetPoint("LEFT")
+    s.fill:SetFrameLevel(rail:GetFrameLevel() + 1)
+    W.Round(s.fill)(C.trackOn)
+    s.knob = CreateFrame("Frame", nil, track)
+    s.knob:SetSize(THUMB, THUMB)
+    s.knob:SetFrameLevel(rail:GetFrameLevel() + 2)
+    s.halo = W.Dot(s.knob, THUMB + 8, C.halo, nil, "BACKGROUND")
+    s.halo:SetPoint("CENTER")
+    s.halo:Hide()
+    W.Dot(s.knob, THUMB, C.knobOn):SetPoint("CENTER")
+    track:SetScript("OnSizeChanged", function() s.thumbX = nil; PlaceThumb(s) end)
+    track:SetScript("OnEnter", function() s.lit = true; PaintSlider(s) end)
+    track:SetScript("OnLeave", function() s.lit = nil; PaintSlider(s) end)
+    track:SetScript("OnMouseDown", function(_, button)
+        if button ~= "LeftButton" or s.off then return end
+        s.dragging = true
+        FollowCursor(s)
+        PaintSlider(s)
+        s:SetScript("OnUpdate", FollowCursor)
+    end)
+    track:SetScript("OnMouseUp", function() StopDrag(s) end)
+    s:SetScript("OnHide", StopDrag)
+    function s:SetRange(low, high, step)
+        self.low, self.high, self.step = low, high, step or 1
+        self.thumbX = nil
+        PlaceThumb(self)
+    end
+    function s:SetValue(value)
+        if value == self.value then return end
+        self.value = value
+        PlaceThumb(self)
+        PaintSlider(self)
+    end
+    function s:SetDisabledLook(off)
+        off = off and true or false
+        if off == self.off then return end
+        self.off = off
+        if off then StopDrag(self) end
+        self:SetAlpha(off and 0.4 or 1)
+        PaintSlider(self)
+    end
+    PaintSlider(s)
+    return s
+end
+
+-- A slider with a box showing (and taking) the exact value.
 local VALUE_W = 50
 function W.SliderRow(parent)
     local c = NewRow(parent)
@@ -607,34 +1084,24 @@ function W.SliderRow(parent)
     c.value = ValueBox(c, VALUE_W)
     c.value:SetPoint("TOPRIGHT", -2, -ROW_PAD - (HEAD - 20) / 2)
     c.value.onCommit = function(text) if c.onText then c.onText(text) end end
-    c.slider = CreateFrame("Frame", nil, c, "MinimalSliderWithSteppersTemplate")
-    c.slider:SetHeight(20)
+    c.slider = W.Slider(c)
     c.slider:SetPoint("RIGHT", c.value, "LEFT", -6, 0)
-    c.slider:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, value)
-        if not c.updating and c.onChange then c.onChange(value) end
-    end, c)
-    function c:Setup(low, high, step)
-        self.updating = true
-        self.slider:Init(low, low, high, math.max(1, math.floor((high - low) / step + 0.5)), {})
-        self.updating = false
-    end
+    c.slider.onChange = function(value) if c.onChange then c.onChange(value) end end
+    function c:Setup(low, high, step) self.slider:SetRange(low, high, step) end
     function c:Layout(width)
         local control = W.ControlWidth(width)
         self.slider:SetWidth(control - VALUE_W - 6)
         return (PlaceText(self, width, control))
     end
     function c:SetValue(value, text, off)
-        self.updating = true
         self.slider:SetValue(value)
-        self.updating = false
         if text ~= self.shownText then self.shownText = text; self.value:SetValueText(text) end
-        -- The game's slider recolors all its parts each time it's enabled; every refresh of the page comes here.
         off = off and true or false
         if off == self.off then return end
         self.off = off
-        if self.slider.SetEnabled then self.slider:SetEnabled(not off) else self.slider.Slider:SetEnabled(not off) end
+        self.slider:SetDisabledLook(off)
         self.value:SetEnabled(not off)
-        self.value:SetTextColor(unpack(off and C.disabled or C.bright))
+        W.Paint(self.value, off and C.disabled or C.bright)
         DimLabel(self, off)
     end
     return c
@@ -647,14 +1114,13 @@ end
 -- optionally, fontFor(key), a font file to show that entry in.
 ---------------------------------------------------------------------------
 local SELECT_H, MENU_ROW, MENU_ROWS, MENU_PAD, MENU_RADIUS = 24, 20, 14, 4, 7
-local MENU_HOVER = { 1, 0.86, 0.60, 0.10 }
 local menu
 
 local function PaintSelect(s)
     local open = menu and menu:IsShown() and menu.owner == s
     s.SetRim(s.off and C.border or (open or s.lit) and C.accent or C.border)
-    s.label:SetTextColor(unpack(s.off and C.disabled or C.bright))
-    s.chevron:SetVertexColor(unpack(s.off and C.disabled or (open or s.lit) and C.accent or C.header))
+    W.Paint(s.label, s.off and C.disabled or C.bright)
+    W.Paint(s.chevron, s.off and C.disabled or (open or s.lit) and C.accent or C.header)
     s.chevron:Point(open and "UP" or "DOWN")
 end
 
@@ -680,7 +1146,7 @@ local function FillMenu()
             SetEntryFont(row, source.fontFor and source.fontFor(key) or nil)
             row.selected = key == current
             row.check:SetShown(row.selected)
-            row.label:SetTextColor(unpack(row.selected and C.accent or row:IsMouseOver() and C.bright or C.text))
+            W.Paint(row.label, row.selected and C.accent or row:IsMouseOver() and C.bright or C.text)
             row:Show()
         end
     end
@@ -716,11 +1182,11 @@ local function MenuRow(i)
         menu.hover:ClearAllPoints()
         menu.hover:SetAllPoints(self)
         menu.hover:Show()
-        if not self.selected then self.label:SetTextColor(unpack(C.bright)) end
+        if not self.selected then W.Paint(self.label, C.bright) end
     end)
     row:SetScript("OnLeave", function(self)
         menu.hover:Hide()
-        if not self.selected then self.label:SetTextColor(unpack(C.text)) end
+        if not self.selected then W.Paint(self.label, C.text) end
     end)
     row:SetScript("OnClick", function(self)
         Play("U_CHAT_SCROLL_BUTTON")
@@ -745,7 +1211,7 @@ local function CreateMenu()
     menu.fontFile, menu.fontSize, menu.fontFlags = GameFontHighlight:GetFont()
     menu.hover = CreateFrame("Frame", nil, menu)
     menu.hover:SetFrameLevel(menu:GetFrameLevel() + 1)
-    W.Round(menu.hover, 4, 0, "BACKGROUND")(MENU_HOVER)
+    W.Round(menu.hover, 4, 0, "BACKGROUND")(C.menuHover)
     menu.hover:Hide()
     menu.track = CreateFrame("Frame", nil, menu)
     menu.track:SetWidth(3)
@@ -982,7 +1448,7 @@ function W.InputRow(parent, full, onEdit)
         self.saved = saved
         if not kept then e:SetText(saved) end
         e:SetEnabled(not off)
-        e:SetTextColor(unpack(off and C.disabled or C.bright))
+        W.Paint(e, off and C.disabled or C.bright)
         self.off = off
         DimLabel(self, off)
         paint()
@@ -1077,7 +1543,7 @@ function W.TextAreaRow(parent, lines, onEdit)
         self.saved = saved
         if not kept then e:SetText(saved) end
         e:SetEnabled(not off)
-        e:SetTextColor(unpack(off and C.disabled or C.bright))
+        W.Paint(e, off and C.disabled or C.bright)
         self.off = off
         DimLabel(self, off)
         paint()
@@ -1085,16 +1551,18 @@ function W.TextAreaRow(parent, lines, onEdit)
     return c
 end
 
--- A flat button; "primary" ones are filled with the accent color.
-function W.Button(parent, text, style)
+-- A flat button; "primary" ones are filled with the accent color. In `colors` (W.C unless given, W.INGAME in windows
+-- shown in play).
+function W.Button(parent, text, style, colors)
+    local C = colors or C
     local primary = style == "primary"
     local b = CreateFrame("Button", nil, parent)
     b:SetHeight(26)
     -- A pill; pointing at it lights its fill (the hover tint laid over it) and its rim.
     local fill = primary and C.trackOn or C.pane
-    local lit = W.Over(primary and { 1, 1, 1, 0.12 } or C.hover, fill)
+    local lit = primary and C.primaryLit or C.buttonLit
     b.SetBorderColor, b.SetFill = W.Outline(b, nil, primary and C.accent or C.line, fill)
-    local color = primary and { 0.12, 0.08, 0.03 } or C.text
+    local color = primary and C.onAccent or C.text
     b.label = W.Text(b, "GameFontNormal", color, "CENTER")
     b.label:SetPoint("LEFT", 12, 0)
     b.label:SetPoint("RIGHT", -12, 0)
@@ -1111,13 +1579,13 @@ function W.Button(parent, text, style)
     b:SetScript("OnEnter", function(self)
         if self:IsEnabled() then
             self.SetFill(lit); self.SetBorderColor(primary and C.bright or C.accent)
-            if not primary then self.label:SetTextColor(unpack(C.bright)) end
+            if not primary then W.Paint(self.label, C.bright) end
         end
         W.ShowTooltip(self, self.tipTitle, self.tipText)
     end)
     b:SetScript("OnLeave", function(self)
         self.SetFill(fill); self.SetBorderColor(primary and C.accent or C.line)
-        self.label:SetTextColor(unpack(self:IsEnabled() and color or C.disabled))
+        W.Paint(self.label, self:IsEnabled() and color or C.disabled)
         W.HideTooltip(self)
     end)
     b:SetScript("OnMouseDown", function(self) if self:IsEnabled() then self.label:SetPoint("LEFT", 13, -1) end end)
@@ -1125,7 +1593,7 @@ function W.Button(parent, text, style)
     function b:SetDisabled(disabled)
         self:SetEnabled(not disabled)
         self:SetAlpha(disabled and 0.6 or 1)
-        self.label:SetTextColor(unpack(disabled and C.disabled or color))
+        W.Paint(self.label, disabled and C.disabled or color)
     end
     -- Fits the button to its text.
     -- Unbounded: the label is pinned to the button's sides, so its plain string width depends on the button's
@@ -1141,10 +1609,9 @@ end
 -- A titled panel that settings rows sit in; the settings window lays it out (LayoutCard in Panel.lua).
 function W.Card(parent, title)
     local card = CreateFrame("Frame", nil, parent)
-    W.Fill(card, C.card):SetAllPoints()
-    W.Border(card, C.border)
+    card.box = W.Box(card, C.card, C.border)
     if title and title ~= "" then
-        card.title = W.Text(card, "GameFontNormal", C.accent)
+        card.title = W.Text(card, "GameFontNormal", C.title)
         card.title:SetPoint("TOPLEFT", 14, -12)
         card.title:SetText(title)
     end
@@ -1165,7 +1632,7 @@ function W.ScrollArea(parent)
     W.Fill(track, { 1, 1, 1, 0.04 }):SetAllPoints()
     local thumb = CreateFrame("Frame", nil, track)
     thumb:SetWidth(5)
-    thumb.texture = W.Fill(thumb, { C.line[1], C.line[2], C.line[3], 0.7 })
+    thumb.texture = W.Fill(thumb, C.thumb)
     thumb.texture:SetAllPoints()
     thumb:EnableMouse(true)
     area.track, area.thumb = track, thumb
@@ -1295,7 +1762,7 @@ function W.GameButton(parent, text, width)
     b.label:SetText(text)
     function b:SetLit(lit)
         self.glow:SetShown(lit)
-        self.label:SetTextColor(unpack(lit and C.bright or GOLD))
+        W.Paint(self.label, lit and C.bright or GOLD)
     end
     b:SetLit(false)
     return b
