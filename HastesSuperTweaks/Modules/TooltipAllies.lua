@@ -223,36 +223,4 @@ end
 -- line, as in the game.
 local SAMPLE = PIN .. "The Deadmines · 2 days ago"
 local function Previewed(p) return p.recentAllies and Supported() and C_RecentAllies.IsSystemEnabled() == true end
-if T.PreviewLine then
-    T:PreviewLine(7, function(p) if Previewed(p) then return SAMPLE end end)
-else
-    -- A Better Tooltips whose sample has its three lines and the target line in fixed rows: the line goes in the fourth
-    -- row, and the sample grows to fit.
-    local Draw = T.DrawPreview
-    function T:DrawPreview(frame)
-        Draw(self, frame)
-        local v = frame.hstTip
-        if not v then return end
-        local shown = Previewed(self.db.profile)
-        -- Off and not shown before, the sample stays as drawn.
-        if not (shown or v.allyShown) then return end
-        if shown and not v.ally then
-            v.ally = ns.Widgets.Text(v.box, "GameFontHighlightSmall")
-            v.ally:SetPoint("TOPLEFT", 8, -7 - 3 * 14)
-            v.ally:SetText(SAMPLE)
-            v.allyWidth = max(150, floor(v.ally:GetStringWidth() + 17))
-        end
-        if shown ~= v.allyShown then
-            v.allyShown = shown
-            v.ally:SetShown(shown)
-            v.box:SetWidth(shown and v.allyWidth or 150)
-        end
-        -- The extras put their target line in the fourth row when they first show it, and set the height for it.
-        local row = shown and 4 or 3
-        if v.target and v.targetRow ~= row then
-            v.targetRow = row
-            v.target:SetPoint("TOPLEFT", 8, -7 - row * 14)
-        end
-        if shown then v.box:SetHeight(10 + (self.db.profile.targetLine and 5 or 4) * 14) end
-    end
-end
+T:PreviewLine(7, function(p) if Previewed(p) then return SAMPLE end end)

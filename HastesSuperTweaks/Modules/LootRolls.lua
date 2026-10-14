@@ -110,17 +110,19 @@ function R:Position()
     return 0, self.DEFAULT_Y
 end
 
--- The roll frames: the game's four, and whatever else it shows in their place (bonus rolls).
-local function Rolls(container, fn)
-    for i = 1, 4 do
-        local roll = _G["GroupLootFrame" .. i]
-        if roll then fn(roll) end
-    end
-    for _, roll in pairs(container.rollFrames or {}) do fn(roll) end
+-- Sizes the roll frames: the game's four, and whatever else it shows in their place (bonus rolls).
+local function ScaleRoll(roll, scale)
+    if roll.SetScale and roll:GetScale() ~= scale then roll:SetScale(scale) end
 end
-
-local function Scale(scale)
-    return function(roll) if roll.SetScale and roll:GetScale() ~= scale then roll:SetScale(scale) end end
+local ROLL_NAMES = { "GroupLootFrame1", "GroupLootFrame2", "GroupLootFrame3", "GroupLootFrame4" }
+local function ScaleRolls(container, scale)
+    for i = 1, #ROLL_NAMES do
+        local roll = _G[ROLL_NAMES[i]]
+        if roll then ScaleRoll(roll, scale) end
+    end
+    if container.rollFrames then
+        for _, roll in pairs(container.rollFrames) do ScaleRoll(roll, scale) end
+    end
 end
 
 -- Fastens the rolls to the holder (once placed) and gives them their size. The game places each roll a step
@@ -132,7 +134,7 @@ function R:Place()
     local p = self.db.profile
     if p.scale ~= 1 or self.scaled then
         self.scaled = p.scale ~= 1
-        Rolls(container, Scale(p.scale))
+        ScaleRolls(container, p.scale)
     end
     if not p.x then return end
     local h = self:Holder()
@@ -155,7 +157,9 @@ function R:Hook()
     if column and column.Layout then hooksecurefunc(column, "Layout", place) end
 end
 
+-- Profile changes reach this while it's off too; the holder and hooks are made once it's first turned on.
 function R:Apply()
+    if not (self.holder or self:IsEnabled()) then return end
     local h, scale = self:Holder(), self.db.profile.scale
     local x, y = self:Position()
     h:SetSize(self.WIDTH * scale, self.HEIGHT * scale)
@@ -175,7 +179,7 @@ end
 function R:OnDisable()
     if self.scaled and GroupLootContainer then
         self.scaled = nil
-        Rolls(GroupLootContainer, Scale(1))
+        ScaleRolls(GroupLootContainer, 1)
     end
     self:Apply()
     self:UpdateEditMode(false)

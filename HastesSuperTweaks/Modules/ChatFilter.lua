@@ -164,10 +164,11 @@ end
 
 -- Notes whether a player unit is in a muted guild, and returns that guild (nil when not, or when it can't be told).
 function F:Learn(unit)
-    local guid = UnitGUID(unit)
-    if IsSecret(guid) or not guid then return nil end
+    -- Most units seen are not players: asked first.
     local player = UnitIsPlayer(unit)
     if IsSecret(player) or not player then return nil end
+    local guid = UnitGUID(unit)
+    if IsSecret(guid) or not guid then return nil end
     local members, guild = self.db.global.guildMembers, GuildOf(unit)
     -- No guild yet may only mean the game hasn't been told it: what's known stays.
     if not guild then return members[guid] end

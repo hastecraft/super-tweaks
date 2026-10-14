@@ -632,13 +632,18 @@ function ns.HookUnitTooltip(fn)
 end
 
 -- The first left-hand tooltip line after the title whose text contains `text` (with exact, is `text`), and that text.
--- Lines holding secret text are skipped. Line names are built once per tooltip and index.
+-- Lines holding secret text are skipped. Line names are built once per tooltip and index, by the tooltip (false for one
+-- without a name).
 local lineNames = {}
 function ns.FindTooltipLine(tip, text, exact)
-    local prefix = tip:GetName()
-    if not prefix then return nil end
-    local names = lineNames[prefix]
-    if not names then names = {}; lineNames[prefix] = names end
+    local names = lineNames[tip]
+    if names == nil then
+        local name = tip:GetName()
+        names = name and { prefix = name } or false
+        lineNames[tip] = names
+    end
+    if not names then return nil end
+    local prefix = names.prefix
     for i = 2, tip:NumLines() do
         local name = names[i]
         if not name then name = prefix .. "TextLeft" .. i; names[i] = name end

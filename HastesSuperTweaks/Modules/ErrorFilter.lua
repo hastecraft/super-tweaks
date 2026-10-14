@@ -80,7 +80,8 @@ function E:Apply(fighting)
     local frame = UIErrorsFrame
     if not (frame and frame.SetMessageTypeEnabled) then return end
     local p, on = self.db.profile, self:IsEnabled()
-    if self.events then
+    -- Combat's own events (fighting given) change neither.
+    if fighting == nil and self.events then
         for _, event in ipairs(COMBAT) do
             if on and p.combatOnly then self.events:RegisterEvent(event) else self.events:UnregisterEvent(event) end
         end
@@ -90,10 +91,14 @@ function E:Apply(fighting)
     wipe(wanted)
     for _, kind in ipairs(self.KINDS) do
         if hide and p[kind.key] then
-            for _, name in ipairs(kind.errors) do
-                local errorType = _G["LE_GAME_" .. name]
-                if errorType then wanted[errorType] = true end
+            -- The game's error types for its names, looked up once (those this client lacks are left out).
+            local types = kind.types
+            if not types then
+                types = {}
+                for _, name in ipairs(kind.errors) do types[#types + 1] = _G["LE_GAME_" .. name] end
+                kind.types = types
             end
+            for i = 1, #types do wanted[types[i]] = true end
         end
     end
     for errorType in pairs(added) do

@@ -147,7 +147,8 @@ function Mixin:OnEditModeExit() self:UpdateEditMode(false) end
 -- event, so the window itself is watched too. Hooks can't be removed; UpdateEditMode checks the module state.
 local modules = {}
 local function FollowWindow()
-    for _, module in ipairs(modules) do module:UpdateEditMode() end
+    local open = E.IsOpen() -- the same for every module
+    for _, module in ipairs(modules) do module:UpdateEditMode(open) end
 end
 function E.HookWindow()
     local manager = EditModeManagerFrame

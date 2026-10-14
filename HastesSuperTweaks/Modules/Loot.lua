@@ -138,7 +138,8 @@ local function IsLootError(errorType, message)
     return false
 end
 
--- A Fast Loot session runs from auto loot opening until it closes: the slots tried, and whether an error stopped it.
+-- A Fast Loot session runs from auto loot opening until it closes: the slots tried (session[slot]), and whether an
+-- error stopped it.
 -- Closing the loot or turning the module off ends it, and nothing started for it (a retry waiting on its timer)
 -- acts after that; looting that opens later starts afresh.
 function F:EndSession()
@@ -154,10 +155,10 @@ function F:TakeAll(session)
     if not session or session ~= self.session or session.stopped or not self:IsEnabled() then return end
     local threshold = MasterLooter() and GetLootThreshold and GetLootThreshold()
     for slot = 1, GetNumLootItems() do
-        if not session.tried[slot] and LootSlotHasItem(slot) then
+        if not session[slot] and LootSlotHasItem(slot) then
             local _, _, _, _, quality, locked = GetLootSlotInfo(slot)
             if not locked and not (threshold and (quality or 0) >= threshold) then
-                session.tried[slot] = true
+                session[slot] = true
                 LootSlot(slot)
             end
         end
@@ -171,7 +172,7 @@ ns.Listen(F, { "LOOT_READY", "LOOT_OPENED", "LOOT_SLOT_CHANGED", "LOOT_CLOSED", 
         if IsAutoLoot(arg) then
             local session = self.session
             if not session then
-                session = { tried = {} }
+                session = {}
                 self.session = session
                 self.events:RegisterEvent("UI_ERROR_MESSAGE")
             end
@@ -180,13 +181,19 @@ ns.Listen(F, { "LOOT_READY", "LOOT_OPENED", "LOOT_SLOT_CHANGED", "LOOT_CLOSED", 
             if self.db.profile.speed ~= "MODERATE" then
                 self:TakeAll(session)
             elseif event == "LOOT_OPENED" then
-                C_Timer.After(0, function() self:TakeAll(session) end)
+                self.takeSession = session
+                self.takeNext = self.takeNext or function()
+                    local waiting = self.takeSession
+                    self.takeSession = nil
+                    self:TakeAll(waiting)
+                end
+                C_Timer.After(0, self.takeNext)
             end
         end
     elseif event == "LOOT_SLOT_CHANGED" then
         local session = self.session
         if session and not session.stopped then
-            session.tried[arg] = nil
+            session[arg] = nil
             -- Changes come in bursts; try once they settle.
             if self.retry then self.retry:Cancel() end
             self.retry = C_Timer.NewTimer(0.3, function() self.retry = nil; self:TakeAll(session) end)
@@ -195,7 +202,7 @@ ns.Listen(F, { "LOOT_READY", "LOOT_OPENED", "LOOT_SLOT_CHANGED", "LOOT_CLOSED", 
         -- Only for what Fast Loot is taking: binding an item you loot by hand (after an error stopped it, say) stays
         -- your choice.
         local session = self.session
-        if session and session.tried[arg] and not session.stopped and self.db.profile.soloBind and not IsInGroup() then
+        if session and session[arg] and not session.stopped and self.db.profile.soloBind and not IsInGroup() then
             ConfirmLootSlot(arg)
             -- The game shows its confirmation for this event too (for this slot); close it once it has.
             C_Timer.After(0, function() StaticPopup_Hide("LOOT_BIND", arg) end)
@@ -544,6 +551,7 @@ local function CreateRow(window)
         local item = r.item
         if not (item and (item.slot or item.link)) then return end
         r.hover:Show()
+        r.hovered = true -- for the layouts, which don't ask the game
         GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
         if item.slot then GameTooltip:SetLootItem(item.slot) else GameTooltip:SetHyperlink(item.link) end
         GameTooltip:Show()
@@ -551,6 +559,7 @@ local function CreateRow(window)
     row:SetScript("OnEnter", row.Enter)
     row:SetScript("OnLeave", function(r)
         r.hover:Hide()
+        r.hovered = nil
         ns.Widgets.HideTooltip(r)
     end)
     row:SetScript("OnClick", function(r)
@@ -573,7 +582,7 @@ local function NoticeMouse(p)
     return p.hoverStay and not (p.combatClickThrough and (inCombat or InCombatLockdown()))
 end
 
--- Fills a row; notices (manual false) show what arrived as "+N name".
+-- Fills a row; notices (manual false) show what arrived as "+N name". Returns the row's text.
 local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     local C = ns.Widgets.INGAME
     row.item = item
@@ -614,6 +623,7 @@ local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     local owned = p.ownedCount and L.Owned(item)
     row.shownOwned = owned
     row.owned:SetText(owned and owned > 0 and (owned .. " owned") or "")
+    return text
 end
 
 local NO_HOVER = { 0, 0, 0, 0 }
@@ -691,8 +701,10 @@ end
 -- Lays out a window built by BuildWindow: items, and money ({ amount = copper, text = shown when there is no amount,
 -- slot = loot slot }) for the bottom line. p holds the display settings (see L:Look). The top bar with Take All
 -- shows when looting by hand; with a note (what auto looting left, and why), the note shows in it, and Take All
--- without its key.
-function L:Layout(f, items, manual, p, money, note)
+-- without its key. placed: the caller places the rows itself right after (the auto loot list's animation).
+function L:Layout(f, items, manual, p, money, note, placed)
+    -- Rows past the last layout's are hidden already.
+    local before = f.itemCount or #f.rows
     f.itemCount = #items
     local header = manual
     local inset, edge, extra = Insets(p)
@@ -733,18 +745,20 @@ function L:Layout(f, items, manual, p, money, note)
     for i, item in ipairs(items) do
         local row = f.rows[i] or CreateRow(f)
         f.rows[i] = row
-        FillRow(row, item, manual, p, font, flags, noticeMouse)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, -(top + (i - 1) * rowHeight))
-        row:SetPoint("TOPRIGHT", 0, -(top + (i - 1) * rowHeight))
-        row:SetAlpha(1)
-        row.animX, row.animY, row.animAlpha = nil, nil, nil -- placed here; the notices' animation starts over
+        local text = FillRow(row, item, manual, p, font, flags, noticeMouse)
+        if not placed then
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", 0, -(top + (i - 1) * rowHeight))
+            row:SetPoint("TOPRIGHT", 0, -(top + (i - 1) * rowHeight))
+            row:SetAlpha(1)
+        end
+        row.animX, row.animY, row.animAlpha = nil, nil, nil -- placed anew; the notices' animation starts over
         row:Show()
-        f.measure:SetText(row.label:GetText())
+        f.measure:SetText(text)
         widest = math.max(widest, p.iconSize + 8 + f.measure:GetStringWidth() + row.owned:GetStringWidth() + 18)
         best = math.max(best, item.quality or 1)
     end
-    for i = #items + 1, #f.rows do f.rows[i]:Hide() end
+    for i = #items + 1, math.min(before, #f.rows) do f.rows[i]:Hide() end
     -- Money on its own line at the bottom: "+9" and the coin while auto looting.
     local footer, footerHeight = f.footer, 0
     footer:SetShown(money ~= nil)
@@ -783,12 +797,14 @@ function L:Layout(f, items, manual, p, money, note)
     -- while it has a background.
     local r, g, b = QualityColor(best)
     local lit = p.qualityBorder and best >= 2
+    -- Each is laid out only while it shows (every layout that shows it lays it out first).
     local border = p.border and (manual or p.noticeAlpha > 0)
-    f.edges:Layout(f, ns.Pixels(f, p.borderSize), false)
+    if border then f.edges:Layout(f, ns.Pixels(f, p.borderSize), false) end
     f.edges:SetShown(border)
     if lit then f.edges:SetColor(r, g, b, 1) else f.edges:SetColor(unpack(p.borderColor)) end
-    f.glow:Layout(f, ns.Pixels(f, 2), true)
-    f.glow:SetShown(border and lit and p.glow)
+    local glow = border and lit and p.glow
+    if glow then f.glow:Layout(f, ns.Pixels(f, 2), true) end
+    f.glow:SetShown(glow)
     f.glow:SetColor(r, g, b, 0.35)
 end
 
@@ -1013,20 +1029,23 @@ function L:ShowManual(items, money)
     self.mode, self.money = auto and "leftovers" or "loot", money
     wipe(self.notices)
     self.noticeMoney = 0
-    f:SetScript("OnUpdate", nil)
-    f:EnableMouse(true)
+    -- Already up with loot to take (only this puts it there), the window is set as it needs.
+    if not shown then
+        f:SetScript("OnUpdate", nil)
+        f:EnableMouse(true)
+    end
     self:CloseOnEscape(true)
     self:Layout(f, items, true, self.db.profile, money, auto and self:LeftNote(items) or nil)
     if not shown then self:Place(not auto and self.db.profile.underMouse) end
     WindowAlpha(f, 1)
-    f:Show()
+    if not shown then f:Show() end
     f:Raise()
     if flash then self:Flash(f) end
     self:UpdateHotkey()
     self:WatchBags()
     -- Taking an item moves the ones below it up: the row under the mouse now holds another item, so show its tooltip.
     for _, row in ipairs(f.rows) do
-        if row:IsShown() and row.hover:IsShown() then row.Enter(row) end
+        if row.hovered and row:IsShown() then row.Enter(row) end
     end
     return true
 end
@@ -1135,16 +1154,19 @@ end
 function L:QueueNotices()
     if self.noticesQueued then return end
     self.noticesQueued = true
-    C_Timer.After(0, function()
+    self.flushNotices = self.flushNotices or function()
         self.noticesQueued = nil
         -- Looting by hand may have taken over the window meanwhile.
         if self:IsEnabled() and not LOOTING[self.mode] then self:ShowNotices() end
-    end)
+    end
+    C_Timer.After(0, self.flushNotices)
 end
 
 function L:ShowNotices()
     local f = self:Window()
-    local money = self.noticeMoney > 0 and { amount = self.noticeMoney } or nil
+    -- The money line's table is used again: Layout only reads it.
+    local money = self.noticeMoney > 0 and (self.noticeLine or {}) or nil
+    if money then money.amount, self.noticeLine = self.noticeMoney, money end
     if #self.notices == 0 and not money then return f:Hide() end
     local appearing = not (f:IsShown() and self.mode == "notices")
     self.mode = "notices"
@@ -1153,7 +1175,8 @@ function L:ShowNotices()
     f:SetScript("OnUpdate", self.animate)
     f:EnableMouse(false)
     self:CloseOnEscape(false)
-    self:Layout(f, self.notices, false, self.db.profile, money)
+    -- Its rows are placed by the animation, below, unless that waits for the list to be drawn again.
+    self:Layout(f, self.notices, false, self.db.profile, money, nil, not self.noticesQueued)
     f.settled = nil
     if appearing then
         self:Place(false)
@@ -1171,7 +1194,7 @@ function L:NoticeRowsMouse()
     if not (f and f:IsShown()) then return end
     for _, row in ipairs(f.rows) do
         if row:IsShown() then
-            if not mouse and row.hover:IsShown() then row:GetScript("OnLeave")(row) end
+            if not mouse and row.hovered then row:GetScript("OnLeave")(row) end
             row:EnableMouse(mouse and row.item ~= nil and row.item.link ~= nil)
         end
     end

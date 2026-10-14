@@ -183,12 +183,14 @@ end
 -- Expiring mail
 ---------------------------------------------------------------------------
 -- Records when this character's mail holding items or gold expires. The inbox shows at most 50 mails; the rest are
--- counted as not seen.
+-- counted as not seen. The saved tables are used again (the inbox updates many times at a mailbox).
 function M:ScanInbox()
     local me = self:Me()
     if not me then return end
     local shown, total = GetInboxNumItems()
-    local now, times = time(), {}
+    local mail = me.mail or {}
+    local now, times = time(), mail.times or {}
+    wipe(times)
     for i = 1, shown or 0 do
         local _, _, _, _, money, _, daysLeft, itemCount = GetInboxHeaderInfo(i)
         if type(daysLeft) == "number" and ((money or 0) > 0 or (itemCount or 0) > 0) then
@@ -196,7 +198,8 @@ function M:ScanInbox()
         end
     end
     table.sort(times)
-    me.mail = { times = times, unseen = math.max(0, (total or 0) - (shown or 0)) }
+    mail.times, mail.unseen = times, math.max(0, (total or 0) - (shown or 0))
+    me.mail = mail
 end
 
 local function Plural(n, word) return n .. " " .. word .. (n == 1 and "" or "s") end

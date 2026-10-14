@@ -108,6 +108,10 @@ C_Container = {
     GetContainerItemID = function(bag, slot) local b = BAGS[bag] and BAGS[bag][slot]; return b and b[1] end,
 }
 C_Item = {
+    GetStackCount = function(location)
+        local b = BAGS[location.bagID] and BAGS[location.bagID][location.slotIndex]
+        return b and b[2]
+    end,
     GetItemInfo = function(id)
         local i = ITEMS[id]
         if not i or not i.name then return nil end

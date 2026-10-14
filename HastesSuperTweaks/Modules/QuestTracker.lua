@@ -103,7 +103,8 @@ end
 function T:Update()
     local tracker = ObjectiveTrackerFrame
     if not tracker then return end
-    self:Hook(tracker)
+    -- Hooked once it's on: turned off, it only gives the tracker back.
+    if self:IsEnabled() then self:Hook(tracker) end
     if self.events then self:WatchCombat() end
     local hide = self:ShouldHide()
     local isHidden = hidden ~= nil and tracker:GetParent() == hidden

@@ -243,12 +243,15 @@ local function Mark(row)
     return mark
 end
 
--- After the game draws the inbox: marks its rows.
+-- After the game draws the inbox: marks its rows. Turned off (the hook stays), it only takes marks away.
 function G:MarkRows()
-    local on = self:IsEnabled()
+    if not self:IsEnabled() then
+        for _, mark in pairs(marks) do mark:Hide() end
+        return
+    end
     for row = 1, INBOXITEMS_TO_DISPLAY or 7 do
         local button = _G["MailItem" .. row .. "Button"]
-        local why = on and button and button:IsShown() and button.index and self:Flag(button.index)
+        local why = button and button:IsShown() and button.index and self:Flag(button.index)
         if why then
             local mark = Mark(row)
             mark.index = button.index

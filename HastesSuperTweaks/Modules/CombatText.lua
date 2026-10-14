@@ -445,10 +445,9 @@ function S:Show(lane, color, kind, fmt, a, b)
     if onWorld then
         level = p.plateLevel
         -- Without a nameplate to be part of, behind the nameplates up, or on the world's frame.
+        -- Place hosts those below, before it shows.
         f.hostLevel = (mode == "WORLD" or not lane.plate) and level or nil
-        if f.hostLevel then
-            Host(f, now, lane.plate or WorldFrame)
-        elseif f:GetParent() ~= lane.plate then
+        if not f.hostLevel and f:GetParent() ~= lane.plate then
             f:SetParent(lane.plate)
             f.shownLevel, f.shownScale = nil, nil
         end
@@ -736,8 +735,9 @@ function S:WatchPlate(plate, unit)
         watchers[plate] = watcher
     end
     if watcher.unit == unit then return end
+    -- One without a unit listens to nothing.
+    if watcher.unit then watcher:UnregisterAllEvents() end
     watcher.unit = unit
-    watcher:UnregisterAllEvents()
     if unit and not IsYou(unit) then watcher:RegisterUnitEvent("UNIT_COMBAT", unit) end
 end
 
@@ -772,6 +772,7 @@ function S:OnPlateRemoved(unit)
     local spot, guid = self.spotLane, UnitGUID and UnitGUID("target")
     spot.x, spot.y, spot.at, spot.hitAt, spot.hostile = x, y, GetTime(), lane and lane.hitAt, lane and lane.hostile
     spot.guid = not IsSecret(guid) and guid or nil
+    self.enemyEvents:RegisterUnitEvent("UNIT_COMBAT", "target")
 end
 
 -- Where a nameplate is now: its center from the screen's middle, in UI units. The game won't measure a nameplate
@@ -816,11 +817,14 @@ end
 -- Your target's hits while its nameplate shows are shown there, by the nameplate's own watcher. For SPOT_FOR seconds
 -- after it went (its mob dying: the game may take the nameplate away before the killing blow arrives), they're shown
 -- where it was, unless the nameplate's watcher showed one that same moment (the same hit, under its other token).
+-- Your target's hits are listened to only from its nameplate going (see S:OnPlateRemoved) until the first one past
+-- then.
 S.SPOT_FOR = 1
 S.spotLane = { spot = true, texts = {}, dir = 1 }
 function S:OnTargetHit(unit, ...)
     local spot, now = self.spotLane, GetTime()
-    if not spot.at or now - spot.at > self.SPOT_FOR or spot.hitAt == now then return end
+    if not spot.at or now - spot.at > self.SPOT_FOR then return self.enemyEvents:UnregisterEvent("UNIT_COMBAT") end
+    if spot.hitAt == now then return end
     if C_NamePlate.GetNamePlateForUnit("target") then return end
     local guid = UnitGUID and UnitGUID("target")
     if spot.guid and not IsSecret(guid) and guid ~= spot.guid then return end
@@ -1058,9 +1062,11 @@ end
 
 local MANA = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 local COMBO = Enum and Enum.PowerType and Enum.PowerType.ComboPoints or 14
+-- The game may not take your target as a unit addons can ask about (in a PvP match): then there are none to read.
 local function ComboPoints()
-    if GetComboPoints then return GetComboPoints("player", "target") end
-    return UnitPower("player", COMBO)
+    if not GetComboPoints then return UnitPower("player", COMBO) end
+    local ok, points = pcall(GetComboPoints, "player", "target")
+    if ok then return points end
 end
 
 -- Combo points belong to a target: the count gains are measured from is read again when the target changes, and on
@@ -1178,8 +1184,11 @@ function S:UpdateEvents()
         Register(general, "NAME_PLATE_UNIT_ADDED")
         Register(general, "NAME_PLATE_UNIT_REMOVED")
     end
-    -- On nameplates, your target's hits catch a killing blow that comes after its nameplate went.
-    if OwnEnemyNumbers(p) then Register(enemies, "UNIT_COMBAT", "target") end
+    -- On nameplates, your target's hits catch a killing blow that comes after its nameplate went (see S:OnTargetHit).
+    local spot = self.spotLane
+    if p.enemyMode == "AREA" or (p.enemyMode == "NAMEPLATE" and spot.at and GetTime() - spot.at <= self.SPOT_FOR) then
+        Register(enemies, "UNIT_COMBAT", "target")
+    end
 end
 
 -- Screen pixels in one unit of the interface (texts on the world's frame are matched to it, see Place): its scale times
@@ -1456,6 +1465,7 @@ function S:Apply()
 end
 
 function S:OnEnable()
+    self:AddEditors()
     self.lowHealth, self.lowMana, self.comboPoints = nil, nil, nil
     self:Apply()
     HST.LSM.RegisterCallback(self, "LibSharedMedia_Registered", function(_, kind, name)
@@ -1582,27 +1592,32 @@ function S:PlaceBox(key)
     box:SetPoint("CENTER", UIParent, "CENTER", area.x, area.y)
 end
 
-for _, spec in ipairs(EDITORS) do
-    local key = spec.key
-    local editor = { info = { name = spec.name } }
-    function editor:GetName() return S:GetName() end
-    function editor:IsEnabled() return S:IsEnabled() and S:AreaUsed(key) end
-    function editor:EditFrame() return S:AreaBox(key) end
-    function editor:GetPosition() local area = S.db.profile[key]; return area.x, area.y end
-    function editor:SetPosition(x, y) local area = S.db.profile[key]; area.x, area.y = x, y end
-    function editor:EditSize() local box = S:AreaBox(key); return box:GetWidth(), box:GetHeight() end
-    function editor:EditPlace(x, y)
-        local box = S:AreaBox(key)
-        box:ClearAllPoints()
-        box:SetPoint("CENTER", UIParent, "CENTER", x, y)
+-- Added the first time this is turned on (it starts off), so Edit Mode isn't followed for it before then.
+function S:AddEditors()
+    if self.editorsAdded then return end
+    self.editorsAdded = true
+    for _, spec in ipairs(EDITORS) do
+        local key = spec.key
+        local editor = { info = { name = spec.name } }
+        function editor:GetName() return S:GetName() end
+        function editor:IsEnabled() return S:IsEnabled() and S:AreaUsed(key) end
+        function editor:EditFrame() return S:AreaBox(key) end
+        function editor:GetPosition() local area = S.db.profile[key]; return area.x, area.y end
+        function editor:SetPosition(x, y) local area = S.db.profile[key]; area.x, area.y = x, y end
+        function editor:EditSize() local box = S:AreaBox(key); return box:GetWidth(), box:GetHeight() end
+        function editor:EditPlace(x, y)
+            local box = S:AreaBox(key)
+            box:ClearAllPoints()
+            box:SetPoint("CENTER", UIParent, "CENTER", x, y)
+        end
+        function editor:ApplyEditMode()
+            if self.editMode then S:PlaceBox(key) end
+            S:AreaBox(key):SetShown(self.editMode == true)
+            S:UpdateSampleLoop()
+        end
+        ns.EditMode.Add(editor)
+        S.editors[key] = editor
     end
-    function editor:ApplyEditMode()
-        if self.editMode then S:PlaceBox(key) end
-        S:AreaBox(key):SetShown(self.editMode == true)
-        S:UpdateSampleLoop()
-    end
-    ns.EditMode.Add(editor)
-    S.editors[key] = editor
 end
 
 -- Areas follow Edit Mode (active false leaves it), and boxes showing follow changed settings.
