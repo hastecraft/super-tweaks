@@ -1062,9 +1062,11 @@ end
 
 local MANA = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 local COMBO = Enum and Enum.PowerType and Enum.PowerType.ComboPoints or 14
+-- The game may not take your target as a unit addons can ask about (in a PvP match): then there are none to read.
 local function ComboPoints()
-    if GetComboPoints then return GetComboPoints("player", "target") end
-    return UnitPower("player", COMBO)
+    if not GetComboPoints then return UnitPower("player", COMBO) end
+    local ok, points = pcall(GetComboPoints, "player", "target")
+    if ok then return points end
 end
 
 -- Combo points belong to a target: the count gains are measured from is read again when the target changes, and on
