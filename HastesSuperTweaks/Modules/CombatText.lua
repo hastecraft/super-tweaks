@@ -772,6 +772,7 @@ function S:OnPlateRemoved(unit)
     local spot, guid = self.spotLane, UnitGUID and UnitGUID("target")
     spot.x, spot.y, spot.at, spot.hitAt, spot.hostile = x, y, GetTime(), lane and lane.hitAt, lane and lane.hostile
     spot.guid = not IsSecret(guid) and guid or nil
+    self.enemyEvents:RegisterUnitEvent("UNIT_COMBAT", "target")
 end
 
 -- Where a nameplate is now: its center from the screen's middle, in UI units. The game won't measure a nameplate
@@ -816,11 +817,14 @@ end
 -- Your target's hits while its nameplate shows are shown there, by the nameplate's own watcher. For SPOT_FOR seconds
 -- after it went (its mob dying: the game may take the nameplate away before the killing blow arrives), they're shown
 -- where it was, unless the nameplate's watcher showed one that same moment (the same hit, under its other token).
+-- Your target's hits are listened to only from its nameplate going (see S:OnPlateRemoved) until the first one past
+-- then.
 S.SPOT_FOR = 1
 S.spotLane = { spot = true, texts = {}, dir = 1 }
 function S:OnTargetHit(unit, ...)
     local spot, now = self.spotLane, GetTime()
-    if not spot.at or now - spot.at > self.SPOT_FOR or spot.hitAt == now then return end
+    if not spot.at or now - spot.at > self.SPOT_FOR then return self.enemyEvents:UnregisterEvent("UNIT_COMBAT") end
+    if spot.hitAt == now then return end
     if C_NamePlate.GetNamePlateForUnit("target") then return end
     local guid = UnitGUID and UnitGUID("target")
     if spot.guid and not IsSecret(guid) and guid ~= spot.guid then return end
@@ -1178,8 +1182,11 @@ function S:UpdateEvents()
         Register(general, "NAME_PLATE_UNIT_ADDED")
         Register(general, "NAME_PLATE_UNIT_REMOVED")
     end
-    -- On nameplates, your target's hits catch a killing blow that comes after its nameplate went.
-    if OwnEnemyNumbers(p) then Register(enemies, "UNIT_COMBAT", "target") end
+    -- On nameplates, your target's hits catch a killing blow that comes after its nameplate went (see S:OnTargetHit).
+    local spot = self.spotLane
+    if p.enemyMode == "AREA" or (p.enemyMode == "NAMEPLATE" and spot.at and GetTime() - spot.at <= self.SPOT_FOR) then
+        Register(enemies, "UNIT_COMBAT", "target")
+    end
 end
 
 -- Screen pixels in one unit of the interface (texts on the world's frame are matched to it, see Place): its scale times
