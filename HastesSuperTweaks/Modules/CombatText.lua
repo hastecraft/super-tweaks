@@ -25,13 +25,13 @@ local function Area(x, y, animation, height, fontSize, duration)
     return { x = x, y = y, animation = animation, height = height, fontSize = fontSize, duration = duration, align = "CENTER" }
 end
 local defaults = {
-    replaceBlizzard = true, font = "", textScale = 1, outline = "OUTLINE", slug = true, numbers = "SHORT", schoolColors = true, icons = true,
-    fadeIn = true, critScale = 1.5, critPop = true, stickyCrits = true, missScale = 1,
+    replaceBlizzard = true, font = "", textScale = 1, outline = "OUTLINE", slug = true, numbers = "SHORT", schoolColors = true,
+    fadeIn = true, critScale = 1.5, critPop = true, critShake = false, stickyCrits = true, missScale = 1,
     incoming = Area(-260, -40, "UP", 160, 18, 2.5),
     inDamage = true, inHeals = true, inMisses = true, inReduction = true, inEnergy = false, inPet = false,
     inDamageMin = 0, inHealMin = 0,
     damageColor = { 1, 0.15, 0.15, 1 }, healColor = { 0.2, 1, 0.2, 1 }, missColor = { 1, 1, 1, 1 },
-    enemyMode = "NAMEPLATE", enemyTargetOnly = false, skipTapped = true, enemyMisses = true, enemyMin = 0,
+    enemyMode = "GAME", enemyTargetOnly = false, skipTapped = true, enemyMisses = true, enemyMin = 0,
     enemyColor = { 1, 1, 1, 1 }, enemyCritColor = { 1, 0.82, 0, 1 }, hideWorldDamage = true, gameDamageSize = 1,
     plateAnimation = "FOUNTAIN", plateSize = 20, plateHeight = 120, plateDuration = 1.6, plateOffset = 60,
     plateLayer = "WORLD", plateLevel = 0,
@@ -133,12 +133,21 @@ function S:Amount(amount)
 end
 
 ---------------------------------------------------------------------------
--- Texts: pooled frames (a font string with an icon to its left) that one frame moves every frame while any shows.
+-- Texts: pooled frames (each a font string) that one frame moves every frame while any shows.
 -- Each belongs to a lane: a scroll area, or an enemy's nameplate.
 ---------------------------------------------------------------------------
 -- Texts fade in from half shown, so they're seen the moment their hit arrives (unless Fade in is off: then they show
 -- fully at once), and fade out over the end of their time.
 S.FADE_IN, S.FADE_FROM, S.FADE_OUT, S.POP = 0.08, 0.5, 0.25, 0.15 -- seconds; alpha; share of the duration; seconds
+-- Shaking critical hits jolt about for SHAKE seconds, up to SHAKE_SIZE of their text size away, settling as they go;
+-- SHAKE_SPEED is how fast (radians a second).
+S.SHAKE, S.SHAKE_SIZE, S.SHAKE_SPEED = 0.3, 0.25, 70
+-- Texts are laid out in a box this wide (see S:Show).
+S.TEXT_BOX = 600
+-- Without Slug, the game draws a text's letters as pictures at their size on screen, and cuts the outline off letters
+-- much taller than this many pixels (a critical hit popping on a 4K screen). A text is never scaled past it: the rest
+-- of the way, it's stretched (see Place), as the game's own critical hits are.
+S.MOST_PIXELS = 150
 -- Blinking texts (spell alerts, when chosen) dip to BLINK_LOW of their opacity and back every BLINK seconds.
 S.BLINK, S.BLINK_LOW = 0.5, 0.2
 S.MOST, S.MOST_ON_PLATE = 20, 8
@@ -251,9 +260,17 @@ local function Place(f, now)
     -- Numbers left behind by their nameplate go behind the nameplates still up, or onto the world's frame.
     if f.hostLevel then parent = Host(f, now, plate or WorldFrame) end
     local dx, dy = Motion(f, t)
+    if f.shake and age < S.SHAKE then
+        local reach = f.size * S.SHAKE_SIZE * (1 - age / S.SHAKE)
+        dx, dy = dx + reach * sin(age * S.SHAKE_SPEED), dy + reach * cos(age * S.SHAKE_SPEED * 1.3)
+    end
     local push = f.anim == "DOWN" and -f.push or f.push
     local scale = f.kindScale
     if f.pop and age < S.POP then scale = scale * (2 - age / S.POP) end
+    -- Past the largest scale its letters keep their outline at, the frame stays at that scale and the text stretches.
+    local stretch = 1
+    if f.limit and scale > f.limit then stretch, scale = scale / f.limit, f.limit end
+    if stretch ~= f.shownStretch then f.shownStretch = stretch; f.text:SetTextHeight(f.size * stretch) end
     local alpha = min(1, (1 - t) / S.FADE_OUT)
     if f.fadeIn and age < S.FADE_IN then alpha = min(alpha, S.FADE_FROM + (1 - S.FADE_FROM) * age / S.FADE_IN) end
     if f.blink then alpha = alpha * (S.BLINK_LOW + (1 - S.BLINK_LOW) * abs(cos(age * math.pi / S.BLINK))) end
@@ -346,9 +363,8 @@ local function Acquire(onWorld)
         f:SetSize(1, 1)
         f.text = f:CreateFontString(nil, "OVERLAY")
         f.text:SetShadowColor(0, 0, 0, 1)
-        f.icon = f:CreateTexture(nil, "OVERLAY")
-        f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-        f.icon:SetPoint("RIGHT", f.text, "LEFT", -3, 0)
+        f.text:SetWidth(S.TEXT_BOX)
+        f.shownStretch = 1
         -- Inside a nameplate, frame levels don't reliably decide what is drawn over what, strata do: nameplate
         -- addons' bars and texts are on MEDIUM (EllesmereUI keeps its glow behind its health bar on BACKGROUND), as
         -- a frame made on the world's frame is. On BACKGROUND, a number in its own nameplate stays under its bars.
@@ -397,8 +413,8 @@ end
 
 -- Shows a text in a lane: fmt filled in with a and b (values the game hides from addons are passed through, never
 -- read). kind: "crit" (larger, and it pops and may stay put), "small" (glancing blows) or "miss" (misses, avoided
--- attacks and hits nothing got through, sized by Miss size); icon: a texture.
-function S:Show(lane, color, kind, icon, fmt, a, b)
+-- attacks and hits nothing got through, sized by Miss size).
+function S:Show(lane, color, kind, fmt, a, b)
     local p = self.db.profile
     local texts = lane.texts
     -- The spot lane holds hits on your target just after its nameplate went (see S:OnTargetHit): shown as a
@@ -456,20 +472,21 @@ function S:Show(lane, color, kind, icon, fmt, a, b)
     if f.shadow ~= shadow then f.shadow = shadow; f.text:SetShadowOffset(shadow, -shadow) end
     -- Colors are never changed in place (settings store a new table), so the same table is the same color.
     if f.shownColor ~= color then f.shownColor = color; f.text:SetTextColor(color[1], color[2], color[3], color[4] or 1) end
+    -- A font string sized to its text cuts off the outline of its last letter, more so as it's scaled up (critical
+    -- hits, popping), so texts are laid out in a box wider than any text (see Acquire), lined up the same way.
     if f.align ~= align then
         f.align = align
         f.text:ClearAllPoints()
         f.text:SetPoint(align, f, "CENTER")
+        f.text:SetJustifyH(align)
     end
-    local showIcon = p.icons and (IsSecret(icon) or icon ~= nil) or false
-    if showIcon then
-        f.icon:SetTexture(icon)
-        if f.iconSize ~= size then f.iconSize = size; f.icon:SetSize(size, size) end
-    end
-    if f.iconShown ~= showIcon then f.iconShown = showIcon; f.icon:SetShown(showIcon) end
     f.lane, f.born, f.anim, f.height, f.duration, f.size = lane, now, anim, height, duration, size
     f.kindScale = kind == "crit" and p.critScale or kind == "small" and 0.8 or kind == "miss" and p.missScale or 1
-    f.pop, f.fadeIn = kind == "crit" and p.critPop, p.fadeIn
+    -- The largest scale it keeps its outline at (none with Slug, which draws letters as shapes at any size).
+    f.limit = not self.slug and S.MOST_PIXELS / (size * self:PixelScale()) or nil
+    -- A pooled text last stretched starts at its own size.
+    if f.shownStretch ~= 1 then f.shownStretch = 1; f.text:SetTextHeight(size) end
+    f.pop, f.shake, f.fadeIn = kind == "crit" and p.critPop, kind == "crit" and p.critShake, p.fadeIn
     f.sticky = kind == "crit" and p.stickyCrits and not onPlate and anim ~= "STATIC"
     f.push, f.shownScale, f.shownAlpha, f.blink, f.spell, f.unmatched, f.vanishAt = 0, nil, nil, nil, nil, nil, nil
     if anim == "ARC" or anim == "FOUNTAIN" then
@@ -553,20 +570,20 @@ function S:OnPet(action, flags, amount, school)
         if secret or amount > 0 then
             if not p.inDamage or (not secret and amount < p.inDamageMin) then return end
             local color = p.schoolColors and SchoolColor(school, p.damageColor) or p.damageColor
-            return self:Show(lane, color, Kind(flags), nil, p.inReduction and PET_PARTIAL[flags] or "Pet -%s", self:Amount(amount))
+            return self:Show(lane, color, Kind(flags), p.inReduction and PET_PARTIAL[flags] or "Pet -%s", self:Amount(amount))
         end
         -- Nothing got through: a full block, absorb or resist. Without one of those it was no hit at all (the swing an
         -- on-next-swing ability like Heroic Strike takes the place of arrives so): nothing to show. Misses come as
         -- misses.
         local word = REDUCED[flags]
-        if word and p.inReduction then self:Show(lane, p.missColor, "miss", nil, "Pet %s", word) end
+        if word and p.inReduction then self:Show(lane, p.missColor, "miss", "Pet %s", word) end
     elseif action == "HEAL" then
         if not p.inHeals or (not secret and (amount <= 0 or amount < p.inHealMin)) then return end
-        self:Show(lane, p.healColor, flags == "CRITICAL" and "crit" or nil, nil, "Pet +%s", self:Amount(amount))
+        self:Show(lane, p.healColor, flags == "CRITICAL" and "crit" or nil, "Pet +%s", self:Amount(amount))
     elseif REDUCED[action] then
-        if p.inReduction then self:Show(lane, p.missColor, "miss", nil, "Pet %s", REDUCED[action]) end
+        if p.inReduction then self:Show(lane, p.missColor, "miss", "Pet %s", REDUCED[action]) end
     elseif MISSES[action] then
-        if p.inMisses then self:Show(lane, p.missColor, "miss", nil, "Pet %s", MISSES[action]) end
+        if p.inMisses then self:Show(lane, p.missColor, "miss", "Pet %s", MISSES[action]) end
     end
 end
 
@@ -605,7 +622,7 @@ function S:OnTaken(kind)
         if not p.inDamage then return end
         local amount = TextAmount((CombatTextInfo()))
         if not Shows(amount, p.inDamageMin) then return end
-        return self:Show(lane, p.damageColor, crit and "crit" or nil, nil, "-%s", self:Amount(amount))
+        return self:Show(lane, p.damageColor, crit and "crit" or nil, "-%s", self:Amount(amount))
     end
     crit = TAKEN_HEAL[kind]
     if crit ~= nil then
@@ -614,7 +631,7 @@ function S:OnTaken(kind)
         local _, amount = CombatTextInfo()
         amount = TextAmount(amount)
         if not Shows(amount, p.inHealMin) then return end
-        return self:Show(lane, p.healColor, crit and "crit" or nil, nil, "+%s", self:Amount(amount))
+        return self:Show(lane, p.healColor, crit and "crit" or nil, "+%s", self:Amount(amount))
     end
     if TAKEN_ENERGY[kind] then
         if not p.inEnergy then return end
@@ -626,7 +643,7 @@ function S:OnTaken(kind)
             local _, main = UnitPowerType("player")
             token = not IsSecret(main) and main or nil
         end
-        return self:Show(lane, PowerColor(token), nil, nil, "+%s %s", self:Amount(amount), token and _G[token] or "")
+        return self:Show(lane, PowerColor(token), nil, "+%s %s", self:Amount(amount), token and _G[token] or "")
     end
     local reduced = TAKEN_REDUCED[kind]
     if reduced then
@@ -634,16 +651,16 @@ function S:OnTaken(kind)
         local amount, stopped, critical = CombatTextInfo()
         amount, stopped = TextAmount(amount), TextAmount(stopped)
         if not (Shows(stopped, 0) and Shows(amount, 0)) then
-            if p.inReduction then self:Show(lane, p.missColor, "miss", nil, "%s", REDUCED[reduced]) end
+            if p.inReduction then self:Show(lane, p.missColor, "miss", "%s", REDUCED[reduced]) end
             return
         end
         if not p.inDamage or not Shows(amount, p.inDamageMin) then return end
         local size = not IsSecret(critical) and critical and "crit" or nil
-        if not p.inReduction then return self:Show(lane, p.damageColor, size, nil, "-%s", self:Amount(amount)) end
-        return self:Show(lane, p.damageColor, size, nil, PARTIAL_BY[reduced], self:Amount(amount), self:Amount(stopped))
+        if not p.inReduction then return self:Show(lane, p.damageColor, size, "-%s", self:Amount(amount)) end
+        return self:Show(lane, p.damageColor, size, PARTIAL_BY[reduced], self:Amount(amount), self:Amount(stopped))
     end
     local avoided = TAKEN_AVOIDED[kind]
-    if avoided and p.inMisses then self:Show(lane, p.missColor, "miss", nil, "%s", MISSES[avoided]) end
+    if avoided and p.inMisses then self:Show(lane, p.missColor, "miss", "%s", MISSES[avoided]) end
 end
 
 -- Whether anything you take is shown.
@@ -690,13 +707,13 @@ function S:OnEnemy(plate, unit, action, flags, amount, school)
             local kind = Kind(flags)
             local color = kind == "crit" and p.enemyCritColor
                 or p.schoolColors and SchoolColor(school, p.enemyColor) or p.enemyColor
-            return self:Show(lane, color, kind, nil, "%s", self:Amount(amount))
+            return self:Show(lane, color, kind, "%s", self:Amount(amount))
         end
         -- Nothing got through: a full block, absorb or resist; without one of those, no hit at all (see S:OnPet).
         local word = REDUCED[flags]
-        if word and p.enemyMisses then self:Show(lane, p.missColor, "miss", nil, "%s", word) end
+        if word and p.enemyMisses then self:Show(lane, p.missColor, "miss", "%s", word) end
     elseif p.enemyMisses and (MISSES[action] or REDUCED[action]) then
-        self:Show(lane, p.missColor, "miss", nil, "%s", MISSES[action] or REDUCED[action])
+        self:Show(lane, p.missColor, "miss", "%s", MISSES[action] or REDUCED[action])
     end
 end
 
@@ -846,14 +863,6 @@ S.HIDES_TEXT_INFO = select(4, GetBuildInfo()) >= 16000
 function S:UsesGameCombatText()
     local p = self.db.profile
     return p.replaceBlizzard or Taking(p) or p.reactives or p.buffs or p.debuffs or p.fades or p.reputation or p.honor
-end
-
--- A spell's icon by name, when icons are on. The name may be hidden from addons; so may the icon.
-function S:SpellIcon(name)
-    if not (self.db.profile.icons and C_Spell and C_Spell.GetSpellTexture) then return nil end
-    local ok, icon = pcall(C_Spell.GetSpellTexture, name)
-    if not ok then return nil end
-    return icon
 end
 
 -- Whether a spell can be cast now, its cost aside: a spell alert's ability is still lit up. nil when the game won't say.
@@ -1006,23 +1015,23 @@ function S:OnGameCombatText(kind)
     local lane = self:NoticeLane(kind == "SPELL_ACTIVE" and "noticeAlerts"
         or (option == "buffs" or option == "debuffs" or option == "fades") and "noticeAuras" or "noticeProgress")
     if kind == "SPELL_ACTIVE" then
-        self:Alert(self:Show(lane, COLORS.reactive, "crit", self:SpellIcon(data), "%s!", data), data)
+        self:Alert(self:Show(lane, COLORS.reactive, "crit", "%s!", data), data)
     elseif option == "buffs" or option == "debuffs" then
-        self:Show(lane, option == "buffs" and COLORS.buff or COLORS.debuff, nil, self:SpellIcon(data), "+%s", data)
+        self:Show(lane, option == "buffs" and COLORS.buff or COLORS.debuff, nil, "+%s", data)
     elseif option == "fades" then
-        self:Show(lane, COLORS.fade, nil, self:SpellIcon(data), "-%s", data)
+        self:Show(lane, COLORS.fade, nil, "-%s", data)
     elseif kind == "FACTION" then
         -- data is the faction, amount the change.
-        if IsSecret(amount) then return self:Show(lane, COLORS.reputation, nil, nil, "%s %s", amount, data) end
+        if IsSecret(amount) then return self:Show(lane, COLORS.reputation, nil, "%s %s", amount, data) end
         -- Given as a number or as a string holding one (the game's own combat text reads it with tonumber too).
         amount = tonumber(amount)
         if not amount or amount == 0 then return end
-        self:Show(lane, amount > 0 and COLORS.reputation or COLORS.repLoss, nil, nil, amount > 0 and "+%d %s" or "%d %s", amount, data)
+        self:Show(lane, amount > 0 and COLORS.reputation or COLORS.repLoss, nil, amount > 0 and "+%d %s" or "%d %s", amount, data)
     elseif kind == "HONOR_GAINED" then
         -- data is the honor.
-        if IsSecret(data) then return self:Show(lane, COLORS.honor, nil, nil, "+%s Honor", data) end
+        if IsSecret(data) then return self:Show(lane, COLORS.honor, nil, "+%s Honor", data) end
         local honor = tonumber(data)
-        if honor and honor > 0 then self:Show(lane, COLORS.honor, nil, nil, "+%d Honor", floor(honor + 0.5)) end
+        if honor and honor > 0 then self:Show(lane, COLORS.honor, nil, "+%d Honor", floor(honor + 0.5)) end
     end
 end
 
@@ -1040,7 +1049,7 @@ function S:CheckLowHealth()
     if fraction > 0 and fraction <= self.LOW then
         if not self.lowHealth then
             self.lowHealth = true
-            self:Show(self:NoticeLane("noticeLow"), COLORS.low, "crit", nil, "%s", HEALTH_LOW or "Low Health")
+            self:Show(self:NoticeLane("noticeLow"), COLORS.low, "crit", "%s", HEALTH_LOW or "Low Health")
         end
     elseif fraction > self.RECOVERED or fraction == 0 then
         self.lowHealth = nil
@@ -1072,7 +1081,7 @@ function S:OnPower(token)
         if fraction <= self.LOW then
             if not self.lowMana then
                 self.lowMana = true
-                self:Show(self:NoticeLane("noticeLow"), COLORS.low, "crit", nil, "%s", MANA_LOW or "Low Mana")
+                self:Show(self:NoticeLane("noticeLow"), COLORS.low, "crit", "%s", MANA_LOW or "Low Mana")
             end
         elseif fraction > self.RECOVERED then
             self.lowMana = nil
@@ -1085,7 +1094,7 @@ function S:OnPower(token)
         if points > before then
             local most = UnitPowerMax("player", COMBO)
             local full = not IsSecret(most) and type(most) == "number" and most > 0 and points >= most
-            self:Show(self:NoticeLane("noticeCombo"), COLORS.combo, full and "crit" or nil, nil, COMBAT_TEXT_COMBO_POINTS or "%d Combo Points", points)
+            self:Show(self:NoticeLane("noticeCombo"), COLORS.combo, full and "crit" or nil, COMBAT_TEXT_COMBO_POINTS or "%d Combo Points", points)
         end
     end
 end
@@ -1109,7 +1118,7 @@ function S:OnSkill(message)
     local pattern = SkillPattern()
     if IsSecret(message) or not pattern or type(message) ~= "string" then return end
     local skill, rank = message:match(pattern)
-    if skill then self:Show(self:NoticeLane("noticeProgress"), COLORS.skill, nil, nil, "+%s (%s)", skill, rank) end
+    if skill then self:Show(self:NoticeLane("noticeProgress"), COLORS.skill, nil, "+%s (%s)", skill, rank) end
 end
 
 ---------------------------------------------------------------------------
@@ -1142,6 +1151,9 @@ function S:UpdateEvents()
     local on, p = self:IsEnabled(), self.db.profile
     self:WatchPlates(on and p.enemyMode == "NAMEPLATE")
     if not on then return end
+    -- How many screen pixels a text's unit is (see S:PixelScale) changes only with these.
+    Register(general, "UI_SCALE_CHANGED")
+    Register(general, "DISPLAY_SIZE_CHANGED")
     if p.combatState then Register(general, "PLAYER_REGEN_DISABLED"); Register(general, "PLAYER_REGEN_ENABLED") end
     if self:UsesGameCombatText() then
         Register(general, "COMBAT_TEXT_UPDATE")
@@ -1170,8 +1182,25 @@ function S:UpdateEvents()
     if OwnEnemyNumbers(p) then Register(enemies, "UNIT_COMBAT", "target") end
 end
 
+-- Screen pixels in one unit of the interface (texts on the world's frame are matched to it, see Place): its scale times
+-- the screen's height over the 768 units it's laid out in. Read once, and again after the scale or display changes.
+function S:PixelScale()
+    local scale = self.pixelScale
+    if not scale then
+        local height = 768
+        if GetPhysicalScreenSize then
+            local _, physical = GetPhysicalScreenSize()
+            height = tonumber(physical) or height
+        end
+        scale = UIParent:GetEffectiveScale() * height / 768
+        self.pixelScale = scale
+    end
+    return scale
+end
+
 function S:OnEvent(event, ...)
     if event == "COMBAT_TEXT_UPDATE" then return self:OnGameCombatText(...) end
+    if event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then self.pixelScale = nil; return end
     if event == "NAME_PLATE_UNIT_ADDED" then return self:OnPlateAdded(...) end
     if event == "NAME_PLATE_UNIT_REMOVED" then return self:OnPlateRemoved(...) end
     if event == "UNIT_HEALTH" then return self:CheckLowHealth() end
@@ -1180,10 +1209,10 @@ function S:OnEvent(event, ...)
     if event == "CHAT_MSG_SKILL" then return self:OnSkill(...) end
     if event == "UNIT_SPELLCAST_SUCCEEDED" then return self:OnCast(select(3, ...)) end
     if event == "PLAYER_REGEN_DISABLED" then
-        return self:Show(self:NoticeLane("noticeCombat"), COLORS.combat, nil, nil, "%s", ENTERING_COMBAT or "+Combat")
+        return self:Show(self:NoticeLane("noticeCombat"), COLORS.combat, nil, "%s", ENTERING_COMBAT or "+Combat")
     end
     if event == "PLAYER_REGEN_ENABLED" then
-        return self:Show(self:NoticeLane("noticeCombat"), COLORS.combat, nil, nil, "%s", LEAVING_COMBAT or "-Combat")
+        return self:Show(self:NoticeLane("noticeCombat"), COLORS.combat, nil, "%s", LEAVING_COMBAT or "-Combat")
     end
 end
 
@@ -1327,6 +1356,27 @@ local GAME_NOTICE_CVARS = {
     floatingCombatTextLowManaHealth_v2 = { "lowHealth", "lowMana" },
 }
 
+-- The game's own damage numbers' switches, by their setting here: flying out to the sides, every auto attack, your
+-- pet's melee and spell damage, and damage over time. Each is left to the game until it's set here, and held as set
+-- while the game's numbers are the ones shown.
+S.GAME_NUMBER_CVARS = {
+    gameDirectional = "floatingCombatTextCombatDamageDirectionalScale_v2",
+    gameAllAutos = "floatingCombatTextCombatDamageAllAutos_v2",
+    gamePetMelee = "floatingCombatTextPetMeleeDamage_v2",
+    gamePetSpells = "floatingCombatTextPetSpellDamage_v2",
+    gamePeriodic = "floatingCombatTextCombatLogPeriodicSpells_v2",
+}
+
+-- Whether one of those switches is on: as set here, else as the game has it. nil on a client without it.
+function S:GameNumberOn(key)
+    local value = ReadCVar(self.GAME_NUMBER_CVARS[key])
+    if value == nil then return nil end
+    local choice = self.db.profile[key]
+    if choice ~= nil then return choice end
+    value = tonumber(value)
+    return value ~= nil and value > 0
+end
+
 function S:UpdateCVars()
     if InCombatLockdown() then return watcher:RegisterEvent("PLAYER_REGEN_ENABLED") end
     local on, p = self:IsEnabled(), self.db.profile
@@ -1342,6 +1392,13 @@ function S:UpdateCVars()
     -- given back too (released, a hold is put back when the setting is the value given here or the one held).
     local size = on and p.enemyMode == "GAME" and p.gameDamageSize ~= 1 and p.gameDamageSize or nil
     self:HoldCVar("WorldTextScale_v2", size and tostring(size) or "0", size ~= nil)
+    -- Switches never set here, and not held, are left alone without asking the game.
+    local game, saved = on and p.enemyMode == "GAME", self.db.global.cvars
+    for key, name in pairs(self.GAME_NUMBER_CVARS) do
+        local choice = p[key]
+        local hold = game and choice ~= nil
+        if hold or saved[name] ~= nil then self:HoldCVar(name, choice and "1" or "0", hold) end
+    end
     -- The game's frame reads these settings only as it loads, its combat text is turned on or the screen is resized,
     -- so one changed here shows from the next reload. Its own update, called from here, would run as addon code and
     -- taint the frame: the game's combat text would then fail on the values it hides from addons.
@@ -1390,6 +1447,7 @@ function S:Apply()
         p.plateBehind = nil
     end
     self.font, self.flags = FontFile(p), S.FontFlags(p)
+    self.slug, self.pixelScale = self.flags:find("SLUG", 1, true) ~= nil, nil
     self:UpdateDamageFont()
     self:UpdateEvents()
     self:UpdateCVars()
@@ -1445,33 +1503,33 @@ end
 function S:SampleArea(key, n)
     local p = self.db.profile
     if key == "incoming" then
-        if n == 2 then return self:Show(self:Lane(key), p.healColor, nil, nil, "+%s", self:Amount(1250)) end
-        return self:Show(self:Lane(key), p.damageColor, n == 3 and "crit" or nil, nil, "-%s", self:Amount(n == 3 and 14820 or 342))
+        if n == 2 then return self:Show(self:Lane(key), p.healColor, nil, "+%s", self:Amount(1250)) end
+        return self:Show(self:Lane(key), p.damageColor, n == 3 and "crit" or nil, "-%s", self:Amount(n == 3 and 14820 or 342))
     elseif key == "outgoing" then
         if not OwnEnemyNumbers(p) then return end
         local lane = self:Lane(key)
         local plate = p.enemyMode == "NAMEPLATE" and C_NamePlate and C_NamePlate.GetNamePlateForUnit("target")
         if plate then lane = self:PlateLane(plate) end
         local color = n == 3 and p.enemyCritColor or n == 2 and SCHOOLS[16] or p.enemyColor
-        return self:Show(lane, color, n == 3 and "crit" or nil, nil, "%s", self:Amount(n == 3 and 2480 or n == 2 and 615 or 870))
+        return self:Show(lane, color, n == 3 and "crit" or nil, "%s", self:Amount(n == 3 and 2480 or n == 2 and 615 or 870))
     end
     local lane = self:Lane(key)
-    if key == "noticeLow" then return self:Show(lane, COLORS.low, "crit", nil, "%s", HEALTH_LOW or "Low Health") end
+    if key == "noticeLow" then return self:Show(lane, COLORS.low, "crit", "%s", HEALTH_LOW or "Low Health") end
     if key == "noticeCombo" then
-        return self:Show(lane, COLORS.combo, nil, nil, COMBAT_TEXT_COMBO_POINTS or "%d Combo Points", n + 1)
+        return self:Show(lane, COLORS.combo, nil, COMBAT_TEXT_COMBO_POINTS or "%d Combo Points", n + 1)
     end
     if key == "noticeAuras" then
-        if n == 2 then return self:Show(lane, COLORS.fade, nil, nil, "-%s", "Battle Shout") end
-        return self:Show(lane, n == 3 and COLORS.debuff or COLORS.buff, nil, nil, "+%s", n == 3 and "Hamstring" or "Battle Shout")
+        if n == 2 then return self:Show(lane, COLORS.fade, nil, "-%s", "Battle Shout") end
+        return self:Show(lane, n == 3 and COLORS.debuff or COLORS.buff, nil, "+%s", n == 3 and "Hamstring" or "Battle Shout")
     end
     if key == "noticeProgress" then
-        if n == 2 then return self:Show(lane, COLORS.skill, nil, nil, "+%s (%s)", "Swords", 87) end
-        return self:Show(lane, COLORS.reputation, nil, nil, "+%d %s", 25, "Stormwind")
+        if n == 2 then return self:Show(lane, COLORS.skill, nil, "+%s (%s)", "Swords", 87) end
+        return self:Show(lane, COLORS.reputation, nil, "+%d %s", 25, "Stormwind")
     end
     if key == "noticeAlerts" or key == "notices" and n == 2 then
-        return self:Alert(self:Show(lane, COLORS.reactive, "crit", nil, "%s!", "Overpower"))
+        return self:Alert(self:Show(lane, COLORS.reactive, "crit", "%s!", "Overpower"))
     end
-    self:Show(lane, COLORS.combat, nil, nil, "%s", ENTERING_COMBAT or "+Combat")
+    self:Show(lane, COLORS.combat, nil, "%s", ENTERING_COMBAT or "+Combat")
 end
 
 ---------------------------------------------------------------------------
@@ -1579,8 +1637,8 @@ function S:UpdateSampleLoop()
 end
 
 ---------------------------------------------------------------------------
--- Settings preview: damage taken rising on the left, numbers bursting from an enemy's nameplate on the right, and a
--- notice above.
+-- The tweak list's sketch: damage taken rising on the left, numbers bursting from an enemy's nameplate on the right,
+-- and a notice above.
 ---------------------------------------------------------------------------
 local PREVIEW = {
     -- area, start time, text, color key, crit
@@ -1638,3 +1696,359 @@ function S.info.preview(frame)
         end
     end)
 end
+
+---------------------------------------------------------------------------
+-- The settings page's preview: a bar above the settings with sample texts for what the settings show, drawn as
+-- S:Show and Place draw them. Each scroll area sits where it is on screen, across the bar: damage taken on the left,
+-- your target's numbers on the right and notices in the middle, by default. Enemy numbers burst from a sample
+-- nameplate. Each area plays its samples one or two at a time, taking turns, so every one shows over a few rounds.
+---------------------------------------------------------------------------
+local max = math.max
+local LIVE_DIST, LIVE_SIZE = 0.4, 0.8 -- texts travel a share of their distance at a share of their size
+local LIVE_REACH_X, LIVE_REACH_Y = 450, 250 -- the farthest from the screen's middle an area is drawn apart
+-- Seconds after the longest text before the samples start over, and the shortest round.
+local LIVE_GAP, LIVE_ROUND = 0.6, 2.4
+local SPREADS = { 0.7, 0.95, 0.5, 0.85 } -- how far Fountain throws each number to its side in turn (shown: at random)
+-- The game's own numbers: white, yellow for spells.
+local GAME_WHITE, GAME_YELLOW = { 1, 1, 1 }, { 1, 1, 0 }
+-- Notices, by the setting that shows them, in the order they take turns: color, kind, the spell (by ID) whose name
+-- they show, and the format with its values.
+local NOTICE_SAMPLES = {
+    { key = "combatState", color = COLORS.combat, fmt = "%s", a = ENTERING_COMBAT or "+Combat" },
+    { key = "lowHealth", color = COLORS.low, kind = "crit", fmt = "%s", a = HEALTH_LOW or "Low Health" },
+    { key = "reactives", color = COLORS.reactive, kind = "crit", spell = 7384, fmt = "%s!", a = "Overpower" },
+    { key = "buffs", color = COLORS.buff, spell = 6673, fmt = "+%s", a = "Battle Shout" },
+    { key = "comboPoints", color = COLORS.combo, fmt = COMBAT_TEXT_COMBO_POINTS or "%d Combo Points", a = 3 },
+    { key = "reputation", color = COLORS.reputation, fmt = "+%d %s", a = 25, b = "Stormwind" },
+    { key = "lowMana", color = COLORS.low, kind = "crit", fmt = "%s", a = MANA_LOW or "Low Mana" },
+    { key = "debuffs", color = COLORS.debuff, spell = 1715, fmt = "+%s", a = "Hamstring" },
+    { key = "fades", color = COLORS.fade, spell = 6673, fmt = "-%s", a = "Battle Shout" },
+    { key = "honor", color = COLORS.honor, fmt = "+%d Honor", a = 12 },
+    { key = "skills", color = COLORS.skill, fmt = "+%s (%s)", a = "Swords", b = 87 },
+    { key = "combatState", color = COLORS.combat, fmt = "%s", a = LEAVING_COMBAT or "-Combat" },
+}
+-- Which of S.NOTICE_AREAS each notice shows in with Separate area for each kind.
+local NOTICE_AREA_OF = {}
+for i, area in ipairs(S.NOTICE_AREAS) do
+    for _, key in ipairs(area.uses) do NOTICE_AREA_OF[key] = i end
+end
+-- How many samples of each group play at once: more of the group the open tab sets.
+local SLOTS = {
+    general = { taken = 2, enemy = 2, notices = 1 },
+    taken = { taken = 2, enemy = 1, notices = 1 },
+    enemies = { taken = 1, enemy = 2, notices = 1 },
+    notices = { taken = 1, enemy = 1, notices = 2 },
+}
+local GROUPS = { "taken", "enemy", "notices" }
+local GROUP_START = { taken = 0, enemy = 0.3, notices = 0.1 }
+
+local function Clamp(value, limit) return max(-limit, min(limit, value)) end
+local function LiveSize(size) return max(6, floor(size * LIVE_SIZE + 0.5)) end
+
+-- A lane of the bar, kept by key and filled in again on each redraw: index tells lanes apart, level is its texts'
+-- frame level.
+local function LiveLane(v, key, index, level)
+    local lane = v.lanes[key]
+    if not lane then lane = {}; v.lanes[key] = lane end
+    lane.index, lane.level, lane.dir = index, level, 1
+    lane.font, lane.flags, lane.game, lane.plate = v.font, v.flags, nil, nil
+    return lane
+end
+
+-- A scroll area's lane: where its box is on the bar, and how its texts move, kept inside the bar.
+local function AreaLane(v, p, key, index)
+    local area, lane = p[key], LiveLane(v, key, index, v.level + 4)
+    lane.anim, lane.duration, lane.align = area.animation, area.duration, area.align
+    lane.size = LiveSize(floor(area.fontSize * p.textScale + 0.5))
+    lane.travel = min(area.height * LIVE_DIST, v.h * 0.5)
+    lane.x = Clamp(area.x * v.kx, v.w / 2 - 50)
+    lane.y = Clamp(area.y * v.ky, max(0, (v.h - lane.travel) / 2 - lane.size))
+    return lane
+end
+
+-- The nameplate's lane: under the nameplate when numbers are drawn behind nameplates, else over it. Its numbers start
+-- the plate's offset above it, as far as the bar has room.
+local function PlateLane(v, p)
+    local behind = p.plateLayer == "PLATE" or p.plateLayer == "WORLD"
+    local lane = LiveLane(v, "plate", 2, v.level + (behind and 1 or 3))
+    lane.anim, lane.duration, lane.align = p.plateAnimation, p.plateDuration, "CENTER"
+    lane.size = LiveSize(floor(p.plateSize * p.textScale + 0.5))
+    lane.travel = min(p.plateHeight * LIVE_DIST, v.h * 0.5)
+    local rise = lane.anim == "STATIC" and 0 or lane.anim == "FOUNTAIN" and lane.travel * 0.65 or lane.travel
+    lane.x, lane.plate = v.plateX, true
+    lane.y = min(v.plateY + p.plateOffset * LIVE_DIST, v.h / 2 - rise - lane.size)
+    return lane
+end
+
+-- The game's own numbers: rising from the nameplate in its font (the one chosen here, from the next login), sized by
+-- The game's numbers' size.
+local function GameLane(v, p)
+    local lane = LiveLane(v, "game", 2, v.level + 3)
+    lane.anim, lane.duration, lane.align, lane.travel = "UP", 1.5, "CENTER", min(24, v.h * 0.3)
+    lane.size = LiveSize(20 * p.gameDamageSize)
+    lane.x, lane.y, lane.plate, lane.game = v.plateX, v.plateY + 12, true, true
+    lane.font = p.font ~= "" and ns.Media("font", p.font) or GAME_DAMAGE_FONT or ns.FALLBACK_FONT
+    lane.flags = "OUTLINE"
+    return lane
+end
+
+-- The lane a notice shows in: its kind's own with Separate area for each kind, else Notices (see S:NoticeLane).
+local function LiveNoticeLane(v, p, key)
+    local i = p.splitNotices and NOTICE_AREA_OF[key]
+    return v.lanes[i and S.NOTICE_AREAS[i].key or "notices"]
+end
+
+-- Adds a sample to a group's list, from the bar's pool of them.
+local function Add(v, group, lane, color, kind, text, blink)
+    v.used = v.used + 1
+    local s = v.pool[v.used]
+    if not s then s = {}; v.pool[v.used] = s end
+    s.lane, s.color, s.kind, s.text, s.blink = lane, color, kind, text, blink
+    local list = v.lists[group]
+    list[#list + 1] = s
+    if lane.duration > v.longest then v.longest = lane.duration end
+end
+
+-- The bar's next text, made as Acquire makes texts: a frame, scaled for critical hits and popping, holding a font
+-- string.
+local function NextText(v)
+    v.count = v.count + 1
+    local f = v.texts[v.count]
+    if not f then
+        f = CreateFrame("Frame", nil, v.stage)
+        f:SetSize(1, 1)
+        f:Hide()
+        f.text = f:CreateFontString(nil, "OVERLAY")
+        f.text:SetShadowColor(0, 0, 0, 1)
+        f.text:SetWidth(S.TEXT_BOX)
+        v.texts[v.count] = f
+    end
+    return f
+end
+
+-- Gives a text a sample's text and its lane's look and movement, as S:Show does; only what differs is set.
+local function Style(v, f, s)
+    local p, lane = S.db.profile, s.lane
+    local size, align, anim, text, color = lane.size, lane.align, lane.anim, s.text, s.color
+    f.lane, f.anim, f.height, f.duration, f.size = lane, anim, lane.travel, lane.duration, size
+    ns.SetFont(f.text, lane.font, size, lane.flags)
+    local shadow = lane.flags == "" and 1 or 0
+    if f.shadow ~= shadow then f.shadow = shadow; f.text:SetShadowOffset(shadow, -shadow) end
+    if f.shownText ~= text then f.shownText = text; f.text:SetText(text) end
+    if f.shownColor ~= color then f.shownColor = color; f.text:SetTextColor(color[1], color[2], color[3], color[4] or 1) end
+    if f.align ~= align then
+        f.align = align
+        f.text:ClearAllPoints()
+        f.text:SetPoint(align, f, "CENTER")
+        f.text:SetJustifyH(align)
+    end
+    -- Set every time: raising the settings window moves every frame level in it.
+    f:SetFrameLevel(lane.level)
+    local kind = s.kind
+    local crit = kind == "crit" and not lane.game
+    f.kindScale = kind == "crit" and (lane.game and 1.5 or p.critScale) or kind == "miss" and p.missScale or 1
+    f.pop, f.shake, f.fadeIn = crit and p.critPop, crit and p.critShake, p.fadeIn and not lane.game
+    f.sticky = crit and p.stickyCrits and not lane.plate and anim ~= "STATIC"
+    f.blink, f.gap, f.stacks = s.blink, 0, anim ~= "FOUNTAIN"
+    f.stack = lane.index * 2 + (f.sticky and 1 or 0)
+    if anim == "ARC" or anim == "FOUNTAIN" then
+        lane.dir = -lane.dir
+        v.throws = v.throws + 1
+        f.dir, f.spread = lane.dir, SPREADS[v.throws % #SPREADS + 1]
+    end
+    if lane.plate then
+        f.x0, f.y0 = lane.x, lane.y
+    else
+        local side = S.AREA_WIDTH / 2 * v.kx
+        f.x0 = lane.x + (align == "LEFT" and -side or align == "RIGHT" and side or 0)
+        if f.sticky or anim == "STATIC" then f.y0 = lane.y
+        elseif anim == "DOWN" then f.y0 = lane.y + lane.travel / 2
+        else f.y0 = lane.y - lane.travel / 2 end
+    end
+end
+
+-- How far a text has moved along its lane's direction at an age (see Travel).
+local function LiveTravel(f, age)
+    if f.sticky or f.anim == "STATIC" then return 0 end
+    local _, dy = Motion(f, age / f.duration)
+    return abs(dy)
+end
+
+-- Places the texts for a moment of the loop, as Place does. A text starting anew takes its group's next sample, and is
+-- stacked apart from the one before it in its lane, as Stack does.
+local function LiveTick(v, t)
+    local texts, count, period = v.texts, v.count, v.period
+    for i = 1, count do
+        local f = texts[i]
+        local age = (t - f.start) % period
+        if age >= f.duration then age = -1 end
+        f.isNew = age >= 0 and f.lastAge ~= nil and (f.lastAge < 0 or age < f.lastAge)
+        f.age, f.lastAge = age, age
+    end
+    for i = 1, count do
+        local f = texts[i]
+        if f.isNew then
+            f.turn = f.turn + 1
+            local list = f.list
+            if #list > f.slots then Style(v, f, list[(f.slot - 1 + f.turn * f.slots) % #list + 1]) end
+            local last
+            if f.stacks then
+                for j = 1, count do
+                    local g = texts[j]
+                    if g ~= f and g.stack == f.stack and g.age >= 0 and (not last or g.age < last.age) then last = g end
+                end
+            end
+            f.gap = last and max(0, (last.size * last.kindScale + f.size * f.kindScale) * 0.6 - LiveTravel(last, last.age)) or 0
+        end
+    end
+    for i = 1, count do
+        local f = texts[i]
+        local age = f.age
+        if age < 0 then
+            if f.on then f.on = false; f:Hide() end
+        else
+            local dx, dy = Motion(f, age / f.duration)
+            if f.shake and age < S.SHAKE then
+                local reach = f.size * S.SHAKE_SIZE * (1 - age / S.SHAKE)
+                dx, dy = dx + reach * sin(age * S.SHAKE_SPEED), dy + reach * cos(age * S.SHAKE_SPEED * 1.3)
+            end
+            -- Pushed along by the texts that started after it in its lane.
+            local push = 0
+            if f.stacks then
+                for j = 1, count do
+                    local g = texts[j]
+                    if g.stack == f.stack and g.age >= 0 and g.age < age then push = push + g.gap end
+                end
+                if f.anim == "DOWN" then push = -push end
+            end
+            local scale = f.kindScale
+            if f.pop and age < S.POP then scale = scale * (2 - age / S.POP) end
+            local alpha = min(1, (1 - age / f.duration) / S.FADE_OUT)
+            if f.fadeIn and age < S.FADE_IN then alpha = min(alpha, S.FADE_FROM + (1 - S.FADE_FROM) * age / S.FADE_IN) end
+            if f.blink then alpha = alpha * (S.BLINK_LOW + (1 - S.BLINK_LOW) * abs(cos(age * math.pi / S.BLINK))) end
+            if scale ~= f.shownScale then f.shownScale = scale; f:SetScale(scale) end
+            if alpha ~= f.shownAlpha then f.shownAlpha = alpha; f:SetAlpha(alpha) end
+            local x, y = (f.x0 + dx) / scale, (f.y0 + dy + push) / scale
+            if x ~= f.shownX or y ~= f.shownY then
+                f.shownX, f.shownY = x, y
+                f:SetPoint("CENTER", v.stage, "CENTER", x, y)
+            end
+            if not f.on then f.on = true; f:Show() end
+        end
+    end
+end
+
+-- Draws the samples on a stage w x h. focus: the settings tab open; its group plays more samples at once.
+function S:DrawLivePreview(stage, w, h, focus)
+    local W, p = ns.Widgets, self.db.profile
+    local v = stage.hstCombatLive
+    if not v then
+        v = { stage = stage, texts = {}, lanes = {}, pool = {}, lists = { taken = {}, enemy = {}, notices = {} } }
+        stage.hstCombatLive = v
+        v.plate = W.Panel(stage, 64, 8)
+        local fill = W.Fill(v.plate, { 0.8, 0.15, 0.1, 1 })
+        fill:SetPoint("TOPLEFT", 1, -1)
+        fill:SetPoint("BOTTOMLEFT", 1, 1)
+        fill:SetWidth(44)
+        v.caption = W.Caption(stage, "")
+        v.caption:SetWidth(160)
+        v.update = function(t) LiveTick(v, t) end
+    end
+    v.w, v.h, v.kx, v.ky = w, h, (w / 2 - 50) / LIVE_REACH_X, (h / 2) / LIVE_REACH_Y
+    v.plateX, v.plateY = Clamp(260 * v.kx, w / 2 - 50), 14 - h / 2
+    v.plate:ClearAllPoints()
+    v.plate:SetPoint("CENTER", v.plateX, v.plateY)
+    v.font, v.flags, v.level = FontFile(p), S.FontFlags(p), stage:GetFrameLevel()
+    v.count, v.used, v.longest, v.throws = 0, 0, 0, 0
+    for _, group in ipairs(GROUPS) do
+        local list = v.lists[group]
+        for i = #list, 1, -1 do list[i] = nil end
+    end
+    v.plate:SetFrameLevel(v.level + 2)
+    -- Damage and healing you take (see S:OnTaken and S:OnPet).
+    local lane = AreaLane(v, p, "incoming", 1)
+    if p.inDamage and 342 >= p.inDamageMin then Add(v, "taken", lane, p.damageColor, nil, "-" .. self:Amount(342)) end
+    if p.inDamage and 14820 >= p.inDamageMin then Add(v, "taken", lane, p.damageColor, "crit", "-" .. self:Amount(14820)) end
+    if p.inHeals and 1250 >= p.inHealMin then Add(v, "taken", lane, p.healColor, nil, "+" .. self:Amount(1250)) end
+    if p.inMisses then Add(v, "taken", lane, p.missColor, "miss", MISSES.DODGE) end
+    if p.inReduction then
+        if p.inDamage and 512 >= p.inDamageMin then
+            Add(v, "taken", lane, p.damageColor, nil, PARTIAL_BY.BLOCK:format(self:Amount(512), self:Amount(120)))
+        else
+            Add(v, "taken", lane, p.missColor, "miss", REDUCED.BLOCK)
+        end
+    end
+    if p.inEnergy then Add(v, "taken", lane, PowerColor("MANA"), nil, ("+%s %s"):format(self:Amount(35), MANA or "Mana")) end
+    if p.inPet and p.inDamage and 87 >= p.inDamageMin then Add(v, "taken", lane, p.damageColor, nil, "Pet -" .. self:Amount(87)) end
+    -- Damage enemies take (see S:OnEnemy), or the game's own numbers.
+    local mode = p.enemyMode
+    if OwnEnemyNumbers(p) then
+        lane = mode == "AREA" and AreaLane(v, p, "outgoing", 2) or PlateLane(v, p)
+        if 870 >= p.enemyMin then Add(v, "enemy", lane, p.enemyColor, nil, self:Amount(870)) end
+        if 2480 >= p.enemyMin then Add(v, "enemy", lane, p.enemyCritColor, "crit", self:Amount(2480)) end
+        if 615 >= p.enemyMin then Add(v, "enemy", lane, p.schoolColors and SCHOOLS[16] or p.enemyColor, nil, self:Amount(615)) end
+        if p.enemyMisses then Add(v, "enemy", lane, p.missColor, "miss", MISSES.PARRY) end
+    elseif mode == "GAME" then
+        lane = GameLane(v, p)
+        Add(v, "enemy", lane, GAME_WHITE, nil, "870")
+        Add(v, "enemy", lane, GAME_WHITE, "crit", "2480")
+        Add(v, "enemy", lane, GAME_YELLOW, nil, "615")
+    end
+    v.plate:SetShown(mode == "NAMEPLATE" or mode == "GAME")
+    v.caption:ClearAllPoints()
+    v.caption:SetPoint("BOTTOM", stage, "BOTTOM", v.plateX, v.plate:IsShown() and 22 or 6)
+    local caption = focus == "enemies" and (mode == "GAME" and "The game's own numbers" or mode == "OFF" and "Enemy damage off") or nil
+    v.caption:SetText(caption or "")
+    v.caption:SetShown(caption ~= nil)
+    -- Notices shown here, in their area.
+    AreaLane(v, p, "notices", 3)
+    for i, area in ipairs(self.NOTICE_AREAS) do AreaLane(v, p, area.key, 3 + i) end
+    for _, n in ipairs(NOTICE_SAMPLES) do
+        if p[n.key] then
+            local a = n.spell and SpellName(n.spell) or n.a
+            Add(v, "notices", LiveNoticeLane(v, p, n.key), n.color, n.kind, n.fmt:format(a, n.b),
+                n.key == "reactives" and p.reactiveBlink or nil)
+        end
+    end
+    -- Each group's samples take turns in a few texts spread over the loop, which lasts long enough for the longest
+    -- to play out.
+    local period = max(LIVE_ROUND, v.longest + LIVE_GAP)
+    v.period = period
+    local slots = SLOTS[focus] or SLOTS.general
+    local texts = v.texts
+    for _, group in ipairs(GROUPS) do
+        local list = v.lists[group]
+        local n = min(slots[group], #list)
+        for slot = 1, n do
+            local f = NextText(v)
+            f.list, f.slot, f.slots = list, slot, n
+            Style(v, f, list[slot])
+            f.start = GROUP_START[group] + (slot - 1) * period / n
+            -- One already showing as the loop starts shows its first sample through.
+            f.turn = (0 - f.start) % period < f.duration and 0 or -1
+            f.age, f.lastAge = -1, nil
+        end
+    end
+    for i = v.count + 1, #texts do
+        local f = texts[i]
+        if f.on then f.on = false; f:Hide() end
+    end
+    if v.count == 0 then return stage:SetScript("OnUpdate", nil) end
+    W.Loop(stage, period, v.update)
+end
+
+-- On the settings page, a bar above the settings: the stage fills it at a scale that keeps texts near their size.
+function S.info.livePreview(frame, width, height, path)
+    local stage = frame.hstCombatLiveStage
+    if not stage then
+        stage = CreateFrame("Frame", nil, frame)
+        stage:SetPoint("CENTER")
+        frame.hstCombatLiveStage = stage
+    end
+    local scale = max(0.7, min(1.2, height / 130))
+    stage:SetScale(scale)
+    local w, h = floor(width / scale), floor(height / scale)
+    stage:SetSize(w, h)
+    S:DrawLivePreview(stage, w, h, path and path[1])
+end
+S.info.previewDock = "top"

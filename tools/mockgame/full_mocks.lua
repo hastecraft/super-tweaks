@@ -92,7 +92,7 @@ MANA = 'Mana'
 function UnitIsUnit(a, b) return a == b end
 function BreakUpLargeNumbers(n) return tostring(n) end
 
--- Auto-Equip Bags: no bags in the bag slots, nothing on the cursor.
+-- Auto-Equip Bags: no bags in the bag slots, nothing on the cursor. Weapons are in WIELDED (items_mocks.lua).
 NUM_BAG_SLOTS = 4
 Enum.ItemClass.Container, Enum.ItemClass.Quiver = 1, 11
 Enum.ItemContainerSubclass = { Bag = 0 }
@@ -103,7 +103,7 @@ C_Container.GetContainerNumFreeSlots = function(bag)
     return free, 0
 end
 C_Container.PickupContainerItem = function() end
-function GetInventoryItemID() return nil end
+function GetInventoryItemID(_, slot) return WIELDED[slot] end
 function PutItemInBag() end
 C_Item.GetItemInfoInstant = function(id)
     local i = ITEMS[id]
@@ -120,9 +120,30 @@ C_EquipmentSet = { GetEquipmentSetIDs = function() return {} end, GetItemIDs = f
 function GetProfessions() return nil end
 function GetProfessionInfo() return nil end
 C_QuestLog.GetQuestObjectives = function() return {} end
+-- Quest Progress Sounds: quest objectives by quest ID (QUEST_OBJECTIVES[questID]: whether each is done, in order; a
+-- quest not listed has one, not done, as most quests have while leveling), titles, the sounds it plays by default.
+QUEST_OBJECTIVES = {}
+local ONE_TO_DO = { false }
+C_QuestLog.GetNumQuestObjectives = function(id) return #(QUEST_OBJECTIVES[id] or ONE_TO_DO) end
+function GetQuestObjectiveInfo(id, i)
+    local finished = (QUEST_OBJECTIVES[id] or ONE_TO_DO)[i]
+    return 'Kobold Vermin slain', 'monster', finished, finished and 8 or 3, 8
+end
+C_QuestLog.GetLogIndexForQuestID = function(id) for i, q in ipairs(state.quests) do if q.questID == id then return i end end end
+C_QuestLog.GetTitleForQuestID = function(id) for _, q in ipairs(state.quests) do if q.questID == id then return q.title end end end
+SOUNDKIT.MAP_PING, SOUNDKIT.IG_QUEST_LIST_COMPLETE = 3175, 878
 C_TooltipInfo.GetBagItem = function() return { lines = {} } end
 Enum.PlayerInteractionType = { Merchant = 5 }
 C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function() return false end }
+-- World refresh: a wait the game reports (0 while none), and what makes refreshing unsafe.
+C_PlayerInteractionManager.ShardTransferConfirm = function() state.shardConfirmed = (state.shardConfirmed or 0) + 1 end
+function GetEvictionTimeRemaining() return state.evictionWait or 0 end
+function UnitOnTaxi() return false end
+function IsFalling() return false end
+function UnitCastingInfo() return nil end
+function UnitChannelInfo() return nil end
+function InCinematic() return false end
+function IsResting() return state.resting == true end
 
 -- Group and quest automation: who you're talking to, summons, deaths, repairs, friends and communities.
 C_GossipInfo = { GetOptions = function() return {} end, GetActiveQuests = function() return {} end,
@@ -156,3 +177,76 @@ function EditModeManagerFrame:IsSnapEnabled() return true end
 Enum.EventToastEventType = { LevelUp = 1 }
 EventToastManagerFrame = CreateFrame('Frame', 'EventToastManagerFrame', UIParent)
 function EventToastManagerFrame:DisplayToast() end
+
+-- Quest Item Button: quests' items (state.quests[i].item = { link, icon, range, start, duration }; range is 1 in range,
+-- 0 out of it, nil when the game can't tell), how far each quest is (q.distance), whether you watch it (q.watched),
+-- the quest areas you're in (QUEST_AREAS[questID]), the quest you follow on the map (FOLLOWED), whether your target is
+-- right for the item (TARGET_RIGHT) and the key set for the button (BOUND_KEY). Links and icons are the fixtures' own
+-- strings, so the mocks allocate nothing.
+local function quest(id) for i, q in ipairs(state.quests) do if q.questID == id then return q, i end end end
+local function special(i) local q = state.quests[i]; return q and q.item end
+function GetQuestLogSpecialItemInfo(i)
+    local item = special(i)
+    if item then return item.link, item.icon, 0, item.whenComplete == true end
+end
+function GetQuestLogSpecialItemCooldown(i) local item = special(i); if item then return item.start or 0, item.duration or 0, 1 end end
+function IsQuestLogSpecialItemInRange(i) local item = special(i); return item and item.range end
+C_QuestLog.GetLogIndexForQuestID = function(id) local _, i = quest(id); return i end
+C_QuestLog.GetDistanceSqToQuest = function(id) local q = quest(id); if q and q.distance then return q.distance, true end end
+C_QuestLog.GetQuestWatchType = function(id) local q = quest(id); if q and q.watched then return 1 end end
+C_QuestLog.GetTitleForQuestID = function(id) local q = quest(id); return q and q.title end
+QUEST_AREAS, FOLLOWED = {}, 0
+C_Minimap = { IsInsideQuestBlob = function(id) return QUEST_AREAS[id] == true end }
+C_SuperTrack = { GetSuperTrackedQuestID = function() return FOLLOWED end }
+C_QuestItemUse = { CanUseQuestItemOnObject = function(location) return TARGET_RIGHT == true and location.bagID ~= nil end }
+local location = {}
+location.__index = location
+function location:SetBagAndSlot(bag, slot) self.bagID, self.slotIndex = bag, slot end
+ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot)
+    local l = setmetatable({}, location)
+    l:SetBagAndSlot(bag, slot)
+    return l
+end }
+function GetBindingKey() return BOUND_KEY end
+function GetBindingText(key) return key end
+
+-- Aura Sounds: the game takes a sound for an aura and gives it an ID; no addon restriction is active.
+Enum.UnitAuraSoundTrigger = { Added = 0, ApplicationsIncreased = 1, Removed = 2 }
+Enum.AddOnRestrictionType = { Combat = 0, Encounter = 1, ChallengeMode = 2, PvPMatch = 3, Map = 4, Chat = 5 }
+C_UnitAuras = {
+    AddAuraSound = function() state.auraSounds = (state.auraSounds or 0) + 1; return state.auraSounds end,
+    RemoveAuraSound = function() end,
+}
+C_RestrictedActions = { IsAddOnRestrictionActive = function() return false end }
+
+-- Campfire Helper: your auras by spell ID (PLAYER_AURAS) and in buff order (PLAYER_BUFFS), WoW Forever's camp spells,
+-- and the campfire kits with the spells they cast.
+PLAYER_AURAS, PLAYER_BUFFS = {}, {}
+C_UnitAuras.GetPlayerAuraBySpellID = function(id) return PLAYER_AURAS[id] end
+C_UnitAuras.GetBuffDataByIndex = function(_, index) return PLAYER_BUFFS[index] end
+C_UnitAuras.GetAuraDataByAuraInstanceID = function(_, id)
+    for _, aura in ipairs(PLAYER_BUFFS) do if aura.auraInstanceID == id then return aura end end
+end
+C_Spell.DoesSpellExist = function() return true end
+ITEMS[279981] = { name = 'Basic Campfire Kit', spell = 'Basic Campfire Kit' }
+ITEMS[279961] = { name = 'Journeyman Campfire Kit', spell = 'Journeyman Campfire Kit' }
+ITEMS[279974] = { name = 'Expert Campfire Kit', spell = 'Expert Campfire Kit' }
+C_Item.GetItemCooldown = C_Item.GetItemCooldown or function() return 0, 0, true end
+
+-- Battleground Alerts: battleground queues (BATTLEFIELDS[i]: status, map, and for an invite the time it runs out), the
+-- game's invite window, the gate countdown's timer type, the alert sounds, and a match's rewards (a new table each
+-- call, as the game's).
+BATTLEFIELDS = {}
+function GetMaxBattlefieldID() return 2 end
+function GetBattlefieldStatus(i) local b = BATTLEFIELDS[i]; if b then return b.status, b.map end; return 'none' end
+function GetBattlefieldPortExpiration(i)
+    local b = BATTLEFIELDS[i]
+    return b and b.expires and math.max(0, math.floor(b.expires - state.time)) or 0
+end
+function GetBattlefieldArenaFaction() return 1 end
+PVPReadyDialog = CreateFrame('Frame', 'PVPReadyDialog', UIParent)
+PVPReadyDialog:Hide()
+Enum.StartTimerType = { PvPBeginTimer = 0 }
+SOUNDKIT.PVP_THROUGH_QUEUE, SOUNDKIT.READY_CHECK = 8459, 8960
+C_PvP = { GetPostMatchCurrencyRewards = function() return { { currencyType = 1792, quantityChanged = 214 } } end }
+C_CurrencyInfo.GetCurrencyInfo = function() return { name = 'Honor' } end

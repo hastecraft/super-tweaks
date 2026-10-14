@@ -18,13 +18,13 @@ An XP bar with rested XP, XP from completed quests, XP per hour and time to leve
 
 ![Better Tooltips](https://media.forgecdn.net/attachments/description/1739405/description_00ec91f5-0e25-48bc-8ced-36b93ed4bb32.png)
 
-A health bar under unit tooltips, borders in class colors, guild ranks and notes, and who the unit is targeting. Item, spell and NPC IDs are optional. Works with tooltip styles from other addons.
+A health bar under unit tooltips, borders in class colors, guild ranks and notes, and who the unit is targeting. On WoW Forever, your Recent Allies show where and when you last played together. Item, spell and NPC IDs are optional. Works with tooltip styles from other addons.
 
 ### Loot Window and Fast Loot
 
 ![Loot Window](https://media.forgecdn.net/attachments/description/1739405/description_42ed96fa-33b9-4e96-b722-14f2f830b381.png)
 
-A compact loot list with a Take All button and hotkey. While you auto loot, it lists what you picked up for a few seconds. Fast Loot takes everything at once and still lets gathering trackers see the loot. Items being rolled on stay in the window.
+A compact loot list with a Take All button and hotkey. While you auto loot, it lists what you picked up for a few seconds. Fast Loot takes everything at once and still lets gathering trackers see the loot.
 
 ### Sell Junk and Sell Clutter
 
@@ -37,33 +37,33 @@ Greys are sold at any vendor. Sell Clutter also sells the items you collect whil
 - gear your class can't use
 - food, potions and white gear you've outleveled
 
-It keeps quest items, items your RestedXP guide needs, equipment sets, profession tools, expensive materials and anything that opens. Item tooltips say what will be sold, and `/hst clutter list` shows the full list before you reach a vendor.
+It keeps quest items, items your RestedXP guide needs, equipment sets, profession tools, expensive materials, anything that opens and gear whose look you haven't collected. Item tooltips say what will be sold, and `/hst clutter list` shows the full list before you reach a vendor.
 
 ### Better Scrolling Combat Text
 
 ![Better Scrolling Combat Text](https://media.forgecdn.net/attachments/description/1739405/description_ed4d5513-f2d9-44ca-90f7-fe595d3222da.gif)
 
-Separate scroll areas for damage and healing you take and for notices: entering and leaving combat, low health and mana, combo points, auras, reputation, honor and skill-ups. Damage numbers can show on enemy nameplates. Fonts, colors, animations and filters are all configurable, and each area moves in Edit Mode.
+Separate scroll areas for damage and healing you take and for notices: entering and leaving combat, low health and mana, combo points, auras, reputation, honor and skill-ups. Damage numbers can show on enemy nameplates. Choose fonts, colors, animations and filters, and move each area in Edit Mode.
 
 ## All tweaks
 
-**Leveling:** XP Tracker, Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Upgrade Spell Ranks (new ranks replace old ones on your bars), Train All.
+**Leveling:** XP Tracker, Kills to Level, Quest XP in Quest Log, Screenshot Level-Ups, Upgrade Spell Ranks (new ranks replace old ones on your bars), Train All, Legacy Tracker (Legacy points from each challenge, and a reminder to spend them), Campfire Helper (a campfire on screen that counts down sitting and your camp buffs).
 
-**Quests and NPCs:** Auto Accept & Turn In Quests, Skip NPC Chat, Quest Item Sparkle, Quest Reward Value (marks the reward that sells for the most), Hide Quest Tracker (in dungeons, PvP, combat or always).
+**Quests and NPCs:** Auto Accept & Turn In Quests, Skip NPC Chat, Quest Item Sparkle, Quest Item Button (one button and key for your current quest's item), Quest Reward Value (marks the reward that sells for the most), Hide Quest Tracker (in dungeons, PvP, combat or always), Quest Progress Sounds (when an objective or a whole quest is done).
 
-**Loot and vendors:** Loot Window, Movable Loot Rolls, Fast Loot, Sell Junk, Sell Clutter, Repair Automatically (guild funds optional), Restock at Vendors (ammo, reagents and poisons, up to a gold limit per visit).
+**Loot and vendors:** Loot Window, Movable Loot Rolls, Fast Loot, Sell Junk, Sell Clutter, Repair Automatically (guild funds optional), Restock at Vendors (ammo, reagents and poisons, and the vendor reagents your tracked recipes need, up to a gold limit per visit).
 
-**Items and mail:** Consumable Macros (always your best food, drink, bandage and potion), Mail Expiry & Alt List, Mail Gold Guard (marks gold mailed by strangers so Open All skips it), Auto-Equip Bags, Bag Tweaks.
+**Items and mail:** Consumable Macros (always your best food, drink, bandage and potion, plus Feed Pet and weapon stones, oils and poisons), Mail Expiry & Alt List, Mail Gold Guard (marks gold mailed by strangers so Open All skips it), Auto-Equip Bags, Bag Tweaks, Appearance Collector (marks gear whose look you haven't collected).
 
-**Group and PvP:** Auto Accept Summons, Auto Accept Resurrection, Auto Release in Battlegrounds, Group Finder Whispers (class, level and race beside each whisper, with click-to-invite).
+**Group and PvP:** Auto Accept Summons, Auto Accept Resurrection, Auto Release in Battlegrounds, Battleground Alerts (a countdown to enter, a gates alert and the match result in chat), Group Finder Whispers (class, level and race beside each whisper, with click-to-invite).
 
-**Social:** Right-Click Guild Invite, Guild Message Popup, Chat Spam Filter (hides gold selling, boosting and recruitment in public channels; never touches whispers, group, guild or friends).
+**Social:** Right-Click Guild Invite, Guild Message Popup, Chat Spam Filter (hides gold selling, boosting and recruitment in public channels).
 
 **Auto-decline:** Battle.net friend requests, duels, guild charters, join requests, party invites and shared quests. Friends, guildmates and community members can be let through.
 
-**Interface:** Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Elite & Rare Markers (dragons and quest marks on nameplates, and a rare alert), Error Message Filter, Minimap Button, Game Settings (camera distance, nameplate range, spell queue window and more, reapplied at login, plus Edit Mode layout backups), Hide Issue Reporter.
+**Interface:** Better Tooltips, Better Scrolling Combat Text, Better Breath Meter, Swing Timer Style (your colors for the game's swing timer, and bars that hide while idle), Better World Refresh (a countdown bar for WoW Forever's world refresh, with alerts and an automatic refresh at a safe moment), Druid Mana in Forms (your mana under the player frame in cat and bear form), Elite & Rare Markers (dragons and quest marks on nameplates, and a rare alert), Combo Points on Nameplates (rogues and druids), Error Message Filter, Minimap Button, Game Settings (camera distance, nameplate range, spell queue window, threat percentage, outlines, map fade and other settings the game's options don't show, reapplied at login, plus Edit Mode layout backups), Hide Issue Reporter.
 
-**Sound:** Mute Mount Sounds, Mute Custom Sounds (rain, spell fizzle, or any sound file ID).
+**Sound:** Mute Mount Sounds, Mute Custom Sounds (rain, spell fizzle, or any sound file ID), Aura Sounds (a sound when the buffs or debuffs you choose appear or fade, in combat too).
 
 ## Install
 

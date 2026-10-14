@@ -89,10 +89,10 @@ C_Macro = { GetSelectedMacroIcon = function(i)
     return icon
 end }
 
--- Items and bags. BAGS[bag][slot] = { itemID, count }. ITEMS[id] = { name, level, ilvl, class, spell, tooltip (lines),
--- unusable }; an item without a name isn't loaded yet.
+-- Items and bags. BAGS[bag][slot] = { itemID, count }. ITEMS[id] = { name, level, ilvl, class, sub, spell, spellID,
+-- tooltip (lines), unusable }; an item without a name isn't loaded yet.
 SPELL_NAMES = { [433] = 'Food', [430] = 'Drink', [746] = 'First Aid', [439] = 'Healing Potion', [437] = 'Restore Mana',
-    [19705] = 'Well Fed', [24799] = 'Well Fed' }
+    [19705] = 'Well Fed', [24799] = 'Well Fed', [6991] = 'Feed Pet' }
 function GetSpellInfo(id) return SPELL_NAMES[id] end
 function UnitIsDeadOrGhost(unit) return unit == 'player' and state.dead == true end
 ITEM_CONJURED = 'Conjured Item'
@@ -111,12 +111,20 @@ C_Item = {
     GetItemInfo = function(id)
         local i = ITEMS[id]
         if not i or not i.name then return nil end
-        return i.name, 'link', 1, i.ilvl or 1, i.level or 0, 'Consumable', '', 20, '', 0, 0, i.class or 0, 0
+        return i.name, 'link', 1, i.ilvl or 1, i.level or 0, 'Consumable', '', 20, '', 0, 0, i.class or 0, i.sub or 0
     end,
-    GetItemSpell = function(id) local i = ITEMS[id]; if i and i.spell then return i.spell, 1 end end,
+    GetItemSpell = function(id) local i = ITEMS[id]; if i and i.spell then return i.spell, i.spellID or 1 end end,
     -- As the game does, nothing can be used while you're dead.
     IsUsableItem = function(id) return not ITEMS[id].unusable and not state.dead end,
     RequestLoadItemDataByID = function(id) state.requested = id end,
+}
+-- A hunter's pet, UNITS.pet = { level, hunter, happiness }, with PET_EATS[itemID] for what it eats, and WIELDED[slot]
+-- for the item in each hand.
+PET_EATS, WIELDED = {}, {}
+function HasPetUI() local pet = UNITS.pet; return pet ~= nil, pet ~= nil and pet.hunter == true end
+C_PetInfo = {
+    CanPetEatItem = function(id) return PET_EATS[id] == true end,
+    GetPetHappiness = function() local pet = UNITS.pet; if pet then return pet.happiness or 3, 125, 0 end end,
 }
 C_TooltipInfo = { GetItemByID = function(id)
     local i = ITEMS[id]
