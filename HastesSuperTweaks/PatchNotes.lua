@@ -14,6 +14,41 @@ local HST = ns.HST
 -- it a link to that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "2.1.0", date = "2026-10-14",
+        summary = "Swing Timer Style, quest marks on nameplates, item counts on tooltips, and muted guilds.",
+        highlights = {
+            { "Your own colors and texture for the game's swing timer, and bars that hide while they aren't swinging.",
+                title = "Swing Timer Style", module = "SwingTimer" },
+            { "On WoW Forever, a quest mark beside the mobs your quests need.",
+                title = "Quest mobs on nameplates", module = "NameplateMarkers", path = { "markers" }, setting = "quest" },
+            { "Item tooltips say how many you have in your bags, bank and account bank.",
+                title = "Item counts", module = "Tooltip", path = { "extras" } },
+        },
+        new = {
+            { "Swing Timer Style (starts off): the game's swing timer in your colors and texture, a color of its own while your target is out of range, and bars that hide while they aren't swinging, so the melee and ranged bars can share a spot.",
+                module = "SwingTimer" },
+            { "Elite & Rare Markers: on WoW Forever, a quest mark beside the mobs your quests need (Quest mobs).",
+                module = "NameplateMarkers", path = { "markers" }, setting = "quest" },
+            { "Better Tooltips: item tooltips say how many you have in your bags, bank and, on WoW Forever, account bank.",
+                module = "Tooltip", path = { "extras" } },
+            { "Better Tooltips: the health bar can be colored by health, green to red, also in combat and dungeons.",
+                module = "Tooltip", path = { "health" }, setting = "colorBy" },
+            { "Chat Spam Filter: mute whole guilds by name. Their members are recognized as you see them, in your group and with /who.",
+                module = "ChatFilter", path = { "general" }, setting = "mutedGuilds" },
+        },
+        changed = {
+            { "Better Tooltips: the Alliance or Horde line is now a see-through faction logo in the tooltip's corner. Choose a line in the faction's color, or the game's own, under Faction.",
+                module = "Tooltip", path = { "faction" }, setting = "factionStyle" },
+            { "Better Tooltips: the health bar follows your target, focus, group and nameplates by the game's health events instead of checking ten times a second.",
+                module = "Tooltip", path = { "health" } },
+            { "Better Tooltips: the settings preview follows every setting.", module = "Tooltip" },
+        },
+        fixed = {
+            { "Better Scrolling Combat Text: big numbers on nameplates no longer have their outlines cut off on 4K screens.",
+                module = "CombatText" },
+        },
+    },
+    {
         version = "2.0.1", date = "2026-10-13",
         fixed = {
             { "No more \"blocked from an action only available to the Blizzard UI\" message when you log in on WoW Forever. Better Tooltips' Recent Allies line now shows once you've opened the Social window's Recent Allies list.",

@@ -2953,7 +2953,20 @@ function P:OpenModule(key, path, focus)
     if not options then return self:ShowInList(module) end
     self:ClearSearch()
     self.lastPath = self.lastPath or {}
-    path = path or self.lastPath[key] or { Pages(options)[1].key }
+    path = path or self.lastPath[key]
+    -- A path can name a page the module doesn't have (a patch note naming a section, or a page since removed): it
+    -- opens the deepest page it does have, or the first.
+    local depth, group = 0, options
+    for _, part in ipairs(path or {}) do
+        local page = group.args and group.args[part]
+        if not (page and IsPage(page)) then break end
+        depth, group = depth + 1, page
+    end
+    if depth == 0 then
+        path = { Pages(options)[1].key }
+    elseif depth < #path then
+        path = { unpack(path, 1, depth) }
+    end
     self.openModule, self.openPath = key, path
     self.lastPath[key] = path
     self:SetMode("page", "module")
@@ -2963,7 +2976,7 @@ function P:OpenModule(key, path, focus)
     -- The category opens in the sidebar, showing the module there.
     State().expanded[info.category] = true
     local names = {}
-    local group = options
+    group = options
     for _, part in ipairs(path) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
     self.crumb = CategoryName(info.category) .. (#names > 0 and ("  >  " .. table.concat(names, "  >  ")) or "")
     self:SetHeader(info.name, self.crumb, info.description)
