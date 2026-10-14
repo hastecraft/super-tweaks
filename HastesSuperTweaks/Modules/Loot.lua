@@ -138,7 +138,8 @@ local function IsLootError(errorType, message)
     return false
 end
 
--- A Fast Loot session runs from auto loot opening until it closes: the slots tried, and whether an error stopped it.
+-- A Fast Loot session runs from auto loot opening until it closes: the slots tried (session[slot]), and whether an
+-- error stopped it.
 -- Closing the loot or turning the module off ends it, and nothing started for it (a retry waiting on its timer)
 -- acts after that; looting that opens later starts afresh.
 function F:EndSession()
@@ -154,10 +155,10 @@ function F:TakeAll(session)
     if not session or session ~= self.session or session.stopped or not self:IsEnabled() then return end
     local threshold = MasterLooter() and GetLootThreshold and GetLootThreshold()
     for slot = 1, GetNumLootItems() do
-        if not session.tried[slot] and LootSlotHasItem(slot) then
+        if not session[slot] and LootSlotHasItem(slot) then
             local _, _, _, _, quality, locked = GetLootSlotInfo(slot)
             if not locked and not (threshold and (quality or 0) >= threshold) then
-                session.tried[slot] = true
+                session[slot] = true
                 LootSlot(slot)
             end
         end
@@ -171,7 +172,7 @@ ns.Listen(F, { "LOOT_READY", "LOOT_OPENED", "LOOT_SLOT_CHANGED", "LOOT_CLOSED", 
         if IsAutoLoot(arg) then
             local session = self.session
             if not session then
-                session = { tried = {} }
+                session = {}
                 self.session = session
                 self.events:RegisterEvent("UI_ERROR_MESSAGE")
             end
@@ -180,13 +181,19 @@ ns.Listen(F, { "LOOT_READY", "LOOT_OPENED", "LOOT_SLOT_CHANGED", "LOOT_CLOSED", 
             if self.db.profile.speed ~= "MODERATE" then
                 self:TakeAll(session)
             elseif event == "LOOT_OPENED" then
-                C_Timer.After(0, function() self:TakeAll(session) end)
+                self.takeSession = session
+                self.takeNext = self.takeNext or function()
+                    local waiting = self.takeSession
+                    self.takeSession = nil
+                    self:TakeAll(waiting)
+                end
+                C_Timer.After(0, self.takeNext)
             end
         end
     elseif event == "LOOT_SLOT_CHANGED" then
         local session = self.session
         if session and not session.stopped then
-            session.tried[arg] = nil
+            session[arg] = nil
             -- Changes come in bursts; try once they settle.
             if self.retry then self.retry:Cancel() end
             self.retry = C_Timer.NewTimer(0.3, function() self.retry = nil; self:TakeAll(session) end)
@@ -195,7 +202,7 @@ ns.Listen(F, { "LOOT_READY", "LOOT_OPENED", "LOOT_SLOT_CHANGED", "LOOT_CLOSED", 
         -- Only for what Fast Loot is taking: binding an item you loot by hand (after an error stopped it, say) stays
         -- your choice.
         local session = self.session
-        if session and session.tried[arg] and not session.stopped and self.db.profile.soloBind and not IsInGroup() then
+        if session and session[arg] and not session.stopped and self.db.profile.soloBind and not IsInGroup() then
             ConfirmLootSlot(arg)
             -- The game shows its confirmation for this event too (for this slot); close it once it has.
             C_Timer.After(0, function() StaticPopup_Hide("LOOT_BIND", arg) end)
