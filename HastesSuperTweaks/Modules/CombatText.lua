@@ -1187,8 +1187,12 @@ end
 function S:PixelScale()
     local scale = self.pixelScale
     if not scale then
-        local _, height = GetPhysicalScreenSize and GetPhysicalScreenSize()
-        scale = UIParent:GetEffectiveScale() * (tonumber(height) or 768) / 768
+        local height = 768
+        if GetPhysicalScreenSize then
+            local _, physical = GetPhysicalScreenSize()
+            height = tonumber(physical) or height
+        end
+        scale = UIParent:GetEffectiveScale() * height / 768
         self.pixelScale = scale
     end
     return scale
