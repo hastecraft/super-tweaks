@@ -384,7 +384,6 @@ function HST:GeneralOptions()
                     ns.Widgets.SetTheme(key)
                 end },
             classAccent = { type = "toggle", order = 2, name = "Accent in your class color",
-                desc = "When off, it's violet.",
                 hidden = function() return not ns.Widgets.theme.accentable end,
                 get = function() return self.db.global.classAccent ~= false end,
                 set = function(_, on)
