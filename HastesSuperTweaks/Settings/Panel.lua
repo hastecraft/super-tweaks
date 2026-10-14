@@ -1756,7 +1756,7 @@ local CPU_BARS, CPU_WINDOW = 40, 60
 local CPU_LOW, CPU_TOP = math.log10(0.00001), math.log10(0.01)
 -- The header, graph and figures lines, and the gaps between them.
 local CPU_HEAD, CPU_GRAPH, CPU_LINE, CPU_GAP = 12, 24, 12, 4
-local CPU_FIGURES = 3 * CPU_LINE + 2 * 2
+local CPU_FIGURES = CPU_LINE
 local CPU_ROW = CPU_HEAD + CPU_GRAPH + CPU_FIGURES + 2 * CPU_GAP
 
 local function CpuProfiler()
@@ -1807,18 +1807,18 @@ function P:CreateCpuGraph(bottom)
             bar:SetWidth(math.max(1, step - 1))
         end
     end)
-    -- Now, Avg and Peak under the graph, a line each: the label at the left, its figure at the right.
+    -- Now, Avg and Peak on one line under the graph, each a label and its figure: Now at the left, Peak at the right
+    -- and Avg centered between them (see P:PaintCpuFigures).
     cpu.figures = {}
     for i, label in ipairs({ "Now", "Avg", "Peak" }) do
-        local y = -(CPU_HEAD + CPU_GRAPH + 2 * CPU_GAP + (i - 1) * (CPU_LINE + 2))
-        local line = { label = W.Text(cpu, "GameFontNormalSmall", C.muted),
-            value = W.Text(cpu, "GameFontNormalSmall", C.text, "RIGHT") }
-        line.label:SetPoint("TOPLEFT", 0, y)
-        line.label:SetText(label)
-        line.value:SetPoint("TOPRIGHT", 0, y)
-        line.value:SetText("0 ms")
-        cpu.figures[i] = line
+        local figure = { label = W.Text(cpu, "GameFontNormalSmall", C.muted),
+            value = W.Text(cpu, "GameFontNormalSmall", C.text) }
+        figure.label:SetText(label)
+        figure.value:SetText("0 ms")
+        figure.value:SetPoint("LEFT", figure.label, "RIGHT", 3, 0)
+        cpu.figures[i] = figure
     end
+    cpu:SetScript("OnSizeChanged", function() self:PlaceCpuFigures() end)
     cpu:SetScript("OnEnter", function()
         W.ShowTooltip(cpu, "CPU use", "How long " .. HST.title .. " takes to run each frame.")
     end)
@@ -1854,6 +1854,36 @@ function P:PaintCpuFigures()
     figures[1].value:SetText(FormatSmall(cpu.ms, " ms"))
     figures[2].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), " ms"))
     figures[3].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.PeakTime), " ms"))
+    self:PlaceCpuFigures()
+end
+
+-- Lays the figures out on their line, a size or two smaller when they don't fit at the sidebar's width.
+local CPU_SPACE = 8
+function P:PlaceCpuFigures()
+    local cpu = self.cpu
+    local figures, width = cpu.figures, cpu:GetWidth()
+    local font, size, flags = GameFontNormalSmall:GetFont()
+    local used
+    for shrink = 0, 2 do
+        if cpu.shrink ~= shrink then
+            cpu.shrink = shrink
+            for _, figure in ipairs(figures) do
+                figure.label:SetFont(font, size - shrink, flags)
+                figure.value:SetFont(font, size - shrink, flags)
+            end
+        end
+        used = 0
+        for _, figure in ipairs(figures) do
+            figure.width = figure.label:GetStringWidth() + 3 + figure.value:GetStringWidth()
+            used = used + figure.width
+        end
+        if used + 2 * CPU_SPACE <= width then break end
+    end
+    local y = -(CPU_HEAD + CPU_GRAPH + 2 * CPU_GAP)
+    local now, avg, peak = figures[1], figures[2], figures[3]
+    now.label:SetPoint("TOPLEFT", 0, y)
+    peak.label:SetPoint("TOPLEFT", width - peak.width, y)
+    avg.label:SetPoint("TOPLEFT", math.floor(now.width + (width - used) / 2 + 0.5), y)
 end
 
 -- ms: the addon's average time a frame over the bar's readings.
