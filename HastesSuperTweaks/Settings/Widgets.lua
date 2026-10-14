@@ -8,8 +8,9 @@ ns.Widgets = W
 
 -- Themes for the settings window. Both step lighter from the title bar and sidebar to the page, its cards and their
 -- controls, with near-black only for the wells previews sit in. Graphite: greys, an accent in your class color (or
--- violet, see W.SetAccent) and round-cornered boxes. Ember: warm browns, parchment text and a gold accent. The game
--- draws these darks a little darker than their values, so neighboring steps are kept well apart.
+-- violet, see W.SetAccent) and round-cornered boxes. Ember: warm browns, parchment text and a gold accent. Moonwell:
+-- night blues, silvered text and a moonwell-teal accent, round-cornered. The game draws these darks a little darker
+-- than their values, so neighboring steps are kept well apart.
 local THEMES = {
     graphite = { name = "Graphite", order = 1, round = true, accentable = true, colors = {
         window = { 0.106, 0.106, 0.106, 0.98 },
@@ -66,6 +67,34 @@ local THEMES = {
         knobOn = { 1, 0.97, 0.90, 1 },
         trackOff = { 0.25, 0.215, 0.18, 1 },
         trackOn = { 0.86, 0.62, 0.24, 1 },
+    } },
+    moonwell = { name = "Moonwell", order = 3, round = true, colors = {
+        window = { 0.075, 0.102, 0.122, 0.98 },
+        titlebar = { 0.055, 0.075, 0.090, 1 },
+        sidebar = { 0.055, 0.075, 0.090, 1 },
+        pane = { 0.125, 0.165, 0.192, 1 },
+        card = { 0.098, 0.133, 0.157, 1 },
+        field = { 0.066, 0.090, 0.108, 1 },
+        well = { 0.035, 0.050, 0.062, 1 },
+        border = { 0.16, 0.215, 0.25, 1 },
+        divider = { 0.14, 0.188, 0.22, 1 },
+        line = { 0.27, 0.36, 0.41, 1 },
+        text = { 0.82, 0.88, 0.92 },
+        bright = { 1, 1, 1 },
+        title = { 0.72, 0.93, 0.94 },
+        header = { 0.48, 0.58, 0.64 },
+        body = { 0.70, 0.77, 0.82 },
+        muted = { 0.54, 0.62, 0.68 },
+        accent = { 0.36, 0.84, 0.82 },
+        onAccent = { 0.03, 0.10, 0.11 },
+        warning = { 0.98, 0.62, 0.38 },
+        disabled = { 0.38, 0.43, 0.47 },
+        hover = { 0.70, 0.90, 1, 0.06 },
+        selected = { 0.36, 0.84, 0.82, 0.12 },
+        knob = { 0.62, 0.70, 0.76, 1 },
+        knobOn = { 0.94, 1, 1, 1 },
+        trackOff = { 0.17, 0.225, 0.26, 1 },
+        trackOn = { 0.30, 0.74, 0.72, 1 },
     } },
 }
 
