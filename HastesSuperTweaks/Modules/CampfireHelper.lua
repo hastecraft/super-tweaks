@@ -939,8 +939,8 @@ function C:Check(quiet)
     if welcome == nil then welcome = Aura(WELCOMING[2]) end
     if benefits == HIDDEN or welcome == HIDDEN or boosted == HIDDEN or near == HIDDEN then return self:Unread() end
     self.dirty = false
-    quiet = quiet or GetTime() < (self.quietUntil or 0)
     local p, now = self.db.profile, GetTime()
+    quiet = quiet or now < (self.quietUntil or 0)
     local ended = self.ended
     -- Camp Benefits first: it says what sitting can still give.
     local b = self.benefits
@@ -984,7 +984,7 @@ function C:Check(quiet)
     if Track(r, boosted) == "gone" and not quiet and Says("boosted") and restLeft <= ON_TIME then
         Print(RestedText())
     end
-    if changed then self:Refresh() end
+    if changed then self:Refresh(now) end
 end
 
 -- What couldn't be read is read once combat ends; the end of combat is listened to only while something waits for it.
