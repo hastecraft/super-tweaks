@@ -332,8 +332,9 @@ function N:Alert(unit)
     if p.sound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
 end
 
--- Checks the quest marks of the nameplates showing again: every one's while the quest log answers, but with tooltip
--- data, which builds a table per read, only the marked ones' (to take marks off objectives now done), unless all is set.
+-- Checks the quest marks of the nameplates showing again: every one's while the quest log answers or when all is set,
+-- but with tooltip data, which builds a table per read, only the marked ones' otherwise (to take marks off quests
+-- dropped or turned in).
 function N:RecheckQuests(all)
     if not questOn then return end
     local every = all or self.questSource ~= "tooltip"
@@ -349,17 +350,21 @@ function N:RecheckQuests(all)
 end
 
 -- A quest taken, progressed or dropped: the quest marks are checked again once, when the quest log has caught up (its
--- next QUEST_LOG_UPDATE, listened to only until then).
+-- next QUEST_LOG_UPDATE, listened to only until then). A quest taken or progressed (a next objective) can add marks, so
+-- then every nameplate showing is checked, with tooltip data too: one read per kind of mob, as the answers by NPC ID
+-- start over.
 local QUEST_EVENTS = { "QUEST_ACCEPTED", "QUEST_WATCH_UPDATE", "QUEST_REMOVED" }
-local listening, pending = false, false
+local listening, pending, adds = false, false, false
 function N:OnQuestChange(event)
     if event == "QUEST_LOG_UPDATE" then
-        pending = false
+        local all = adds
+        pending, adds = false, false
         self.events:UnregisterEvent("QUEST_LOG_UPDATE")
         wipe(needs)
-        return self:RecheckQuests()
+        return self:RecheckQuests(all)
     end
     wipe(needs)
+    if event ~= "QUEST_REMOVED" then adds = true end
     if not trusted then checks = self.CHECKS end
     if not pending then pending = true; self.events:RegisterEvent("QUEST_LOG_UPDATE") end
 end
@@ -372,7 +377,7 @@ function N:ListenToQuests(on)
     for _, event in ipairs(QUEST_EVENTS) do
         if on then events:RegisterEvent(event) else events:UnregisterEvent(event) end
     end
-    if not on and pending then pending = false; events:UnregisterEvent("QUEST_LOG_UPDATE") end
+    if not on and pending then pending, adds = false, false; events:UnregisterEvent("QUEST_LOG_UPDATE") end
 end
 
 ns.Listen(N, { "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }, function(self, event, unit)
@@ -429,6 +434,6 @@ function N:OnUnlisten()
     wipe(shown)
     wipe(questUnits)
     wipe(needs)
-    questOn, listening, pending = false, false, false
+    questOn, listening, pending, adds = false, false, false, false
     for unit, marker in pairs(byUnit) do marker:Hide(); byUnit[unit] = nil end
 end
