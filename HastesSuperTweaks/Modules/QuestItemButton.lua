@@ -171,9 +171,8 @@ local best = {}
 -- Weighs a quest in the log as the button's: a quest with an item to show ranks, lowest first, by its area being where
 -- you are, your following it on the map, how far it is being known, your watching it, or none of these. Ties go to the
 -- nearer one, then to the one higher in the log. Items the game's tracker would hide (a finished quest's) are skipped.
-local function Consider(index, questID, followed)
-    local link, texture, _, whenComplete = SpecialItem(index)
-    if not (link and texture) then return end
+-- link, texture and whenComplete are the entry's item (SpecialItem), which it has.
+local function Consider(questID, followed, link, texture, whenComplete)
     if not whenComplete and QL.IsComplete and QL.IsComplete(questID) then return end
     local rank = 5
     local inside = InsideArea and InsideArea(questID)
@@ -195,7 +194,10 @@ end
 -- looked up by ID, in case the game still has it.
 local function ConsiderByID(questID, shown, followed)
     local index = QL.GetLogIndexForQuestID(questID)
-    if index and index > shown and QL.GetQuestIDForLogIndex(index) == questID then Consider(index, questID, followed) end
+    if index and index > shown and QL.GetQuestIDForLogIndex(index) == questID then
+        local link, texture, _, whenComplete = SpecialItem(index)
+        if link and texture then Consider(questID, followed, link, texture, whenComplete) end
+    end
 end
 
 -- The quest whose item the button should hold, that item's link and its icon, or nil when no quest has one.
@@ -204,9 +206,13 @@ function Q:Pick()
     local followed = Followed and Followed()
     if IsSecret(followed) or type(followed) ~= "number" then followed = 0 end
     local shown = QL.GetNumQuestLogEntries()
+    -- Few quests have an item: each entry's is asked for first, and only one with an item is asked its quest.
     for index = 1, shown do
-        local questID = QL.GetQuestIDForLogIndex(index)
-        if questID and questID > 0 then Consider(index, questID, followed) end
+        local link, texture, _, whenComplete = SpecialItem(index)
+        if link and texture then
+            local questID = QL.GetQuestIDForLogIndex(index)
+            if questID and questID > 0 then Consider(questID, followed, link, texture, whenComplete) end
+        end
     end
     if followed > 0 then ConsiderByID(followed, shown, followed) end
     for questID in pairs(areas) do ConsiderByID(questID, shown, followed) end
