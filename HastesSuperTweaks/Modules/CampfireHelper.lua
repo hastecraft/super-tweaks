@@ -310,6 +310,7 @@ local function StyleRing(v, p, size)
         v.ring = ring
         v.track:SetTexture(ring)
         v.cd:SetSwipeTexture(ring)
+        v.swipe = nil -- its color is set again with the new texture
     end
     v.back:SetSize(size * 1.05, size * 1.05)
     Shown(v.back, p.backdrop)
