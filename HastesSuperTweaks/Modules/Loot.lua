@@ -1151,16 +1151,19 @@ end
 function L:QueueNotices()
     if self.noticesQueued then return end
     self.noticesQueued = true
-    C_Timer.After(0, function()
+    self.flushNotices = self.flushNotices or function()
         self.noticesQueued = nil
         -- Looting by hand may have taken over the window meanwhile.
         if self:IsEnabled() and not LOOTING[self.mode] then self:ShowNotices() end
-    end)
+    end
+    C_Timer.After(0, self.flushNotices)
 end
 
 function L:ShowNotices()
     local f = self:Window()
-    local money = self.noticeMoney > 0 and { amount = self.noticeMoney } or nil
+    -- The money line's table is used again: Layout only reads it.
+    local money = self.noticeMoney > 0 and (self.noticeLine or {}) or nil
+    if money then money.amount, self.noticeLine = self.noticeMoney, money end
     if #self.notices == 0 and not money then return f:Hide() end
     local appearing = not (f:IsShown() and self.mode == "notices")
     self.mode = "notices"
