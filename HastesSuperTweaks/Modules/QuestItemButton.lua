@@ -301,6 +301,8 @@ function Q:Place(p, link, editing)
         b.icon:SetTexture(self.pickTexture)
         -- Drawn anew for the new item; where it is in your bags is looked for again.
         b.shownCount, b.cdStart, self.bag = nil, nil, nil
+        -- With no item it hides, and nothing checks its target to end a glow.
+        if not self.link then Glow(b, false) end
     end
     self.questID = self.link and self.pickQuest or nil
     if b.size ~= p.size then
