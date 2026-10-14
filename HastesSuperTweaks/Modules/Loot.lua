@@ -551,6 +551,7 @@ local function CreateRow(window)
         local item = r.item
         if not (item and (item.slot or item.link)) then return end
         r.hover:Show()
+        r.hovered = true -- for the layouts, which don't ask the game
         GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
         if item.slot then GameTooltip:SetLootItem(item.slot) else GameTooltip:SetHyperlink(item.link) end
         GameTooltip:Show()
@@ -558,6 +559,7 @@ local function CreateRow(window)
     row:SetScript("OnEnter", row.Enter)
     row:SetScript("OnLeave", function(r)
         r.hover:Hide()
+        r.hovered = nil
         ns.Widgets.HideTooltip(r)
     end)
     row:SetScript("OnClick", function(r)
@@ -1038,7 +1040,7 @@ function L:ShowManual(items, money)
     self:WatchBags()
     -- Taking an item moves the ones below it up: the row under the mouse now holds another item, so show its tooltip.
     for _, row in ipairs(f.rows) do
-        if row:IsShown() and row.hover:IsShown() then row.Enter(row) end
+        if row.hovered and row:IsShown() then row.Enter(row) end
     end
     return true
 end
@@ -1184,7 +1186,7 @@ function L:NoticeRowsMouse()
     if not (f and f:IsShown()) then return end
     for _, row in ipairs(f.rows) do
         if row:IsShown() then
-            if not mouse and row.hover:IsShown() then row:GetScript("OnLeave")(row) end
+            if not mouse and row.hovered then row:GetScript("OnLeave")(row) end
             row:EnableMouse(mouse and row.item ~= nil and row.item.link ~= nil)
         end
     end
