@@ -808,6 +808,16 @@ Section('Better Scrolling Combat Text (nameplate numbers on)', function()
     end)
     clear()
     Measure('Nothing shown: one second of frames (64 fps)', 100, function() Seconds(1) end)
+    -- A critical hit on a 4K screen (2160 pixels for the interface's 768 units) with Slug off: its pop grows past
+    -- MOST_PIXELS, so it stretches for those frames.
+    S.pixelScale, S.slug = 2160 / 768, false
+    Measure('Nameplate crit on a 4K screen: the hit and its pop (13 frames)', 100, function()
+        n = n % 8 + 1
+        Dispatch('UNIT_COMBAT', 'nameplate' .. n, 'WOUND', 'CRITICAL', 250, 1)
+        for _ = 1, 13 do state.time = state.time + FRAME; Script(S.driver, 'OnUpdate', FRAME) end
+    end)
+    S:Apply()
+    clear()
 end)
 '''
 
