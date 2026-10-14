@@ -458,18 +458,24 @@ end
 
 -- The best usable item of each kind in your bags: kind -> itemID, with your pet's food and each hand's weapon buff
 -- (pet, mainhand, offhand). This runs after every bag change, so a slot whose item is already known to be something
--- else (most of them) is passed over by its ID alone; only candidates have their full slot info (a new table each time)
--- read for the stack size. Its own tables are used again each time; the one it returns is only good until the next
--- call.
+-- else (most of them) is passed over by its ID alone; only candidates have their stack size read, through one item
+-- location used again (the full slot info is a new table each time). Its own tables are used again each time; the one
+-- it returns is only good until the next call.
 local counts, best = {}, {}
+local slotLocation
 function M:Choose()
     local known = self.items
     wipe(counts); wipe(best)
     local SlotItem, SlotInfo = C_Container.GetContainerItemID, C_Container.GetContainerItemInfo
+    local Stack = SlotItem and C_Item and C_Item.GetStackCount and ItemLocation and ItemLocation.CreateFromBagAndSlot
+        and C_Item.GetStackCount
     for bag = 0, NUM_BAG_SLOTS or 4 do
         for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
             local itemID = SlotItem and SlotItem(bag, slot)
-            if not SlotItem or (itemID and known[itemID] ~= false) then
+            if Stack and itemID and known[itemID] ~= false then
+                if slotLocation then slotLocation:SetBagAndSlot(bag, slot) else slotLocation = ItemLocation:CreateFromBagAndSlot(bag, slot) end
+                counts[itemID] = (counts[itemID] or 0) + (Stack(slotLocation) or 1)
+            elseif not Stack and (not SlotItem or (itemID and known[itemID] ~= false)) then
                 local info = SlotInfo(bag, slot)
                 if info and info.itemID then counts[info.itemID] = (counts[info.itemID] or 0) + (info.stackCount or 1) end
             end
