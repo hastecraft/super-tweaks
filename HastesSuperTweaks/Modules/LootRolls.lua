@@ -155,7 +155,9 @@ function R:Hook()
     if column and column.Layout then hooksecurefunc(column, "Layout", place) end
 end
 
+-- Profile changes reach this while it's off too; the holder and hooks are made once it's first turned on.
 function R:Apply()
+    if not (self.holder or self:IsEnabled()) then return end
     local h, scale = self:Holder(), self.db.profile.scale
     local x, y = self:Position()
     h:SetSize(self.WIDTH * scale, self.HEIGHT * scale)
