@@ -923,8 +923,9 @@ function W.ColorRow(parent)
 end
 
 -- A text field. Enter applies, Escape reverts; unsaved edits light the border. A full row has the field under the
--- label, across the row.
-function W.InputRow(parent, full)
+-- label, across the row. Given onEdit, the row is live: onEdit(text) gets each change as it's typed or pasted, and the
+-- field takes text of any length.
+function W.InputRow(parent, full, onEdit)
     local c = NewRow(parent)
     c:EnableMouse(true)
     local e = CreateFrame("EditBox", nil, c)
@@ -937,7 +938,16 @@ function W.InputRow(parent, full)
     local function paint() e.SetBorderColor((e:HasFocus() or dirty()) and C.accent or C.border) end
     e:SetScript("OnEditFocusGained", paint)
     e:SetScript("OnEditFocusLost", paint)
-    e:SetScript("OnTextChanged", paint)
+    if onEdit then
+        c.live = true
+        e:SetMaxLetters(0)
+        e:SetScript("OnTextChanged", function(self, userInput)
+            paint()
+            if userInput then onEdit(self:GetText()) end
+        end)
+    else
+        e:SetScript("OnTextChanged", paint)
+    end
     e:SetScript("OnEscapePressed", function(self) self:SetText(c.saved or ""); self:ClearFocus() end)
     e:SetScript("OnEnterPressed", function(self)
         self:ClearFocus()
@@ -964,9 +974,106 @@ function W.InputRow(parent, full)
         return height
     end
     function c:SetValue(text, off)
-        -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile.
+        -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile. A
+        -- live row's edits are already saved, so it only follows changes made elsewhere (emptied once used).
         local saved = text or ""
-        local kept = e:HasFocus() or (saved == self.saved and dirty())
+        local kept
+        if self.live then kept = e:GetText() == saved else kept = e:HasFocus() or (saved == self.saved and dirty()) end
+        self.saved = saved
+        if not kept then e:SetText(saved) end
+        e:SetEnabled(not off)
+        e:SetTextColor(unpack(off and C.disabled or C.bright))
+        self.off = off
+        DimLabel(self, off)
+        paint()
+    end
+    return c
+end
+
+-- A text box `lines` lines tall (3 unless given) for long text, such as word lists: the label above it, the text
+-- wrapping inside it and scrolling past that. Enter applies, Shift+Enter starts a new line, Escape reverts; unsaved
+-- edits light the border. It takes text of any length. Given onEdit, the box is live, as W.InputRow's is.
+function W.TextAreaRow(parent, lines, onEdit)
+    local c = NewRow(parent)
+    c:EnableMouse(true)
+    local box = CreateFrame("Frame", nil, c)
+    box.SetBorderColor = W.Outline(box, 7, C.border, C.field)
+    local area = W.ScrollArea(box)
+    area:SetPoint("TOPLEFT", 11, -5)
+    area:SetPoint("BOTTOMRIGHT", -14, 5)
+    area:EnableMouseWheel(false)
+    local e = CreateFrame("EditBox", nil, area.child)
+    e:SetPoint("TOPLEFT")
+    e:SetPoint("TOPRIGHT")
+    e:SetMultiLine(true)
+    e:SetMaxLetters(0)
+    e:SetFontObject("ChatFontNormal")
+    e:SetAutoFocus(false)
+    local _, size = e:GetFont()
+    local line = math.floor((size or 14) + 2.5)
+    box:SetHeight((lines or 3) * line + 10)
+    local function dirty() return e:GetText() ~= (c.saved or "") end
+    local function paint() box.SetBorderColor((e:HasFocus() or dirty()) and C.accent or C.border) end
+    -- Keeps the cursor in view as it moves or the text grows.
+    local function follow()
+        if not (e:HasFocus() and c.cursorY) then return end
+        local top, view, scroll = -c.cursorY, area:GetHeight(), area:GetVerticalScroll()
+        if top < scroll then area:ScrollTo(top)
+        elseif top + c.cursorH > scroll + view then area:ScrollTo(top + c.cursorH - view) end
+    end
+    e:SetScript("OnCursorChanged", function(_, _, y, _, h) c.cursorY, c.cursorH = y, h; follow() end)
+    e:SetScript("OnSizeChanged", function(_, _, height)
+        area:SetContentHeight(height)
+        -- The wheel scrolls the page around the box unless the box has text to scroll.
+        area:EnableMouseWheel(area:GetVerticalScrollRange() > 0.5)
+        follow()
+    end)
+    area:SetScript("OnMouseWheel", function(self, delta) self:ScrollTo(self:GetVerticalScroll() - delta * line * 2) end)
+    e:SetScript("OnEditFocusGained", paint)
+    e:SetScript("OnEditFocusLost", paint)
+    if onEdit then
+        c.live = true
+        e:SetScript("OnTextChanged", function(self, userInput)
+            paint()
+            if userInput then onEdit(self:GetText()) end
+        end)
+    else
+        e:SetScript("OnTextChanged", paint)
+    end
+    e:SetScript("OnEscapePressed", function(self) self:SetText(c.saved or ""); self:ClearFocus() end)
+    e:SetScript("OnEnterPressed", function(self)
+        if IsShiftKeyDown() then return self:Insert("\n") end
+        self:ClearFocus()
+        if c.onCommit then c.onCommit(self:GetText()) end
+    end)
+    -- Clicking the box under the text puts the cursor at its end.
+    box:EnableMouse(true)
+    box:SetScript("OnMouseDown", function()
+        if c.off then return end
+        e:SetFocus()
+        e:SetCursorPosition(#e:GetText())
+    end)
+    function c:Layout(width)
+        -- The label alone on the first line, the box under it, then the description.
+        local _, head = PlaceText(self, width, 0, 22)
+        local tall = box:GetHeight()
+        box:ClearAllPoints()
+        box:SetPoint("TOPLEFT", 0, -ROW_PAD - head)
+        box:SetPoint("TOPRIGHT", -2, -ROW_PAD - head)
+        local height = ROW_PAD * 2 + head + tall + 4
+        if self.desc:IsShown() then
+            self.desc:ClearAllPoints()
+            self.desc:SetPoint("TOPLEFT", 2, -ROW_PAD - head - tall - 6)
+            height = height + self.desc:GetStringHeight() + 4
+        end
+        return height
+    end
+    function c:SetValue(text, off)
+        -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile. A
+        -- live box's edits are already saved, so it only follows changes made elsewhere.
+        local saved = text or ""
+        local kept
+        if self.live then kept = e:GetText() == saved else kept = e:HasFocus() or (saved == self.saved and dirty()) end
         self.saved = saved
         if not kept then e:SetText(saved) end
         e:SetEnabled(not off)

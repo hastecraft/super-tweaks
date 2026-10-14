@@ -6,7 +6,7 @@ local Q = HST:NewFeature("QuestSparkle", {
     name = "Quest Item Sparkle", category = "quests", order = 3,
     summary = "Quest items and objects sparkle in the world.",
     description = "Quest items and objects you can loot or use keep their sparkle even with the game's outlines turned "
-        .. "off. Turning this off puts the game's setting back.",
+        .. "off.",
 })
 ns.QuestSparkle = Q
 local CVAR = "outlineModeShowLootEffectWhenDisabled"

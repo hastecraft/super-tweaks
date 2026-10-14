@@ -127,7 +127,7 @@ function HST:Introduce()
         local on, total = self:CountEnabled()
         local minimap = self:GetModule("MinimapButton", true)
         self:Print(on .. " of " .. total .. " tweaks are on. Type /hst" .. (minimap and minimap:IsEnabled() and " or click the minimap button" or "")
-            .. " to see what each one does and choose yours.")
+            .. " to choose yours.")
     end)
 end
 
@@ -266,10 +266,12 @@ function HST:ValidProfileName(name)
 end
 
 -- The Profiles and About pages, built the first time the settings window shows them (see ns.LazyOptions).
--- Profiles cover every module's settings; module on/off states and statistics are separate.
+-- Profiles cover every module's settings; module on/off states and statistics are separate. The Export and Import
+-- cards are ProfileStrings.lua's.
 function HST:ProfileOptions()
     if self.profileOptions then return self.profileOptions end
     local db = self.db
+    local share = self:ProfileShareOptions()
     local function values(list)
         local result = {}; for _, item in ipairs(list) do result[item] = item end; return result
     end
@@ -312,6 +314,8 @@ function HST:ProfileOptions()
             reset = { type = "execute", name = "Reset profile", order = 3, confirm = true,
                 confirmText = "Restore the active profile to default settings?", func = function() db:ResetProfile() end },
         } },
+        export = share.export,
+        import = share.import,
     } }
     return self.profileOptions
 end
@@ -333,6 +337,8 @@ function HST:AboutOptions()
             { "/hst sell <item>", "Always sell an item (again to undo)" },
             { "/hst mail check", "Mail expiring soon on your characters" },
             { "/hst sort", "Clean up your bags" },
+            { "/hst refresh now", "Refresh the world now, when a refresh is waiting" },
+            { "/hst legacy", "Open the Legacy window" },
         }),
         xp = card("XP Tracker", 4, {
             { "/hxp", "Open XP Tracker settings" },
@@ -398,7 +404,7 @@ function HST:Command(message)
     end
     table.sort(words)
     self:Print("/hst opens settings; /hst <tweak> opens a tweak's settings (" .. table.concat(words, ", ")
-        .. "). Also: /hst clutter list, /hst keep <item>, /hst sell <item>, /hst mail check, /hst sort. XP bar commands: /hxp help.")
+        .. "). Also: /hst clutter list, /hst keep <item>, /hst sell <item>, /hst mail check, /hst sort, /hst refresh now, /hst legacy. XP bar commands: /hxp help.")
 end
 
 -- The About page's /hst commands: the window, then each module's settings word in alphabetical order.
@@ -585,10 +591,10 @@ function ns.HookUnitTooltip(fn)
     if #unitTooltipHooks == 1 then TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnUnitTooltip) end
 end
 
--- The first left-hand tooltip line after the title whose text contains `text`, and that text. Lines holding secret
--- text are skipped. Line names are built once per tooltip and index.
+-- The first left-hand tooltip line after the title whose text contains `text` (with exact, is `text`), and that text.
+-- Lines holding secret text are skipped. Line names are built once per tooltip and index.
 local lineNames = {}
-function ns.FindTooltipLine(tip, text)
+function ns.FindTooltipLine(tip, text, exact)
     local prefix = tip:GetName()
     if not prefix then return nil end
     local names = lineNames[prefix]
@@ -598,7 +604,7 @@ function ns.FindTooltipLine(tip, text)
         if not name then name = prefix .. "TextLeft" .. i; names[i] = name end
         local line = _G[name]
         local current = line and line:GetText()
-        if not IsSecret(current) and current and current:find(text, 1, true) then
+        if not IsSecret(current) and current and (current == text or not exact and current:find(text, 1, true)) then
             return line, current
         end
     end

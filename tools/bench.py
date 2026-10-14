@@ -26,7 +26,7 @@ os.environ['HST_ADDON_DIR'] = str(ROOT / 'HastesSuperTweaks')
 # Every copy is measured with this bench's mocks and scenarios, so two versions differ only in the addon.
 sys.path.insert(0, str(HERE))
 import harness  # noqa: E402
-from shared_fixtures import MENU_MOCKS, TOOLTIP_MOCKS, SIMPLE_MOCKS, BREATH_MOCKS, SETTINGS_MOCKS  # noqa: E402
+from shared_fixtures import MENU_MOCKS, TOOLTIP_MOCKS, SIMPLE_MOCKS, BREATH_MOCKS, SWING_MOCKS, DRUID_MOCKS, SETTINGS_MOCKS  # noqa: E402
 
 DETAIL, JSON = '--detail' in sys.argv, '--json' in sys.argv
 COUNTERS = (HERE / 'benchmark_mocks.lua').read_text(encoding='utf-8')
@@ -181,6 +181,104 @@ Section('Tooltips', function()
         Send('Tooltip', 'GUILD_ROSTER_UPDATE', false); hover('mouseover', PLAYER)
     end)
     Script(tip, 'OnTooltipCleared'); tip.unit = nil
+    -- The game filling in its tooltip for an item (the item post-call hooks): a bag slot redraws its own five times a
+    -- second, and moving along the bags shows another item each time. Ore in the bags, bank and account bank.
+    ITEM_COUNTS[2770], BANK_COUNTS[2770], ACCOUNT_COUNTS[2770] = 4, 8, 2
+    local ORE, CLOTH = { id = 2770 }, { id = 2589 }
+    local function itemTip(data)
+        local fill = POSTCALLS[Enum.TooltipDataType.Item]
+        if fill then fill(tip, data) end
+    end
+    Measure('Item tooltip refresh: counts line, same item', 300, function() itemTip(ORE) end)
+    local n = 0
+    Measure('Item tooltip: counts line, another item each time', 300, function()
+        n = n + 1
+        itemTip(n % 2 == 0 and ORE or CLOTH)
+    end)
+    -- A tooltip naming its unit by a token the game sends health events for (your target here) is followed by them
+    -- instead of polled. Each scenario is a second of the bar's frames (its poll, when it has one) with the events of
+    -- that second, so polling and events compare.
+    local function barSecond()
+        for _ = 1, 64 do
+            local poll = rawget(T.bar, 'scripts').OnUpdate
+            if poll then CallIn(poll, T.bar, FRAME) end
+        end
+    end
+    local function hurt() UNITS.target.health = UNITS.target.health == 50 and 49 or 50 end
+    UNIT_DATA.target = { guid = UNITS.target.guid }
+    Measure('Tooltip refresh: your target', 300, function() hover('target', NPC) end)
+    Measure('Tooltip on your target: a second, health unchanged', 100, barSecond)
+    Measure('Tooltip on your target: a second, health changed once', 100, function()
+        hurt(); Dispatch('UNIT_HEALTH', 'target'); barSecond()
+    end)
+    Measure('Tooltip on your target: a second, tapped by others or not', 100, function()
+        UNITS.target.tapped = not UNITS.target.tapped
+        Dispatch('UNIT_FACTION', 'target'); barSecond()
+    end)
+    UNITS.target.tapped = nil
+    Measure('Tooltip on your target: a second after targeting it again', 100, function()
+        Dispatch('PLAYER_TARGET_CHANGED'); barSecond()
+    end)
+    Measure('Tooltip switched: a mob (polled), then your target (events)', 100, function()
+        hover('npc', NPC); hover('target', NPC)
+    end)
+    T.db.profile.colorBy = 'HEALTH'; T:Apply()
+    Measure('Tooltip on your target, by health: a second, health changed once', 100, function()
+        hurt(); Dispatch('UNIT_HEALTH', 'target'); barSecond()
+    end)
+    SECRET = true
+    Measure('Tooltip on your target, by health: a second, hidden health changed once', 100, function()
+        hurt(); Dispatch('UNIT_HEALTH', 'target'); barSecond()
+    end)
+    hover('npc', NPC)
+    Measure('Tooltip health poll, by health: hidden health values', 300, function() Script(T.bar, 'OnUpdate', T.POLL) end)
+    SECRET = false
+    T.db.profile.colorBy = nil; T:Apply()
+    Script(tip, 'OnTooltipCleared'); blizzardHideTooltip(tip); tip.shown = true; tip.unit = nil
+end)
+
+-- WoW Forever's Recent Allies, which the client of the other scenarios doesn't have (as on Classic Era): the Social
+-- window loads them (asking is forbidden to addons, so the mock fails if one does), and they arrive. Jaina is a pinned ally with a note, last met in The Deadmines two
+-- days ago; Thrall isn't one. As the game's, GetRecentAllyByGUID makes new tables on every call.
+Section('Tooltips: Recent Allies (WoW Forever)', function()
+    -- A copy of the addon from before the line (a base to compare with) has nothing to measure here.
+    if T.db.profile.recentAllies == nil then return end
+    local NOW, ALLY_GUID, loaded = 1760000000, 'Player-2', false
+    local serverTime = GetServerTime
+    function GetServerTime() return NOW + math.floor(state.time) end
+    C_RecentAllies = {
+        IsSystemSupported = function() return true end,
+        IsSystemEnabled = function() return true end,
+        IsRecentAllyDataReady = function() return loaded end,
+        TryRequestRecentAlliesData = function() error('only the game may ask for Recent Allies (ADDON_ACTION_FORBIDDEN)') end,
+        IsRecentAllyByGUID = function(guid) if loaded then return guid == ALLY_GUID end end,
+        GetRecentAllyByGUID = function(guid)
+            if not loaded or guid ~= ALLY_GUID then return nil end
+            return {
+                stateData = { isOnline = true, isDND = false, isAFK = false, isConvertedLegacyFriend = false,
+                    pinExpirationDate = NOW + 20 * 86400, friendRequestSentThisSession = false },
+                characterData = { guid = guid, name = 'Jaina', fullName = 'Jaina Proudmoore', realmName = 'TestRealm',
+                    level = 60, classID = 8, raceID = 1, sex = 3 },
+                interactionData = { note = 'Brings water', interactions = { { type = 1, description = 'Party member',
+                    timestamp = NOW - 2 * 86400, contextData = { locationName = 'The Deadmines' } } } },
+            }
+        end,
+    }
+    UNITS.ally = { guid = ALLY_GUID, player = true, class = 'WARRIOR', health = 3000, maxHealth = 3000 }
+    UNIT_DATA.ally = { guid = ALLY_GUID }
+    local ALLY = { 'Jaina', 'Level 60 Human Mage (Player)' }
+    T:Apply()
+    loaded = true -- the Social window's list showed
+    Dispatch('RECENT_ALLIES_DATA_READY')
+    Measure('Tooltip refresh: recent ally (pinned, with a note)', 300, function() hover('ally', ALLY) end)
+    Measure('Tooltip refresh: player, not a recent ally', 300, function() hover('mouseover', PLAYER) end)
+    Measure('Tooltip shown anew: hidden, then a recent ally', 300, function() blizzardHideTooltip(tip); hover('ally', ALLY) end)
+    Measure('Recent ally updated, then their tooltip', 100, function()
+        Dispatch('RECENT_ALLY_DATA_UPDATED', ALLY_GUID); hover('ally', ALLY)
+    end)
+    C_RecentAllies, GetServerTime = nil, serverTime
+    T:Apply()
+    Script(tip, 'OnTooltipCleared'); tip.unit = nil
 end)
 
 Section('Kills to Level', function()
@@ -209,6 +307,90 @@ Section('Quest XP in Quest Log', function()
     Measure('Quest log redraw (Forever log): 20 titles', 100, function() QuestLogQuests_Update() end)
     Measure('Quest log title hover: reward line', 300, function() QuestMapLogTitleButton_OnEnter(buttons[3]) end)
     tip:Hide()
+end)
+
+Section('Quest Item Button', function()
+    if not HST:GetModule('QuestItemButton', true) then return end -- a version without this tweak
+    -- Two of the 20 quests have an item, the torch's quest the nearer; the torch is in your bags and your target in its
+    -- range, and right for it. You have a target only in the target scenarios: with one, the range is also checked on a
+    -- timer, measured on its own.
+    local torch, rope = state.quests[5], state.quests[12]
+    torch.item, torch.distance = { link = 'item:6001', icon = 'icon6001', range = 1 }, 900
+    rope.item, rope.distance = { link = 'item:6002', icon = 'icon6002' }, 40000
+    ITEM_COUNTS[6001], ITEM_COUNTS[6002] = 3, 1
+    local bag = BAGS[1]
+    BAGS[1] = { { 6002, 1 }, { 6001, 3 } }
+    TARGET_RIGHT = true
+    local target = UNITS.target
+    UNITS.target = nil
+    Enable({ 'QuestItemButton' }, true); AdvanceTime(1)
+    Measure('Quest Item Button: quest log update, then the pick (20 quests, 2 with items)', 100, function()
+        Send('QuestItemButton', 'QUEST_LOG_UPDATE'); AdvanceTime(0.3)
+    end)
+    Measure('Quest Item Button: item cooldown update', 300, function() Send('QuestItemButton', 'BAG_UPDATE_COOLDOWN') end)
+    UNITS.target = target
+    Measure('Quest Item Button: target changed (range and glow)', 300, function() Send('QuestItemButton', 'PLAYER_TARGET_CHANGED') end)
+    Measure('Quest Item Button: range check with a target (every 0.2 s)', 300, function() AdvanceTime(0.2) end)
+    UNITS.target = nil; Send('QuestItemButton', 'PLAYER_TARGET_CHANGED'); AdvanceTime(0.3)
+    local function area(inside)
+        QUEST_AREAS[712] = inside or nil
+        Send('QuestItemButton', 'PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED', 712, inside); AdvanceTime(0.3)
+    end
+    Measure('Quest Item Button: into and out of a quest area (item swapped twice)', 50, function() area(true); area(false) end)
+    state.combat = true
+    Measure('Quest Item Button: into and out of a quest area in combat (swap waits)', 50, function() area(true); area(false) end)
+    state.combat = false; Send('QuestItemButton', 'PLAYER_REGEN_ENABLED')
+    Enable({ 'QuestItemButton' }, false)
+    UNITS.target = target
+    torch.item, torch.distance, rope.item, rope.distance, TARGET_RIGHT = nil, nil, nil, nil, nil
+    ITEM_COUNTS[6001], ITEM_COUNTS[6002], BAGS[1] = nil, nil, bag
+end)
+
+Section('Quest Progress Sounds', function()
+    if not HST:GetModule('QuestSounds', true) then return end -- a copy of the addon from before this tweak
+    UIErrorsFrame = UIErrorsFrame or CreateFrame('MessageFrame', 'UIErrorsFrame', UIParent)
+    Enable({ 'QuestSounds' }, true)
+    -- A quest with two objectives, of the 20 in the log; progress comes as the game sends it.
+    local quest, objectives = state.quests[3], { false, false }
+    QUEST_OBJECTIVES[quest.questID] = objectives
+    local function progress()
+        Send('QuestSounds', 'QUEST_WATCH_UPDATE', quest.questID)
+        Send('QuestSounds', 'UNIT_QUEST_LOG_CHANGED', 'player')
+        Send('QuestSounds', 'QUEST_LOG_UPDATE')
+    end
+    Measure('Quest progress: a kill counted, nothing done (1 quest read)', 300, progress)
+    Measure('Quest progress: an objective done, then undone (2 reads, 1 sound)', 100, function()
+        objectives[1] = true; progress()
+        objectives[1] = false; progress()
+    end)
+    Measure('Quest progress: quest ready, then not (2 reads, 1 sound and message)', 100, function()
+        objectives[1], objectives[2], quest.complete = true, true, true; progress()
+        objectives[1], objectives[2], quest.complete = false, false, nil; progress()
+    end)
+    Measure('Quest log changed, no quest named, none without objectives', 300, function()
+        Send('QuestSounds', 'UNIT_QUEST_LOG_CHANGED', 'player')
+    end)
+    Measure('Quest log update, nothing progressed', 300, function() Send('QuestSounds', 'QUEST_LOG_UPDATE') end)
+    local new = { questID = 790, title = 'A New Quest' }
+    Measure('Quest accepted (noted without a sound), then abandoned', 100, function()
+        state.quests[#state.quests + 1] = new
+        Send('QuestSounds', 'QUEST_ACCEPTED', new.questID); Send('QuestSounds', 'QUEST_LOG_UPDATE')
+        state.quests[#state.quests] = nil
+        Send('QuestSounds', 'QUEST_REMOVED', new.questID, false)
+    end)
+    -- An escort: no objectives, done when the game says the log changed, without naming it.
+    local escort = { questID = 791, title = 'The Defias Traitor' }
+    QUEST_OBJECTIVES[escort.questID] = {}
+    Measure('Escort quest: accepted, done (log change: sound and message), turned in', 100, function()
+        state.quests[#state.quests + 1], escort.complete = escort, nil
+        Send('QuestSounds', 'QUEST_ACCEPTED', escort.questID); Send('QuestSounds', 'QUEST_LOG_UPDATE')
+        escort.complete = true
+        Send('QuestSounds', 'UNIT_QUEST_LOG_CHANGED', 'player'); Send('QuestSounds', 'QUEST_LOG_UPDATE')
+        state.quests[#state.quests] = nil
+        Send('QuestSounds', 'QUEST_REMOVED', escort.questID, false)
+    end)
+    QUEST_OBJECTIVES[quest.questID], QUEST_OBJECTIVES[escort.questID], quest.complete = nil, nil, nil
+    Enable({ 'QuestSounds' }, false)
 end)
 
 Section('Loot', function()
@@ -263,6 +445,43 @@ Section('Consumable Macros', function()
     state.combat = true
     Measure('Bags changed in combat: noted for later', 300, function() Send('ConsumableMacros', 'BAG_UPDATE_DELAYED') end)
     state.combat = false; Send('ConsumableMacros', 'PLAYER_REGEN_ENABLED'); AdvanceTime(1)
+end)
+
+-- A hunter with a pet out and a sword and a mace: Feed Pet and both weapon macros are kept too. An addon without them
+-- (an older base) stops here, before changing anything, and these scenarios are compared as new.
+Section('Consumable Macros: hunter with a pet and two weapons', function()
+    local C = mod('ConsumableMacros')
+    assert(C.Hands and C.Pet, 'this version has no Feed Pet or weapon macros')
+    local function restart() HST:SetFeatureEnabled('ConsumableMacros', false); HST:SetFeatureEnabled('ConsumableMacros', true) end
+    UNITS.player.class, C.playerClass, UNITS.pet = 'HUNTER', nil, { level = 30, hunter = true, happiness = 3 }
+    ITEMS[2672] = { name = 'Stringy Wolf Meat', level = 0, ilvl = 5, class = 7, sub = 8 }
+    ITEMS[3731] = { name = 'Lion Meat', level = 0, ilvl = 23, class = 7, sub = 8 }
+    ITEMS[3771] = { name = 'Wild Hog Shank', level = 25, ilvl = 35, spell = 'Food' }
+    ITEMS[7964] = { name = 'Solid Sharpening Stone', level = 25, ilvl = 35, class = 7, spell = 'Sharpen Blade IV', spellID = 9900 }
+    ITEMS[7965] = { name = 'Solid Weightstone', level = 25, ilvl = 35, class = 7, spell = 'Enhance Blunt Weapon IV', spellID = 9903 }
+    ITEMS[1482], ITEMS[1483] = { name = 'Shadowfang', class = 2, sub = 7 }, { name = 'Mace', class = 2, sub = 4 }
+    PET_EATS[2672], PET_EATS[3731], PET_EATS[3771] = true, true, true
+    WIELDED[16], WIELDED[17] = 1482, 1483
+    local bags = BAGS[0]
+    BAGS[0] = { { 4540, 10 }, { 159, 20 }, { 8545, 10 }, { 929, 3 }, { 3827, 4 }, { 2672, 10 }, { 3731, 5 }, { 3771, 6 },
+        { 7964, 4 }, { 7965, 4 } }
+    for i = 11, 16 do BAGS[0][i] = { 2589, 20 } end
+    wipe(C.items); restart(); AdvanceTime(1)
+    Measure('Hunter: bags changed, same picks (Feed Pet, two weapons)', 100, function()
+        Send('ConsumableMacros', 'BAG_UPDATE_DELAYED'); AdvanceTime(0.3)
+    end)
+    Measure('Hunter: pet called, what it eats asked again', 100, function()
+        Send('ConsumableMacros', 'UNIT_PET', 'player'); AdvanceTime(0.3)
+    end)
+    Measure('Weapon swapped: weapons read again, macro check', 100, function()
+        Send('ConsumableMacros', 'PLAYER_EQUIPMENT_CHANGED', 16, true); AdvanceTime(0.3)
+    end)
+    Measure('Gear swapped (not a weapon): ignored', 300, function() Send('ConsumableMacros', 'PLAYER_EQUIPMENT_CHANGED', 5, true) end)
+    Measure('Pet happiness update, unchanged', 300, function() Send('ConsumableMacros', 'UNIT_HAPPINESS', 'pet') end)
+    -- Back to the warrior with no pet or weapons the other scenarios have.
+    UNITS.player.class, C.playerClass, UNITS.pet = 'WARRIOR', nil, nil
+    WIELDED[16], WIELDED[17], BAGS[0] = nil, nil, bags
+    wipe(C.items); restart(); AdvanceTime(1)
 end)
 
 Section('Upgrade Spell Ranks', function()
@@ -376,6 +595,90 @@ Section('Level-Up Screenshot', function()
     end)
 end)
 
+Section('Campfire Helper', function()
+    -- On a whole second, so its once-a-second countdown ticks land the same way whatever ran before.
+    AdvanceTime(math.ceil(GetTime()) - GetTime())
+    local UPDATED, ADDED, REMOVED = { updatedAuraInstanceIDs = { 7 } }, { addedAuras = { {} } }, { removedAuraInstanceIDs = { 8 } }
+    local LOST = { removedAuraInstanceIDs = { 103 } }
+    Measure('Campfire Helper: aura refreshed, none gained or lost', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', UPDATED) end)
+    Measure('Campfire Helper: aura gained, not a camp one', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED) end)
+    Measure('Campfire Helper: a spell cast, not a campfire', 300, function()
+        Send('CampfireHelper', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-1', 78, 0)
+    end)
+    Measure('Campfire Helper: aura changes in combat', 300, function()
+        state.combat = true; Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); state.combat = false
+    end)
+    -- Camp buffs with three camp object buffs, one lost early, then all gone.
+    local benefits = { auraInstanceID = 100, spellId = 1229741, name = 'Camp Benefits', duration = 3600 }
+    local buffs = {}
+    for i = 1, 3 do buffs[i] = { auraInstanceID = 100 + i, spellId = 1300000 + i, name = 'Camp Buff ' .. i, duration = 3600 } end
+    Measure('Campfire Helper: camp buffs land (+1 s), one ends early, all end', 20, function()
+        local ends = GetTime() + 3600
+        benefits.expirationTime = ends
+        PLAYER_AURAS[1229741], PLAYER_BUFFS[1] = benefits, benefits
+        for i = 1, 3 do buffs[i].expirationTime = ends; PLAYER_BUFFS[i + 1] = buffs[i] end
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); AdvanceTime(1)
+        PLAYER_BUFFS[4] = nil
+        Send('CampfireHelper', 'UNIT_AURA', 'player', LOST)
+        PLAYER_AURAS[1229741] = nil; wipe(PLAYER_BUFFS)
+        Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
+        benefits.auraInstanceID = benefits.auraInstanceID + 10
+    end)
+    -- Near a campfire, sitting the minute out (the campfire's text changes every second), then walking away.
+    local nearby = { auraInstanceID = 200, spellId = 1283391, name = 'Campfire Nearby', duration = 0, expirationTime = 0 }
+    local welcome = { auraInstanceID = 300, spellId = 1289723, name = 'Welcoming Campfire', duration = 60 }
+    Measure('Campfire Helper: near a fire, sit a minute (+60 s), walk away', 10, function()
+        PLAYER_AURAS[1283391] = nearby
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED)
+        welcome.expirationTime = GetTime() + 60
+        PLAYER_AURAS[1289723] = welcome
+        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); AdvanceTime(60)
+        PLAYER_AURAS[1289723], PLAYER_AURAS[1283391] = nil, nil
+        Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
+        nearby.auraInstanceID, welcome.auraInstanceID = nearby.auraInstanceID + 1, welcome.auraInstanceID + 1
+    end)
+    Measure('Campfire Helper: campfire lit (+0.2 s)', 20, function()
+        mod('CampfireHelper').litAt = nil
+        Send('CampfireHelper', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-2', 1229736, 0); AdvanceTime(0.2)
+    end)
+    -- Off, and its timers run out, so none of them fire in the scenarios after this one.
+    HST:SetFeatureEnabled('CampfireHelper', false)
+    AdvanceTime(3700)
+end)
+
+Section('Battleground Alerts', function()
+    local B, queue = mod('BattlegroundAlerts'), { status = 'queued', map = 'Warsong Gulch' }
+    BATTLEFIELDS[1] = queue
+    local function status() Send('BattlegroundAlerts', 'UPDATE_BATTLEFIELD_STATUS', 1) end
+    Measure('Battleground queue update, no invite', 300, status)
+    PVPReadyDialog:Show()
+    Measure('Battleground invite: popped, then entered', 100, function()
+        queue.status, queue.expires = 'confirm', state.time + 80; status()
+        queue.status = 'active'; status()
+    end)
+    -- An invite's last 25 seconds: the countdown ticking, with both reminders, until it's gone.
+    Measure('Battleground invite: last 25 seconds, two reminders', 20, function()
+        queue.status, queue.expires = 'confirm', state.time + 25; status()
+        AdvanceTime(25)
+        queue.status = 'queued'; status()
+    end)
+    queue.status, queue.expires = 'confirm', state.time + 100000; status()
+    Measure('Battleground invite up: one-second tick', 300, function() AdvanceTime(1) end)
+    queue.status = 'active'; status()
+    PVPReadyDialog:Hide()
+    state.instanceType, B.db.profile.gatesWarning = 'pvp', true
+    Measure('Battleground gates: countdown, warning and opening', 50, function()
+        Send('BattlegroundAlerts', 'START_TIMER', 0, 60, 120); AdvanceTime(60)
+    end)
+    local reward = { currencyType = 1792, quantityChanged = 214 }
+    Measure('Battleground over: result line with honor', 50, function()
+        Send('BattlegroundAlerts', 'PVP_MATCH_COMPLETE', 1, 1122)
+        Send('BattlegroundAlerts', 'POST_MATCH_CURRENCY_REWARD_UPDATE', reward)
+        AdvanceTime(2)
+    end)
+    state.instanceType, B.db.profile.gatesWarning, BATTLEFIELDS[1] = 'none', false, nil
+end)
+
 Section('Interface', function()
     Measure('Quest Item Sparkle: loading screen check', 300, function() Send('QuestSparkle', 'PLAYER_ENTERING_WORLD', false, false) end)
     Measure('Hide Issue Reporter: game moves the button back', 300, function() PTR_IssueReporter:SetParent(UIParent) end)
@@ -387,6 +690,83 @@ Section('Interface', function()
     Measure('Mute Mount Sounds: turned on, then off', 20, function()
         HST:SetFeatureEnabled('MuteMountSounds', true); HST:SetFeatureEnabled('MuteMountSounds', false)
     end)
+end)
+
+Section('Elite & Rare Markers', function()
+    local N = mod('NameplateMarkers')
+    -- Eight nameplates as the game's: the unit's token, and a unit frame with the name above the health bar. Three are
+    -- mobs of one kind (NPC ID 6) a quest of yours needs, the rest each of their own kind. The game lists the nameplates
+    -- showing in a new table each time it's asked.
+    local plates = {}
+    for i = 1, 8 do
+        local token = 'nameplate' .. i
+        local plate = CreateFrame('Frame', 'NamePlate' .. i, WorldFrame)
+        plate.unitToken = token
+        local game = CreateFrame('Frame', nil, plate)
+        game.name, game.healthBar = game:CreateFontString(), CreateFrame('StatusBar', nil, game)
+        plate.UnitFrame = game
+        local guid = 'Creature-0-4372-0-12-' .. (i <= 3 and 6 or 40 + i) .. '-00002A' .. i
+        PLATES[token], UNITS[token], plates[i] = plate, { guid = guid, quest = i <= 3 }, plate
+    end
+    local listPlates = C_NamePlate.GetNamePlates
+    C_NamePlate.GetNamePlates = function()
+        local list = {}
+        for i = 1, #plates do list[i] = plates[i] end
+        return list
+    end
+    -- A nameplate showing (its markers are placed a frame later), and going.
+    local function show(unit) Send('NameplateMarkers', 'NAME_PLATE_UNIT_ADDED', unit); AdvanceTime(0) end
+    local function gone(unit) Send('NameplateMarkers', 'NAME_PLATE_UNIT_REMOVED', unit) end
+    for i = 1, 8 do show('nameplate' .. i) end
+    Measure('Nameplate shown and gone: a mob no quest needs', 300, function() gone('nameplate8'); show('nameplate8') end)
+    Measure('Nameplate shown and gone: a quest mob, marked', 300, function() gone('nameplate1'); show('nameplate1') end)
+    local third = UNITS.nameplate3
+    Measure('Quest progress: 8 nameplates checked again, a mark taken off or back', 100, function()
+        third.quest = not third.quest
+        Send('NameplateMarkers', 'QUEST_WATCH_UPDATE', 701); Send('NameplateMarkers', 'QUEST_LOG_UPDATE')
+    end)
+    third.quest = true
+    -- A client without the quest log's answer reads the unit's tooltip data instead.
+    N.questSource = 'tooltip'
+    Measure('Nameplate shown and gone, tooltip data: a mob no quest needs', 300, function() gone('nameplate8'); show('nameplate8') end)
+    Measure('Nameplate shown and gone, tooltip data: a quest mob, marked', 300, function() gone('nameplate1'); show('nameplate1') end)
+    N.questSource = 'game'
+    for i = 1, 8 do gone('nameplate' .. i); PLATES['nameplate' .. i], UNITS['nameplate' .. i] = nil, nil end
+    C_NamePlate.GetNamePlates = listPlates
+end)
+
+-- Better World Refresh with a refresh waiting ten minutes: its one-second tick reads the time left and, refreshing by
+-- itself, checks whether it's safe; out of combat it counts down a 5-second notice, refreshes and is done.
+Section('Better World Refresh', function()
+    local W = mod('WorldRefresh')
+    HST:SetFeatureEnabled('WorldRefresh', true)
+    state.evictionWait = 600
+    Send('WorldRefresh', 'SHARD_TRANSFER_IMMINENT')
+    state.combat = true
+    Measure('World refresh: one-second tick, waiting out a fight', 100, function() AdvanceTime(1) end)
+    state.combat = false
+    W.db.profile.autoRefresh = 'off'
+    Measure('World refresh: one-second tick, counting down', 100, function() AdvanceTime(1) end)
+    W.db.profile.autoRefresh = 'safe'
+    Measure('World refresh: notice to done (alerts, 5 s notice, refresh)', 50, function()
+        Send('WorldRefresh', 'SHARD_TRANSFER_IMMINENT'); AdvanceTime(6); Send('WorldRefresh', 'SHARD_TRANSFER')
+    end)
+    state.evictionWait = 0
+    HST:SetFeatureEnabled('WorldRefresh', false)
+end)
+
+-- Aura Sounds does its work when its sounds change: a warrior's Battle Shout preset, its 7 ranks handed to the game
+-- and taken back. While you play the game plays them; nothing runs in the addon.
+Section('Aura Sounds', function()
+    Measure('Aura Sounds: turned on, then off', 20, function()
+        HST:SetFeatureEnabled('AuraSounds', true); HST:SetFeatureEnabled('AuraSounds', false)
+    end)
+    HST:SetFeatureEnabled('AuraSounds', true)
+    Measure('Aura Sounds: settings changed in combat, applied as it ends', 20, function()
+        state.combat = true; mod('AuraSounds'):Sync(); state.combat = false
+        Send('AuraSounds', 'PLAYER_REGEN_ENABLED'); AdvanceTime(0.1)
+    end)
+    HST:SetFeatureEnabled('AuraSounds', false)
 end)
 '''
 
@@ -516,6 +896,9 @@ COMBAT_TEXT = r'''
 local S = HST:GetModule('CombatText')
 Only({ 'CombatText' })
 S.db.profile.hideWorldText, S.db.profile.hideWorldDamage = false, false
+-- Nameplate numbers, which aren't the default (the game's own numbers are).
+S.db.profile.enemyMode = 'NAMEPLATE'
+S:Apply()
 for i = 1, 8 do
     local plate = CreateFrame('Frame', 'NamePlate' .. i, WorldFrame)
     plate:SetFrameLevel(10 + i)
@@ -568,6 +951,82 @@ Section('Better Scrolling Combat Text (nameplate numbers on)', function()
     end)
     clear()
     Measure('Nothing shown: one second of frames (64 fps)', 100, function() Seconds(1) end)
+    -- A critical hit on a 4K screen (2160 pixels for the interface's 768 units) with Slug off: its pop grows past
+    -- MOST_PIXELS, so it stretches for those frames.
+    S.pixelScale, S.slug = 2160 / 768, false
+    Measure('Nameplate crit on a 4K screen: the hit and its pop (13 frames)', 100, function()
+        n = n % 8 + 1
+        Dispatch('UNIT_COMBAT', 'nameplate' .. n, 'WOUND', 'CRITICAL', 250, 1)
+        for _ = 1, 13 do state.time = state.time + FRAME; Script(S.driver, 'OnUpdate', FRAME) end
+    end)
+    S:Apply()
+    clear()
+end)
+'''
+
+# Combo Points on Nameplates, in a runtime of its own: a rogue, then a druid (the main runtime's player is a warrior,
+# who has no combo points), with eight nameplates up and your target's points on its nameplate.
+COMBO_POINTS = r'''
+local key = HST:GetModule('NameplateComboPoints'):GetName()
+Only({ key })
+for i = 1, 8 do
+    PLATES['nameplate' .. i], UNITS['nameplate' .. i] = NamePlate(i), { hostile = true }
+    Dispatch('NAME_PLATE_UNIT_ADDED', 'nameplate' .. i)
+end
+-- Targets nameplate i's mob (none without i).
+local function target(i)
+    UNITS.target, PLATES.target = i and UNITS['nameplate' .. i], i and PLATES['nameplate' .. i]
+    Dispatch('PLAYER_TARGET_CHANGED')
+end
+local function plates()
+    Dispatch('NAME_PLATE_UNIT_REMOVED', 'nameplate5'); Dispatch('NAME_PLATE_UNIT_ADDED', 'nameplate5')
+end
+state.combo = 1
+target(1)
+Section('Combo Points on Nameplates (a rogue)', function()
+    local n = 0
+    Measure('Combo points: a point gained, or all spent (1 to 5)', 300, function()
+        n = n % 5 + 1; state.combo = n
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'COMBO_POINTS')
+    end)
+    Measure('Combo points: your energy changed', 300, function() Dispatch('UNIT_POWER_UPDATE', 'player', 'ENERGY') end)
+    Measure('Combo points: another nameplate removed and added', 300, plates)
+    Measure("Combo points: your target's nameplate removed and added (+ a frame)", 100, function()
+        Dispatch('NAME_PLATE_UNIT_REMOVED', 'nameplate1'); Dispatch('NAME_PLATE_UNIT_ADDED', 'nameplate1'); AdvanceTime(0)
+    end)
+    local t = 1
+    Measure('Combo points: target changed between two mobs with points', 300, function() t = 3 - t; target(t) end)
+    Measure('Combo points: points moved to another target', 300, function() Dispatch('COMBO_TARGET_CHANGED') end)
+    state.combo = SECRET
+    Measure('Combo points: count hidden from addons, a point gained', 300, function()
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'COMBO_POINTS')
+    end)
+    state.combo = 0; Dispatch('UNIT_POWER_UPDATE', 'player', 'COMBO_POINTS')
+    Measure('Combo points: none on your target, power events', 300, function()
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'COMBO_POINTS'); Dispatch('UNIT_POWER_UPDATE', 'player', 'ENERGY')
+    end)
+    target(nil)
+    Measure('Combo points: no target, another nameplate removed and added', 300, plates)
+end)
+Section('Combo Points on Nameplates (a druid)', function()
+    HST:SetFeatureEnabled(key, false)
+    PLAYER_CLASS[1], PLAYER_CLASS[2], state.powerType = 'Druid', 'DRUID', 0
+    HST:SetFeatureEnabled(key, true)
+    state.combo = 2
+    target(1)
+    Measure('Combo points, druid out of Cat Form: mana, target and nameplate events', 300, function()
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'MANA'); target(1); plates()
+    end)
+    Measure('Combo points, druid: into Cat Form and out (points shown, then hidden)', 100, function()
+        state.powerType = 3; Dispatch('UNIT_DISPLAYPOWER', 'player')
+        state.powerType = 0; Dispatch('UNIT_DISPLAYPOWER', 'player')
+    end)
+end)
+Section('Combo Points on Nameplates off', function()
+    HST:SetFeatureEnabled(key, false)
+    Measure('Combo points off: power, target and nameplate events', 300, function()
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'COMBO_POINTS'); Dispatch('UNIT_DISPLAYPOWER', 'player'); target(1); plates()
+    end)
 end)
 '''
 
@@ -691,6 +1150,71 @@ Section('Auto-Decline', function()
 end)
 '''
 
+# Appearance Collector, and Sell Clutter keeping gear for its look, in a runtime of their own (the automation and clutter
+# mocks, with WoW Forever's appearance collection, the game's combined bags and its vendor window).
+APPEARANCES = r'''
+-- An addon without Appearance Collector (an older base) stops here, so it reports none of these scenarios.
+mod('Appearances')
+local function fire(key, event, ...) return Send(key, event, ...) end
+Only({ 'Appearances' })
+state.class, state.level = 'WARRIOR', 30
+-- A leveling character's bags: four 16-slot bags' worth of meat, cloth, food, potions and gear. Looks 1 and 2 are
+-- new, 3 you have, 4 only another of your characters can learn.
+ITEMS[101] = { name = 'Stringy Wolf Meat', class = 7, sub = 8, price = 4 }
+ITEMS[103] = { name = 'Linen Cloth', class = 7, sub = 5, price = 13 }
+ITEMS[104] = { name = 'Plate Chestpiece', class = 4, sub = 4, equipLoc = 'INVTYPE_CHEST', price = 400, level = 20, look = 3 }
+ITEMS[109] = { name = 'Leather Vest', class = 4, sub = 2, equipLoc = 'INVTYPE_CHEST', price = 80, level = 10, look = 1 }
+ITEMS[110] = { name = 'Tough Jerky', class = 0, sub = 5, price = 1, level = 1 }
+ITEMS[111] = { name = 'Worn Shortsword', class = 2, sub = 7, equipLoc = 'INVTYPE_WEAPON', price = 30, level = 5, look = 2 }
+ITEMS[112] = { name = 'Minor Healing Potion', class = 0, sub = 1, price = 5, level = 1 }
+ITEMS[113] = { name = 'Apprentice Robe', class = 4, sub = 1, equipLoc = 'INVTYPE_ROBE', price = 20, level = 1, look = 4 }
+LOOKS[1], LOOKS[2] = { player = true, account = true }, { player = true, account = true }
+LOOKS[3], LOOKS[4] = { known = true, look = true, player = true, account = true }, { account = true }
+local kinds = { 101, 103, 104, 109, 110, 112, 111, 113 }
+BAG_SIZE = 64
+BAGS = {}
+-- The bag slots, made once and put back, so the scenarios themselves allocate nothing.
+local SLOTS = {}
+for slot = 1, 64 do SLOTS[slot] = Slot(kinds[slot % #kinds + 1], 1); BAGS[slot] = SLOTS[slot] end
+local function refill() for slot = 1, 64 do BAGS[slot] = SLOTS[slot] end end
+local bags, vest, meat = ContainerFrameCombinedBags, Slot(109, 1), Slot(101, 1)
+MERCHANT = { 109, 111, 104, 113, 101, 103, 110, 112, 109, 111 }
+BUYBACK = { 101, 103, 104, 109, 110, 111, 112, 113, 101, 103, 104, 109 }
+state.quests = {}
+bags:UpdateItems()
+Section('Appearance Collector (64 bag slots, 24 gear)', function()
+    Measure('Bags drawn, nothing changed (looks already read)', 300, function() bags:UpdateItems() end)
+    Measure('Bags drawn, one slot now new gear or meat', 300, function()
+        BAGS[1] = BAGS[1] == vest and meat or vest
+        bags:UpdateItems()
+    end)
+    refill(); bags:UpdateItems()
+    Measure('Collection changed: every mark checked again', 100, function()
+        Dispatch('TRANSMOG_COLLECTION_SOURCE_ADDED', 3); RunTimers()
+    end)
+    Measure('Vendor page drawn: 10 items and the last one sold', 300, function() MerchantFrame_UpdateMerchantInfo() end)
+    Measure('Buyback tab drawn: 12 items', 300, function() MerchantFrame_UpdateBuybackInfo() end)
+    Measure('Item tooltip: gear with a new look', 300, function() HoverItem(109) end)
+    Measure('Item tooltip: not gear', 300, function() HoverItem(101) end)
+    HST:SetFeatureEnabled('Appearances', false)
+    Measure('Appearance Collector off: bags drawn', 300, function() bags:UpdateItems() end)
+    HST:SetFeatureEnabled('Appearances', true)
+end)
+Section('Sell Clutter keeping new appearances (with Sell Junk and Appearance Collector on)', function()
+    Only({ 'SellJunk', 'SellClutter', 'Appearances' })
+    Measure('Vendor visit: 64 slots scanned, 16 gear kept, first sale + close', 50, function()
+        fire('SellJunk', 'MERCHANT_SHOW'); fire('SellClutter', 'MERCHANT_SHOW')
+        RunTimers()
+        fire('SellJunk', 'MERCHANT_CLOSED'); fire('SellClutter', 'MERCHANT_CLOSED')
+        RunTimers()
+        refill()
+    end)
+    Measure('Item tooltip: clutter kept for its look', 300, function() HoverItem(109) end)
+    HST:SetFeatureEnabled('Appearances', false)
+    Measure('Item tooltip: clutter kept for its look, Appearance Collector off', 300, function() HoverItem(109) end)
+end)
+'''
+
 STARTUP_SETTINGS = r'''
 Section('Startup and settings (one cold run, then warmed navigation)', function()
     Measure('ADDON_LOADED + PLAYER_LOGIN: cold initialization', 1, function()
@@ -750,6 +1274,60 @@ Section('Better Breath Meter', function()
 end)
 '''
 
+# Swing Timer Style restyles the game's own bars from hooks on their methods: the scenarios call those methods as the
+# game does (each swing starts and ends one bar; the game's own filling, an OnUpdate, isn't the addon's).
+SWING = r'''
+Section('Swing Timer Style', function()
+    Only({ 'SwingTimer' }); AdvanceTime(10)
+    local main, off, ranged = SwingTimerMainHandFrame, SwingTimerOffHandFrame, SwingTimerRangedFrame
+    Measure('Swing timer: a melee swing, then idle (start, end, idle check)', 300, function()
+        main:ResetSwingTimer(2); AdvanceTime(2); main:ClearSwingTimer(); AdvanceTime(1.5)
+    end)
+    Measure('Swing timer: steady melee swings (each ends as the next starts)', 300, function()
+        main:ClearSwingTimer(); main:ResetSwingTimer(2); AdvanceTime(2)
+    end)
+    Measure('Swing timer: melee, then shooting (the bars take turns)', 100, function()
+        main:ResetSwingTimer(2); AdvanceTime(2); main:ClearSwingTimer()
+        ranged:ResetSwingTimer(3); AdvanceTime(3); ranged:ClearSwingTimer(); AdvanceTime(1.5)
+    end)
+    Measure('Swing timer: target out of range and back', 300, function() main:SetOutOfRange(true); main:SetOutOfRange(false) end)
+    Measure('Swing timer: Edit Mode opened and closed', 100, function()
+        main:SetIsInEditMode(true); off:SetIsInEditMode(true); ranged:SetIsInEditMode(true)
+        main:SetIsInEditMode(false); off:SetIsInEditMode(false); ranged:SetIsInEditMode(false)
+    end)
+    Measure('Swing timer idle: one second of frames (64 fps)', 100, function() Seconds(1) end)
+    Only()
+    Measure('Swing timer turned off: a melee swing (its hooks stay, and return)', 300, function()
+        main:ResetSwingTimer(2); AdvanceTime(2); main:ClearSwingTimer(); AdvanceTime(1.5)
+    end)
+end)
+'''
+
+# Druid Mana in Forms, for a druid in cat form (on any other class it registers nothing), in a runtime of its own.
+DRUID = r'''
+Only({ 'DruidMana' })
+local D = HST:GetModule('DruidMana')
+Section('Druid Mana in Forms (a druid)', function()
+    Measure('Druid mana: mana changed in cat form', 300, function()
+        state.mana = state.mana == 1860 and 1880 or 1860
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'MANA')
+    end)
+    Measure('Druid mana: energy changed in cat form', 300, function() Dispatch('UNIT_POWER_UPDATE', 'player', 'ENERGY') end)
+    D.db.profile.textFormat = 'percent'; D:Apply()
+    Measure('Druid mana: mana changed in cat form, as a percentage', 300, function()
+        Dispatch('UNIT_POWER_UPDATE', 'player', 'MANA')
+    end)
+    D.db.profile.textFormat = 'mana'; D:Apply()
+    Measure('Druid mana: shifted to caster form and back to cat form', 100, function()
+        state.powerType = 0; Dispatch('UNIT_DISPLAYPOWER', 'player')
+        state.powerType = 3; Dispatch('UNIT_DISPLAYPOWER', 'player')
+    end)
+    state.powerType = 0; Dispatch('UNIT_DISPLAYPOWER', 'player')
+    Measure('Druid mana: mana changed in caster form', 300, function() Dispatch('UNIT_POWER_UPDATE', 'player', 'MANA') end)
+    Measure('Druid mana: one second of frames (64 fps)', 100, function() Seconds(1) end)
+end)
+'''
+
 
 def runtime(prelude, scenario, start=True):
     """Loads the addon on these mocks and runs a scenario script; a failure is reported, and the other runtimes go on."""
@@ -770,15 +1348,19 @@ def runtime(prelude, scenario, start=True):
 
 def main():
     full = ('MODERN_SPELLBOOK = true\n' + TOOLTIP_MOCKS + mock('items_mocks.lua') + mock('loot_mocks.lua') + SIMPLE_MOCKS
-            + MENU_MOCKS + BREATH_MOCKS + SETTINGS_MOCKS + mock('full_mocks.lua')
+            + MENU_MOCKS + BREATH_MOCKS + SWING_MOCKS + SETTINGS_MOCKS + mock('full_mocks.lua')
             + 'function UnitIsInMyGuild(unit) return MY_GUILD == true and unit == "mouseover" end\n')
     runtime(full, MAIN)
     runtime(full, EVERYTHING, start=False)
     runtime(mock('combattext_mocks.lua'), COMBAT_TEXT)
+    runtime(mock('combattext_mocks.lua') + mock('combopoints_mocks.lua'), COMBO_POINTS)
     runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua'), AUTOMATION)
+    runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + mock('appearance_mocks.lua'), APPEARANCES)
     runtime(full, STARTUP_SETTINGS, start=False)
     runtime(mock('bags_mocks.lua'), BAGS)
     runtime(BREATH_MOCKS, BREATH)
+    runtime(SWING_MOCKS, SWING)
+    runtime(DRUID_MOCKS, DRUID)
     if JSON:
         json.dump(REPORT.results, sys.stdout, indent=1)
         print()
