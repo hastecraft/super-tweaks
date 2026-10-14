@@ -376,10 +376,8 @@ local icons = setmetatable({}, { __mode = "k" })
 function W.FitIcons()
     for t in pairs(icons) do t:Fit() end
 end
-local refit = CreateFrame("Frame")
-refit:RegisterEvent("UI_SCALE_CHANGED")
-refit:RegisterEvent("DISPLAY_SIZE_CHANGED")
-refit:SetScript("OnEvent", W.FitIcons)
+-- Fitted again when the interface's scale or the display changes, listened to once there's anything to fit.
+local refit
 
 -- A pixel-exact texture, fitted again when its parent shows (one OnShow hook per parent) and, with `sized`, when its
 -- parent changes size. Set its fields (hstParent, the frame it was made on: these are never moved to another), then
@@ -394,6 +392,12 @@ local function FitSized(parent)
 end
 local function Track(t, sized)
     local parent = t.hstParent
+    if not refit then
+        refit = CreateFrame("Frame")
+        refit:RegisterEvent("UI_SCALE_CHANGED")
+        refit:RegisterEvent("DISPLAY_SIZE_CHANGED")
+        refit:SetScript("OnEvent", W.FitIcons)
+    end
     icons[t] = true
     local list = parent.hstIcons
     if not list then
