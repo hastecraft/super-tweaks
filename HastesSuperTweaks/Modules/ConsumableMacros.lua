@@ -637,13 +637,14 @@ function M:Write()
 end
 
 -- Many bag and item changes arrive together; they're written once, a moment later.
+local function WriteQueued()
+    M.queued = false
+    if M:IsEnabled() then M:Write() end
+end
 function M:Queue(delay)
     if self.queued or not self.inWorld then return end
     self.queued = true
-    C_Timer.After(delay or 0.3, function()
-        self.queued = false
-        if self:IsEnabled() then self:Write() end
-    end)
+    C_Timer.After(delay or 0.3, WriteQueued)
 end
 
 ---------------------------------------------------------------------------
