@@ -98,6 +98,17 @@ HST.startingPoints = {
         allOff = true, confirm = "Turn every tweak off? You can turn the ones you want back on from the list." },
 }
 
+-- A starting point's description: its tip, and the tweaks it turns on that this client can use.
+function HST:StartingPointTip(point)
+    if not point.on then return point.tip end
+    local names = {}
+    for _, key in ipairs(point.on) do
+        local module = self:GetModule(key, true)
+        if module and not module.info.unavailable then names[#names + 1] = module.info.name end
+    end
+    return point.tip .. " " .. table.concat(names, ", ") .. "."
+end
+
 -- Applies a starting point and says in chat what it changed.
 function HST:ApplyStartingPoint(point)
     local changed, wanted = {}, {}
@@ -448,7 +459,15 @@ function HST:GeneralOptions()
                 end,
                 set = function(_, index) self.db.global.chatFrame = index ~= 1 and index or nil end },
         } },
+        start = { type = "group", inline = true, name = "Starting points", order = 4, args = {} },
     } }
+    -- The welcome card's starting points, for after it's put away.
+    for i, point in ipairs(self.startingPoints) do
+        self.generalOptions.args.start.args["point" .. i] = { type = "execute", order = i, name = point.name,
+            desc = function() return self:StartingPointTip(point) end,
+            confirm = point.confirm ~= nil, confirmText = point.confirm,
+            func = function() self:ApplyStartingPoint(point) end }
+    end
     return self.generalOptions
 end
 

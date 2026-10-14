@@ -2397,17 +2397,7 @@ function P:WelcomeCard()
         local b = W.Button(card, point.name)
         b:Fit(110)
         card.buttons[#card.buttons + 1] = b
-        b.tipTitle = point.name
-        if point.on then
-            local names = {}
-            for _, key in ipairs(point.on) do
-                local module = HST:GetModule(key, true)
-                if module and not module.info.unavailable then names[#names + 1] = module.info.name end
-            end
-            b.tipText = point.tip .. " " .. table.concat(names, ", ") .. "."
-        else
-            b.tipText = point.tip
-        end
+        b.tipTitle, b.tipText = point.name, HST:StartingPointTip(point)
         b:SetScript("OnClick", function()
             local function apply()
                 HST:ApplyStartingPoint(point)
