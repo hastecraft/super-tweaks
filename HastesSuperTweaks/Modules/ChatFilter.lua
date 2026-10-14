@@ -277,10 +277,10 @@ local function Filter(_, event, text, sender, _, _, _, _, zoneChannel, _, _, _, 
     local spam = Spam(lowerText)
     local mutedBy = not spam and muting and Muted(guid, sender, lowerText) or nil
     if not spam and not mutedBy then return false end
-    -- You, your friends and your guildmates are never hidden (only asked about once a message matches). A muted
-    -- guild's member isn't one of your guildmates, so your guild roster isn't gone through for them.
+    -- You, your friends and your guildmates are never hidden (only asked about once a message matches), even when
+    -- you mute your own guild.
     if guid and guid == me then return false end
-    if ns.IsFrom(sender, guid, true, mutedBy ~= "member", false) then return false end
+    if ns.IsFrom(sender, guid, true, true, false) then return false end
     lastHidden = true
     F.hidden = F.hidden + 1
     return true
