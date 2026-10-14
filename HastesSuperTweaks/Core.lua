@@ -439,7 +439,15 @@ function HST:GeneralOptions()
             notesDot = { type = "toggle", order = 2, name = "New Patch Dot", desc = HST.NOTES_DOT_TIP,
                 get = function() return self:NotesDotOn() end,
                 set = function(_, on) self:SetNotesDot(on); self:PaintSettingsPip() end },
-            reset = { type = "execute", order = 3, name = "Reset window",
+            cpuGraph = { type = "toggle", order = 3, name = "CPU graph",
+                hidden = function() return not self:CanShowCpuGraph() end,
+                get = function() return self.db.global.cpuGraph ~= false end,
+                set = function(_, on)
+                    -- Saved only when off.
+                    if on then self.db.global.cpuGraph = nil else self.db.global.cpuGraph = false end
+                    self:ApplyCpuGraph()
+                end },
+            reset = { type = "execute", order = 4, name = "Reset window",
                 desc = "Back to the middle of the screen, at the default size and scale.",
                 func = function() self:ResetSettingsWindow() end },
         } },
@@ -1073,6 +1081,8 @@ function HST:RefreshSettings() end
 function HST:ToggleSettings() end
 function HST:PaintSettingsPip() end
 function HST:ResetSettingsWindow() end
+function HST:ApplyCpuGraph() end
+function HST:CanShowCpuGraph() return false end
 
 -- Addon compartment (minimap addon menu) entry.
 function HastesSuperTweaks_OnAddonCompartmentClick()

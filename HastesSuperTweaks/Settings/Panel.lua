@@ -1737,10 +1737,109 @@ function P:CreateSidebar(f)
             x = x - 24
         end
     end
+    self.sidebarBottom = bottom
+    self:CreateCpuGraph(bottom)
     self.navArea = W.ScrollArea(sidebar)
     self.navArea:SetPoint("TOPLEFT", 0, -56)
     self.navArea:SetPoint("BOTTOMRIGHT", bottom, "TOPRIGHT", -8, 4)
     self.navArea.child:SetWidth(SIDEBAR - 9)
+end
+
+-- The CPU graph above Profiles and About: this addon's share of the game's frame time, as the game's AddOns list
+-- counts it, sampled once a second while the window is open. Bars run oldest to newest, scaled to the highest
+-- sample shown or 1%, whichever is more. Nothing runs while the window is closed or the graph is turned off.
+local CPU_BARS, CPU_ROW, CPU_FLOOR = 40, 18, 1
+
+local function CpuProfiler()
+    local profiler = C_AddOnProfiler
+    return profiler and profiler.IsEnabled and profiler.IsEnabled() and profiler or nil
+end
+
+local function FormatPercent(pct)
+    if pct >= 1 then return ("%.0f%%"):format(pct) end
+    if pct >= 0.1 then return ("%.1f%%"):format(pct) end
+    if pct >= 0.01 then return ("%.2f%%"):format(pct) end
+    return "0%"
+end
+
+function P:CreateCpuGraph(bottom)
+    local cpu = CreateFrame("Frame", nil, bottom)
+    self.cpu = cpu
+    cpu:SetPoint("TOPLEFT", PAD - 4, 0)
+    cpu:SetPoint("TOPRIGHT", -(PAD - 3), 0)
+    cpu:SetHeight(CPU_ROW)
+    cpu:EnableMouse(true)
+    cpu.text = W.Text(cpu, "GameFontNormalSmall", C.muted, "RIGHT")
+    cpu.text:SetPoint("RIGHT")
+    cpu.text:SetText("CPU")
+    local graph = CreateFrame("Frame", nil, cpu)
+    graph:SetPoint("TOPLEFT")
+    graph:SetPoint("BOTTOMRIGHT", -66, 0)
+    cpu.bars, cpu.samples, cpu.head, cpu.pct, cpu.ms = {}, {}, 1, "0%", 0
+    for i = 1, CPU_BARS do
+        local bar = W.Fill(graph, C.accent, "ARTWORK")
+        bar:SetAlpha(0.75)
+        bar:SetHeight(1)
+        cpu.bars[i] = bar
+        cpu.samples[i] = 0
+    end
+    graph:SetScript("OnSizeChanged", function(_, width)
+        local step = width / CPU_BARS
+        for i, bar in ipairs(cpu.bars) do
+            bar:SetPoint("BOTTOMLEFT", (i - 1) * step, 0)
+            bar:SetWidth(math.max(1, step - 1))
+        end
+    end)
+    local function tip()
+        W.ShowTooltip(cpu, "CPU use", ("%s: %s of the game's frame time, %.2f ms a frame."):format(HST.title, cpu.pct,
+            cpu.ms))
+    end
+    cpu.tip = tip
+    cpu:SetScript("OnEnter", function() cpu.hovered = true; tip() end)
+    cpu:SetScript("OnLeave", function() cpu.hovered = nil; W.HideTooltip(cpu) end)
+    cpu:SetScript("OnShow", function() self:StartCpuGraph() end)
+    cpu:SetScript("OnHide", function()
+        if cpu.ticker then cpu.ticker:Cancel(); cpu.ticker = nil end
+    end)
+    self:ApplyCpuGraph()
+end
+
+function P:SampleCpu()
+    local cpu, profiler = self.cpu, CpuProfiler()
+    if not profiler then return end
+    local metric = Enum.AddOnProfilerMetric.RecentAverageTime
+    local addon = profiler.GetAddOnMetric(ADDON, metric)
+    local total = profiler.GetApplicationMetric(metric) - profiler.GetOverallMetric(metric) + addon
+    local pct = total > 0 and addon / total * 100 or 0
+    local samples = cpu.samples
+    samples[cpu.head] = pct
+    cpu.head = cpu.head % CPU_BARS + 1
+    cpu.pct, cpu.ms = FormatPercent(pct), addon
+    local most = CPU_FLOOR
+    for i = 1, CPU_BARS do
+        if samples[i] > most then most = samples[i] end
+    end
+    local height = cpu:GetHeight()
+    for i, bar in ipairs(cpu.bars) do
+        bar:SetHeight(math.max(1, samples[(cpu.head + i - 2) % CPU_BARS + 1] / most * height))
+    end
+    cpu.text:SetText(cpu.pct .. " CPU")
+    if cpu.hovered then cpu.tip() end
+end
+
+function P:StartCpuGraph()
+    local cpu = self.cpu
+    if cpu.ticker or not cpu:IsVisible() then return end
+    self:SampleCpu()
+    cpu.ticker = C_Timer.NewTicker(1, function() self:SampleCpu() end)
+end
+
+-- Shows or hides the graph for its setting; the sidebar's list ends above whatever shows.
+function P:ApplyCpuGraph()
+    local on = HST.db.global.cpuGraph ~= false and CpuProfiler() ~= nil
+    self.cpu:SetShown(on)
+    self.sidebarBottom:SetHeight(on and 24 + CPU_ROW + 8 or 24)
+    if on then self:StartCpuGraph() end
 end
 
 -- The sidebar's right edge: drag it to widen or narrow the sidebar, right-click for its default width. It lights while
@@ -3675,6 +3774,14 @@ end
 
 function HST:ResetSettingsWindow()
     if P.frame then P:ResetWindow() end
+end
+
+function HST:ApplyCpuGraph()
+    if P.cpu then P:ApplyCpuGraph() end
+end
+
+function HST:CanShowCpuGraph()
+    return CpuProfiler() ~= nil
 end
 
 function HST:RefreshSettings()
