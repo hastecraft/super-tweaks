@@ -44,7 +44,7 @@ local defaults = {
     -- The campfire on screen.
     display = true, nearby = true, nearbyAt = 30, keepShown = true, warnAt = 5, without = "ended", blink = true,
     sound = false,
-    style = "campfire", x = 0, -- y: see TopY
+    style = "campfire", x = 0, y = false, -- y: false until it's moved (see TopY)
     -- Campfire: its size and what it draws.
     size = 56, ring = "classic", fireArt = true, animate = true, glow = true, backdrop = true,
     -- Bar.
@@ -1296,7 +1296,7 @@ function C:BuildOptions()
                     desc = "Moves it back near the top of the screen.",
                     func = function()
                         local p = C.db.profile
-                        p.x, p.y = defaults.x, nil
+                        p.x, p.y = defaults.x, defaults.y
                         apply()
                     end },
             }),
