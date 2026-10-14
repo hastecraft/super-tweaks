@@ -516,7 +516,7 @@ end
 
 -- A row: icon slot with count and quest mark, name, and how many you own.
 local function CreateRow(window)
-    local W, C = ns.Widgets, ns.Widgets.EMBER
+    local W, C = ns.Widgets, ns.Widgets.INGAME
     local row = CreateFrame("Button", nil, window)
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp") -- either button loots, as in the game's window
     row.hover = W.Fill(row, C.hover)
@@ -575,7 +575,7 @@ end
 
 -- Fills a row; notices (manual false) show what arrived as "+N name".
 local function FillRow(row, item, manual, p, font, flags, noticeMouse)
-    local C = ns.Widgets.EMBER
+    local C = ns.Widgets.INGAME
     row.item = item
     -- Sizes and insets change only with the settings; only this function sets them.
     if row.sizedIcon ~= p.iconSize or row.sizedSpacing ~= p.spacing or row.sizedPadding ~= p.padding then
@@ -620,7 +620,7 @@ local NO_HOVER = { 0, 0, 0, 0 }
 
 -- A loot window: a top bar with Take All and close (looting by hand only), rows, and money at the bottom.
 function L:BuildWindow(parent, name)
-    local W, C = ns.Widgets, ns.Widgets.EMBER
+    local W, C = ns.Widgets, ns.Widgets.INGAME
     local f = CreateFrame("Frame", name, parent)
     f:SetSize(220, HEADER + 28)
     f.background = f:CreateTexture(nil, "BACKGROUND")

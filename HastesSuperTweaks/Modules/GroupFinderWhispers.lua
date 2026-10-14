@@ -111,7 +111,7 @@ local ROW = 22
 L.whispers = {} -- { name, who, at, invited }, newest first
 
 function L:CreateList()
-    local W, C = ns.Widgets, ns.Widgets.EMBER
+    local W, C = ns.Widgets, ns.Widgets.INGAME
     local f = CreateFrame("Frame", "HastesSuperTweaksLFGWhispers", UIParent)
     self.list = f
     f:SetSize(220, 40)
@@ -144,7 +144,7 @@ end
 local function Row(f, i)
     local row = f.rows[i]
     if row then return row end
-    local W, C = ns.Widgets, ns.Widgets.EMBER
+    local W, C = ns.Widgets, ns.Widgets.INGAME
     row = CreateFrame("Frame", nil, f)
     row:SetHeight(ROW)
     row:SetPoint("TOPLEFT", 6, -24 - (i - 1) * ROW)

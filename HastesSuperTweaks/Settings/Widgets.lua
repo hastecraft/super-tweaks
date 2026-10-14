@@ -6,10 +6,10 @@ local ADDON, ns = ...
 local W = {}
 ns.Widgets = W
 
--- Themes for the settings window. Graphite: greys stepping lighter from the title bar and sidebar to the page, its cards
--- and their controls, near-black only for the wells previews sit in; a violet accent and round-cornered boxes. Ember:
--- warm dark panels, parchment text and a gold accent, the original look, which windows shown in play keep (W.EMBER).
--- The game draws these darks a little darker than their values, so neighboring steps are kept well apart.
+-- Themes for the settings window. Both step lighter from the title bar and sidebar to the page, its cards and their
+-- controls, with near-black only for the wells previews sit in. Graphite: greys, a violet accent and round-cornered
+-- boxes. Ember: warm browns, parchment text and a gold accent. The game draws these darks a little darker than their
+-- values, so neighboring steps are kept well apart.
 local THEMES = {
     graphite = { name = "Graphite", order = 1, round = true, colors = {
         window = { 0.106, 0.106, 0.106, 0.98 },
@@ -40,6 +40,38 @@ local THEMES = {
         trackOn = { 0.651, 0.490, 0.949, 1 },
     } },
     ember = { name = "Ember", order = 2, colors = {
+        window = { 0.118, 0.102, 0.090, 0.98 },
+        titlebar = { 0.086, 0.075, 0.065, 1 },
+        sidebar = { 0.086, 0.075, 0.065, 1 },
+        pane = { 0.188, 0.163, 0.141, 1 },
+        card = { 0.153, 0.133, 0.116, 1 },
+        field = { 0.102, 0.088, 0.078, 1 },
+        well = { 0.059, 0.051, 0.045, 1 },
+        border = { 0.27, 0.225, 0.17, 1 },
+        divider = { 0.22, 0.19, 0.155, 1 },
+        line = { 0.50, 0.41, 0.30, 1 },
+        text = { 0.86, 0.77, 0.65 },
+        bright = { 1, 1, 1 },
+        title = { 1, 0.80, 0.40 },
+        header = { 0.66, 0.55, 0.43 },
+        body = { 0.72, 0.69, 0.64 },
+        muted = { 0.58, 0.54, 0.49 },
+        accent = { 1, 0.80, 0.40 },
+        onAccent = { 0.12, 0.08, 0.03 },
+        warning = { 0.95, 0.52, 0.22 },
+        disabled = { 0.45, 0.45, 0.45 },
+        hover = { 1, 0.86, 0.60, 0.07 },
+        selected = { 1, 0.80, 0.40, 0.13 },
+        knob = { 0.66, 0.58, 0.49, 1 },
+        knobOn = { 1, 0.97, 0.90, 1 },
+        trackOff = { 0.25, 0.215, 0.18, 1 },
+        trackOn = { 0.86, 0.62, 0.24, 1 },
+    } },
+}
+
+-- The original Ember colors, which windows shown in play (the Loot window, the whispers list, the guild message) keep
+-- whatever the theme (W.INGAME).
+local INGAME = { colors = {
         window = { 0.067, 0.058, 0.051, 0.98 },
         titlebar = { 0.047, 0.041, 0.036, 1 },
         sidebar = { 0.055, 0.048, 0.042, 1 },
@@ -66,8 +98,7 @@ local THEMES = {
         knobOn = { 1, 0.97, 0.90, 1 },
         trackOff = { 0.14, 0.12, 0.105, 1 },
         trackOn = { 0.86, 0.62, 0.24, 1 },
-    } },
-}
+} }
 local DEFAULT_THEME = "graphite"
 for key, theme in pairs(THEMES) do theme.key = key end
 W.THEMES, W.DEFAULT_THEME = THEMES, DEFAULT_THEME
@@ -117,8 +148,7 @@ end
 local C = FillPalette({}, THEMES[DEFAULT_THEME])
 W.C = C
 W.theme = THEMES[DEFAULT_THEME]
--- Ember's palette for windows shown in play, which keep their look whatever the theme.
-W.EMBER = FillPalette({}, THEMES.ember)
+W.INGAME = FillPalette({}, INGAME)
 
 local palette = {}
 for _, color in pairs(C) do palette[color] = true end
@@ -1321,7 +1351,7 @@ function W.TextAreaRow(parent, lines, onEdit)
     return c
 end
 
--- A flat button; "primary" ones are filled with the accent color. In `colors` (W.C unless given, W.EMBER in windows
+-- A flat button; "primary" ones are filled with the accent color. In `colors` (W.C unless given, W.INGAME in windows
 -- shown in play).
 function W.Button(parent, text, style, colors)
     local C = colors or C
