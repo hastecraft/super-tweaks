@@ -44,7 +44,7 @@ local defaults = {
     -- The campfire on screen.
     display = true, nearby = true, nearbyAt = 30, keepShown = true, warnAt = 5, without = "ended", blink = true,
     sound = false,
-    style = "campfire", x = 0, y = 200,
+    style = "campfire", x = 0, -- y: see TopY
     -- Campfire: its size and what it draws.
     size = 56, ring = "classic", fireArt = true, animate = true, glow = true, backdrop = true,
     -- Bar.
@@ -562,11 +562,14 @@ function C:CreateCampfire()
     self:Place()
 end
 
+-- Until it's moved, it sits 15% down from the top of the screen, whatever the UI scale.
+local function TopY(p) return p.y or floor(UIParent:GetHeight() * 0.35 + 0.5) end
+
 function C:Place()
     local d, p = self.campfire, self.db.profile
     Style(d, p)
     d.frame:ClearAllPoints()
-    d.frame:SetPoint("CENTER", UIParent, "CENTER", p.x, p.y)
+    d.frame:SetPoint("CENTER", UIParent, "CENTER", p.x, TopY(p))
 end
 
 -- Settings applied to the campfire.
@@ -1054,7 +1057,7 @@ function C:EditFrame()
     if not self.campfire then self:CreateCampfire() end
     return self.campfire.frame
 end
-function C:GetPosition() local p = self.db.profile; return p.x, p.y end
+function C:GetPosition() local p = self.db.profile; return p.x, TopY(p) end
 function C:SetPosition(x, y) local p = self.db.profile; p.x, p.y = floor(x + 0.5), floor(y + 0.5) end
 function C:EditSize() return self.campfire.frame:GetSize() end
 function C:EditPlace(x, y)
@@ -1290,10 +1293,10 @@ function C:BuildOptions()
                     values = { campfire = "Campfire in a ring", bar = "Bar", icons = "Icon" },
                     sorting = { "campfire", "bar", "icons" } }),
                 reset = { type = "execute", name = "Reset position", order = 3, disabled = off,
-                    desc = "Moves it back to the middle of the screen, above your character.",
+                    desc = "Moves it back near the top of the screen.",
                     func = function()
                         local p = C.db.profile
-                        p.x, p.y = defaults.x, defaults.y
+                        p.x, p.y = defaults.x, nil
                         apply()
                     end },
             }),
