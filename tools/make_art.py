@@ -768,6 +768,7 @@ if __name__ == '__main__':
         print(f'Wrote {ART / (name + ".tga")} ({image.size[0]}x{image.size[1]})')
     atlases = {
         'Close': close_x,
+        'CogSizes': lambda n: weighted(cog(n, samples=16)),
         'ChevronSizes': lambda n: chevron(n, samples=16),
         'GitHubSizes': lambda n: svg_icon(GITHUB_PATH, size=n, samples=16),
         'HeartSizes': lambda n: heart(n, samples=16),

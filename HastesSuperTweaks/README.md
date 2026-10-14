@@ -70,7 +70,7 @@ Modules that act for you or take over part of the game's interface (Upgrade Spel
 
 ## Settings window
 
-`/hst` opens it. It is also listed under Options › AddOns and in the minimap addon menu. Drag the title bar to move it, the bottom right corner to resize it, and use the − / + beside the close button (or the mouse wheel over them) to scale it; it opens the size, scale and place you left it.
+`/hst` opens it. It is also listed under Options › AddOns and in the minimap addon menu. Drag the title bar to move it, the bottom right corner to resize it, and use the − / + in the title bar (or the mouse wheel over them) to scale it; it opens the size, scale and place you left it. The cog beside the close button opens the window's own settings, where you pick its theme: Graphite or Ember.
 
 ### Sidebar
 

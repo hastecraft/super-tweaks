@@ -359,7 +359,7 @@ function X:DrawLivePreview(frame, width, height, path)
         -- The marked label: a faint box around it.
         local W = ns.Widgets
         v.focus = CreateFrame("Frame", nil, v.overlay)
-        W.Fill(v.focus, { W.C.accent[1], W.C.accent[2], W.C.accent[3], 0.12 }):SetAllPoints()
+        W.Fill(v.focus, W.C.accentWash):SetAllPoints()
         W.Border(v.focus, W.C.accent)
     end
     local bw, bh = p.width, p.height

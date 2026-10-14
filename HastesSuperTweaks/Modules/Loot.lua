@@ -516,7 +516,7 @@ end
 
 -- A row: icon slot with count and quest mark, name, and how many you own.
 local function CreateRow(window)
-    local W, C = ns.Widgets, ns.Widgets.C
+    local W, C = ns.Widgets, ns.Widgets.EMBER
     local row = CreateFrame("Button", nil, window)
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp") -- either button loots, as in the game's window
     row.hover = W.Fill(row, C.hover)
@@ -575,7 +575,7 @@ end
 
 -- Fills a row; notices (manual false) show what arrived as "+N name".
 local function FillRow(row, item, manual, p, font, flags, noticeMouse)
-    local C = ns.Widgets.C
+    local C = ns.Widgets.EMBER
     row.item = item
     -- Sizes and insets change only with the settings; only this function sets them.
     if row.sizedIcon ~= p.iconSize or row.sizedSpacing ~= p.spacing or row.sizedPadding ~= p.padding then
@@ -620,7 +620,7 @@ local NO_HOVER = { 0, 0, 0, 0 }
 
 -- A loot window: a top bar with Take All and close (looting by hand only), rows, and money at the bottom.
 function L:BuildWindow(parent, name)
-    local W, C = ns.Widgets, ns.Widgets.C
+    local W, C = ns.Widgets, ns.Widgets.EMBER
     local f = CreateFrame("Frame", name, parent)
     f:SetSize(220, HEADER + 28)
     f.background = f:CreateTexture(nil, "BACKGROUND")
@@ -653,7 +653,7 @@ function L:BuildWindow(parent, name)
     take:SetScript("OnClick", function() if f.onTakeAll then f.onTakeAll() end end)
     f.close = CreateFrame("Button", nil, f.header)
     f.close:SetSize(20, 20)
-    f.close.icon = W.CloseIcon(f.close, 9)
+    f.close.icon = W.CloseIcon(f.close, 9, C.header)
     f.close:SetScript("OnEnter", function() f.close.icon:SetVertexColor(unpack(C.bright)) end)
     f.close:SetScript("OnLeave", function() f.close.icon:SetVertexColor(unpack(C.header)) end)
     f.close:SetScript("OnClick", function() f:Hide() end)

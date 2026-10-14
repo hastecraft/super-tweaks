@@ -241,6 +241,7 @@ function HST:OnInitialize()
         self.db.RegisterCallback(self, event, "OnProfileEvent")
     end
     self:ListProfiles()
+    ns.Widgets.SetTheme(self.db.global.theme)
     for _, module in ipairs(self:Features()) do
         module:SetEnabledState(self.db.global.modules[module:GetName()] and not module.info.unavailable)
     end
@@ -356,6 +357,23 @@ function HST:AboutOptions()
         } },
     } }
     return self.aboutOptions
+end
+
+-- The settings window's own settings, behind the cog in its title bar; saved account-wide. "theme" is drawn by the
+-- settings window only (Settings/Panel.lua).
+function HST:GeneralOptions()
+    if self.generalOptions then return self.generalOptions end
+    self.generalOptions = { type = "group", name = "Settings", args = {
+        appearance = { type = "group", inline = true, name = "Appearance", order = 1, args = {
+            theme = { type = "theme", order = 1, name = "Theme",
+                get = function() return ns.Widgets.theme.key end,
+                set = function(_, key)
+                    self.db.global.theme = key ~= ns.Widgets.DEFAULT_THEME and key or nil
+                    ns.Widgets.SetTheme(key)
+                end },
+        } },
+    } }
+    return self.generalOptions
 end
 
 function HST:OnEnable()
@@ -638,6 +656,9 @@ function ns.ColorCode(color)
     end
     return code
 end
+
+-- For a color table whose values changed (the settings window's palette, on a theme change).
+function ns.ForgetColorCode(color) colorCodes[color] = nil end
 
 -- True when a character at `level`, needing `cap` XP for the next one, can't gain XP: at the level cap (worked out as
 -- the game's XP bar does), or with no XP to gain. Without arguments it asks about the player, whose XP may also be

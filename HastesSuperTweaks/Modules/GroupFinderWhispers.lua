@@ -111,7 +111,7 @@ local ROW = 22
 L.whispers = {} -- { name, who, at, invited }, newest first
 
 function L:CreateList()
-    local W, C = ns.Widgets, ns.Widgets.C
+    local W, C = ns.Widgets, ns.Widgets.EMBER
     local f = CreateFrame("Frame", "HastesSuperTweaksLFGWhispers", UIParent)
     self.list = f
     f:SetSize(220, 40)
@@ -135,7 +135,7 @@ function L:CreateList()
     f.close = CreateFrame("Button", nil, f)
     f.close:SetSize(18, 18)
     f.close:SetPoint("TOPRIGHT", -4, -3)
-    f.close.icon = W.CloseIcon(f.close, 8)
+    f.close.icon = W.CloseIcon(f.close, 8, C.header)
     f.close:SetScript("OnClick", function() f:Hide() end)
     f.rows = {}
     f:Hide()
@@ -144,7 +144,7 @@ end
 local function Row(f, i)
     local row = f.rows[i]
     if row then return row end
-    local W, C = ns.Widgets, ns.Widgets.C
+    local W, C = ns.Widgets, ns.Widgets.EMBER
     row = CreateFrame("Frame", nil, f)
     row:SetHeight(ROW)
     row:SetPoint("TOPLEFT", 6, -24 - (i - 1) * ROW)
@@ -153,7 +153,7 @@ local function Row(f, i)
     row.name:SetPoint("LEFT", 2, 0)
     row.name:SetPoint("RIGHT", -64, 0)
     row.name:SetWordWrap(false)
-    row.invite = W.Button(row, "Invite")
+    row.invite = W.Button(row, "Invite", nil, C)
     row.invite:SetSize(58, 18)
     row.invite:SetPoint("RIGHT")
     row.invite:SetScript("OnClick", function()

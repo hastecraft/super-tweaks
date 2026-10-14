@@ -366,7 +366,7 @@ local function ShowRow(row, key)
     local none = key == ""
     row.on, row.playing = not none, nil
     row.sound:SetText(SoundName(key))
-    row.sound:SetTextColor(unpack(none and ns.Widgets.C.muted or GOLD))
+    ns.Widgets.Paint(row.sound, none and ns.Widgets.C.muted or GOLD)
     row.badge.cross:SetShown(none)
 end
 
