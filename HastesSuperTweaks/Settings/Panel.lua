@@ -1750,7 +1750,7 @@ end
 -- burst between readings is never missed. Each bar is a second or more of those readings, oldest to newest. The
 -- scale is logarithmic, from 0.00001 ms up to the highest bar shown or 0.01 ms: an idle addon costs a millionth of a
 -- frame and a busy one a thousand times that, and a straight scale would show only the bursts. Under the graph: the
--- last bar, the average since login and the highest frame since login. The frame count runs only while the graph
+-- average since login and the last bar. The frame count runs only while the graph
 -- shows: OnUpdate stops with the window, and the graph turned off is hidden.
 local CPU_BARS, CPU_WINDOW = 40, 60
 local CPU_LOW, CPU_TOP = math.log10(0.00001), math.log10(0.01)
@@ -1807,18 +1807,23 @@ function P:CreateCpuGraph(bottom)
             bar:SetWidth(math.max(1, step - 1))
         end
     end)
-    -- Now, Avg and Peak on one line under the graph, each a label and its figure: Now at the left, Peak at the right
-    -- and Avg centered between them (see P:PaintCpuFigures).
+    -- Avg at the left and Now at the right, under the graph, each a label and its figure.
+    local y = -(CPU_HEAD + CPU_GRAPH + 2 * CPU_GAP)
     cpu.figures = {}
-    for i, label in ipairs({ "Now", "Avg", "Peak" }) do
+    for i, label in ipairs({ "Avg", "Now" }) do
         local figure = { label = W.Text(cpu, "GameFontNormalSmall", C.muted),
             value = W.Text(cpu, "GameFontNormalSmall", C.text) }
         figure.label:SetText(label)
         figure.value:SetText("0 ms")
-        figure.value:SetPoint("LEFT", figure.label, "RIGHT", 3, 0)
+        if i == 1 then
+            figure.label:SetPoint("TOPLEFT", 0, y)
+            figure.value:SetPoint("LEFT", figure.label, "RIGHT", 3, 0)
+        else
+            figure.value:SetPoint("TOPRIGHT", 0, y)
+            figure.label:SetPoint("RIGHT", figure.value, "LEFT", -3, 0)
+        end
         cpu.figures[i] = figure
     end
-    cpu:SetScript("OnSizeChanged", function() self:PlaceCpuFigures() end)
     cpu:SetScript("OnEnter", function()
         W.ShowTooltip(cpu, "CPU use", "How long " .. HST.title .. " takes to run each frame.")
     end)
@@ -1837,8 +1842,7 @@ function P:CreateCpuGraph(bottom)
         self:AddCpuBar(addonTime / readings)
         readings, addonTime, seconds = 0, 0, 0
     end)
-    -- A new open starts counting afresh, so the time the window was closed isn't in the first bar; Avg and Peak
-    -- show at once.
+    -- A new open starts counting afresh, so the time the window was closed isn't in the first bar; Avg shows at once.
     cpu:SetScript("OnShow", function()
         frames, readings, addonTime, seconds = 0, 0, 0, 0
         self:PaintCpuFigures()
@@ -1851,39 +1855,8 @@ function P:PaintCpuFigures()
     if not profiler then return end
     local metric = Enum.AddOnProfilerMetric
     local figures = cpu.figures
-    figures[1].value:SetText(FormatSmall(cpu.ms, " ms"))
-    figures[2].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), " ms"))
-    figures[3].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.PeakTime), " ms"))
-    self:PlaceCpuFigures()
-end
-
--- Lays the figures out on their line, a size or two smaller when they don't fit at the sidebar's width.
-local CPU_SPACE = 8
-function P:PlaceCpuFigures()
-    local cpu = self.cpu
-    local figures, width = cpu.figures, cpu:GetWidth()
-    local font, size, flags = GameFontNormalSmall:GetFont()
-    local used
-    for shrink = 0, 2 do
-        if cpu.shrink ~= shrink then
-            cpu.shrink = shrink
-            for _, figure in ipairs(figures) do
-                figure.label:SetFont(font, size - shrink, flags)
-                figure.value:SetFont(font, size - shrink, flags)
-            end
-        end
-        used = 0
-        for _, figure in ipairs(figures) do
-            figure.width = figure.label:GetStringWidth() + 3 + figure.value:GetStringWidth()
-            used = used + figure.width
-        end
-        if used + 2 * CPU_SPACE <= width then break end
-    end
-    local y = -(CPU_HEAD + CPU_GRAPH + 2 * CPU_GAP)
-    local now, avg, peak = figures[1], figures[2], figures[3]
-    now.label:SetPoint("TOPLEFT", 0, y)
-    peak.label:SetPoint("TOPLEFT", width - peak.width, y)
-    avg.label:SetPoint("TOPLEFT", math.floor(now.width + (width - used) / 2 + 0.5), y)
+    figures[1].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), " ms"))
+    figures[2].value:SetText(FormatSmall(cpu.ms, " ms"))
 end
 
 -- ms: the addon's average time a frame over the bar's readings.
