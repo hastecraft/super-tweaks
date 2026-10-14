@@ -1755,14 +1755,13 @@ local function CpuProfiler()
     return profiler and profiler.IsEnabled and profiler.IsEnabled() and profiler or nil
 end
 
--- Enough digits that a light load doesn't read as 0.
+-- Enough digits that a light load doesn't read as 0: below 0.01, down to its first digit (0.00006 ms).
 local function FormatSmall(value, unit)
     if value >= 10 then return ("%.0f%s"):format(value, unit) end
     if value >= 1 then return ("%.1f%s"):format(value, unit) end
     if value >= 0.01 then return ("%.2f%s"):format(value, unit) end
-    if value >= 0.001 then return ("%.3f%s"):format(value, unit) end
-    if value >= 0.0001 then return ("%.4f%s"):format(value, unit) end
-    return "0" .. unit
+    if value < 1e-8 then return "0" .. unit end
+    return ("%." .. math.ceil(-math.log10(value) - 1e-9) .. "f%s"):format(value, unit)
 end
 
 function P:CreateCpuGraph(bottom)
@@ -1793,9 +1792,17 @@ function P:CreateCpuGraph(bottom)
             bar:SetWidth(math.max(1, step - 1))
         end
     end)
+    -- The graph and its label are the last 60 frames, which is 0 while every tweak sits idle; since login and the
+    -- peak (loading screens count) show what the addon costs over time.
     local function tip()
-        W.ShowTooltip(cpu, "CPU use", ("%s: %s a frame, %s of the game's frame time."):format(HST.title,
-            FormatSmall(cpu.ms, " ms"), FormatSmall(cpu.pct, "%")))
+        local profiler, metric = CpuProfiler(), Enum.AddOnProfilerMetric
+        if not profiler then return end
+        W.ShowTooltip(cpu, "CPU use",
+            ("Last 60 frames: %s a frame, %s of the frame time.
+Since login: %s a frame, peak %s."):format(
+            FormatSmall(cpu.ms, " ms"), FormatSmall(cpu.pct, "%"),
+            FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), " ms"),
+            FormatSmall(profiler.GetAddOnMetric(ADDON, metric.PeakTime), " ms")))
     end
     cpu.tip = tip
     cpu:SetScript("OnEnter", function() cpu.hovered = true; tip() end)
