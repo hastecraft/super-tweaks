@@ -16,7 +16,7 @@ On WoW Forever, a quest mark beside the mobs your quests need.
 
 ### Item counts
 
-Item tooltips say how many you have in your bags, bank and account bank.
+Item tooltips say how many you have in your bags, bank and, on WoW Forever, account bank.
 
 ### New
 

@@ -21,7 +21,7 @@ HST.patchNotes = {
                 title = "Swing Timer Style", module = "SwingTimer" },
             { "On WoW Forever, a quest mark beside the mobs your quests need.",
                 title = "Quest mobs on nameplates", module = "NameplateMarkers", path = { "markers" }, setting = "quest" },
-            { "Item tooltips say how many you have in your bags, bank and account bank.",
+            { "Item tooltips say how many you have in your bags, bank and, on WoW Forever, account bank.",
                 title = "Item counts", module = "Tooltip", path = { "extras" } },
         },
         new = {
