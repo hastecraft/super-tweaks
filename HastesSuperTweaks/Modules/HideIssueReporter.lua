@@ -58,7 +58,7 @@ function R.info.preview(frame)
         W.Icon(bug, "Interface\\HelpFrame\\HelpIcon-Bug", 44, "OVERLAY"):SetPoint("CENTER")
         W.Column(frame, { button })
     end
-    W.Loop(frame, 4, function(t) button:SetAlpha(1 - W.Window(t, 1.0, 3.6, 0.4)) end)
+    W.Loop(frame, 4, function(t) button:SetAlpha(1 - W.Window(t, 1.0, 3.6, 0.4)) end, 0.5)
 end
 
 -- Hiding an ancestor suppresses rendering and mouse input without a Show/Hide hook.

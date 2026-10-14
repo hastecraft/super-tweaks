@@ -1815,8 +1815,17 @@ function W.Caption(parent, text)
 end
 
 -- Calls update(t) every frame while the frame is shown, t running from 0 to period and starting over.
--- Calling it again restarts from 0, so a preview replays each time it is shown.
-function W.Loop(frame, period, update)
+-- Calling it again restarts from 0, so a preview replays each time it is shown. With previews' animation turned off,
+-- it's drawn once, at `still` (default: half way through), the moment that shows it best, and update gets true after
+-- t: what the game itself would move (a cooldown's sweep) stands still too.
+local animate = true
+function W.SetAnimate(on) animate = on end
+function W.Loop(frame, period, update, still)
+    if not animate then
+        frame:SetScript("OnUpdate", nil)
+        update(still or period / 2, true)
+        return
+    end
     local elapsed = 0
     update(0)
     frame:SetScript("OnUpdate", function(_, delta)

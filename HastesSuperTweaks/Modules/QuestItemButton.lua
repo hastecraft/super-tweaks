@@ -159,7 +159,7 @@ function Q.info.preview(frame)
         if now == 3 then b.cooldown:SetCooldown(GetTime(), 1.5) else b.cooldown:Clear() end
         b.count:SetText(now == 3 and "2" or "3")
         v.caption:SetText(CAPTIONS[now])
-    end)
+    end, p.glow and 2.5 or 0.75)
 end
 
 ---------------------------------------------------------------------------

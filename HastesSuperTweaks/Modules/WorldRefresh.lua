@@ -571,7 +571,7 @@ function R.info.preview(frame)
             end
         end
         if chat and now ~= line then line = now; v.chat:SetText(now) end
-    end)
+    end, warnAt > 0 and warnFrom + 0.5 or stop / 2)
 end
 
 ---------------------------------------------------------------------------

@@ -268,6 +268,7 @@ function HST:OnInitialize()
     ns.Widgets.SetTheme(self.db.global.theme)
     self:ApplyAccent()
     ns.Widgets.SetSounds(self.db.global.sounds ~= false)
+    ns.Widgets.SetAnimate(self.db.global.animate ~= false)
     for _, module in ipairs(self:Features()) do
         module:SetEnabledState(self.db.global.modules[module:GetName()] and not module.info.unavailable)
     end
@@ -418,6 +419,13 @@ function HST:GeneralOptions()
                     -- Saved only when off.
                     if on then self.db.global.classAccent = nil else self.db.global.classAccent = false end
                     self:ApplyAccent()
+                end },
+            animate = { type = "toggle", order = 3, name = "Animate previews",
+                get = function() return self.db.global.animate ~= false end,
+                set = function(_, on)
+                    -- Saved only when off.
+                    if on then self.db.global.animate = nil else self.db.global.animate = false end
+                    ns.Widgets.SetAnimate(on)
                 end },
         } },
         window = { type = "group", inline = true, name = "Window", order = 2, args = {

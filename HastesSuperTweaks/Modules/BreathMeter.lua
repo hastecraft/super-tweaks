@@ -396,6 +396,7 @@ function B.info.preview(frame)
     Place(false)
     -- The other bar runs 45 seconds down to 29 of 60 each pass.
     local seconds, last, feign = 15, 0, false
+    v.other.label:SetText(LABELS.EXHAUSTION) -- a still preview is drawn at one moment, never at 0
     ns.Widgets.Loop(frame, seconds + 1, function(t)
         -- Each pass starts over with full breath, the other bar taking turns between fatigue and feign death.
         if t < last then
@@ -416,7 +417,7 @@ function B.info.preview(frame)
         end
         local other = 45 - t
         DrawSample(v.other, p, other / 60, other, feign and p.feignColor or p.fatigueColor, t)
-    end)
+    end, 2.5 * math.pi)
 end
 
 ---------------------------------------------------------------------------

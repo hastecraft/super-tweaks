@@ -29,7 +29,7 @@ local function Countdown(frame, popup, caption, seconds, counting, done)
         popup.buttons[popup.pick]:SetLit(left <= 0)
         popup.mark:SetShown(left <= 0)
         caption:SetText(left <= 0 and done or counting:format(left))
-    end)
+    end, seconds + 1)
 end
 
 ---------------------------------------------------------------------------
@@ -555,7 +555,7 @@ function J.info.preview(frame)
     W.Loop(frame, finish + 2.5, function(t)
         for i, icon in ipairs(sold) do icon:SetAlpha(math.max(0, math.min(1, (0.6 + i * 0.4 - t) / 0.2))) end
         v.line:SetShown(p.summary and t > finish + 0.2)
-    end)
+    end, finish + 1)
 end
 
 ---------------------------------------------------------------------------

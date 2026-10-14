@@ -353,7 +353,7 @@ function S.info.preview(frame)
     end
     for _, s in ipairs(v.samples) do s.shownRunning, s.shownTenths, s.shownAlpha, s.shownAway = nil, nil, nil, nil end
     v.shownPhase = nil
-    W.Loop(frame, LOOP, function(t) DrawSamples(v, p, t) end)
+    W.Loop(frame, LOOP, function(t) DrawSamples(v, p, t) end, 1.5)
 end
 
 ---------------------------------------------------------------------------

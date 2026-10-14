@@ -201,7 +201,7 @@ local function Declined(icon, text, printed, accept)
             end
             v.popup:SetAlpha(W.Window(t, 0.1, 1.9, 0.3))
             v.line:SetAlpha(W.Window(t, 1.7, 4.3, 0.3))
-        end)
+        end, 1.4)
     end
 end
 

@@ -59,7 +59,7 @@ function T.info.preview(frame)
         v.button:SetLit(t > 0.8 and t < 1.1)
         for i, mark in ipairs(v.rows) do mark:SetShown(t > 1.1 + i * 0.35) end
         v.line:SetShown(t > 2.4)
-    end)
+    end, 3)
 end
 
 ---------------------------------------------------------------------------
