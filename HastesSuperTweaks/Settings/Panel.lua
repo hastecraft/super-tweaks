@@ -917,7 +917,7 @@ end
 -- The settings window drawn small in a theme's colors and shapes: title bar, sidebar with a row selected, and a card
 -- with two switches and a button. Text is drawn as lines, on a frame over the shapes.
 local function ThemeSketch(parent, theme)
-    local colors, round = theme.colors, theme.round
+    local colors, round = theme.palette, theme.round
     local s = CreateFrame("Frame", nil, parent)
     s:SetSize(SKETCH_W, SKETCH_H)
     local window = colors.window

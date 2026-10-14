@@ -242,6 +242,7 @@ function HST:OnInitialize()
     end
     self:ListProfiles()
     ns.Widgets.SetTheme(self.db.global.theme)
+    self:ApplyAccent()
     for _, module in ipairs(self:Features()) do
         module:SetEnabledState(self.db.global.modules[module:GetName()] and not module.info.unavailable)
     end
@@ -359,6 +360,17 @@ function HST:AboutOptions()
     return self.aboutOptions
 end
 
+-- Graphite's accent: the player's class color, unless that's turned off.
+function HST:ApplyAccent()
+    local color
+    if self.db.global.classAccent ~= false then
+        local class = select(2, UnitClass("player"))
+        local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+        if c then color = { c.r, c.g, c.b } end
+    end
+    ns.Widgets.SetAccent(color)
+end
+
 -- The settings window's own settings, behind the cog in its title bar; saved account-wide. "theme" is drawn by the
 -- settings window only (Settings/Panel.lua).
 function HST:GeneralOptions()
@@ -371,6 +383,15 @@ function HST:GeneralOptions()
                     self.db.global.theme = key ~= ns.Widgets.DEFAULT_THEME and key or nil
                     ns.Widgets.SetTheme(key)
                 end },
+            classAccent = { type = "toggle", order = 2, name = "Accent in your class color",
+                desc = "When off, it's violet.",
+                hidden = function() return not ns.Widgets.theme.accentable end,
+                get = function() return self.db.global.classAccent ~= false end,
+                set = function(_, on)
+                    -- Saved only when off.
+                    if on then self.db.global.classAccent = nil else self.db.global.classAccent = false end
+                    self:ApplyAccent()
+                end },
         } },
     } }
     return self.generalOptions
@@ -379,6 +400,8 @@ end
 function HST:OnEnable()
     -- Runs before the modules' OnEnable, so they read per-character data under the right key.
     self:FixCharacterKey()
+    -- The class may not be known yet while addons load.
+    self:ApplyAccent()
     ns.RegisterMedia()
     self.events = CreateFrame("Frame")
     self.events:RegisterEvent("PLAYER_ENTERING_WORLD")

@@ -7,11 +7,11 @@ local W = {}
 ns.Widgets = W
 
 -- Themes for the settings window. Both step lighter from the title bar and sidebar to the page, its cards and their
--- controls, with near-black only for the wells previews sit in. Graphite: greys, a violet accent and round-cornered
--- boxes. Ember: warm browns, parchment text and a gold accent. The game draws these darks a little darker than their
--- values, so neighboring steps are kept well apart.
+-- controls, with near-black only for the wells previews sit in. Graphite: greys, an accent in your class color (or
+-- violet, see W.SetAccent) and round-cornered boxes. Ember: warm browns, parchment text and a gold accent. The game
+-- draws these darks a little darker than their values, so neighboring steps are kept well apart.
 local THEMES = {
-    graphite = { name = "Graphite", order = 1, round = true, colors = {
+    graphite = { name = "Graphite", order = 1, round = true, accentable = true, colors = {
         window = { 0.106, 0.106, 0.106, 0.98 },
         titlebar = { 0.075, 0.075, 0.075, 1 },
         sidebar = { 0.075, 0.075, 0.075, 1 },
@@ -117,12 +117,32 @@ end
 
 local WHITE = { 1, 1, 1 }
 
+-- The accent Graphite takes in place of its violet ({ r, g, b }: the player's class color), or nil (W.SetAccent).
+local accent
+
+-- Whether a color is light enough that a white knob on it would hardly show (relative luminance over a half).
+local function Light(color)
+    local l = 0
+    for i, weight in ipairs({ 0.2126, 0.7152, 0.0722 }) do
+        local c = color[i]
+        l = l + weight * (c <= 0.04045 and c / 12.92 or ((c + 0.055) / 1.055) ^ 2.4)
+    end
+    return l > 0.5
+end
+
 -- Fills a palette (`into`) with a theme's colors and the colors made from them, each in a table of its own.
 local function FillPalette(into, theme)
     for key, color in pairs(theme.colors) do
         local c = into[key] or {}
         into[key] = c
         c[1], c[2], c[3], c[4] = color[1], color[2], color[3], color[4]
+    end
+    if theme.accentable and accent then
+        local a, track, knob = into.accent, into.trackOn, into.knobOn
+        a[1], a[2], a[3], a[4] = accent[1], accent[2], accent[3], nil
+        track[1], track[2], track[3], track[4] = accent[1], accent[2], accent[3], 1
+        local k = Light(accent) and 0.1 or 1
+        knob[1], knob[2], knob[3], knob[4] = k, k, k, 1
     end
     local function made(key)
         into[key] = into[key] or {}
@@ -151,8 +171,13 @@ W.C = C
 W.theme = THEMES[DEFAULT_THEME]
 W.INGAME = FillPalette({}, INGAME)
 
+-- The palette's colors, and each theme's own (theme.palette, for drawing it as it looks).
 local palette = {}
 for _, color in pairs(C) do palette[color] = true end
+for _, theme in pairs(THEMES) do
+    theme.palette = FillPalette({}, theme)
+    for _, color in pairs(theme.palette) do palette[color] = true end
+end
 
 -- What each region was last painted with, when that was a palette color.
 local painted = setmetatable({}, { __mode = "k" })
@@ -180,15 +205,29 @@ end
 local themed = {}
 function W.OnTheme(run) themed[#themed + 1] = run end
 
+-- Fills the palettes again and paints everything painted with them.
+local function Repaint()
+    FillPalette(C, W.theme)
+    for _, theme in pairs(THEMES) do FillPalette(theme.palette, theme) end
+    for color in pairs(palette) do ns.ForgetColorCode(color) end
+    for region, color in pairs(painted) do Apply(region, color) end
+    for i = 1, #themed do themed[i]() end
+end
+
 -- Switches the settings window to a theme (by key; the default for one that doesn't exist).
 function W.SetTheme(key)
     local theme = THEMES[key] or THEMES[DEFAULT_THEME]
     if theme == W.theme then return end
     W.theme = theme
-    FillPalette(C, theme)
-    for color in pairs(palette) do ns.ForgetColorCode(color) end
-    for region, color in pairs(painted) do Apply(region, color) end
-    for i = 1, #themed do themed[i]() end
+    Repaint()
+end
+
+-- Gives Graphite this accent ({ r, g, b }), or its violet back (nil).
+function W.SetAccent(color)
+    if color == accent or color and accent and color[1] == accent[1] and color[2] == accent[2]
+        and color[3] == accent[3] then return end
+    accent = color
+    Repaint()
 end
 
 local ART = "Interface\\AddOns\\HastesSuperTweaks\\Art\\"
