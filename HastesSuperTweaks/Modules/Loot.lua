@@ -698,8 +698,8 @@ end
 -- Lays out a window built by BuildWindow: items, and money ({ amount = copper, text = shown when there is no amount,
 -- slot = loot slot }) for the bottom line. p holds the display settings (see L:Look). The top bar with Take All
 -- shows when looting by hand; with a note (what auto looting left, and why), the note shows in it, and Take All
--- without its key.
-function L:Layout(f, items, manual, p, money, note)
+-- without its key. placed: the caller places the rows itself right after (the auto loot list's animation).
+function L:Layout(f, items, manual, p, money, note, placed)
     f.itemCount = #items
     local header = manual
     local inset, edge, extra = Insets(p)
@@ -741,11 +741,13 @@ function L:Layout(f, items, manual, p, money, note)
         local row = f.rows[i] or CreateRow(f)
         f.rows[i] = row
         FillRow(row, item, manual, p, font, flags, noticeMouse)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, -(top + (i - 1) * rowHeight))
-        row:SetPoint("TOPRIGHT", 0, -(top + (i - 1) * rowHeight))
-        row:SetAlpha(1)
-        row.animX, row.animY, row.animAlpha = nil, nil, nil -- placed here; the notices' animation starts over
+        if not placed then
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", 0, -(top + (i - 1) * rowHeight))
+            row:SetPoint("TOPRIGHT", 0, -(top + (i - 1) * rowHeight))
+            row:SetAlpha(1)
+        end
+        row.animX, row.animY, row.animAlpha = nil, nil, nil -- placed anew; the notices' animation starts over
         row:Show()
         f.measure:SetText(row.label:GetText())
         widest = math.max(widest, p.iconSize + 8 + f.measure:GetStringWidth() + row.owned:GetStringWidth() + 18)
@@ -1160,7 +1162,8 @@ function L:ShowNotices()
     f:SetScript("OnUpdate", self.animate)
     f:EnableMouse(false)
     self:CloseOnEscape(false)
-    self:Layout(f, self.notices, false, self.db.profile, money)
+    -- Its rows are placed by the animation, below, unless that waits for the list to be drawn again.
+    self:Layout(f, self.notices, false, self.db.profile, money, nil, not self.noticesQueued)
     f.settled = nil
     if appearing then
         self:Place(false)
