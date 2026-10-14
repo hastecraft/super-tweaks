@@ -44,7 +44,7 @@ function G.info.preview(frame)
         v.cursor:SetPoint("TOPLEFT", v.menu, "TOPLEFT", 86, y - 7)
         v.menu:SetAlpha(W.Window(t, 0.1, 1.9, 0.2))
         v.line:SetAlpha(W.Window(t, 1.8, 4.4, 0.2))
-    end)
+    end, 1.45)
 end
 
 if not (Menu and Menu.ModifyMenu and MenuUtil and MenuUtil.CreateButton) then

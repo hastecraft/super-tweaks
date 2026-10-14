@@ -59,7 +59,7 @@ function K.info.preview(frame)
         v.gain:SetPoint("BOTTOM", v.fill, "TOPRIGHT", 0, 2 + 8 * rise)
         v.gain:SetAlpha(1 - rise)
         v.scene:SetAlpha(W.Window(t, 0, 4.4, 0.25))
-    end)
+    end, 3.5)
 end
 
 local floor, min, max, ceil = math.floor, math.min, math.max, math.ceil

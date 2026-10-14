@@ -39,7 +39,7 @@ function Q.info.preview(frame)
         end
         W.Column(frame, { row })
     end
-    W.Loop(frame, 3, function(t) v.coin:SetAlpha(0.6 + 0.4 * math.abs(math.cos(t * math.pi))) end)
+    W.Loop(frame, 3, function(t) v.coin:SetAlpha(0.6 + 0.4 * math.abs(math.cos(t * math.pi))) end, 1)
 end
 
 ---------------------------------------------------------------------------

@@ -557,7 +557,7 @@ end
 
 -- The New Patch Dot switch and its label, as one button; toggle:Refresh() shows the setting.
 local function NotesDotToggle(parent)
-    local tip = "Blinks a dot on the version beside the title while there are patch notes you haven't opened."
+    local tip = HST.NOTES_DOT_TIP
     local toggle = CreateFrame("Button", nil, parent)
     toggle:SetHeight(24)
     local switch = W.Switch(toggle)
@@ -1492,6 +1492,17 @@ function P:SetScale(scale)
     self:SavePlace()
 end
 
+-- Back to where, how big and how scaled the window first opens; nothing is remembered until it's moved again.
+function P:ResetWindow()
+    local f = self.frame
+    self:ApplyScale(1)
+    self:SetSize(DEFAULT_W, DEFAULT_H)
+    f:ClearAllPoints()
+    f:SetPoint("CENTER")
+    local state = State()
+    state.x, state.y, state.width, state.height, state.scale = nil, nil, nil, nil, nil
+end
+
 function P:CreateTitleBar(f)
     local bar = CreateFrame("Frame", nil, f)
     self.titleBar = bar
@@ -2386,17 +2397,7 @@ function P:WelcomeCard()
         local b = W.Button(card, point.name)
         b:Fit(110)
         card.buttons[#card.buttons + 1] = b
-        b.tipTitle = point.name
-        if point.on then
-            local names = {}
-            for _, key in ipairs(point.on) do
-                local module = HST:GetModule(key, true)
-                if module and not module.info.unavailable then names[#names + 1] = module.info.name end
-            end
-            b.tipText = point.tip .. " " .. table.concat(names, ", ") .. "."
-        else
-            b.tipText = point.tip
-        end
+        b.tipTitle, b.tipText = point.name, HST:StartingPointTip(point)
         b:SetScript("OnClick", function()
             local function apply()
                 HST:ApplyStartingPoint(point)
@@ -3461,6 +3462,14 @@ function HST:OpenSettings(moduleKey)
     if P.view == "module" and P.openModule then return P:OpenModule(P.openModule) end
     if P.mode == "page" and P.view then return P:ShowTab(P.view) end
     P:ShowModules()
+end
+
+function HST:PaintSettingsPip()
+    if P.versionPip then P:PaintPip() end
+end
+
+function HST:ResetSettingsWindow()
+    if P.frame then P:ResetWindow() end
 end
 
 function HST:RefreshSettings()

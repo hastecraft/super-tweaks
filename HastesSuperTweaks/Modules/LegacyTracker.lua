@@ -395,5 +395,5 @@ function L.info.preview(frame)
         v.fill:SetWidth(math.max(0.01, (BAR_W - 2) * share * W.Ease(t, 0.2, 1.0)))
         if announce then v.challenge:SetAlpha(W.Window(t, 1.4, 5.6, 0.3)) end
         if remind then v.reminder:SetAlpha(both and W.Window(t, 6, 10.6, 0.3) or W.Window(t, 1.4, 5.6, 0.3)) end
-    end)
+    end, 3)
 end

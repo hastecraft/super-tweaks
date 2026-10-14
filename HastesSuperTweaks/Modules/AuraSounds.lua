@@ -477,7 +477,7 @@ function A.info.preview(frame)
             v.slots[i]:SetAlpha(fades and 1 - 0.7 * shown or 0.3 + 0.7 * shown)
             v.badges[i].waves:SetShown(t >= at and t < at + 1.2)
         end
-    end)
+    end, 4.6)
 end
 
 ---------------------------------------------------------------------------

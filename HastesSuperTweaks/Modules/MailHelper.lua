@@ -75,7 +75,7 @@ function M.info.preview(frame)
         v.menu:SetAlpha(W.Window(t, 0.45, 1.8, 0.15))
         v.hover:SetAlpha(t < 1.0 and 0 or 0.25 + 0.3 * W.Window(t, 1.35, 1.6, 0.1))
         v.typed:SetAlpha(W.Window(t, 1.6, 4.4, 0.15))
-    end)
+    end, 1.48)
 end
 
 function M:OnInitialize()

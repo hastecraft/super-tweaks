@@ -28,13 +28,26 @@ HST.categories = {
 -- Module on/off states are account-wide; module settings live in profiles.
 HST.defaults = { global = { modules = { ["*"] = true } } }
 
--- Chat output for the addon and its modules, prefixed with the addon title.
+-- A chat window by its number, and its name, while it's open (shown, or a tab docked with the others); never the
+-- combat log.
+local function ChatWindow(index)
+    if not (index and GetChatWindowInfo) then return nil end
+    local name, _, _, _, _, _, shown, _, docked = GetChatWindowInfo(index)
+    local frame = _G["ChatFrame" .. index]
+    if not (frame and name and name ~= "" and (shown or docked)) then return nil end
+    if IsCombatLog and IsCombatLog(frame) then return nil end
+    return frame, name
+end
+
+-- Chat output for the addon and its modules, prefixed with the addon title, in the chat window chosen for it (the
+-- default one when that's closed).
 local CHAT_PREFIX = "|cffffcc66" .. HST.title .. ":|r "
 ns.CHAT_PREFIX = CHAT_PREFIX
 function HST:Print(text, ...)
     text = tostring(text)
     for i = 1, select("#", ...) do text = text .. " " .. tostring((select(i, ...))) end
-    DEFAULT_CHAT_FRAME:AddMessage(CHAT_PREFIX .. text)
+    local frame = self.db and ChatWindow(self.db.global.chatFrame) or DEFAULT_CHAT_FRAME
+    frame:AddMessage(CHAT_PREFIX .. text)
 end
 
 -- Registers a feature module. info: name, category, order, summary (one short line for the settings list), description,
@@ -84,6 +97,17 @@ HST.startingPoints = {
     { name = "Start with all off", tip = "Turns every tweak off, so you can pick the ones you want from the list.",
         allOff = true, confirm = "Turn every tweak off? You can turn the ones you want back on from the list." },
 }
+
+-- A starting point's description: its tip, and the tweaks it turns on that this client can use.
+function HST:StartingPointTip(point)
+    if not point.on then return point.tip end
+    local names = {}
+    for _, key in ipairs(point.on) do
+        local module = self:GetModule(key, true)
+        if module and not module.info.unavailable then names[#names + 1] = module.info.name end
+    end
+    return point.tip .. " " .. table.concat(names, ", ") .. "."
+end
 
 -- Applies a starting point and says in chat what it changed.
 function HST:ApplyStartingPoint(point)
@@ -243,6 +267,8 @@ function HST:OnInitialize()
     self:ListProfiles()
     ns.Widgets.SetTheme(self.db.global.theme)
     self:ApplyAccent()
+    ns.Widgets.SetSounds(self.db.global.sounds ~= false)
+    ns.Widgets.SetAnimate(self.db.global.animate ~= false)
     for _, module in ipairs(self:Features()) do
         module:SetEnabledState(self.db.global.modules[module:GetName()] and not module.info.unavailable)
     end
@@ -371,6 +397,9 @@ function HST:ApplyAccent()
     ns.Widgets.SetAccent(color)
 end
 
+-- The New Patch Dot's description, on the patch notes page and in the settings window's own settings.
+HST.NOTES_DOT_TIP = "Blinks a dot on the version beside the title while there are patch notes you haven't opened."
+
 -- The settings window's own settings, behind the cog in its title bar; saved account-wide. "theme" is drawn by the
 -- settings window only (Settings/Panel.lua).
 function HST:GeneralOptions()
@@ -391,8 +420,62 @@ function HST:GeneralOptions()
                     if on then self.db.global.classAccent = nil else self.db.global.classAccent = false end
                     self:ApplyAccent()
                 end },
+            animate = { type = "toggle", order = 3, name = "Animate previews",
+                get = function() return self.db.global.animate ~= false end,
+                set = function(_, on)
+                    -- Saved only when off.
+                    if on then self.db.global.animate = nil else self.db.global.animate = false end
+                    ns.Widgets.SetAnimate(on)
+                end },
         } },
+        window = { type = "group", inline = true, name = "Window", order = 2, args = {
+            sounds = { type = "toggle", order = 1, name = "Play click sounds",
+                get = function() return self.db.global.sounds ~= false end,
+                set = function(_, on)
+                    -- Saved only when off.
+                    if on then self.db.global.sounds = nil else self.db.global.sounds = false end
+                    ns.Widgets.SetSounds(on)
+                end },
+            notesDot = { type = "toggle", order = 2, name = "New Patch Dot", desc = HST.NOTES_DOT_TIP,
+                get = function() return self:NotesDotOn() end,
+                set = function(_, on) self:SetNotesDot(on); self:PaintSettingsPip() end },
+            reset = { type = "execute", order = 3, name = "Reset window",
+                desc = "Back to the middle of the screen, at the default size and scale.",
+                func = function() self:ResetSettingsWindow() end },
+        } },
+        chat = { type = "group", inline = true, name = "Chat", order = 3, args = {
+            -- The chat windows open now, in their order; saved only when not the first.
+            chatFrame = { type = "select", order = 1, name = "Show chat messages in",
+                values = function()
+                    local names = {}
+                    for i = 1, NUM_CHAT_WINDOWS or 10 do
+                        local _, name = ChatWindow(i)
+                        if name then names[i] = name end
+                    end
+                    return names
+                end,
+                sorting = function()
+                    local order = {}
+                    for i = 1, NUM_CHAT_WINDOWS or 10 do
+                        if ChatWindow(i) then order[#order + 1] = i end
+                    end
+                    return order
+                end,
+                get = function()
+                    local index = self.db.global.chatFrame
+                    return ChatWindow(index) and index or 1
+                end,
+                set = function(_, index) self.db.global.chatFrame = index ~= 1 and index or nil end },
+        } },
+        start = { type = "group", inline = true, name = "Starting points", order = 4, args = {} },
     } }
+    -- The welcome card's starting points, for after it's put away.
+    for i, point in ipairs(self.startingPoints) do
+        self.generalOptions.args.start.args["point" .. i] = { type = "execute", order = i, name = point.name,
+            desc = function() return self:StartingPointTip(point) end,
+            confirm = point.confirm ~= nil, confirmText = point.confirm,
+            func = function() self:ApplyStartingPoint(point) end }
+    end
     return self.generalOptions
 end
 
@@ -981,6 +1064,8 @@ end
 function HST:OpenSettings() end
 function HST:RefreshSettings() end
 function HST:ToggleSettings() end
+function HST:PaintSettingsPip() end
+function HST:ResetSettingsWindow() end
 
 -- Addon compartment (minimap addon menu) entry.
 function HastesSuperTweaks_OnAddonCompartmentClick()

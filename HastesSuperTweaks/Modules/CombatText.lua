@@ -1709,7 +1709,7 @@ function S.info.preview(frame)
                 end
             end
         end
-    end)
+    end, 0.9)
 end
 
 ---------------------------------------------------------------------------
@@ -2049,7 +2049,7 @@ function S:DrawLivePreview(stage, w, h, focus)
         if f.on then f.on = false; f:Hide() end
     end
     if v.count == 0 then return stage:SetScript("OnUpdate", nil) end
-    W.Loop(stage, period, v.update)
+    W.Loop(stage, period, v.update, 0.8)
 end
 
 -- On the settings page, a bar above the settings: the stage fills it at a scale that keeps texts near their size.

@@ -83,7 +83,7 @@ function R.info.preview(frame)
         v.roll:ClearAllPoints()
         v.roll:SetPoint("CENTER", frame, "CENTER", (-dx + 2 * dx * move) / scale, (12 - dy + 2 * dy * move) / scale)
         v.select:SetAlpha(W.Window(t, 0.3, 3.0, 0.3))
-    end)
+    end, 2.4)
 end
 
 ---------------------------------------------------------------------------

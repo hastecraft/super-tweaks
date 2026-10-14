@@ -1225,7 +1225,14 @@ function C.info.preview(frame)
     local total = 0
     for _, step in ipairs(steps) do total = total + step.seconds end
     local last, lastT, began, shownLeft = nil, 0, 0, nil
-    W.Loop(frame, total, function(t)
+    -- Standing still, it shows the camp buffs' countdown (or the first step, without one).
+    local still, at = nil, 0
+    for _, step in ipairs(steps) do
+        if step.state == "buffs" then still = at + step.seconds / 2; break end
+        at = at + step.seconds
+    end
+    still = still or steps[1].seconds / 2
+    W.Loop(frame, total, function(t, frozen)
         local at, step = 0, steps[1]
         for i = 1, #steps do
             local s = steps[i]
@@ -1253,11 +1260,11 @@ function C.info.preview(frame)
             local left = max(1, from - (from - to) * u / seconds)
             local shown = left > 60 and ceil(left / 60) or -ceil(left)
             if shown ~= shownLeft then shownLeft, d.previewLeft = shown, Countdown(left) end
-            Draw(d, p, step.state, start, duration, d.previewLeft, step.warning, false)
+            Draw(d, p, step.state, start, duration, d.previewLeft, step.warning, frozen == true)
         else
             Draw(d, p, step.state, nil, nil, nil, false, false)
         end
-    end)
+    end, still)
 end
 
 ---------------------------------------------------------------------------

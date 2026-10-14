@@ -1018,7 +1018,7 @@ function S.info.preview(frame)
     W.Loop(frame, finish + 2.5, function(t)
         for i, icon in ipairs(sold) do icon:SetAlpha(math.max(0, math.min(1, (0.6 + i * 0.35 - t) / 0.2))) end
         v.line:SetShown(p.summary and t > finish + 0.2)
-    end)
+    end, finish + 1)
 end
 
 ns.VendorSale:Listen(S)
