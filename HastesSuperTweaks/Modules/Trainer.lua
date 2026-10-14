@@ -198,8 +198,8 @@ function T:UpdateButton()
     local shown = self:IsEnabled() and self.db.profile.button and not IsPetTrainer() or false
     b:SetShown(shown)
     if not shown then return end
-    local _, _, _, count = self:Learnable()
-    b:SetEnabled(count > 0 and not self.training)
+    -- Off while training, without reading the trainer again.
+    b:SetEnabled(not self.training and select(4, self:Learnable()) > 0)
     if b:IsMouseOver() and b:GetScript("OnEnter") then b:GetScript("OnEnter")(b) end
 end
 
