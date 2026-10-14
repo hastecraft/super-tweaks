@@ -1465,6 +1465,7 @@ function S:Apply()
 end
 
 function S:OnEnable()
+    self:AddEditors()
     self.lowHealth, self.lowMana, self.comboPoints = nil, nil, nil
     self:Apply()
     HST.LSM.RegisterCallback(self, "LibSharedMedia_Registered", function(_, kind, name)
@@ -1591,27 +1592,32 @@ function S:PlaceBox(key)
     box:SetPoint("CENTER", UIParent, "CENTER", area.x, area.y)
 end
 
-for _, spec in ipairs(EDITORS) do
-    local key = spec.key
-    local editor = { info = { name = spec.name } }
-    function editor:GetName() return S:GetName() end
-    function editor:IsEnabled() return S:IsEnabled() and S:AreaUsed(key) end
-    function editor:EditFrame() return S:AreaBox(key) end
-    function editor:GetPosition() local area = S.db.profile[key]; return area.x, area.y end
-    function editor:SetPosition(x, y) local area = S.db.profile[key]; area.x, area.y = x, y end
-    function editor:EditSize() local box = S:AreaBox(key); return box:GetWidth(), box:GetHeight() end
-    function editor:EditPlace(x, y)
-        local box = S:AreaBox(key)
-        box:ClearAllPoints()
-        box:SetPoint("CENTER", UIParent, "CENTER", x, y)
+-- Added the first time this is turned on (it starts off), so Edit Mode isn't followed for it before then.
+function S:AddEditors()
+    if self.editorsAdded then return end
+    self.editorsAdded = true
+    for _, spec in ipairs(EDITORS) do
+        local key = spec.key
+        local editor = { info = { name = spec.name } }
+        function editor:GetName() return S:GetName() end
+        function editor:IsEnabled() return S:IsEnabled() and S:AreaUsed(key) end
+        function editor:EditFrame() return S:AreaBox(key) end
+        function editor:GetPosition() local area = S.db.profile[key]; return area.x, area.y end
+        function editor:SetPosition(x, y) local area = S.db.profile[key]; area.x, area.y = x, y end
+        function editor:EditSize() local box = S:AreaBox(key); return box:GetWidth(), box:GetHeight() end
+        function editor:EditPlace(x, y)
+            local box = S:AreaBox(key)
+            box:ClearAllPoints()
+            box:SetPoint("CENTER", UIParent, "CENTER", x, y)
+        end
+        function editor:ApplyEditMode()
+            if self.editMode then S:PlaceBox(key) end
+            S:AreaBox(key):SetShown(self.editMode == true)
+            S:UpdateSampleLoop()
+        end
+        ns.EditMode.Add(editor)
+        S.editors[key] = editor
     end
-    function editor:ApplyEditMode()
-        if self.editMode then S:PlaceBox(key) end
-        S:AreaBox(key):SetShown(self.editMode == true)
-        S:UpdateSampleLoop()
-    end
-    ns.EditMode.Add(editor)
-    S.editors[key] = editor
 end
 
 -- Areas follow Edit Mode (active false leaves it), and boxes showing follow changed settings.
