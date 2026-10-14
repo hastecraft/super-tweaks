@@ -15,6 +15,8 @@ local MIN_W, MIN_H, DEFAULT_W, DEFAULT_H = 820, 480, 1000, 640
 -- The sidebar can be dragged between these widths (SIDEBAR is its default), as far as the main area keeps the width it
 -- has in the smallest window.
 local SIDEBAR_LEAST, SIDEBAR_MOST = 170, 400
+-- The path of a tweak's Essentials page, which isn't in its options (see P:Essentials).
+local ESSENTIALS = "essentials"
 -- The overview's details pane, a share of the main area within these widths.
 local DETAIL_LEAST, DETAIL_MOST = 240, 300
 local MIN_SCALE, MAX_SCALE = 0.6, 1.5
@@ -1073,7 +1075,19 @@ end
 ---------------------------------------------------------------------------
 local FULL = { description = true, commands = true, items = true, release = true }
 
-function P:BuildPage(group, gate)
+-- What's on a page, for its link on the Essentials page: its sections and sub-pages, by name.
+local function PageSummary(group)
+    local names = {}
+    for _, entry in ipairs(Sorted(group.args)) do
+        local o = entry.option
+        local info = { option = o, key = entry.key }
+        if o.type == "group" and o.name and not Resolve(o.hidden, info) then names[#names + 1] = Resolve(o.name, info) end
+    end
+    return table.concat(names, ", ")
+end
+
+-- essentials, given: the Essentials page of the tweak whose options are group (see P:Essentials).
+function P:BuildPage(group, gate, essentials)
     local content = CreateFrame("Frame", nil, self.pageArea.child)
     -- hiders: the rows and blocks whose `hidden` can change, each with its hiddenWhen (see HidesLater).
     local page = { content = content, blocks = {}, controls = {}, hiders = {} }
@@ -1118,6 +1132,30 @@ function P:BuildPage(group, gate)
                 add(card, entry.key, o, path, info)
             end
         end
+    end
+    if essentials then
+        -- A tweak's Essentials page: its main settings (named for showing outside their sections), then a link to
+        -- each of its other pages, listing what's on it.
+        local card = W.Card(content)
+        card.rows, card.isCard = {}, true
+        page.blocks[1] = card
+        for _, item in ipairs(essentials) do
+            local o, info = item.option, { option = item.option, key = item.key }
+            if not skip(item.chain, info) then
+                if item.label then o = setmetatable({ name = item.label }, { __index = o }) end
+                add(card, item.key, o, item.chain, info)
+            end
+        end
+        local more = W.Card(content, "More settings")
+        more.rows, more.isCard = {}, true
+        page.blocks[2] = more
+        for _, entry in ipairs(Pages(group)) do
+            local row = W.LinkRow(more)
+            W.SetTexts(row, Resolve(entry.option.name, {}), PageSummary(entry.option))
+            row.onClick = function() self:OpenModule(self.openModule, { entry.key }) end
+            more.rows[#more.rows + 1] = row
+        end
+        return page
     end
     local loose
     for _, entry in ipairs(Sorted(group.args)) do
@@ -2180,15 +2218,17 @@ function P:ShowDetail(module)
 end
 
 -- A few of a tweak's settings (info.examples: option keys, or { key, label } to name one more clearly out of its section;
--- else its first few), each with the page it's on, found in its options once and kept.
-function P:Examples(module)
+-- else its first few), each with the page it's on, found in its options once and kept. field names another list
+-- like info.examples, such as "essentials".
+function P:Examples(module, field)
+    field = field or "examples"
     self.exampleCache = self.exampleCache or {}
-    local key = module:GetName()
+    local key = module:GetName() .. "/" .. field
     local found = self.exampleCache[key]
     if found then return found end
     found = {}
     local options = module.info.options and module.info.options()
-    local wanted = module.info.examples
+    local wanted = module.info[field]
     if options then
         local seen = {}
         local function walk(group, chain, path)
@@ -2202,7 +2242,7 @@ function P:Examples(module)
                 elseif not seen[entry.key] and (o.type == "toggle" or o.type == "range" or o.type == "select"
                     or o.type == "color" or o.type == "input" or o.type == "items") then
                     seen[entry.key] = true
-                    found[#found + 1] = { key = entry.key, option = o, chain = subChain, path = path, owner = key }
+                    found[#found + 1] = { key = entry.key, option = o, chain = subChain, path = path, owner = module:GetName() }
                 end
             end
         end
@@ -2924,8 +2964,8 @@ function P:RefreshHeader()
 end
 
 -- Shows a settings page's content. id names it in the page cache. focus, a setting's option (or its key, which sections
--- on one page can share), is scrolled to and flashed.
-function P:ShowPage(id, group, gate, focus)
+-- on one page can share), is scrolled to and flashed. essentials: the settings of the Essentials page group belongs to.
+function P:ShowPage(id, group, gate, focus, essentials)
     self:StopFlash()
     -- Of the pages built, only the one shown last can be showing (hidden even when it shows again).
     if self.page then self.page.content:Hide() end
@@ -2933,7 +2973,7 @@ function P:ShowPage(id, group, gate, focus)
     if group then
         page = self.pages[id]
         if not page then
-            page = self:BuildPage(group, gate)
+            page = self:BuildPage(group, gate, essentials)
             self.pages[id] = page
         end
         page.content:ClearAllPoints()
@@ -2984,8 +3024,26 @@ function P:SetMode(mode, view)
     if not list then self.tabCount, self.chipCount = 0, 0 end
 end
 
--- Opens a module's page: path selects a settings page (by default the one last shown, then the first), focus
--- highlights a setting (see P:ShowPage).
+-- The settings on a tweak's Essentials page (info.essentials, else info.examples), when it has more than one page: nil
+-- for a tweak without one. Found once per tweak and kept.
+function P:Essentials(module, options)
+    self.essentialsCache = self.essentialsCache or {}
+    local key = module:GetName()
+    local items = self.essentialsCache[key]
+    if items == nil then
+        local info = module.info
+        items = false
+        if (info.essentials or info.examples) and not options.args[ESSENTIALS] and #Pages(options) > 1 then
+            local found = self:Examples(module, info.essentials and "essentials")
+            if #found >= 2 then items = found end
+        end
+        self.essentialsCache[key] = items
+    end
+    return items or nil
+end
+
+-- Opens a module's page: path selects a settings page (by default the one last shown, then Essentials or the first),
+-- focus highlights a setting (see P:ShowPage).
 function P:OpenModule(key, path, focus)
     local module = HST:GetModule(key)
     local options = module.info.options and module.info.options()
@@ -2993,6 +3051,8 @@ function P:OpenModule(key, path, focus)
     self:ClearSearch()
     self.lastPath = self.lastPath or {}
     path = path or self.lastPath[key]
+    local essentials = self:Essentials(module, options)
+    self.essentials = essentials
     -- A path can name a page the module doesn't have (a patch note naming a section, or a page since removed): it
     -- opens the deepest page it does have, or the first.
     local depth, group = 0, options
@@ -3002,7 +3062,7 @@ function P:OpenModule(key, path, focus)
         depth, group = depth + 1, page
     end
     if depth == 0 then
-        path = { Pages(options)[1].key }
+        path = { essentials and ESSENTIALS or Pages(options)[1].key }
     elseif depth < #path then
         path = { unpack(path, 1, depth) }
     end
@@ -3014,14 +3074,19 @@ function P:OpenModule(key, path, focus)
     self.pageInfo, self.pageOptions = info, options
     local names = {}
     group = options
-    for _, part in ipairs(path) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
+    local onEssentials = path[1] == ESSENTIALS
+    if onEssentials then
+        names[1] = "Essentials"
+    else
+        for _, part in ipairs(path) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
+    end
     self.crumb = CategoryName(info.category) .. (#names > 0 and ("  >  " .. table.concat(names, "  >  ")) or "")
     self:SetHeader(info.name, self.crumb, info.description)
     self:BuildTabs()
     self.tabsChange = PagesChange(options)
     self:RefreshHeader()
     local gate = function() return not module:IsEnabled() end
-    self:ShowPage(key .. "/" .. table.concat(path, "/"), group, gate, focus)
+    self:ShowPage(key .. "/" .. table.concat(path, "/"), group, gate, focus, onEssentials and essentials or nil)
     self:RefreshNav()
 end
 
@@ -3033,7 +3098,17 @@ function P:BuildTabs()
     local tabs, chips = {}, {}
     local pages = Pages(options)
     if #pages > 1 or (pages[1] and #Pages(pages[1].option) > 0) then
-        for i, page in ipairs(pages) do
+        -- Essentials first, for a tweak that has it.
+        local first = self.essentials and 1 or 0
+        if first == 1 then
+            local b = self:TabButton(self.tabs, 1)
+            b.path = { ESSENTIALS }
+            b:SetText("Essentials")
+            b:SetSelected(path[1] == ESSENTIALS)
+            tabs[1] = ESSENTIALS
+        end
+        for n, page in ipairs(pages) do
+            local i = n + first
             local b = self:TabButton(self.tabs, i)
             b.path = { page.key }
             b:SetText(Resolve(page.option.name, {}))

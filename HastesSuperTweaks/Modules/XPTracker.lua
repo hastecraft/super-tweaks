@@ -6,6 +6,8 @@ local HST = ns.HST
 local X = HST:NewFeature("XPTracker", {
     name = "XP Tracker", category = "leveling", order = 1, command = "xp",
     summary = "An XP bar with rested and quest XP, XP per hour and time to level.", examples = { { "hideCombat", "Hide in combat" }, { "mouseover", "Show only on mouseover" }, { "width", "Bar width" }, { "showRested", "Shade rested XP" }, "font" },
+    essentials = { "hideBlizzard", { "showRested", "Shade rested XP" }, { "showQuests", "Shade quest XP" },
+        { "hideCombat", "Hide in combat" }, { "mouseover", "Show only on mouseover" }, { "width", "Bar width" } },
     description = "An XP bar that shows your rested and quest XP, how fast you're leveling, and how long until your next level. "
         .. "Move it in Edit Mode.",
 })

@@ -940,6 +940,23 @@ local function Clickable(c)
     end)
 end
 
+-- A row that leads somewhere else, with an arrow at its right; the whole row is the button (c.onClick).
+function W.LinkRow(parent)
+    local c = NewRow(parent, "Button")
+    Clickable(c)
+    c.arrow = W.Chevron(c, 14, C.header)
+    c.arrow:SetPoint("TOPRIGHT", -4, -ROW_PAD - (HEAD - 14) / 2)
+    c:HookScript("OnEnter", function(self) W.Paint(self.arrow, C.accent) end)
+    c:HookScript("OnLeave", function(self) W.Paint(self.arrow, C.header) end)
+    c:SetScript("OnClick", function(self)
+        Play("IG_CHARACTER_INFO_TAB")
+        if self.onClick then self.onClick() end
+    end)
+    function c:Layout(width) return (PlaceText(self, width, 24)) end
+    function c:Refresh() end
+    return c
+end
+
 -- A switch row; the whole row toggles it.
 function W.ToggleRow(parent)
     local c = NewRow(parent, "Button")
