@@ -1784,7 +1784,7 @@ function P:CreateCpuGraph(bottom)
     title:SetText("CPU")
     local unit = W.Text(cpu, "GameFontNormalSmall", C.muted, "RIGHT")
     unit:SetPoint("TOPRIGHT")
-    unit:SetText("ms a frame")
+    unit:SetText("ms/frame")
     local graph = CreateFrame("Frame", nil, cpu)
     graph:SetPoint("TOPLEFT", 0, -(CPU_HEAD + CPU_GAP))
     graph:SetPoint("TOPRIGHT", 0, -(CPU_HEAD + CPU_GAP))
@@ -1827,9 +1827,13 @@ function P:CreateCpuGraph(bottom)
         end
     end)
     local function tip()
-        W.ShowTooltip(cpu, "CPU use", ("Now: %s ms a frame over the last second, %s of the frame time.\n"
-            .. "Avg: since login.\nPeak: the most in one frame since login, loading screens included."):format(
-            FormatSmall(cpu.ms, ""), FormatSmall(cpu.pct, "%")))
+        local fps = GetFramerate()
+        W.ShowTooltip(cpu, "CPU use", ("How long %s takes to run each frame, in milliseconds, as the game's AddOns "
+            .. "list measures it. Each bar is one second while this window is open.\n\n"
+            .. "Now: the last second, %s of the frame.\nAvg: since you logged in.\n"
+            .. "Peak: the slowest frame since login. Loading screens count.\n\n"
+            .. "At %d FPS, a whole frame is %.1f ms."):format(HST.title, FormatSmall(cpu.pct, "%"),
+            math.floor(fps + 0.5), fps > 0 and 1000 / fps or 0))
     end
     cpu.tip = tip
     cpu:SetScript("OnEnter", function() cpu.hovered = true; tip() end)
