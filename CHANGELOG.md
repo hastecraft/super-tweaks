@@ -2,6 +2,40 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 2.1.0 (2026-10-14)
+
+Swing Timer Style, quest marks on nameplates, item counts on tooltips, and muted guilds.
+
+### Swing Timer Style
+
+Your own colors and texture for the game's swing timer, and bars that hide while they aren't swinging.
+
+### Quest mobs on nameplates
+
+On WoW Forever, a quest mark beside the mobs your quests need.
+
+### Item counts
+
+Item tooltips say how many you have in your bags, bank and account bank.
+
+### New
+
+- Swing Timer Style (starts off): the game's swing timer in your colors and texture, a color of its own while your target is out of range, and bars that hide while they aren't swinging, so the melee and ranged bars can share a spot.
+- Elite & Rare Markers: on WoW Forever, a quest mark beside the mobs your quests need (Quest mobs).
+- Better Tooltips: item tooltips say how many you have in your bags, bank and, on WoW Forever, account bank.
+- Better Tooltips: the health bar can be colored by health, green to red, also in combat and dungeons.
+- Chat Spam Filter: mute whole guilds by name. Their members are recognized as you see them, in your group and with /who.
+
+### Changed
+
+- Better Tooltips: the Alliance or Horde line is now a see-through faction logo in the tooltip's corner. Choose a line in the faction's color, or the game's own, under Faction.
+- Better Tooltips: the health bar follows your target, focus, group and nameplates by the game's health events instead of checking ten times a second.
+- Better Tooltips: the settings preview follows every setting.
+
+### Fixed
+
+- Better Scrolling Combat Text: big numbers on nameplates no longer have their outlines cut off on 4K screens.
+
 ## 2.0.1 (2026-10-13)
 
 ### Fixed
