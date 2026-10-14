@@ -6,25 +6,28 @@ local ADDON, ns = ...
 local W = {}
 ns.Widgets = W
 
--- Themes for the settings window. Graphite: black panels, grey text, violet accent and round-cornered boxes. Ember: warm
--- dark panels, parchment text and a gold accent, the original look, which windows shown in play keep (W.EMBER).
+-- Themes for the settings window. Graphite: greys stepping lighter from the title bar and sidebar to the page, its cards
+-- and their controls, near-black only for the wells previews sit in; a violet accent and round-cornered boxes. Ember:
+-- warm dark panels, parchment text and a gold accent, the original look, which windows shown in play keep (W.EMBER).
+-- The game draws these darks a little darker than their values, so neighboring steps are kept well apart.
 local THEMES = {
     graphite = { name = "Graphite", order = 1, round = true, colors = {
-        window = { 0, 0, 0, 0.98 },
-        titlebar = { 0.043, 0.043, 0.043, 1 },
-        sidebar = { 0.043, 0.043, 0.043, 1 },
-        pane = { 0.094, 0.094, 0.094, 1 },
-        card = { 0.047, 0.047, 0.047, 1 },
-        field = { 0.078, 0.078, 0.078, 1 },
-        border = { 0.125, 0.125, 0.125, 1 },
-        divider = { 0.125, 0.125, 0.125, 1 },
-        line = { 0.26, 0.26, 0.26, 1 },
+        window = { 0.106, 0.106, 0.106, 0.98 },
+        titlebar = { 0.075, 0.075, 0.075, 1 },
+        sidebar = { 0.075, 0.075, 0.075, 1 },
+        pane = { 0.165, 0.165, 0.165, 1 },
+        card = { 0.137, 0.137, 0.137, 1 },
+        field = { 0.098, 0.098, 0.098, 1 },
+        well = { 0.055, 0.055, 0.055, 1 },
+        border = { 0.192, 0.192, 0.192, 1 },
+        divider = { 0.176, 0.176, 0.176, 1 },
+        line = { 0.32, 0.32, 0.32, 1 },
         text = { 0.92, 0.92, 0.92 },
         bright = { 1, 1, 1 },
         title = { 1, 1, 1 },
         header = { 0.52, 0.52, 0.52 },
         body = { 0.74, 0.74, 0.74 },
-        muted = { 0.58, 0.58, 0.58 },
+        muted = { 0.60, 0.60, 0.60 },
         accent = { 0.651, 0.490, 0.949 },
         onAccent = { 0.08, 0.05, 0.14 },
         warning = { 0.96, 0.60, 0.26 },
@@ -33,7 +36,7 @@ local THEMES = {
         selected = { 1, 1, 1, 0.08 },
         knob = { 1, 1, 1, 1 },
         knobOn = { 1, 1, 1, 1 },
-        trackOff = { 0.145, 0.145, 0.145, 1 },
+        trackOff = { 0.235, 0.235, 0.235, 1 },
         trackOn = { 0.651, 0.490, 0.949, 1 },
     } },
     ember = { name = "Ember", order = 2, colors = {
@@ -43,6 +46,7 @@ local THEMES = {
         pane = { 0.098, 0.084, 0.073, 1 },
         card = { 0.090, 0.078, 0.068, 1 },
         field = { 0.035, 0.030, 0.027, 1 },
+        well = { 0.035, 0.030, 0.027, 1 },
         border = { 0.25, 0.21, 0.16, 1 },
         divider = { 0.25, 0.21, 0.16, 0.45 },
         line = { 0.50, 0.41, 0.30, 1 },

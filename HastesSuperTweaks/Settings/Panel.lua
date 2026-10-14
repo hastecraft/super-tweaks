@@ -982,7 +982,7 @@ function Build.theme(parent, o, chain, info)
     for i, theme in ipairs(themes) do
         local tile = CreateFrame("Button", nil, c)
         tile.theme = theme
-        tile.box = W.Box(tile, C.field, C.border)
+        tile.box = W.Box(tile, C.well, C.border)
         tile.sketch = ThemeSketch(tile, theme)
         tile.sketch:SetPoint("TOPLEFT", TILE_PAD, -TILE_PAD)
         tile.name = W.Text(tile, "GameFontHighlight", C.text)
@@ -2091,7 +2091,7 @@ function P:CreateDetail(view)
     d.preview = CreateFrame("Frame", nil, d)
     d.preview:SetPoint("TOPLEFT", 12, -12)
     d.preview:SetPoint("TOPRIGHT", -12, -12)
-    W.Box(d.preview, C.field, C.border, INNER)
+    W.Box(d.preview, C.well, C.border, INNER)
     d.icon = d.preview:CreateTexture(nil, "ARTWORK")
     d.icon:SetSize(48, 48)
     d.icon:SetPoint("CENTER")
@@ -2609,7 +2609,7 @@ function P:CreatePageView(main)
     live.area:SetPoint("TOPLEFT", 1, -1)
     live.area:SetPoint("BOTTOMRIGHT", -1, 1)
     if live.area.SetClipsChildren then live.area:SetClipsChildren(true) end
-    W.Box(live.area, C.field, nil, { radius = W.BOX_RADIUS - 1 })
+    W.Box(live.area, C.well, nil, { radius = W.BOX_RADIUS - 1 })
     live:Hide()
     -- Over the tabs, settings and preview while the module is off: a dimmed backdrop that takes the mouse, and a
     -- box in its middle with the module's preview, dimmed under the struck-through logo (or the logo alone), saying
@@ -2632,7 +2632,7 @@ function P:CreatePageView(main)
     box.preview:SetPoint("TOPRIGHT", -OFF_PAD, -OFF_PAD)
     box.preview:SetHeight(OFF_PREVIEW)
     if box.preview.SetClipsChildren then box.preview:SetClipsChildren(true) end
-    W.Box(box.preview, C.field, C.border, INNER)
+    W.Box(box.preview, C.well, C.border, INNER)
     box.stages = {}
     -- Above the preview's stages: a dark veil and the logo in its middle.
     local veil = CreateFrame("Frame", nil, box.preview)
