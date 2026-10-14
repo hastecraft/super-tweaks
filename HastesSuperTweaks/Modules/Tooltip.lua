@@ -432,6 +432,7 @@ function T:UpdateHealth(recolor, guid)
     elseif IsSecret(current) or IsSecret(maximum) then
         -- Hidden values can't be compared or divided, but the bar and the game's formatters accept them.
         bar:SetMinMaxValues(0, maximum)
+        self.secretRange = true
         bar:SetValue(current)
         self.shownMode = nil
         -- A hidden color by health is a new table each time: while polled, it's taken with the other colors (every
@@ -445,7 +446,8 @@ function T:UpdateHealth(recolor, guid)
     -- is remembered rather than read back, since the font string may hold a hidden value.
     if current == self.shownCurrent and maximum == self.shownMax and status == self.shownStatus and p.barText == self.shownMode then return end
     self.shownCurrent, self.shownMax, self.shownStatus, self.shownMode = current, maximum, status, p.barText
-    bar:SetMinMaxValues(0, 1)
+    -- Back to fractions after a hidden reading set the range to its maximum.
+    if self.secretRange then self.secretRange = false; bar:SetMinMaxValues(0, 1) end
     local fraction = maximum > 0 and max(0, min(1, current / maximum)) or 0
     bar:SetValue(fraction)
     -- In steps of 1%, so a little health coming back sets no new color.
