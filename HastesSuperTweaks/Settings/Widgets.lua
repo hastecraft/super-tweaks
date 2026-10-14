@@ -382,15 +382,24 @@ refit:RegisterEvent("DISPLAY_SIZE_CHANGED")
 refit:SetScript("OnEvent", W.FitIcons)
 
 -- A pixel-exact texture, fitted again when its parent shows (one OnShow hook per parent) and, with `sized`, when its
--- parent changes size. Set its fields, then Fit it.
+-- parent changes size. Set its fields (hstParent, the frame it was made on: these are never moved to another), then
+-- Fit it.
+local function FitShown(parent)
+    local list = parent.hstIcons
+    for i = 1, #list do list[i]:Fit() end
+end
+local function FitSized(parent)
+    local shapes = parent.hstShapes
+    for i = 1, #shapes do shapes[i]:Fit() end
+end
 local function Track(t, sized)
-    local parent = t:GetParent()
+    local parent = t.hstParent
     icons[t] = true
     local list = parent.hstIcons
     if not list then
         list = {}
         parent.hstIcons = list
-        parent:HookScript("OnShow", function() for i = 1, #list do list[i]:Fit() end end)
+        parent:HookScript("OnShow", FitShown)
     end
     list[#list + 1] = t
     if sized then
@@ -398,7 +407,7 @@ local function Track(t, sized)
         if not shapes then
             shapes = {}
             parent.hstShapes = shapes
-            parent:HookScript("OnSizeChanged", function() for i = 1, #shapes do shapes[i]:Fit() end end)
+            parent:HookScript("OnSizeChanged", FitSized)
         end
         shapes[#shapes + 1] = t
     end
@@ -409,7 +418,7 @@ local function Icon(parent, atlas, big, size, color, layer, sublevel)
     local t = parent:CreateTexture(nil, layer or "ARTWORK", nil, sublevel)
     t:SetSnapToPixelGrid(true)
     if color then W.Paint(t, color) end
-    t.atlas, t.big, t.size, t.Fit = atlas, big, size, FitIcon
+    t.atlas, t.big, t.size, t.Fit, t.hstParent = atlas, big, size, FitIcon, parent
     return Track(t)
 end
 
@@ -470,7 +479,7 @@ local INSETS = {
 local function FitRound(t)
     local scale = t:GetEffectiveScale()
     local _, screen = GetPhysicalScreenSize()
-    local frame = t:GetParent()
+    local frame = t.hstParent
     local width, height = frame:GetWidth(), frame:GetHeight()
     if scale == t.fitScale and screen == t.fitScreen and width == t.fitWidth and height == t.fitHeight then return end
     t.fitScale, t.fitScreen, t.fitWidth, t.fitHeight = scale, screen, width, height
@@ -518,7 +527,7 @@ local function Round(frame, art, piece, layer, sublevel)
     local t = frame:CreateTexture(nil, layer or "ARTWORK", nil, sublevel)
     t:SetTexture(art.atlas)
     t:SetSnapToPixelGrid(true)
-    t.art, t.piece, t.Fit = art, piece, FitRound
+    t.art, t.piece, t.Fit, t.hstParent = art, piece, FitRound, frame
     return t
 end
 
