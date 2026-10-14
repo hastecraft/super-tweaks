@@ -139,6 +139,7 @@ function B:Layout()
         local bar = timer.bar
         local visible = not (p.hideRefill and timer.scale > 0)
         bar:SetShown(visible)
+        bar.shownVisible = visible -- for the OnUpdate, which doesn't ask the bar
         if visible then
             bar:ClearAllPoints()
             bar:SetPoint("TOP", f, "TOP", 0, -shown * (p.height + p.gap))
@@ -166,7 +167,7 @@ function B:CreateFrame()
     self.onUpdate = function()
         local now = GetTime()
         for _, timer in ipairs(timers) do
-            if not timer.paused and timer.bar:IsShown() then self:Draw(timer, now) end
+            if not timer.paused and timer.bar.shownVisible then self:Draw(timer, now) end
             -- A sample stops itself; the game's timers stop with MIRROR_TIMER_STOP.
             if timer.sampleStart and now - timer.sampleStart >= B.SAMPLE_SECONDS then self:Stop(timer.name) end
         end
