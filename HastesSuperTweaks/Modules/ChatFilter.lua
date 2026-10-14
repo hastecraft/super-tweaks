@@ -153,6 +153,14 @@ local function NameKey(name)
     end
     return key
 end
+-- A player unit's name as members are remembered by it, or nil while the game hides it.
+local function UnitNameKey(unit)
+    local name, realm = UnitName(unit) -- on WoW Forever the second is the surname
+    if IsSecret(name) or IsSecret(realm) or not name or name == "" or name == UNKNOWN_NAME then return nil end
+    if ns.RegionalNames() then name = ns.FullName(name, realm)
+    elseif realm and realm ~= "" then name = name .. "-" .. realm end
+    return NameKey(name)
+end
 
 -- Notes whether a player unit is in a muted guild, and returns that guild (nil when not, or when it can't be told).
 function F:Learn(unit)
@@ -163,8 +171,14 @@ function F:Learn(unit)
     local members, guild = self.db.global.guildMembers, GuildOf(unit)
     -- No guild yet may only mean the game hasn't been told it: what's known stays.
     if not guild then return members[guid] end
-    members[guid] = muted[guild] and guild or nil
-    return members[guid]
+    if not muted[guild] then members[guid] = nil; return nil end
+    -- A new member's GUID is noted by name too, so a /who that finds them out of the guild forgets it (see F:LearnWho).
+    if members[guid] ~= guild then
+        members[guid] = guild
+        local key = UnitNameKey(unit)
+        if key then self.db.global.guildGuids[key] = guid end
+    end
+    return guild
 end
 
 -- Your group's members, as their unit tokens (made once).
@@ -181,13 +195,14 @@ function F:LearnGroup()
 end
 
 -- A /who answer: its players' guilds, by name. /who says for certain when a player has no guild, so one who left a
--- muted guild is forgotten. A guild may come as "Guild-Realm".
+-- muted guild is forgotten, by name and by GUID. A guild may come as "Guild-Realm".
 function F:LearnWho()
     local list = C_FriendList
     if not (list and list.GetNumWhoResults and list.GetWhoInfo) then return end
     local count = list.GetNumWhoResults()
     if IsSecret(count) or not count then return end
-    local names, scanning, found = self.db.global.guildNames, self.scanning, 0
+    local global, scanning, found = self.db.global, self.scanning, 0
+    local names, guids = global.guildNames, global.guildGuids
     for i = 1, count do
         local info = list.GetWhoInfo(i)
         local name, guild = info and info.fullName, info and info.fullGuildName
@@ -196,7 +211,11 @@ function F:LearnWho()
             if guild and not muted[guild] then guild = guild:match("^(.+)%-[^%-]+$") or guild end
             local key = NameKey(name)
             names[key] = guild and muted[guild] and guild or nil
-            if names[key] and names[key] == scanning then found = found + 1 end
+            if names[key] then
+                if names[key] == scanning then found = found + 1 end
+            elseif guids[key] then
+                global.guildMembers[guids[key]], guids[key] = nil, nil
+            end
         end
     end
     -- Find members' own answer: say what it found, and send later /who answers back to chat, as the game does.
@@ -297,10 +316,14 @@ function F:Apply()
     end
     lastLine, lastHidden = nil, false
     -- Members of guilds no longer muted are forgotten.
-    for _, members in pairs({ self.db.global.guildMembers, self.db.global.guildNames }) do
+    local global = self.db.global
+    for _, members in pairs({ global.guildMembers, global.guildNames }) do
         for who, guild in pairs(members) do
             if not muted[guild] then members[who] = nil end
         end
+    end
+    for key, guid in pairs(global.guildGuids) do
+        if not global.guildMembers[guid] then global.guildGuids[key] = nil end
     end
     if on and muting then
         if not learner then
@@ -374,5 +397,6 @@ ns.Configure(F, defaults, function(m)
         } },
     } }
 end, "Apply")
--- Members of muted guilds, by GUID and by name (from /who): their guild, lowercased (see F:Learn, F:LearnWho).
-F.defaults.global = { guildMembers = {}, guildNames = {} }
+-- Members of muted guilds, by GUID and by name (from /who): their guild, lowercased; and the GUIDs of those learned by
+-- GUID, by name (see F:Learn, F:LearnWho).
+F.defaults.global = { guildMembers = {}, guildNames = {}, guildGuids = {} }
