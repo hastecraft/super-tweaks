@@ -1761,6 +1761,7 @@ local function FormatSmall(value, unit)
     if value >= 1 then return ("%.1f%s"):format(value, unit) end
     if value >= 0.01 then return ("%.2f%s"):format(value, unit) end
     if value >= 0.001 then return ("%.3f%s"):format(value, unit) end
+    if value >= 0.0001 then return ("%.4f%s"):format(value, unit) end
     return "0" .. unit
 end
 
