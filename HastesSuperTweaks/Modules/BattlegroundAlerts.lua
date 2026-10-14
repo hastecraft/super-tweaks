@@ -483,8 +483,9 @@ function A:Scan()
 end
 
 -- Listens for what the settings that are on need, while the tweak is on, and ends what's under way for those that
--- aren't. Turned off, nothing is listened to and nothing runs.
+-- aren't. Turned off, nothing is listened to and nothing runs; never turned on, nothing is made.
 function A:Apply()
+    if not (self.events or self:IsEnabled()) then return end
     local f = self.events
     if f then
         f:UnregisterAllEvents()
