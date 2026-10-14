@@ -445,10 +445,9 @@ function S:Show(lane, color, kind, fmt, a, b)
     if onWorld then
         level = p.plateLevel
         -- Without a nameplate to be part of, behind the nameplates up, or on the world's frame.
+        -- Place hosts those below, before it shows.
         f.hostLevel = (mode == "WORLD" or not lane.plate) and level or nil
-        if f.hostLevel then
-            Host(f, now, lane.plate or WorldFrame)
-        elseif f:GetParent() ~= lane.plate then
+        if not f.hostLevel and f:GetParent() ~= lane.plate then
             f:SetParent(lane.plate)
             f.shownLevel, f.shownScale = nil, nil
         end
