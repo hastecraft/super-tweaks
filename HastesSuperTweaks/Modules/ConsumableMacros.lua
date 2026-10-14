@@ -633,7 +633,11 @@ function M:Write()
     end
     -- Item data arrives for everything any addon asks about (auction scans ask for thousands), so it's only listened
     -- to while one of these items is awaited.
-    if next(self.awaiting) then self.events:RegisterEvent("GET_ITEM_INFO_RECEIVED") else self.events:UnregisterEvent("GET_ITEM_INFO_RECEIVED") end
+    local awaiting = next(self.awaiting) ~= nil
+    if awaiting ~= self.itemEvents then
+        self.itemEvents = awaiting
+        if awaiting then self.events:RegisterEvent("GET_ITEM_INFO_RECEIVED") else self.events:UnregisterEvent("GET_ITEM_INFO_RECEIVED") end
+    end
 end
 
 -- Many bag and item changes arrive together; they're written once, a moment later.
@@ -732,4 +736,4 @@ ns.Listen(M, { "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", 
         self:Queue()
     end)
 function M:OnListen() self:Refresh() end
-function M:OnUnlisten() wipe(watched) end -- every event was unregistered
+function M:OnUnlisten() wipe(watched); self.itemEvents = nil end -- every event was unregistered
