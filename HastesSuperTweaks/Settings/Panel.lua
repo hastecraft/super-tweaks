@@ -1745,21 +1745,23 @@ function P:CreateSidebar(f)
     self.navArea.child:SetWidth(SIDEBAR - 9)
 end
 
--- The CPU graph above Profiles and About: this addon's share of the game's frame time, as the game's AddOns list
--- counts it, sampled once a second while the window is open. Bars run oldest to newest, scaled to the highest
--- sample shown or 1%, whichever is more. Nothing runs while the window is closed or the graph is turned off.
-local CPU_BARS, CPU_ROW, CPU_FLOOR = 40, 18, 1
+-- The CPU graph above Profiles and About: this addon's time per frame, averaged over the last 60 frames as the game's
+-- AddOns list counts it, sampled once a second while the window is open. Bars run oldest to newest, scaled to the
+-- highest sample shown or 0.05 ms, whichever is more. Nothing runs while the window is closed or the graph is off.
+local CPU_BARS, CPU_ROW, CPU_FLOOR = 40, 18, 0.05
 
 local function CpuProfiler()
     local profiler = C_AddOnProfiler
     return profiler and profiler.IsEnabled and profiler.IsEnabled() and profiler or nil
 end
 
-local function FormatPercent(pct)
-    if pct >= 1 then return ("%.0f%%"):format(pct) end
-    if pct >= 0.1 then return ("%.1f%%"):format(pct) end
-    if pct >= 0.01 then return ("%.2f%%"):format(pct) end
-    return "0%"
+-- Enough digits that a light load doesn't read as 0.
+local function FormatSmall(value, unit)
+    if value >= 10 then return ("%.0f%s"):format(value, unit) end
+    if value >= 1 then return ("%.1f%s"):format(value, unit) end
+    if value >= 0.01 then return ("%.2f%s"):format(value, unit) end
+    if value >= 0.001 then return ("%.3f%s"):format(value, unit) end
+    return "0" .. unit
 end
 
 function P:CreateCpuGraph(bottom)
@@ -1774,8 +1776,8 @@ function P:CreateCpuGraph(bottom)
     cpu.text:SetText("CPU")
     local graph = CreateFrame("Frame", nil, cpu)
     graph:SetPoint("TOPLEFT")
-    graph:SetPoint("BOTTOMRIGHT", -66, 0)
-    cpu.bars, cpu.samples, cpu.head, cpu.pct, cpu.ms = {}, {}, 1, "0%", 0
+    graph:SetPoint("BOTTOMRIGHT", -76, 0)
+    cpu.bars, cpu.samples, cpu.head, cpu.pct, cpu.ms = {}, {}, 1, 0, 0
     for i = 1, CPU_BARS do
         local bar = W.Fill(graph, C.accent, "ARTWORK")
         bar:SetAlpha(0.75)
@@ -1791,8 +1793,8 @@ function P:CreateCpuGraph(bottom)
         end
     end)
     local function tip()
-        W.ShowTooltip(cpu, "CPU use", ("%s: %s of the game's frame time, %.2f ms a frame."):format(HST.title, cpu.pct,
-            cpu.ms))
+        W.ShowTooltip(cpu, "CPU use", ("%s: %s a frame, %s of the game's frame time."):format(HST.title,
+            FormatSmall(cpu.ms, " ms"), FormatSmall(cpu.pct, "%")))
     end
     cpu.tip = tip
     cpu:SetScript("OnEnter", function() cpu.hovered = true; tip() end)
@@ -1812,9 +1814,9 @@ function P:SampleCpu()
     local total = profiler.GetApplicationMetric(metric) - profiler.GetOverallMetric(metric) + addon
     local pct = total > 0 and addon / total * 100 or 0
     local samples = cpu.samples
-    samples[cpu.head] = pct
+    samples[cpu.head] = addon
     cpu.head = cpu.head % CPU_BARS + 1
-    cpu.pct, cpu.ms = FormatPercent(pct), addon
+    cpu.pct, cpu.ms = pct, addon
     local most = CPU_FLOOR
     for i = 1, CPU_BARS do
         if samples[i] > most then most = samples[i] end
@@ -1823,7 +1825,7 @@ function P:SampleCpu()
     for i, bar in ipairs(cpu.bars) do
         bar:SetHeight(math.max(1, samples[(cpu.head + i - 2) % CPU_BARS + 1] / most * height))
     end
-    cpu.text:SetText(cpu.pct .. " CPU")
+    cpu.text:SetText("CPU " .. FormatSmall(addon, " ms"))
     if cpu.hovered then cpu.tip() end
 end
 
