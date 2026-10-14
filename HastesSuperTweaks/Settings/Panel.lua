@@ -2792,7 +2792,7 @@ function P:OpenModule(key, path, focus)
     -- The category opens in the sidebar, showing the module there.
     State().expanded[info.category] = true
     local names = {}
-    local group = options
+    group = options
     for _, part in ipairs(path) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
     self.crumb = CategoryName(info.category) .. (#names > 0 and ("  >  " .. table.concat(names, "  >  ")) or "")
     self:SetHeader(info.name, self.crumb, info.description)
