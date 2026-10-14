@@ -476,7 +476,9 @@ function T:SecretHealthText(unit, current, maximum)
     local text, mode = self.bar.text, self.db.profile.barText
     local canPercent = UnitHealthPercent ~= nil and CurveConstants ~= nil and CurveConstants.ScaleTo100 ~= nil
     local percent
-    if canPercent then percent = UnitHealthPercent(unit, false, CurveConstants.ScaleTo100) end
+    if canPercent and (not AbbreviateNumbers or mode == "PERCENT" or mode == "BOTH") then
+        percent = UnitHealthPercent(unit, false, CurveConstants.ScaleTo100)
+    end
     if not AbbreviateNumbers then
         if canPercent then text:SetFormattedText("%d%%", percent) else text:SetText("") end
     elseif mode == "PERCENT" and canPercent then
