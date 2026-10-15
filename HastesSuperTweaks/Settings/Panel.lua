@@ -2146,6 +2146,8 @@ end
 
 -- Starts the list under the title, or under the line below it that search results have (sub).
 function P:ListTop(sub)
+    if sub == self.listSub then return end
+    self.listSub = sub
     local view, top = self.overview, sub and 70 or 48
     view.sub:SetShown(sub)
     view.rule:ClearAllPoints()
@@ -2981,10 +2983,16 @@ function P:SetMode(mode, view)
     self.mode, self.view = mode, mode == "page" and view or nil
     -- A settings page keeps its owner until another page opens.
     if mode ~= "page" or view ~= "module" then self:SetSettingsOwner(nil) end
-    local list = mode == "modules" or mode == "search"
-    self.overview:SetShown(list)
-    self.pageView:SetShown(not list)
-    for _, chip in pairs(self.filters) do chip:SetShown(mode == "modules") end
+    local list, filters = mode == "modules" or mode == "search", mode == "modules"
+    if list ~= self.shownList then
+        self.shownList = list
+        self.overview:SetShown(list)
+        self.pageView:SetShown(not list)
+    end
+    if filters ~= self.filtersShown then
+        self.filtersShown = filters
+        for _, chip in pairs(self.filters) do chip:SetShown(filters) end
+    end
     self.empty:Hide()
     if not list then self.tabCount, self.chipCount = 0, 0 end
 end
