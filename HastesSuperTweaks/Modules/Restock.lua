@@ -94,7 +94,6 @@ ns.Configure(R, defaults, function(m)
                         if m.chosen == itemID then m.chosen = nil end
                     end },
                 chosen = { type = "select", name = "Item", order = 2,
-                    desc = "The item whose amount you set below.",
                     values = function()
                         local values = {}
                         for itemID in pairs(m.db.profile.items) do values[itemID] = ItemName(itemID) end
@@ -122,8 +121,7 @@ ns.Configure(R, defaults, function(m)
             buying = ns.Section("Buying", 3, {
                 limit = ns.Option(profile, "range", "limit", "Spend at most (gold)", 1, { min = 1, max = 200, step = 1,
                     desc = "The most it spends at one vendor visit. What's left waits for your next visit." }),
-                summary = ns.Option(profile, "toggle", "summary", "Say what was bought", 2,
-                    { desc = "Prints what was bought, for which tracked recipes, and what it cost." }),
+                summary = ns.Option(profile, "toggle", "summary", "Say what was bought", 2),
             }),
             ammo = ns.Section("Low ammo warning", 4, {
                 ammoWarning = ns.Option(profile, "toggle", "ammoWarning", "Warn when ammo runs low", 1,

@@ -44,7 +44,7 @@ ns.Configure(B, {
                     .. "Options > Controls to use the combined bags." },
             }, { disabled = noCombined }),
             slots = ns.Section("Free slots", 2, {
-                freeSlots = option("toggle", "freeSlots", "Count only slots any item fits in", 1,
+                freeSlots = option("toggle", "freeSlots", "Count only usable slots", 1,
                     { desc = "The number on the backpack button leaves out quivers, ammo pouches, soul bags and "
                         .. "profession bags; pointing at it lists their free slots." }),
             }),

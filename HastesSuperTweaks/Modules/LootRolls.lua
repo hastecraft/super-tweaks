@@ -17,8 +17,6 @@ ns.LootRolls = R
 ns.Configure(R, { x = false, y = false, scale = 1 }, function(m)
     local function profile() return m.db.profile end
     return ns.OnePage(m.info.name, "rolls", "Loot rolls", {
-        help = { type = "description", order = 0, name = "Open Edit Mode (Esc > Edit Mode) and drag the sample to place "
-            .. "your loot rolls. More rolls stack upward from there." },
         scale = ns.Option(profile, "range", "scale", "Scale", 1, { min = 0.5, max = 1.5, step = 0.05, isPercent = true },
             function() m:Apply() end),
         reset = { type = "execute", name = "Reset position", order = 2, desc = "Gives the rolls back their place above your action bars.",

@@ -940,7 +940,7 @@ ns.Configure(S, S.DEFAULTS, function(m)
                     "White and green ones. Off by default, since green ones often sell well at the auction house."),
             }),
             selling = ns.Section("Selling", 6, {
-                summary = toggle("summary", "Say what was sold", 1, "Prints how many items were sold, of what kind, and for how much."),
+                summary = toggle("summary", "Say what was sold", 1),
                 itemized = toggle("itemized", "List every item sold", 2,
                     "Prints each item, so you can buy back mistakes."),
                 buyback = toggle("buyback", "At most 12 a visit", 3,

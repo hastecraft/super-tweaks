@@ -824,11 +824,11 @@ function W.Switch(parent)
 end
 
 ---------------------------------------------------------------------------
--- Setting rows. A row has its label at the left, its control at the right and
--- its description under both, across the row. row:Layout(width) places them
--- for that width and returns the row's height; row:SetDisabled(off) dims it.
+-- Setting rows. A row has its label at the left and its control at the right;
+-- pointing at it shows its description in a tooltip. row:Layout(width) places
+-- them for that width and returns the row's height; row:SetDisabled(off) dims it.
 ---------------------------------------------------------------------------
-local HEAD, ROW_PAD, DESC_GAP = 30, 4, 2
+local HEAD, ROW_PAD = 30, 4
 
 -- How wide a row's control is.
 function W.ControlWidth(width)
@@ -838,8 +838,6 @@ end
 local function NewRow(parent, kind)
     local c = CreateFrame(kind or "Frame", nil, parent)
     c.label = W.Text(c, "GameFontHighlight", C.text)
-    c.desc = W.Text(c, "GameFontHighlightSmall", C.muted)
-    c.desc:SetSpacing(2)
     c.divider = W.Fill(c, C.divider, "BORDER")
     c.divider:SetPoint("TOPLEFT", 0, 0)
     c.divider:SetPoint("TOPRIGHT", 0, 0)
@@ -847,8 +845,7 @@ local function NewRow(parent, kind)
     return c
 end
 
--- Shows the description (or none), and places label and description for the width, the control taking `control`
--- of it at the right. Returns the row's height.
+-- Places the label for the width, the control taking `control` of it at the right. Returns the row's height.
 local function PlaceText(c, width, control, head)
     head = head or HEAD
     local label = c.label
@@ -857,31 +854,39 @@ local function PlaceText(c, width, control, head)
     local labelHeight = label:GetStringHeight()
     if labelHeight > head - 10 then head = labelHeight + 12 end
     label:SetPoint("TOPLEFT", 2, -ROW_PAD - (head - labelHeight) / 2)
+    return head + ROW_PAD * 2, head
+end
+
+-- The row's description in a tooltip above it, under the setting's name; nothing for a row without one.
+local function ShowTip(c)
     local text = c.descText
-    c.desc:SetShown(text ~= nil and text ~= "")
-    if not c.desc:IsShown() then return head + ROW_PAD * 2, head end
-    c.desc:SetWidth(width - 4)
-    c.desc:ClearAllPoints()
-    c.desc:SetPoint("TOPLEFT", 2, -ROW_PAD - head + DESC_GAP)
-    return head + ROW_PAD * 2 + c.desc:GetStringHeight() + 4, head
+    if not text or text == "" then return end
+    GameTooltip:SetOwner(c, "ANCHOR_NONE")
+    GameTooltip:SetPoint("BOTTOMLEFT", c, "TOPLEFT", -6, 2)
+    GameTooltip:SetText(c.labelText or "", 1, 1, 1, 1, true)
+    GameTooltip:AddLine(text, C.body[1], C.body[2], C.body[3], true)
+    GameTooltip:Show()
 end
 
 -- Sets the label and description; only text that changed is written.
 local function SetTexts(c, label, desc)
     if label ~= c.labelText then c.labelText = label; c.label:SetText(label or "") end
     if desc ~= c.descText then
-        local lines = (c.descText or "") ~= "" and 1 or 0
         c.descText = desc
-        c.desc:SetText(desc or "")
-        -- A description appearing or going away changes the row's height.
-        if lines ~= ((desc or "") ~= "" and 1 or 0) then c.resized = true end
+        if GameTooltip:IsOwned(c) then ShowTip(c) end
     end
 end
 W.SetTexts = SetTexts
 
 local function DimLabel(c, off)
     W.Paint(c.label, off and C.disabled or (c.lit and C.bright or C.text))
-    c.desc:SetAlpha(off and 0.6 or 1)
+end
+
+-- A row that isn't a button still shows its description while pointed at.
+local function Tipped(c)
+    c:EnableMouse(true)
+    c:SetScript("OnEnter", ShowTip)
+    c:SetScript("OnLeave", W.HideTooltip)
 end
 
 -- A row that is one big button: hovering lights it, clicking it does what its control does.
@@ -890,6 +895,7 @@ local function Clickable(c)
     c.hover = W.Tint(c, C.hover, { radius = 6, x = -6 }, ROW_HOVER)
     c:SetMotionScriptsWhileDisabled(true)
     c:SetScript("OnEnter", function(self)
+        ShowTip(self)
         if self.off then return end
         self.lit = true
         self.hover:Show()
@@ -897,6 +903,7 @@ local function Clickable(c)
         if self.OnLit then self:OnLit(true) end
     end)
     c:SetScript("OnLeave", function(self)
+        W.HideTooltip(self)
         self.lit = false
         self.hover:Hide()
         DimLabel(self, self.off)
@@ -1101,7 +1108,7 @@ end
 local VALUE_W = 50
 function W.SliderRow(parent)
     local c = NewRow(parent)
-    c:EnableMouse(true)
+    Tipped(c)
     c.value = ValueBox(c, VALUE_W)
     c.value:SetPoint("TOPRIGHT", -2, -ROW_PAD - (HEAD - 20) / 2)
     c.value.onCommit = function(text) if c.onText then c.onText(text) end end
@@ -1321,7 +1328,7 @@ end
 -- A select row. Its source is the row: set getEntries, getValue, onSelect and fontFor on it (see W.Select).
 function W.DropdownRow(parent)
     local c = NewRow(parent)
-    c:EnableMouse(true)
+    Tipped(c)
     c.dropdown = W.Select(c, c)
     c.dropdown:SetPoint("TOPRIGHT", -2, -ROW_PAD - (HEAD - SELECT_H) / 2)
     function c:Layout(width)
@@ -1414,7 +1421,7 @@ end
 -- field takes text of any length.
 function W.InputRow(parent, full, onEdit)
     local c = NewRow(parent)
-    c:EnableMouse(true)
+    Tipped(c)
     local e = CreateFrame("EditBox", nil, c)
     e:SetHeight(22)
     e:SetFontObject("ChatFontNormal")
@@ -1448,17 +1455,11 @@ function W.InputRow(parent, full, onEdit)
             e:SetPoint("TOPRIGHT", -2, -ROW_PAD - (HEAD - 22) / 2)
             return (PlaceText(self, width, control))
         end
-        -- The label alone on the first line, the field under it, then the description.
+        -- The label alone on the first line, the field under it.
         local _, head = PlaceText(self, width, 0, 22)
         e:SetPoint("TOPLEFT", 0, -ROW_PAD - head)
         e:SetPoint("TOPRIGHT", -2, -ROW_PAD - head)
-        local height = ROW_PAD * 2 + head + 26
-        if self.desc:IsShown() then
-            self.desc:ClearAllPoints()
-            self.desc:SetPoint("TOPLEFT", 2, -ROW_PAD - head - 28)
-            height = height + self.desc:GetStringHeight() + 4
-        end
-        return height
+        return ROW_PAD * 2 + head + 26
     end
     function c:SetValue(text, off)
         -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile. A
@@ -1482,7 +1483,7 @@ end
 -- edits light the border. It takes text of any length. Given onEdit, the box is live, as W.InputRow's is.
 function W.TextAreaRow(parent, lines, onEdit)
     local c = NewRow(parent)
-    c:EnableMouse(true)
+    Tipped(c)
     local box = CreateFrame("Frame", nil, c)
     box.SetBorderColor = W.Outline(box, 7, C.border, C.field)
     local area = W.ScrollArea(box)
@@ -1541,19 +1542,13 @@ function W.TextAreaRow(parent, lines, onEdit)
         e:SetCursorPosition(#e:GetText())
     end)
     function c:Layout(width)
-        -- The label alone on the first line, the box under it, then the description.
+        -- The label alone on the first line, the box under it.
         local _, head = PlaceText(self, width, 0, 22)
         local tall = box:GetHeight()
         box:ClearAllPoints()
         box:SetPoint("TOPLEFT", 0, -ROW_PAD - head)
         box:SetPoint("TOPRIGHT", -2, -ROW_PAD - head)
-        local height = ROW_PAD * 2 + head + tall + 4
-        if self.desc:IsShown() then
-            self.desc:ClearAllPoints()
-            self.desc:SetPoint("TOPLEFT", 2, -ROW_PAD - head - tall - 6)
-            height = height + self.desc:GetStringHeight() + 4
-        end
-        return height
+        return ROW_PAD * 2 + head + tall + 4
     end
     function c:SetValue(text, off)
         -- An unsaved edit stays (its border lit) until Enter or Escape, unless the setting itself changed meanwhile. A

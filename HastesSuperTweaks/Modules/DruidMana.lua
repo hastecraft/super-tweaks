@@ -331,8 +331,8 @@ function D:BuildOptions()
     return { name = D.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             bar = ns.Section("Bar", 1, {
-                help = { type = "description", order = 0, name = "Open Edit Mode (Esc > Edit Mode) to move the bar. It "
-                    .. "stays on the player frame, and moves and sizes with it." },
+                help = { type = "description", order = 0, name = "The bar stays on the player frame, and moves and "
+                    .. "sizes with it in Edit Mode." },
                 width = option("range", "width", "Width", 1, { min = 40, max = 400, step = 1 }),
                 height = option("range", "height", "Height", 2, { min = 2, max = 40, step = 1 }),
                 texture = ns.MediaOption(profile, "statusbar", "texture", "Texture", 3, nil, apply),

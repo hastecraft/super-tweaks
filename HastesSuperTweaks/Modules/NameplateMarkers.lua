@@ -73,11 +73,11 @@ ns.Configure(N, { elite = true, rare = true, quest = true, enemiesOnly = true, s
             { desc = "Leaves friendly elites, such as city guards, and friendly quest NPCs unmarked, and friendly rares "
                 .. "unannounced." }),
         size = option("range", "size", "Size", 5, { min = 8, max = 28, step = 1 }),
-        alert = option("toggle", "alert", "Tell me when a rare is near", 6,
+        alert = option("toggle", "alert", "Say when a rare is near", 6,
             { desc = "Says so in chat the first time each rare's nameplate shows this session. Rares are seen once their "
                 .. "nameplate shows: turn on enemy nameplates, and raise the distance in Game Settings, to spot them sooner." }),
         sound = option("toggle", "sound", "Play a sound", 7,
-            { desc = "Plays the raid warning sound with it.", disabled = function() return not m.db.profile.alert end }),
+            { desc = "The raid warning sound.", disabled = function() return not m.db.profile.alert end }),
     })
 end, "Refresh")
 

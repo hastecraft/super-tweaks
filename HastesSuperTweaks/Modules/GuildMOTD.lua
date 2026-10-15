@@ -165,15 +165,14 @@ function M:BuildOptions()
     local function profile() return M.db.profile end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra) end
     return ns.OnePage("Guild Message Popup", "popup", "Popup", {
-        duration = option("range", "duration", "Duration", 1, { min = 3, max = 30, step = 1, desc = "Seconds before it fades out." }),
+        duration = option("range", "duration", "Show for (seconds)", 1, { min = 3, max = 30, step = 1 }),
         font = ns.MediaOption(profile, "font", "font", "Font", 2),
         size = option("range", "size", "Text size", 3, { min = 10, max = 32, step = 1 }),
         outline = option("select", "outline", "Outline", 4, ns.With({
             desc = ns.OutlineDesc() }, ns.OutlineChoices("Drop shadow"))),
         y = option("range", "y", "Vertical position", 5, { min = -500, max = 500, step = 5, desc = "Distance above the middle of the screen." }),
         sound = option("toggle", "sound", "Play a sound", 6, { desc = "The raid warning sound." }),
-        onlyChanged = option("toggle", "onlyChanged", "At login, only if changed", 7,
-            { desc = "Shows it at login only when the message changed since this character last saw it." }),
+        onlyChanged = option("toggle", "onlyChanged", "At login, only if changed", 7),
         test = { type = "execute", name = "Play sample", order = 8, func = function()
             local motd = IsInGuild() and GetMOTD()
             if ns.IsSecret(motd) or not motd or motd == "" then motd = SAMPLE end

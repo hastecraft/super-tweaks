@@ -49,15 +49,14 @@ ns.Configure(A, { invite = true, gates = true, gatesWarning = false, sound = fal
         invite = toggle("invite", "Invite countdown", 1, "While a battleground invite is up, shows how long you have "
             .. "left to enter, and flashes the taskbar at 20 and 10 seconds left."),
         gates = toggle("gates", "Gates opening", 2, "Flashes the taskbar as the gates open."),
-        gatesWarning = toggle("gatesWarning", "10 seconds before too", 3,
-            "Also flashes the taskbar 10 seconds before the gates open.",
+        gatesWarning = toggle("gatesWarning", "10 seconds before too", 3, nil,
             { disabled = function() return not m.db.profile.gates end }),
         sound = toggle("sound", "Play a sound", 4, "With each flash, on the Master channel, so you hear it with sound "
             .. "effects off. To hear it while the game is in the background, turn on Sound in Background in the game's "
             .. "Options > Audio.", { disabled = function() return not (m.db.profile.invite or m.db.profile.gates) end }),
         result = toggle("result", "Result in chat", 5, MATCH_RESULTS
-            and "When a match ends, says in chat whether you won, how long it took and the honor you earned."
-            or "When a match ends, says in chat whether you won and how long it took."),
+            and "Whether you won, how long it took and the honor you earned."
+            or "Whether you won and how long it took."),
         test = { type = "execute", name = "Play sample", order = 6, desc = "Shows a sample invite countdown.",
             disabled = function() return not m.db.profile.invite end, func = function() m:Test() end },
     })

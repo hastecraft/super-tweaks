@@ -37,12 +37,11 @@ G.SETTINGS = {
         desc = "How far away, in yards, nameplates show." },
     { key = "weather", cvar = "weatherDensity", name = "Weather density", value = "weatherLevel",
         valueName = "Density", min = 0, max = 3, step = 1, section = "world",
-        desc = "How much rain, snow and sand the weather draws: 0 is the least, 3 the most. The game's particle density "
-            .. "option can change it, so it's set again at every login." },
+        desc = "How much rain, snow and sand you see. 0: least, 3: most." },
     { key = "spellQueue", cvar = "SpellQueueWindow", name = "Spell queue window", value = "spellQueueMs",
         valueName = "Milliseconds", min = 0, max = 400, step = 10, section = "combat",
-        desc = "How early, in milliseconds, you can press your next spell or ability before the current one finishes. "
-            .. "The game's default is 400; lower is more precise, around your latency plus 100 is common." },
+        desc = "How early you can press your next spell before the current one finishes. The game's default is 400; "
+            .. "your latency plus 100 is common." },
     -- Settings the game uses but its options don't show (check: G:Unusable says when this client can't use one;
     -- forever: why only WoW Forever can). Casting on key press isn't here: it's the game's default already, and the
     -- game guards that setting (ActionButtonUseKeyDown is secure).
@@ -54,8 +53,7 @@ G.SETTINGS = {
     { key = "debuffs", cvar = "noBuffDebuffFilterOnTarget", name = "Target frame debuffs", value = "debuffsShown",
         valueName = "Show debuffs", section = "combat", check = true,
         values = { ["1"] = "Every player's", ["0"] = "Only yours" }, sorting = { "1", "0" },
-        desc = "Which debuffs your target's frame shows on mobs: every player's (the game's default), such as Sunder "
-            .. "Armor, Faerie Fire and other players' damage over time, or only yours and those the game always shows." },
+        desc = "Which debuffs your target's frame shows on mobs: every player's (the game's default) or only yours." },
     { key = "outline", cvar = "Outline", name = "NPC and object outlines", value = "outlineMode", valueName = "Outline",
         section = "world", check = true, forever = "Classic Era's own options have it.",
         values = { ["0"] = "Off", ["1"] = "Quest objectives", ["2"] = "Plus mouseover", ["3"] = "Plus your target" },
@@ -66,8 +64,7 @@ G.SETTINGS = {
         desc = "A marker on your screen points to the quest or map pin you track, with its distance." },
     { key = "compare", cvar = "alwaysCompareItems", name = "Item comparison", value = "compareWhen", valueName = "Compare",
         section = "interface", check = true, values = { ["1"] = "Always", ["0"] = "Only with Shift" }, sorting = { "1", "0" },
-        desc = "Whether item tooltips show the gear you have on beside them all the time, or only while you hold "
-            .. "Shift." },
+        desc = "Show the gear you're wearing beside item tooltips, always or only with Shift." },
     { key = "mapFade", cvar = "mapFade", on = "0", name = "No map fade", section = "interface", check = true,
         forever = "Classic Era's map doesn't fade.",
         desc = "The world map stays solid while you move, instead of fading to half unless you point at it." },
@@ -81,7 +78,7 @@ G.SETTINGS = {
 -- The action camera: the game's ActionCam console command, with the camera's Keep Character Centered setting (part of
 -- the Motion Sickness option) off, which it needs to move the camera over your shoulder.
 G.ACTION_CAM_CVAR = "CameraKeepCharacterCentered"
-G.ACTION_CAM = { OFF = "Off (as the game has it)", BASIC = "Over the shoulder", FULL = "Every action camera feature" }
+G.ACTION_CAM = { OFF = "Off", BASIC = "Over the shoulder", FULL = "Full" }
 G.ACTION_CAM_ORDER = { "OFF", "BASIC", "FULL" }
 
 local defaults = { actionCam = "OFF", backupAtLogin = true }
@@ -323,9 +320,8 @@ ns.LazyOptions(G, function(m)
     end
     groups.camera.args.actionCam = ns.Option(profile, "select", "actionCam", "Action camera", 10, {
         values = m.ACTION_CAM, sorting = m.ACTION_CAM_ORDER,
-        desc = "The game's experimental action camera, kept on at every login: over your shoulder, or with head "
-            .. "movement and focus on your target too. It turns off the game's Keep Character Centered (part of Motion "
-            .. "Sickness) while on, and confirms the game's experimental feature warning for you." }, apply)
+        desc = "The game's experimental action camera. Full adds head movement and focus on your target. Turns off "
+            .. "Keep Character Centered while on." }, apply)
     return { name = m.info.name, type = "group", args = {
         general = { type = "group", name = "Settings", order = 1, args = {
             help = { type = "description", order = 0, fontSize = "medium", name = "Each setting is set again every "

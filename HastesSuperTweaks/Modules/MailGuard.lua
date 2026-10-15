@@ -37,10 +37,9 @@ ns.Configure(G, {
             mark = ns.Section("Mark mail from strangers", 1, {
                 help = { type = "description", order = 0, name = "Mail with gold from another player is marked unless "
                     .. "they're someone you trust below." },
-                cod = option("cod", "Cash on delivery mail", 1, "Also marks mail asking you to pay on delivery."),
-                items = option("items", "Mail with items", 2, "Also marks mail with items, not only gold."),
-                openAll = option("openAll", "Open All leaves marked mail", 3,
-                    "Open it yourself to take what's in it."),
+                cod = option("cod", "Cash on delivery mail", 1),
+                items = option("items", "Mail with items", 2),
+                openAll = option("openAll", "Open All leaves marked mail", 3),
                 announce = option("announce", "Say what Open All left", 4),
             }),
             trust = ns.Section("Trust", 2, {

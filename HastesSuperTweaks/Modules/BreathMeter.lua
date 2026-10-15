@@ -448,7 +448,7 @@ function B:BuildOptions()
                 warnColor = option("color", "warnColor", "Warning color", 2, { disabled = noWarning }),
                 warnPulse = option("toggle", "warnPulse", "Pulse", 3, { disabled = noWarning }),
                 warnSound = option("toggle", "warnSound", "Play a sound", 4,
-                    { desc = "Plays the raid warning sound once when the warning starts.", disabled = noWarning }),
+                    { desc = "The raid warning sound.", disabled = noWarning }),
             }),
             colors = ns.Section("Colors", 3, {
                 breathColor = option("color", "breathColor", "Breath", 1),

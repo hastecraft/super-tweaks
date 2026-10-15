@@ -18,10 +18,10 @@ ns.TrainAll = T
 ns.Configure(T, { button = true, levelUp = true }, function(m)
     local function profile() return m.db.profile end
     return ns.OnePage(m.info.name, "settings", "Settings", {
-        button = ns.Option(profile, "toggle", "button", "Train All button", 1, { desc = "Learns everything the trainer "
-            .. "teaches you that you can afford, one at a time, out of combat." }, function() m:UpdateButton() end),
-        levelUp = ns.Option(profile, "toggle", "levelUp", "Name new spells at level-up", 2,
-            { desc = "Says in chat which spells your class trainer has for you at your new level." }),
+        button = ns.Option(profile, "toggle", "button", "Train All button", 1,
+            { desc = "Learns everything you can afford, out of combat." }, function() m:UpdateButton() end),
+        levelUp = ns.Option(profile, "toggle", "levelUp", "New spells at level-up", 2,
+            { desc = "Says in chat which new spells your class trainer has." }),
     })
 end)
 

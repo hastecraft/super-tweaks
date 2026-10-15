@@ -300,7 +300,7 @@ end
 Settings(S, { delay = 5, anyone = true, friends = false, guild = false, communities = false }, function(m)
     local function chosen() return m.db.profile.anyone end
     return {
-        delay = Range(m, "delay", "Countdown", 1, 0, 30, 1, "Seconds before it accepts. Decline or hold Shift to stay."),
+        delay = Range(m, "delay", "Countdown (seconds)", 1, 0, 30, 1, "Decline or hold Shift to stay."),
         anyone = Toggle(m, "anyone", "Accept from anyone", 2, "Turn off to accept only from the people chosen below."),
         friends = ns.With(Toggle(m, "friends", "Friends", 3, "Including Battle.net friends."), { disabled = chosen }),
         guild = ns.With(Toggle(m, "guild", "Guild members", 4), { disabled = chosen }),
@@ -442,8 +442,8 @@ function P.info.preview(frame)
 end
 P.ALTERAC_VALLEY = 30
 Settings(P, { delay = 0, skipAlterac = false }, function(m) return {
-    delay = Range(m, "delay", "Delay", 1, 0, 5, 0.5, "Seconds before releasing. Hold Shift during the countdown to stay."),
-    skipAlterac = Toggle(m, "skipAlterac", "Not in Alterac Valley", 2, "Leaves releasing to you in Alterac Valley, where graveyards can be far away."),
+    delay = Range(m, "delay", "Delay (seconds)", 1, 0, 5, 0.5, "Hold Shift during the countdown to stay."),
+    skipAlterac = Toggle(m, "skipAlterac", "Not in Alterac Valley", 2, "Graveyards there can be far away."),
 } end)
 
 -- True when you can come back without releasing (soulstone, Reincarnation). Like the game's own death popup, only
@@ -507,7 +507,7 @@ local J = HST:NewFeature("SellJunk", {
 })
 ns.SellJunk = J
 Settings(J,{ summary = true, keepGear = false, skipConfirm = false }, function(m) return {
-    summary = Toggle(m, "summary", "Say what was sold", 1, "Prints how many items were sold and for how much."),
+    summary = Toggle(m, "summary", "Say what was sold", 1),
     keepGear = Toggle(m, "keepGear", "Keep grey weapons and armor", 2),
     skipConfirm = Toggle(m, "skipConfirm", "Sell All Junk without asking", 3,
         "The vendor's own Sell All Junk button sells right away, without asking you to confirm."),

@@ -166,8 +166,7 @@ function T:BuildOptions()
         lines = ns.Section("Extra lines", 2, {
             targetLine = option("toggle", "targetLine", "Target line", 1, {
                 desc = "Adds who a player or mob is targeting, players in their class color. When it's you, it says You in red." }),
-            ids = ns.Option(profile, "toggle", "ids", "Item, spell and NPC IDs", 2, {
-                desc = "Adds the ID to item, spell and NPC tooltips, to look them up or use them in macros and addons." },
+            ids = ns.Option(profile, "toggle", "ids", "Item, spell and NPC IDs", 2, nil,
                 function() if hooked and T.db.profile.ids then HookIds() end end),
         }),
     } }
@@ -258,8 +257,7 @@ function T:BuildOptions()
             desc = "Adds to item tooltips how many you have, and where: in your "
                 .. (ACCOUNT_BANK and "bags, bank and account bank." or "bags and bank.") }, HookCounts),
         itemCountsNone = ns.Option(profile, "toggle", "itemCountsNone", "Also when you have none", 2, {
-            disabled = function() return not T.db.profile.itemCounts end,
-            desc = "Says You have 0 rather than leaving the line out." }),
+            disabled = function() return not T.db.profile.itemCounts end }),
     })
     return options
 end
