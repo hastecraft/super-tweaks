@@ -682,7 +682,6 @@ local function OwnEnemyNumbers(p) return p.enemyMode == "NAMEPLATE" or p.enemyMo
 -- A hit on `unit`: on `plate`, its nameplate, or without one in the scroll area for your target.
 function S:OnEnemy(plate, unit, action, flags, amount, school)
     if IsSecret(unit) or IsSecret(action) or not unit then return end
-    if IsSecret(flags) then flags = nil end
     local p = self.db.profile
     if plate and p.enemyTargetOnly then
         local same = UnitIsUnit(unit, "target")
@@ -695,9 +694,11 @@ function S:OnEnemy(plate, unit, action, flags, amount, school)
     if IsSecret(hostile) or hostile then
         lane.hostile = true
     else
+        if not lane.hostile then return end
         local dead = UnitIsDead and UnitIsDead(unit)
-        if IsSecret(dead) or not dead or not lane.hostile then return end
+        if IsSecret(dead) or not dead then return end
     end
+    if IsSecret(flags) then flags = nil end
     if p.skipTapped and UnitIsTapDenied then
         local denied = UnitIsTapDenied(unit)
         if not IsSecret(denied) and denied then return end
