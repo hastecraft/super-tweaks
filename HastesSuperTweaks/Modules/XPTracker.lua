@@ -409,7 +409,8 @@ end
 function X:BarColor(key)
     local p = self.db.profile
     if key == "xp" and p.classColor then
-        local c = RAID_CLASS_COLORS[select(2, UnitClass("player"))]
+        local _, class = UnitClass("player")
+        local c = not ns.IsSecret(class) and class and RAID_CLASS_COLORS[class]
         if c then return { c.r, c.g, c.b, p.xpColor[4] } end
     end
     return p[key .. "Color"]
