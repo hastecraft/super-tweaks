@@ -1195,10 +1195,13 @@ function L:ShowNotices()
     if #self.notices == 0 and not money then return f:Hide() end
     local appearing = not (f:IsShown() and self.mode == "notices")
     self.mode = "notices"
-    -- Animated every frame only while it lists them.
-    self.animate = self.animate or function() if self.mode == "notices" then self:AnimateNotices() end end
-    f:SetScript("OnUpdate", self.animate)
-    f:EnableMouse(false)
+    -- Animated every frame only while it lists them. Already listing them (only this lists them), the window is set as
+    -- it needs.
+    if appearing then
+        self.animate = self.animate or function() if self.mode == "notices" then self:AnimateNotices() end end
+        f:SetScript("OnUpdate", self.animate)
+        f:EnableMouse(false)
+    end
     self:CloseOnEscape(false)
     -- Its rows are placed by the animation, below, unless that waits for the list to be drawn again.
     self:Layout(f, self.notices, false, self.db.profile, money, nil, not self.noticesQueued)
@@ -1207,8 +1210,8 @@ function L:ShowNotices()
         self:Place(false)
         f.opened, f.animated, f.shownHeight = GetTime(), nil, f.targetHeight
         for _, notice in ipairs(self.notices) do notice.y = nil end
+        f:Show()
     end
-    f:Show()
     self:WatchBags()
     self:AnimateNotices()
 end
