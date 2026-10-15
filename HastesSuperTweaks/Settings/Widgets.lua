@@ -784,9 +784,11 @@ end
 function W.Switch(parent)
     local s = CreateFrame("Button", nil, parent)
     s:SetSize(SWITCH_W, SWITCH_H)
-    s.SetRim, s.SetTrack = W.Outline(s, nil, nil, nil, "ARTWORK")
-    s.knob = W.Dot(s, KNOB, nil, nil, "ARTWORK", 3)
+    -- Made as Paint draws it switched off, unlit and enabled.
+    s.SetRim, s.SetTrack = W.Outline(s, nil, C.border, C.trackOff, "ARTWORK")
+    s.knob = W.Dot(s, KNOB, C.knob, nil, "ARTWORK", 3)
     s.knob:SetPoint("LEFT", KNOB_OFF, 0)
+    s.off = false
     s:SetMotionScriptsWhileDisabled(true)
     function s:Paint()
         local on, lit = self.on, self.lit and not self.off
@@ -837,7 +839,6 @@ function W.Switch(parent)
         if self.onLeave then self.onLeave() end
         W.HideTooltip(self)
     end)
-    s:Paint()
     return s
 end
 
@@ -932,6 +933,7 @@ end
 -- A switch row; the whole row toggles it.
 function W.ToggleRow(parent)
     local c = NewRow(parent, "Button")
+    c.off = false
     Clickable(c)
     c.switch = W.Switch(c)
     c.switch:SetPoint("TOPRIGHT", -2, -ROW_PAD - (HEAD - SWITCH_H) / 2)
@@ -1061,7 +1063,7 @@ end
 function W.Slider(parent)
     local s = CreateFrame("Frame", nil, parent)
     s:SetHeight(20)
-    s.low, s.high, s.step = 0, 1, 1
+    s.low, s.high, s.step, s.off = 0, 1, 1, false
     s.less, s.more = Stepper(s, "LEFT", -1), Stepper(s, "RIGHT", 1)
     s.less:SetPoint("LEFT")
     s.more:SetPoint("RIGHT")
@@ -1118,7 +1120,6 @@ function W.Slider(parent)
         self:SetAlpha(off and 0.4 or 1)
         PaintSlider(self)
     end
-    PaintSlider(s)
     return s
 end
 
@@ -1339,13 +1340,16 @@ function W.Select(parent, source)
         if off and menu and menu.owner == self then menu:Hide() end
         PaintSelect(self)
     end
-    s:SetDisabledLook(false)
+    -- Made as PaintSelect draws it while closed, unlit and enabled.
+    s.off = false
+    s.chevron:Point("DOWN")
     return s
 end
 
 -- A select row. Its source is the row: set getEntries, getValue, onSelect and fontFor on it (see W.Select).
 function W.DropdownRow(parent)
     local c = NewRow(parent)
+    c.off = false
     Tipped(c)
     c.dropdown = W.Select(c, c)
     c.dropdown:SetPoint("TOPRIGHT", -2, -ROW_PAD - (HEAD - SELECT_H) / 2)
