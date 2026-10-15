@@ -863,8 +863,11 @@ function A.info.preview(frame)
         W.Column(frame, { panel, 10, v.line })
     end
     local summary = A.db.profile.summary
+    local shownMended
     W.Loop(frame, 5, function(t)
         local mended = math.max(0, math.min(1, (t - 1) / 0.6))
+        if mended == shownMended then return end
+        shownMended = mended
         for i, slot in ipairs(v.slots) do
             local value = WORN[i][2] + (1 - WORN[i][2]) * mended
             slot.bar:SetWidth(26 * value)
