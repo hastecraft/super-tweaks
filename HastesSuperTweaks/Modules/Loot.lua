@@ -948,10 +948,15 @@ function L:UpdateHotkey(enteringCombat)
             if not InCombatLockdown() then frame:SetPropagateKeyboardInput(not mine) end
             if mine then self:TakeAll() end
         end
-        f:EnableKeyboard(true)
+        -- Turned on once until turned off below; only this function sets the keyboard and its script.
+        if not f.keyboardOn then
+            f.keyboardOn = true
+            f:EnableKeyboard(true)
+            f:SetScript("OnKeyDown", self.onKeyDown)
+        end
         f:SetPropagateKeyboardInput(true)
-        f:SetScript("OnKeyDown", self.onKeyDown)
     else
+        f.keyboardOn = nil
         f:SetScript("OnKeyDown", nil)
         f:EnableKeyboard(false)
         if not InCombatLockdown() then f:SetPropagateKeyboardInput(true) end
