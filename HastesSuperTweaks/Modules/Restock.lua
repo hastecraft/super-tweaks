@@ -200,7 +200,8 @@ end
 -- Tracking changed, or the option or profile did: added up again at the next vendor.
 function R:ForgetRecipes()
     self.needs, self.needNames = nil, nil
-    if self.events then self.events:UnregisterEvent("TRACKED_RECIPE_UPDATE") end
+    -- Only clients that track recipes have the event.
+    if self.events and TRACKING then self.events:UnregisterEvent("TRACKED_RECIPE_UPDATE") end
 end
 
 ---------------------------------------------------------------------------
