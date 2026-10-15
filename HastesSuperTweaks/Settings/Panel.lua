@@ -412,7 +412,7 @@ end
 -- Patch notes (PatchNotes.lua): each release as a box that folds open, and the
 -- New Patch Dot switch for the page header.
 ---------------------------------------------------------------------------
-local RELEASE_HEAD, NOTE_PAD, NOTE_GAP = 54, 12, 8
+local RELEASE_HEAD, NOTE_PAD, NOTE_GAP = 54, 12, 10
 
 -- A color as a text escape, to color part of a text.
 local Hex = ns.ColorCode
@@ -441,65 +441,66 @@ local function LinkNote(b, note, module, lit)
     end)
 end
 
--- A change: a dot and its text, or its title over its text (note.title). One that names a module ends in an arrow
--- and opens its settings when clicked.
+-- A change: a small dot in the accent and its text, or its title over its text (note.title; a title alone is fine).
+-- One that names a module lights up when pointed at and opens its settings when clicked.
 local function NoteLine(parent, note)
     local module = NoteModule(note)
     local line = CreateFrame(module and "Button" or "Frame", nil, parent)
-    local titled = type(note) == "table" and note.title ~= nil
-    if titled then
+    local text = NoteText(note)
+    if type(note) == "table" and note.title then
         line.title = W.Text(line, "GameFontHighlight", C.text)
         line.title:SetPoint("TOPLEFT", 0, 0)
         line.title:SetText(note.title)
-        line.text = W.Text(line, "GameFontHighlightSmall", C.muted)
+        if text and text ~= "" then line.text = W.Text(line, "GameFontHighlightSmall", C.muted) end
     else
-        line.dot = W.Dot(line, 5, C.line)
-        line.dot:SetPoint("TOPLEFT", 3, -4)
+        line.dot = W.Dot(line, 4, C.accent)
+        line.dot:SetPoint("TOPLEFT", 3, -5)
         line.text = W.Text(line, "GameFontHighlight", C.body)
     end
-    line.text:SetSpacing(2)
-    line.text:SetText(NoteText(note) or "")
+    if line.text then
+        line.text:SetSpacing(2)
+        line.text:SetText(text)
+    end
     if module then
         line.hover = W.Fill(line, C.hover)
         line.hover:SetPoint("TOPLEFT", -6, 3)
         line.hover:SetPoint("BOTTOMRIGHT", 6, -3)
         line.hover:Hide()
-        line.arrow = W.Chevron(line, 10, C.header)
-        line.arrow:SetPoint("RIGHT", -2, 0)
         LinkNote(line, note, module, function(self, on)
             self.hover:SetShown(on)
-            W.Paint(self.arrow, on and C.accent or C.header)
             if self.title then
                 W.Paint(self.title, on and C.bright or C.text)
-                W.Paint(self.text, on and C.body or C.muted)
+                if self.text then W.Paint(self.text, on and C.body or C.muted) end
             else
                 W.Paint(self.text, on and C.bright or C.body)
             end
         end)
     end
     function line:Layout(width)
-        local indent, room = self.dot and 16 or 0, self.arrow and 22 or 0
+        local indent = self.dot and 14 or 0
         local y = 0
         if self.title then
-            self.title:SetWidth(width - room)
-            y = self.title:GetStringHeight() + 3
+            self.title:SetWidth(width)
+            y = self.title:GetStringHeight()
+            if not self.text then return y end
+            y = y + 3
         end
         self.text:SetPoint("TOPLEFT", indent, -y)
-        self.text:SetWidth(width - indent - room)
+        self.text:SetWidth(width - indent)
         return y + self.text:GetStringHeight()
     end
     return line
 end
 
--- A highlight: a card with its title in the accent over its text, a rule along its top. One that names a module
--- lights its rim when pointed at and opens its settings when clicked.
+-- A highlight: a card with an accent rule along its top and its title in the accent over its text. One that names a
+-- module lights its rim when pointed at and opens its settings when clicked.
 local function NoteCard(parent, note)
     local module = NoteModule(note)
     local card = CreateFrame(module and "Button" or "Frame", nil, parent)
     local box = W.Box(card, C.pane, C.border, INNER)
     card.SetBorderColor = function(color) box:SetRim(color) end
     -- The rule runs between a round box's corners.
-    local rule = W.Fill(card, C.line, "ARTWORK")
+    local rule = W.Fill(card, C.accent, "ARTWORK")
     rule:SetHeight(1)
     local function placeRule()
         local x = W.theme.round and INNER.radius or 1
@@ -510,49 +511,30 @@ local function NoteCard(parent, note)
     W.OnTheme(placeRule)
     local title = type(note) == "table" and note.title
     if title then
-        card.title = W.Text(card, "GameFontNormal", C.title)
-        card.title:SetPoint("TOPLEFT", NOTE_PAD, -NOTE_PAD)
+        card.title = W.Text(card, "GameFontNormal", C.accent)
+        card.title:SetPoint("TOPLEFT", NOTE_PAD, -NOTE_PAD - 2)
         card.title:SetText(title)
     end
     card.text = W.Text(card, "GameFontHighlightSmall", C.body)
     card.text:SetSpacing(2)
     card.text:SetText(NoteText(note) or "")
     if module then
-        card.arrow = W.Chevron(card, 10, C.header)
-        card.arrow:SetPoint("TOPRIGHT", -NOTE_PAD, -NOTE_PAD - 1)
         LinkNote(card, note, module, function(self, on)
             self.SetBorderColor(on and C.accent or C.border)
-            W.Paint(self.arrow, on and C.accent or C.header)
-            if self.title then W.Paint(self.title, on and C.bright or C.title) end
+            if self.title then W.Paint(self.title, on and C.bright or C.accent) end
         end)
     end
     function card:Layout(width)
-        local room = self.arrow and 18 or 0
-        local y = NOTE_PAD
+        local y = NOTE_PAD + 2
         if self.title then
-            self.title:SetWidth(width - NOTE_PAD * 2 - room)
+            self.title:SetWidth(width - NOTE_PAD * 2)
             y = y + self.title:GetStringHeight() + 6
         end
         self.text:SetPoint("TOPLEFT", NOTE_PAD, -y)
-        self.text:SetWidth(width - NOTE_PAD * 2 - (self.title and 0 or room))
-        return y + self.text:GetStringHeight() + NOTE_PAD
+        self.text:SetWidth(width - NOTE_PAD * 2)
+        return y + self.text:GetStringHeight() + NOTE_PAD + 2
     end
     return card
-end
-
--- What kind of update a release was, from how far its version moved past the one before it.
-local function ReleaseKind(index)
-    local notes = HST.patchNotes
-    if not notes[index + 1] then return "First Release" end
-    local function parts(version)
-        local major, minor = tostring(version):match("^(%d+)%.(%d+)")
-        return tonumber(major) or 0, tonumber(minor) or 0
-    end
-    local major, minor = parts(notes[index].version)
-    local lastMajor, lastMinor = parts(notes[index + 1].version)
-    if major ~= lastMajor then return "Major Update" end
-    if minor ~= lastMinor then return "Feature Update" end
-    return "Mini Patch"
 end
 
 -- The New Patch Dot switch and its label, as one button; toggle:Refresh() shows the setting.
@@ -589,9 +571,9 @@ local function NotesDotToggle(parent)
     return toggle
 end
 
--- A release (o.release): a box whose header gives its version, the kind of update and how many changes of each kind,
--- and folds it open or shut. Open, it shows its summary, its highlights as cards (two side by side when there's room),
--- then its changes under New, Changed and Fixed. The newest is tagged Latest and starts open; the others are only
+-- A release (o.release): a box whose header gives its version, its date and how many changes of each kind, and folds
+-- it open or shut. Open, it shows its summary, its highlights as cards (two side by side when there's room), then its
+-- changes, each kind under a heading over a rule. The newest is tagged Latest and starts open; the others are only
 -- built when first opened.
 function Build.release(parent, o)
     local release, index = o.release, o.index
@@ -630,11 +612,11 @@ function Build.release(parent, o)
         tag:SetSize(math.floor(label:GetStringWidth() + 18), 16)
         tag:SetPoint("LEFT", head.version, "RIGHT", 10, 0)
     end
-    -- The kind of update, then how many changes of each kind (written again in a new theme's colors).
+    -- How many changes of each kind (written again in a new theme's colors).
     head.counts = W.Text(head, "GameFontNormalSmall", C.muted)
     head.counts:SetPoint("TOPLEFT", head.version, "BOTTOMLEFT", 0, -6)
     local function writeCounts()
-        local counts = { Hex(C.header) .. ReleaseKind(index) .. "|r" }
+        local counts = {}
         local function count(name, list)
             if list and #list > 0 then counts[#counts + 1] = name .. ": " .. Hex(C.text) .. #list .. "|r" end
         end
@@ -678,6 +660,8 @@ function Build.release(parent, o)
             if list and #list > 0 then
                 local section = { head = W.Text(body, "GameFontNormalSmall", C.header), lines = {} }
                 section.head:SetText(kind.name:upper())
+                section.rule = W.Fill(body, C.divider, "BORDER")
+                section.rule:SetHeight(1)
                 for i, note in ipairs(list) do section.lines[i] = NoteLine(body, note) end
                 body.sections[#body.sections + 1] = section
             end
@@ -708,11 +692,14 @@ function Build.release(parent, o)
             end
         end
         for _, section in ipairs(body.sections) do
-            if y > 0 then y = y + 18 end
+            if y > 0 then y = y + 22 end
             section.head:SetPoint("TOPLEFT", 0, -y)
-            y = y + section.head:GetStringHeight()
+            y = y + section.head:GetStringHeight() + 6
+            section.rule:SetPoint("TOPLEFT", 0, -y)
+            section.rule:SetPoint("TOPRIGHT", 0, -y)
+            y = y + 3
             for _, line in ipairs(section.lines) do
-                y = y + (line.title and 10 or 7)
+                y = y + (line.title and 11 or 8)
                 line:ClearAllPoints()
                 line:SetPoint("TOPLEFT", 0, -y)
                 local height = line:Layout(width)
