@@ -6,6 +6,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 local IsSecret = ns.IsSecret
 local find, lower = string.find, string.lower
+local UNKNOWN_NAME = UNKNOWNOBJECT or "Unknown"
 
 local F = HST:NewFeature("ChatFilter", {
     name = "Chat Spam Filter", category = "social", order = 2.5, command = "spam", enabledByDefault = false,
