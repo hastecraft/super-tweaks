@@ -2500,7 +2500,8 @@ function P:LayoutModules(modules, welcome)
     self.listHeight = y
 end
 
-function P:RefreshRows()
+-- skipResults: the result rows are about to be filled anew (P:LayoutResults).
+function P:RefreshRows(skipResults)
     for i = 1, self.rowCount or 0 do
         local row = self.rows[i]
         local module = row.module
@@ -2525,7 +2526,7 @@ function P:RefreshRows()
         end
     end
     -- Result rows only show in search mode (P:ShowModules hides them for the list).
-    if self.mode == "search" then
+    if self.mode == "search" and not skipResults then
         for _, row in ipairs(self.results) do
             if row:IsShown() and row.result then self:PaintResult(row) end
         end
@@ -3326,7 +3327,7 @@ end
 P.RESULTS = 50
 function P:LayoutResults(modules, ranked, words)
     self:LayoutModules(modules)
-    self:RefreshRows()
+    self:RefreshRows(true)
     local y, width, shown = self.listHeight, self.listWidth, math.min(#ranked, self.RESULTS)
     self.cursorRows = {}
     for i = 1, self.rowCount do self.cursorRows[i] = self.rows[i] end
