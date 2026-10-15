@@ -500,7 +500,8 @@ ns.Listen(Q, { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_C
         if event == "PLAYER_TARGET_CHANGED" then self:Watch(); return self:CheckTarget() end
         if REPICK[event] then return self:Queue() end
         if event == "BAG_UPDATE_DELAYED" then
-            self.bag = nil
+            -- An item not found may have arrived; a slot found is checked again when it's next used (see Q:Location).
+            if self.bag == false then self.bag = nil end
             return self:Queue()
         elseif event == "PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED" then
             if not IsSecret(a) and not IsSecret(b) and type(a) == "number" then areas[a] = b == true or nil end
