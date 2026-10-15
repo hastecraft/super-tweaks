@@ -1253,9 +1253,9 @@ end
 
 -- Watches for the game's combat text loading (it loads once turned on), for its setting changing (the game then
 -- registers its frame's events again) and for combat ending, when CVars changed in combat are set. Listened to only
--- while needed.
-local watcher = CreateFrame("Frame")
-watcher:SetScript("OnEvent", function(_, event, name)
+-- while needed. Made the first time it's needed.
+local watcher
+local function OnWatch(_, event, name)
     if event == "ADDON_LOADED" then
         if name == "Blizzard_CombatText" then watcher:UnregisterEvent("ADDON_LOADED"); S:UpdateBlizzard() end
     elseif event == "CVAR_UPDATE" then
@@ -1266,7 +1266,14 @@ watcher:SetScript("OnEvent", function(_, event, name)
         S:UpdateCVars()
         S:UpdateBlizzard()
     end
-end)
+end
+local function Watcher()
+    if not watcher then
+        watcher = CreateFrame("Frame")
+        watcher:SetScript("OnEvent", OnWatch)
+    end
+    return watcher
+end
 
 -- Every event the game's frame listens to with its combat text on.
 local function GiveBackEvents(frame)
@@ -1279,10 +1286,15 @@ end
 
 function S:UpdateBlizzard()
     local replace = self:IsEnabled() and self.db.profile.replaceBlizzard
-    if replace then pcall(watcher.RegisterEvent, watcher, "CVAR_UPDATE") else watcher:UnregisterEvent("CVAR_UPDATE") end
+    if replace then
+        local w = Watcher()
+        pcall(w.RegisterEvent, w, "CVAR_UPDATE")
+    elseif watcher then
+        watcher:UnregisterEvent("CVAR_UPDATE")
+    end
     local frame = CombatText
     if not frame then
-        if replace then watcher:RegisterEvent("ADDON_LOADED") else watcher:UnregisterEvent("ADDON_LOADED") end
+        if replace then Watcher():RegisterEvent("ADDON_LOADED") elseif watcher then watcher:UnregisterEvent("ADDON_LOADED") end
         return
     end
     -- With its combat text off, the game's frame listens to nothing, and is left so.
@@ -1393,7 +1405,7 @@ function S:GameNumberOn(key)
 end
 
 function S:UpdateCVars()
-    if InCombatLockdown() then return watcher:RegisterEvent("PLAYER_REGEN_ENABLED") end
+    if InCombatLockdown() then return Watcher():RegisterEvent("PLAYER_REGEN_ENABLED") end
     local on, p = self:IsEnabled(), self.db.profile
     -- An earlier build held the game's combat text on for its events; a hold left from then is given back.
     self:HoldCVar("enableFloatingCombatText", "1", false)
