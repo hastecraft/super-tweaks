@@ -1435,10 +1435,16 @@ function W.ColorRow(parent)
     end)
     c.rgba = {}
     function c:Layout(width) return (PlaceText(self, width, 38)) end
+    -- Only what changed is set: every settings change refreshes the page.
     function c:SetValue(r, g, b, a, off)
-        self.rgba[1], self.rgba[2], self.rgba[3], self.rgba[4] = r, g, b, a or 1
-        self.color:SetColorTexture(r, g, b, a or 1)
+        local rgba = self.rgba
+        a = a or 1
+        if r ~= rgba[1] or g ~= rgba[2] or b ~= rgba[3] or a ~= rgba[4] then
+            rgba[1], rgba[2], rgba[3], rgba[4] = r, g, b, a
+            self.color:SetColorTexture(r, g, b, a)
+        end
         off = off and true or false
+        if off == self.off then return end
         self:SetEnabled(not off)
         self.swatch:SetAlpha(off and 0.45 or 1)
         self.off = off
@@ -1501,10 +1507,13 @@ function W.InputRow(parent, full, onEdit)
         if self.live then kept = e:GetText() == saved else kept = e:HasFocus() or (saved == self.saved and dirty()) end
         self.saved = saved
         if not kept then e:SetText(saved) end
-        e:SetEnabled(not off)
-        W.Paint(e, off and C.disabled or C.bright)
-        self.off = off
-        DimLabel(self, off)
+        off = off and true or false
+        if off ~= self.off then
+            e:SetEnabled(not off)
+            W.Paint(e, off and C.disabled or C.bright)
+            self.off = off
+            DimLabel(self, off)
+        end
         paint()
     end
     return c
@@ -1590,10 +1599,13 @@ function W.TextAreaRow(parent, lines, onEdit)
         if self.live then kept = e:GetText() == saved else kept = e:HasFocus() or (saved == self.saved and dirty()) end
         self.saved = saved
         if not kept then e:SetText(saved) end
-        e:SetEnabled(not off)
-        W.Paint(e, off and C.disabled or C.bright)
-        self.off = off
-        DimLabel(self, off)
+        off = off and true or false
+        if off ~= self.off then
+            e:SetEnabled(not off)
+            W.Paint(e, off and C.disabled or C.bright)
+            self.off = off
+            DimLabel(self, off)
+        end
         paint()
     end
     return c
