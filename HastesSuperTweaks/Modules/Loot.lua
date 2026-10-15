@@ -714,14 +714,18 @@ function L:Layout(f, items, manual, p, money, note, placed)
     local top = header and extra + HEADER + 2 or edge
     local rowHeight, font, flags = p.iconSize + p.spacing, FontFile(p), ns.OutlineFlags(p.outline)
     f.header:SetShown(header)
-    -- Everything on the top bar is hidden with it, and every layout that shows it sets it all again.
+    -- Everything on the top bar is hidden with it, and every layout that shows it sets it all again, its anchors only
+    -- when the padding or the key changes (only this function anchors them; extra comes from the padding).
     if header then
-        f.header:SetPoint("TOPLEFT", 0, -extra)
-        f.header:SetPoint("TOPRIGHT", 0, -extra)
-        f.rule:SetPoint("BOTTOMLEFT", inset, 0)
-        f.rule:SetPoint("BOTTOMRIGHT", -inset, 0)
-        f.takeAll:SetPoint("LEFT", inset - 4, 0)
-        f.close:SetPoint("RIGHT", -inset + 2, 0)
+        if f.headerInset ~= inset then
+            f.headerInset = inset
+            f.header:SetPoint("TOPLEFT", 0, -extra)
+            f.header:SetPoint("TOPRIGHT", 0, -extra)
+            f.rule:SetPoint("BOTTOMLEFT", inset, 0)
+            f.rule:SetPoint("BOTTOMRIGHT", -inset, 0)
+            f.takeAll:SetPoint("LEFT", inset - 4, 0)
+            f.close:SetPoint("RIGHT", -inset + 2, 0)
+        end
         f.rule:SetShown(p.headerRule)
         f.close:SetShown(p.closeButton)
         f.close.icon:Fit()
@@ -736,8 +740,12 @@ function L:Layout(f, items, manual, p, money, note, placed)
         end
         f.takeAll.key:SetShown(hotkey ~= "")
         f.takeAll.key.text:SetText(hotkey)
-        f.takeAll.label:ClearAllPoints()
-        if hotkey ~= "" then f.takeAll.label:SetPoint("LEFT", f.takeAll.key, "RIGHT", 6, 0) else f.takeAll.label:SetPoint("LEFT", 10, 0) end
+        local keyed = hotkey ~= ""
+        if f.takeAll.keyed ~= keyed then
+            f.takeAll.keyed = keyed
+            f.takeAll.label:ClearAllPoints()
+            if keyed then f.takeAll.label:SetPoint("LEFT", f.takeAll.key, "RIGHT", 6, 0) else f.takeAll.label:SetPoint("LEFT", 10, 0) end
+        end
         f.takeAll:SetWidth((hotkey ~= "" and 28 or 10) + f.takeAll.label:GetStringWidth() + 10)
     end
     ns.SetFont(f.measure, font, p.fontSize, flags)
@@ -765,10 +773,14 @@ function L:Layout(f, items, manual, p, money, note, placed)
     -- Money on its own line at the bottom: "+9" and the coin while auto looting.
     local footer, footerHeight = f.footer, 0
     footer:SetShown(money ~= nil)
-    footer:SetPoint("BOTTOMLEFT", 0, extra)
-    footer:SetPoint("BOTTOMRIGHT", 0, extra)
-    footer.rule:SetPoint("TOPLEFT", inset, 0)
-    footer.rule:SetPoint("TOPRIGHT", -inset, 0)
+    -- Anchored again only when the padding changes; only this function anchors them.
+    if footer.inset ~= inset then
+        footer.inset = inset
+        footer:SetPoint("BOTTOMLEFT", 0, extra)
+        footer:SetPoint("BOTTOMRIGHT", 0, extra)
+        footer.rule:SetPoint("TOPLEFT", inset, 0)
+        footer.rule:SetPoint("TOPRIGHT", -inset, 0)
+    end
     if money then
         footerHeight = p.footerSize + 12
         footer:SetHeight(footerHeight)
