@@ -359,9 +359,15 @@ local TURNS = {
     UP = function(l, r, t, b) return r, t, l, t, r, b, l, b end,
 }
 
-local function FitIcon(t)
+local function ScreenHeight()
+    local _, height = GetPhysicalScreenSize()
+    return height
+end
+
+-- screen: the screen's height, when the caller read it for a pass over many textures.
+local function FitIcon(t, screen)
     local scale = t:GetEffectiveScale()
-    local _, screen = GetPhysicalScreenSize()
+    screen = screen or ScreenHeight()
     if scale == t.fitScale and screen == t.fitScreen then return end
     t.fitScale, t.fitScreen = scale, screen
     local px = 768 / screen / scale -- units per screen pixel here
@@ -382,7 +388,8 @@ end
 
 local icons = setmetatable({}, { __mode = "k" })
 function W.FitIcons()
-    for t in pairs(icons) do t:Fit() end
+    local screen = ScreenHeight()
+    for t in pairs(icons) do t:Fit(screen) end
 end
 -- Fitted again when the interface's scale or the display changes, listened to once there's anything to fit.
 local refit
@@ -391,12 +398,15 @@ local refit
 -- parent changes size. Set its fields (hstParent, the frame it was made on: these are never moved to another), then
 -- Fit it.
 local function FitShown(parent)
-    local list = parent.hstIcons
-    for i = 1, #list do list[i]:Fit() end
+    local list, screen = parent.hstIcons, ScreenHeight()
+    -- Only shapes read their parent's size.
+    local width, height
+    if parent.hstShapes then width, height = parent:GetWidth(), parent:GetHeight() end
+    for i = 1, #list do list[i]:Fit(screen, width, height) end
 end
 local function FitSized(parent)
-    local shapes = parent.hstShapes
-    for i = 1, #shapes do shapes[i]:Fit() end
+    local shapes, screen, width, height = parent.hstShapes, ScreenHeight(), parent:GetWidth(), parent:GetHeight()
+    for i = 1, #shapes do shapes[i]:Fit(screen, width, height) end
 end
 local function Track(t, sized)
     local parent = t.hstParent
@@ -487,12 +497,18 @@ local INSETS = {
 
 -- The disc's size in pixels, even so halves end on a texel: t.size for a dot; for a shape, as tall as its frame for a
 -- pill, twice the radius for corners, never wider than the frame. Insets are whole pixels too, so shapes inside one
--- another stay concentric.
-local function FitRound(t)
+-- another stay concentric. screen, width and height: the screen's height and the frame's size, when the caller read
+-- them for a pass over many textures.
+local function FitRound(t, screen, width, height)
     local scale = t:GetEffectiveScale()
-    local _, screen = GetPhysicalScreenSize()
-    local frame = t.hstParent
-    local width, height = frame:GetWidth(), frame:GetHeight()
+    screen = screen or ScreenHeight()
+    -- A dot's size is its own.
+    if t.size then
+        width, height = nil, nil
+    elseif not width then
+        local frame = t.hstParent
+        width, height = frame:GetWidth(), frame:GetHeight()
+    end
     if scale == t.fitScale and screen == t.fitScreen and width == t.fitWidth and height == t.fitHeight then return end
     t.fitScale, t.fitScreen, t.fitWidth, t.fitHeight = scale, screen, width, height
     local px = 768 / screen / scale -- units per screen pixel here
@@ -596,10 +612,11 @@ function W.Round(frame, radius, inset, layer, sublevel, ring)
             pieces[#pieces + 1] = middle
         end
     end
+    local screen, width, height = ScreenHeight(), frame:GetWidth(), frame:GetHeight()
     for i = 1, #pieces do
         if pieces[i].Fit then
             Track(pieces[i], true)
-            pieces[i]:Fit()
+            pieces[i]:Fit(screen, width, height)
         end
     end
     return Painter(pieces), pieces
