@@ -2682,7 +2682,10 @@ end
 -- Shows the off overlay for the open module when it's off, or hides it.
 function P:RefreshOffOverlay(module, on)
     local off = self.offOverlay
-    if not module or on or not self.pageOptions then return off:Hide() end
+    if not module or on or not self.pageOptions then
+        if self.offShown then self.offShown = false; off:Hide() end
+        return
+    end
     local box, info = off.box, module.info
     local unavailable = info.unavailable
     box.title:SetText(info.name .. (unavailable and " isn't available" or " is off"))
@@ -2709,7 +2712,7 @@ function P:RefreshOffOverlay(module, on)
     local height = y + 6 + box.text:GetStringHeight() + OFF_PAD
     if not unavailable then height = height + 18 + box.button:GetHeight() end
     box:SetHeight(math.floor(height + 0.5))
-    off:Show()
+    if not self.offShown then self.offShown = true; off:Show() end
 end
 
 -- A tab (top level page) or chip (sub-page) button, from its pool.
@@ -2896,10 +2899,15 @@ end
 function P:RefreshHeader()
     local header = self.pageHeader
     local module = self.view == "module" and HST:GetModule(self.openModule)
-    header.toggle:SetShown(module ~= false)
-    header.state:SetShown(module ~= false)
-    header.notesDot:SetShown(self.view == "notes")
-    if self.view == "notes" then
+    -- Only what changed is set: every settings change refreshes the header.
+    local switch, notes = module ~= false, self.view == "notes"
+    if switch ~= header.shownSwitch then
+        header.shownSwitch = switch
+        header.toggle:SetShown(switch)
+        header.state:SetShown(switch)
+    end
+    if notes ~= header.shownNotes then header.shownNotes = notes; header.notesDot:SetShown(notes) end
+    if notes then
         header.notesDot:Refresh()
         -- Centered on the crumb's line (both one line, so their heights hold).
         local middle = header.title:GetStringHeight() + 6 + header.crumb:GetStringHeight() / 2
@@ -2912,8 +2920,11 @@ function P:RefreshHeader()
     header.toggle:SetOn(on, header.module == module)
     header.module = module
     header.toggle:SetDisabledLook(info.unavailable ~= nil)
-    header.state:SetText(on and "On" or "Off")
-    W.Paint(header.state, on and C.accent or C.muted)
+    if on ~= header.shownOn then
+        header.shownOn = on
+        header.state:SetText(on and "On" or "Off")
+        W.Paint(header.state, on and C.accent or C.muted)
+    end
     local crumb = self.crumb
     if info.unavailable then
         crumb = crumb .. "   " .. Hex(C.warning) .. info.unavailable .. "|r"
