@@ -2453,9 +2453,9 @@ end
 
 -- Places category headers and module rows in the list, which is self.listHeight high, under the welcome card when
 -- welcome is set. Rows are reused in order, and a row that stays shown isn't hidden first: showing a row runs its
--- switch's OnShow work.
+-- switch's OnShow work. The rows shown are always the first rowCount, and each is placed again only when it moved.
 function P:LayoutModules(modules, welcome)
-    local y, used = 0, 0
+    local y, used, shown = 0, 0, self.rowCount or 0
     if welcome then
         y = self:LayoutWelcome(self.listWidth)
     elseif self.welcome then
@@ -2483,22 +2483,27 @@ function P:LayoutModules(modules, welcome)
                 end
                 used = used + 1
                 local row = self:ModuleRow(used)
-                row.module, row.top = module, y
-                row:ClearAllPoints()
-                row:SetPoint("TOPLEFT", 0, -y)
-                row:SetWidth(width)
-                row:Show()
+                row.module = module
+                if row.top ~= y then
+                    row.top = y
+                    row:ClearAllPoints()
+                    row:SetPoint("TOPLEFT", 0, -y)
+                end
+                if row.placedWidth ~= width then row.placedWidth = width; row:SetWidth(width) end
+                if used > shown then row:Show() end
                 y = y + MODULE_ROW
             end
         end
     end
-    for i = used + 1, #self.rows do self.rows[i]:Hide() end
+    for i = used + 1, shown do self.rows[i]:Hide() end
+    self.rowCount = used
     self.listHeight = y
 end
 
 function P:RefreshRows()
-    for _, row in ipairs(self.rows) do
-        local module = row:IsShown() and row.module
+    for i = 1, self.rowCount or 0 do
+        local row = self.rows[i]
+        local module = row.module
         if module then
             -- What a row shows of its module is set once; after that only its being on or off changes (its switch
             -- slides then, not when the row is reused for another module).
@@ -3324,7 +3329,7 @@ function P:LayoutResults(modules, ranked, words)
     self:RefreshRows()
     local y, width, shown = self.listHeight, self.listWidth, math.min(#ranked, self.RESULTS)
     self.cursorRows = {}
-    for _, row in ipairs(self.rows) do if row:IsShown() then self.cursorRows[#self.cursorRows + 1] = row end end
+    for i = 1, self.rowCount do self.cursorRows[i] = self.rows[i] end
     if shown > 0 then
         if y > 0 then y = y + 10 end
         local header = self:ListHeader("settings", "Settings")
