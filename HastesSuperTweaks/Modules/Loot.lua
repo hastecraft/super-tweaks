@@ -592,9 +592,13 @@ local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     end
     -- Picked-up items take the mouse only when chosen, so the list doesn't get in the way.
     row:EnableMouse(item.slot ~= nil and manual or not manual and noticeMouse and item.link ~= nil)
-    row.icon:SetTexture(item.icon)
-    row.icon:SetDesaturated(item.locked == true)
-    row.quest:SetShown(item.quest == true)
+    -- Icon, quest mark, count and owned text are set only when they change; only this function sets them. A new
+    -- texture gets its desaturation again.
+    if row.shownIcon ~= item.icon then row.shownIcon, row.shownLocked = item.icon, nil; row.icon:SetTexture(item.icon) end
+    local locked = item.locked == true
+    if row.shownLocked ~= locked then row.shownLocked = locked; row.icon:SetDesaturated(locked) end
+    local quest = item.quest == true
+    if row.shownQuest ~= quest then row.shownQuest = quest; row.quest:SetShown(quest) end
     -- An eye on loot whose look you haven't collected (Appearance Collector, Modules/Appearances.lua).
     local looks = ns.Appearances
     if looks then looks:Mark(row.slot, item.link, "loot", p.iconSize) end
@@ -602,7 +606,8 @@ local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     local edge = p.iconBorder and quality >= 2 and QualityEdge(quality) or C.border
     if row.edgeColor ~= edge then row.edgeColor = edge; row.edge(edge) end
     local quantity = item.quantity or 1
-    row.count:SetText(manual and quantity > 1 and quantity or "")
+    local count = manual and quantity > 1 and quantity or ""
+    if row.shownCount ~= count then row.shownCount = count; row.count:SetText(count) end
     ns.SetFont(row.label, font, p.fontSize, flags)
     local text = item.name or ""
     if not manual then
@@ -618,7 +623,8 @@ local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     else row.label:SetTextColor(QualityColor(quality)) end
     local owned = p.ownedCount and L.Owned(item)
     row.shownOwned = owned
-    row.owned:SetText(owned and owned > 0 and (owned .. " owned") or "")
+    local ownedText = owned and owned > 0 and (owned .. " owned") or ""
+    if row.ownedText ~= ownedText then row.ownedText = ownedText; row.owned:SetText(ownedText) end
     return text
 end
 
@@ -751,7 +757,8 @@ function L:Layout(f, items, manual, p, money, note, placed)
         row.animX, row.animY, row.animAlpha = nil, nil, nil -- placed anew; the notices' animation starts over
         row:Show()
         f.measure:SetText(text)
-        widest = math.max(widest, p.iconSize + 8 + f.measure:GetStringWidth() + row.owned:GetStringWidth() + 18)
+        local ownedWidth = row.ownedText ~= "" and row.owned:GetStringWidth() or 0 -- empty text is 0 wide
+        widest = math.max(widest, p.iconSize + 8 + f.measure:GetStringWidth() + ownedWidth + 18)
         best = math.max(best, item.quality or 1)
     end
     for i = #items + 1, math.min(before, #f.rows) do f.rows[i]:Hide() end
