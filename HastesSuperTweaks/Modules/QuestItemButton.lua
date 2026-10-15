@@ -519,6 +519,8 @@ ns.Listen(Q, { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_C
     end)
 
 function Q:OnListen()
+    -- Your key binding may have changed while it was off.
+    if self.button then self.keyText = KeyText() end
     self:Queue()
     -- Turned on with Edit Mode open: its stand-in shows at once, as when Edit Mode opens.
     self:UpdateEditMode()
@@ -528,6 +530,8 @@ function Q:OnUnlisten()
     -- Their events went with the rest; the button lets go of its item (once combat ends, in combat).
     self.watching, self.ranging, self.waiting = nil, nil, nil
     self.pickQuest, self.pickLink, self.pickTexture = nil, nil, nil
+    -- Quest areas left while off would go unheard; the game is asked again (as after a loading screen).
+    wipe(areas)
     self:UpdateEditMode(false)
     self:Apply()
 end
