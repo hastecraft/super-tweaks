@@ -2,6 +2,38 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.0.0 (2026-10-15)
+
+### Settings: Themes
+
+Behind the new cog beside the close button, pick the settings window's look: Graphite, the new default, accented in your class color; Ember, the old look; or Moonwell. The logo and the Minimap Button match it.
+
+### New Features
+
+- Settings: Window Settings. The cog's page can turn off "Animate previews" and "Play click sounds", and picks the chat window tweaks' messages show in. The New Patch Dot switch, "Reset window" and the starting points are there too.
+- Campfire Helper: Hide the Reminder. Middle-click the "No camp buffs" reminder to hide it until you reload.
+
+### Changes
+
+- Better Tooltips: "Show how many you have" now starts off. Turn it on to get item counts back.
+- Better World Refresh: "Refresh by itself" now starts at "Never".
+- Campfire Helper: starts near the top of the screen instead of the middle. If you moved it, it stays where you put it.
+- Settings: a setting's description shows when you point at it, and names, choices and descriptions are shorter.
+- Settings: the previews of Quest Progress Sounds, Fast Loot, Bag Tweaks, Battleground Alerts, Guild Message Popup, Better World Refresh, Swing Timer Style and Aura Sounds show just the preview.
+- Patch notes: shorter lines, titled new features, and highlights no longer repeated in the lists.
+
+### Bug Fixes
+
+- Better Scrolling Combat Text: the combo points notice no longer errors on PvP targets.
+- Better Scrolling Combat Text: spell alerts still hide once used after you change a setting.
+- Chat Spam Filter: turning it off during Find members no longer sends your /who answers to the Who window.
+- Consumable Macros: turned off and back on, Feed Pet asks again what your pet eats.
+- Quest Item Button: turned off and back on, it shows the right item and your current key.
+- Loot Window: the border is sharp at any scale from the first window.
+- Better Breath Meter: the settings preview no longer turns black or loses its "Breath" label.
+- Settings search shows each setting's description as it is now.
+- Patch notes: the Quest Mobs and Guild Message Popup font entries open their settings.
+
 ## 2.1.0 (2026-10-14)
 
 ### Swing Timer Style
