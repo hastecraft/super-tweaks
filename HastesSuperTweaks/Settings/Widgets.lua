@@ -655,11 +655,13 @@ local function BoxParts(box, round)
         local radius = not shape.pill and (shape.radius or BOX_RADIUS) + (shape.x or 0) or nil
         if box.fill then
             local set, pieces = W.Round(frame, radius, shape, "BACKGROUND", box.sublevel, false)
+            set(box.fill)
             parts.fill = set
             add(pieces)
         end
         if box.rim then
             local set, pieces = W.Round(frame, radius, shape, "BORDER", 0, true)
+            set(box.rim)
             parts.rim = set
             add(pieces)
         end
@@ -682,7 +684,8 @@ local function BoxParts(box, round)
     return parts
 end
 
--- Shows the box in the shape the theme gives it; a hidden box takes it when it next shows.
+-- Shows the box in the shape the theme gives it; a hidden box takes it when it next shows. Returns true when it showed
+-- the box's parts.
 function Box:Shape()
     local round = W.theme.round == true
     if self.isRound == round then return end
@@ -693,11 +696,18 @@ function Box:Shape()
     end
     self.isRound = round
     local key = round and "roundParts" or "squareParts"
-    local parts = self[key] or BoxParts(self, round)
-    self[key], self.parts = parts, parts
-    if parts.fill then parts.fill(self.fill) end
-    if parts.rim then parts.rim(self.rim) end
-    for _, t in ipairs(parts.textures) do t:Show() end
+    local parts = self[key]
+    if parts then
+        if parts.fill then parts.fill(self.fill) end
+        if parts.rim then parts.rim(self.rim) end
+        for _, t in ipairs(parts.textures) do t:Show() end
+    else
+        -- New parts are made painted and shown.
+        parts = BoxParts(self, round)
+        self[key] = parts
+    end
+    self.parts = parts
+    return true
 end
 
 function Box:SetFill(color)
@@ -714,7 +724,7 @@ function Box:SetShown(shown)
     shown = shown and true or false
     if shown == self.shown then return end
     self.shown = shown
-    if shown then self:Shape() end
+    if shown and self:Shape() then return end
     for _, t in ipairs(self.parts.textures) do t:SetShown(shown) end
 end
 function Box:Show() self:SetShown(true) end
