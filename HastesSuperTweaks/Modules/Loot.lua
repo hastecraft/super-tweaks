@@ -1460,7 +1460,8 @@ function L:OnEvent(event, arg, message)
         self:RefreshOwned()
     elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
         inCombat = event == "PLAYER_REGEN_DISABLED"
-        self:UpdateHotkey(inCombat)
+        -- A hidden window's key is off already (hiding it turns it off).
+        if self.window and self.window:IsShown() then self:UpdateHotkey(inCombat) end
         if self.mode == "notices" then self:NoticeRowsMouse() end
     elseif event == "PARTY_LOOT_METHOD_CHANGED" or event == "GROUP_ROSTER_UPDATE" then
         -- Roster updates come in floods in a raid; the windows only change hands when master looting does.
