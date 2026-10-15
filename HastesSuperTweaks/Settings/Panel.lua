@@ -1363,7 +1363,8 @@ function P:Create()
     local grip = CreateFrame("Button", nil, f)
     grip:SetSize(18, 18)
     grip:SetPoint("BOTTOMRIGHT", -2, 2)
-    grip:SetFrameLevel(self.offOverlay:GetFrameLevel() + 10) -- above the off overlay, so the window still resizes under it
+    -- Above the off overlay (the page view's level + 100, P:CreateOffOverlay), so the window still resizes under it.
+    grip:SetFrameLevel(self.pageView:GetFrameLevel() + 110)
     -- Six dots in the corner (Art/Grip): muted, lit while pointed at, gold while dragging.
     grip.icon = W.PixelIcon(grip, W.ART .. "Grip", 12, C.header)
     grip.icon:SetPoint("BOTTOMRIGHT", -3, 3)
@@ -2028,11 +2029,11 @@ function P:CreateOverview(main)
     self.list = W.ScrollArea(view)
     self.list:SetPoint("BOTTOMRIGHT", detail, "BOTTOMLEFT", -GAP - SCROLLBAR, 0)
     self:ListTop(false)
-    self:CreateEmpty(view)
 end
 
 -- What the list shows when it has nothing: an icon, a title, a hint and buttons (see P:ShowEmpty). It hangs from a
--- fixed point EMPTY_RISE above the middle of its space, about half its usual height, so it sits centered.
+-- fixed point EMPTY_RISE above the middle of its space, about half its usual height, so it sits centered. Built the
+-- first time it shows.
 local EMPTY_WIDTH, EMPTY_ICON, EMPTY_RISE = 400, 48, 100
 
 function P:CreateEmpty(view)
@@ -2069,6 +2070,7 @@ end
 -- shows it, and a wrapped text measured right after can read a line short, which made the buttons jump as you typed.
 -- The buttons hang from the hint's bottom instead, and the whole from a fixed point.
 function P:ShowEmpty(spec)
+    if not self.empty then self:CreateEmpty(self.overview) end
     local e = self.empty
     e:Show()
     for name, icon in pairs(e.icons) do icon:SetShown(name == spec.icon) end
@@ -2565,7 +2567,7 @@ function P:ShowModules()
             self:ShowEmpty({ icon = "on", title = "Every tweak is on", text = "Nothing is turned off right now.",
                 buttons = { showAll } })
         end
-    else
+    elseif self.empty then
         self.empty:Hide()
     end
     local detail = self.detailModule
@@ -2637,9 +2639,13 @@ function P:CreatePageView(main)
     if live.area.SetClipsChildren then live.area:SetClipsChildren(true) end
     W.Box(live.area, C.well, nil, { radius = W.BOX_RADIUS - 1 })
     live:Hide()
-    -- Over the tabs, settings and preview while the module is off: a dimmed backdrop that takes the mouse, and a
-    -- box in its middle with the module's preview, dimmed under the struck-through logo (or the logo alone), saying
-    -- it's off, and a button to turn it on.
+end
+
+-- Over the tabs, settings and preview while the module is off: a dimmed backdrop that takes the mouse, and a box in
+-- its middle with the module's preview, dimmed under the struck-through logo (or the logo alone), saying it's off, and
+-- a button to turn it on. Built the first time it shows.
+function P:CreateOffOverlay()
+    local view, header = self.pageView, self.pageHeader
     local off = CreateFrame("Frame", nil, view)
     self.offOverlay = off
     off:SetPoint("TOPLEFT", header, "BOTTOMLEFT", -PAD, -6)
@@ -2685,11 +2691,12 @@ end
 
 -- Shows the off overlay for the open module when it's off, or hides it.
 function P:RefreshOffOverlay(module, on)
-    local off = self.offOverlay
     if not module or on or not self.pageOptions then
-        if self.offShown then self.offShown = false; off:Hide() end
+        if self.offShown then self.offShown = false; self.offOverlay:Hide() end
         return
     end
+    if not self.offOverlay then self:CreateOffOverlay() end
+    local off = self.offOverlay
     local box, info = off.box, module.info
     local unavailable = info.unavailable
     box.title:SetText(info.name .. (unavailable and " isn't available" or " is off"))
@@ -2996,7 +3003,7 @@ function P:SetMode(mode, view)
         self.filtersShown = filters
         for _, chip in pairs(self.filters) do chip:SetShown(filters) end
     end
-    self.empty:Hide()
+    if self.empty then self.empty:Hide() end
     if not list then self.tabCount, self.chipCount = 0, 0 end
 end
 
@@ -3351,7 +3358,7 @@ function P:Search(text, again)
                 { "Clear search", function() self.search:SetText(""); self.search:SetFocus() end },
                 { "Browse all tweaks", function() self.filter = "all"; self:ShowModules() end },
             } })
-    else
+    elseif self.empty then
         self.empty:Hide()
     end
     if modules[1] then self:ShowDetail(modules[1]) elseif ranked[1] then self:ShowResultDetail(ranked[1].entry) end
