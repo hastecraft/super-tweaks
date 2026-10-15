@@ -509,12 +509,12 @@ function X:DrawBars()
     local width, height = self.bars.xp:GetWidth(), self.bars.xp:GetHeight()
     if drawn.xp == xp and drawn.rested == rested and drawn.quest == quest and drawn.showRested == showRested
         and drawn.showQuest == showQuest and drawn.width == width and drawn.height == height then return end
+    local wasRested, wasQuest, wasSpark = drawn.showRested, drawn.showQuest, drawn.showSpark
     drawn.xp, drawn.rested, drawn.quest, drawn.showRested, drawn.showQuest = xp, rested, quest, showRested, showQuest
     drawn.width, drawn.height = width, height
     self.bars.xp:SetValue(xp)
     PlaceAfter(self.bars.rested, self.bars.xp, p, width, height, xp, rested)
     PlaceAfter(self.bars.quest, self.bars.xp, p, width, height, xp + rested, quest)
-    local wasRested, wasQuest, wasSpark = drawn.showRested, drawn.showQuest, drawn.showSpark
     if wasRested ~= showRested then self.bars.rested:SetShown(showRested) end
     if wasQuest ~= showQuest then self.bars.quest:SetShown(showQuest) end
     local fraction = min(1, state.xp / cap)
@@ -605,8 +605,9 @@ local function Protected(region) return region.IsProtected ~= nil and region:IsP
 -- and catch clicks). This client's bars aren't protected, so this works in combat; protected ones wait for it to end.
 function X:UpdateBlizzardBar()
     local hide = self.db.profile.hideBlizzard and self:IsEnabled()
-    local hidden = self.blizzardHidden or {}
-    if not (hide or next(hidden)) then return end -- off, with nothing to restore
+    local hidden = self.blizzardHidden
+    if not (hide or (hidden and next(hidden))) then return end -- off, with nothing to restore
+    hidden = hidden or {}
     if hide then self:HookBlizzardBar() end
     self.blizzardHidden = hidden
     local regions = hide and self:BlizzardXPRegions() or {}
