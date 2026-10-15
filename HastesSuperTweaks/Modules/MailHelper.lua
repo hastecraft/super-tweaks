@@ -95,9 +95,8 @@ ns.LazyOptions(M, function(self)
     return { name = self.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             expiry = ns.Section("Expiring mail", 1, {
-                warnLogin = ns.Option(profile, "toggle", "warnLogin", "Warn when you log in", 1,
-                    { desc = "Lists characters with items or gold about to expire." }),
-                days = ns.Option(profile, "range", "days", "Warn about mail expiring within (days)", 2, { min = 1, max = 30, step = 1,
+                warnLogin = ns.Option(profile, "toggle", "warnLogin", "Warn when you log in", 1),
+                days = ns.Option(profile, "range", "days", "Warn within (days)", 2, { min = 1, max = 30, step = 1,
                     desc = "Mail stays in a mailbox for up to 30 days; cash on delivery mail for 3." }),
                 check = { type = "execute", name = "Check now", order = 3,
                     desc = "Lists mail expiring soon on all your characters.", func = function() self:Warn(true) end },

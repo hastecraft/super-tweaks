@@ -1296,9 +1296,9 @@ function C:BuildOptions()
     return { name = C.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             show = ns.Section("On screen", 1, {
-                display = option("toggle", "display", "Show on screen", 1, { desc = "Move it in Edit Mode." }),
+                display = option("toggle", "display", "Show on screen", 1),
                 style = option("select", "style", "Style", 2, { disabled = off,
-                    values = { campfire = "Campfire in a ring", bar = "Bar", icons = "Icon" },
+                    values = { campfire = "Campfire", bar = "Bar", icons = "Icon" },
                     sorting = { "campfire", "bar", "icons" } }),
                 reset = { type = "execute", name = "Reset position", order = 3, disabled = off,
                     desc = "Moves it back near the top of the screen.",
@@ -1326,7 +1326,7 @@ function C:BuildOptions()
                 warnAt = range("warnAt", "Warn at (minutes left)", 1, 0, 30, { disabled = off,
                     desc = "Turns red and blinks. 0 turns the warning off." }),
                 sound = option("toggle", "sound", "Play a sound", 2, { disabled = off, desc =
-                    "The raid warning sound, when your camp buffs are about to run out and when they do." }),
+                    "The raid warning sound, as your camp buffs run out." }),
             }),
         } },
         campfire = { type = "group", name = "Campfire", order = 2, hidden = notStyle("campfire"), disabled = off, args = {
@@ -1388,15 +1388,14 @@ function C:BuildOptions()
         } },
         chat = { type = "group", name = "Chat", order = 4, args = {
             chat = ns.Section("Chat messages", 1, {
-                chat = option("toggle", "chat", "Say it in chat", 1, { desc =
-                    "Also posts the messages chosen below in chat." }),
+                chat = option("toggle", "chat", "Say it in chat", 1),
                 fire = option("toggle", "fire", "Your campfire", 2, { disabled = quiet, desc =
                     "How long a campfire you light burns, a warning a minute before it goes out, and when you can "
                         .. "light another." }),
                 sitting = option("toggle", "sitting", "Keep sitting", 3, { disabled = quiet, desc =
                     "How long until your camp buffs land, and a warning if you got up too soon or your old camp "
                         .. "buffs block new ones." }),
-                buffs = option("toggle", "buffs", "Name the camp buffs you got", 4, { disabled = quiet, desc =
+                buffs = option("toggle", "buffs", "Camp buffs you got", 4, { disabled = quiet, desc =
                     "Also warns when one of them ends before the others." }),
                 ending = option("toggle", "ending", "Camp buffs ending", 5, { disabled = quiet, desc =
                     "At the warning time set on General, and when they're gone." }),

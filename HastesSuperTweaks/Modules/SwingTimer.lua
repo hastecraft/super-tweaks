@@ -379,9 +379,7 @@ function S:BuildOptions()
                 ranged = option("color", "ranged", "Ranged", 5, { disabled = noColors }),
             }),
             range = ns.Section("Out of range", 2, {
-                rangeColor = option("toggle", "rangeColor", "Color while out of range", 1, {
-                    desc = "The game dims a bar and turns its text red while your target is out of range; this also "
-                        .. "gives the fill a color." }),
+                rangeColor = option("toggle", "rangeColor", "Color while out of range", 1),
                 outOfRange = option("color", "outOfRange", "Out of range color", 2, { disabled = unset("rangeColor") }),
             }),
             hide = ns.Section("Hide", 3, {

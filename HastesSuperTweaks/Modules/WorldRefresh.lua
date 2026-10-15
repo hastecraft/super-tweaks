@@ -587,15 +587,13 @@ function R:BuildOptions()
     return { name = R.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             main = ns.Section("World refresh", 1, {
-                hideBlizzard = option("toggle", "hideBlizzard", "Replace the game's notice", 1, {
-                    desc = "Hides the game's own world refresh notice above the chat window." }),
+                hideBlizzard = option("toggle", "hideBlizzard", "Replace the game's notice", 1),
                 autoRefresh = option("select", "autoRefresh", "Refresh by itself", 2, {
-                    desc = "Refreshes for you once you're out of combat, alive, not flying, casting, at an NPC or in an "
-                        .. "instance, so the game doesn't move you in the middle of a fight. Right-click the bar to stop it "
-                        .. "for one refresh.",
-                    values = { off = "Never", safe = "When it's safe", rested = "When it's safe in an inn or city" },
+                    desc = "Refreshes for you out of combat, when you're not flying, casting or in an instance. "
+                        .. "Right-click the bar to skip one.",
+                    values = { off = "Never", safe = "Anywhere safe", rested = "In an inn or city" },
                     sorting = { "off", "safe", "rested" } }),
-                autoDelay = option("range", "autoDelay", "Notice before refreshing (seconds)", 3, { min = 0, max = 15, step = 1,
+                autoDelay = option("range", "autoDelay", "Countdown (seconds)", 3, { min = 0, max = 15, step = 1,
                     desc = "The bar counts down this long first; anything unsafe in that time calls it off.", disabled = noAuto }),
                 sample = { type = "execute", name = "Play sample", order = 4,
                     desc = "Runs a refresh countdown that refreshes nothing. Also /hst refresh sample.",
@@ -615,7 +613,7 @@ function R:BuildOptions()
                 warnMessage = option("toggle", "warnMessage", "Message on screen", 2, { disabled = noWarning,
                     desc = "Shows the time left in the middle of the screen, like a raid warning." }),
                 warnSound = option("toggle", "warnSound", "Play a sound", 3, { disabled = noWarning,
-                    desc = "Plays the raid warning sound." }),
+                    desc = "The raid warning sound." }),
                 warnPulse = option("toggle", "warnPulse", "Pulse", 4, { disabled = noWarning }),
             }),
         } },

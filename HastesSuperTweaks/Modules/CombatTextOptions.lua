@@ -58,17 +58,15 @@ function S:BuildOptions()
             animation = opt("select", "animation", "Animation", 1, ns.With({
                 desc = "Arc curves texts out to alternating sides as they rise. Stay and fade stacks them in place, newest "
                     .. "at the bottom." }, ANIMATIONS)),
-            align = opt("select", "align", "Text alignment", 2, ns.With({
-                desc = "Lines texts up on the left, middle or right of the area. Move the area itself with Horizontal "
-                    .. "and Vertical below, or in Edit Mode." }, ALIGNS)),
+            align = opt("select", "align", "Alignment", 2, ns.With({}, ALIGNS)),
             fontSize = opt("range", "fontSize", "Text size", 3, { min = 8, max = 40, step = 1 }),
             height = opt("range", "height", "Scroll distance", 4, { min = 20, max = 400, step = 5,
                 desc = "How far texts travel. Also the height of the area's box in Edit Mode." }),
             duration = opt("range", "duration", "Show for (seconds)", 5, { min = 0.5, max = 6, step = 0.1 }),
             x = opt("range", "x", "Horizontal", 6, { min = -2000, max = 2000, step = 1,
-                desc = "Where the area's center is, from the middle of the screen. You can also drag it in Edit Mode." }),
+                desc = "From the middle of the screen." }),
             y = opt("range", "y", "Vertical", 7, { min = -1200, max = 1200, step = 1,
-                desc = "Where the area's center is, from the middle of the screen. You can also drag it in Edit Mode." }),
+                desc = "From the middle of the screen." }),
             reset = { type = "execute", name = "Reset position", order = 8,
                 desc = "Moves the area back to its default spot.",
                 func = function()
@@ -83,8 +81,7 @@ function S:BuildOptions()
         general = { type = "group", name = "General", order = 1, args = {
             main = Section("Combat text", 1, {
                 replaceBlizzard = toggle("replaceBlizzard", "Replace the game's combat text", 1,
-                    "Stops the game's own combat text from showing the same things, so nothing appears twice. Its "
-                        .. "notices come back after a /reload when you turn this off."),
+                    "Hides the game's own combat text, so nothing shows twice. Turning this off takes a /reload."),
                 sample = { type = "execute", name = "Play sample", order = 2,
                     desc = "Shows sample texts in every area in use.",
                     func = function() S:PlaySample() end },
@@ -104,8 +101,7 @@ function S:BuildOptions()
                 schoolColors = toggle("schoolColors", "Color spells by school", 6,
                     "Colors spell damage on enemies and your pet: fire orange, frost light blue, nature green, shadow "
                         .. "purple, arcane pink, holy yellow."),
-                fadeIn = toggle("fadeIn", "Fade in", 8, "Texts fade in over " .. S.FADE_IN * 1000
-                    .. " milliseconds instead of appearing at once."),
+                fadeIn = toggle("fadeIn", "Fade in", 8),
             }),
             misses = Section("Misses", 4, {
                 missScale = option("range", "missScale", "Size", 1, { min = 0.5, max = 2, step = 0.05, isPercent = true,
@@ -151,9 +147,8 @@ function S:BuildOptions()
                     values = { NAMEPLATE = "On their nameplates", AREA = "Your target's, in a scroll area",
                         GAME = "The game's own numbers", OFF = "Off" },
                     sorting = { "GAME", "NAMEPLATE", "AREA", "OFF" },
-                    desc = "Nameplates and the scroll area show everyone's damage, since the game doesn't tell addons who "
-                        .. "dealt it, and nameplate numbers need enemy nameplates shown. The game's own numbers shows only "
-                        .. "your damage, with this font and the size under The game's numbers." }),
+                    desc = "Nameplates and the scroll area show everyone's damage, not only yours. Nameplate numbers "
+                        .. "need enemy nameplates on. The game's own numbers show only your damage." }),
                 hideWorldDamage = enemyOption("toggle", "hideWorldDamage", "Hide the game's damage numbers", 2, {
                     desc = "Turns off the game's floating damage numbers while this shows its own." }),
                 skipTapped = enemyOption("toggle", "skipTapped", "Skip other players' mobs", 3,

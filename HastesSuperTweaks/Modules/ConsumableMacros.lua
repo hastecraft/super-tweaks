@@ -108,8 +108,7 @@ ns.Configure(M, defaults, function(self)
     local function toggle(key, name, order, desc, disabled)
         return ns.Option(profile, "toggle", key, name, order, { desc = desc, disabled = disabled }, function() self:Refresh() end)
     end
-    local macros = { help = { type = "description", order = 0,
-        name = "Each macro is kept up to date as your bags change." } }
+    local macros = {}
     for i, kind in ipairs(self.KINDS) do macros[kind.key] = toggle(kind.key, kind.macro, i) end
     macros.eatdrink.desc = "Eats and drinks in one click. In combat it uses a Healthstone with a mana potion, or a "
         .. "healing potion alone."
@@ -167,8 +166,7 @@ ns.Configure(M, defaults, function(self)
                     "Uses a Healthstone or healing potion in combat, where you can't eat."),
                 drinkCombat = toggle("drinkCombat", "Drink macro restores mana in combat", 4,
                     "Uses a mana potion in combat, where you can't drink."),
-                stoneFirst = toggle("stoneFirst", "Healthstones before potions", 5,
-                    "Uses a Healthstone when you have one, saving your potions."),
+                stoneFirst = toggle("stoneFirst", "Healthstones before potions", 5),
                 bandageTarget = toggle("bandageTarget", "Bandage your friendly target", 6,
                     "Otherwise you bandage yourself."),
             }),

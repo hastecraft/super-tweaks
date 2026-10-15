@@ -26,8 +26,7 @@ ns.Configure(T, { instances = true, pvp = false, combat = false, always = false 
     return ns.OnePage(m.info.name, "hide", "Hide the quest tracker", {
         instances = option("instances", "In dungeons and raids", 1),
         pvp = option("pvp", "In battlegrounds and arenas", 2),
-        combat = option("combat", "In combat", 3, "Hidden as combat starts and back when it ends. A fight that "
-            .. "starts before it can hide leaves it up until the fight is over."),
+        combat = option("combat", "In combat", 3),
         always = option("always", "Always", 4),
     })
 end, "Update")

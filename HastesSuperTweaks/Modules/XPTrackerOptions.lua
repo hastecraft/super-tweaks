@@ -73,8 +73,8 @@ function X:BuildOptions()
     end
     local function path(key, name, order, textKey)
         return option("input", key, name, order, { width = "full",
-            desc = "A file path from the WoW folder, such as Interface\\AddOns\\MyMedia\\MyFile.ttf or .tga. Overrides the "
-                .. "menu while filled in. New files need a game restart." }, textKey)
+            desc = "A file in the WoW folder, such as Interface\\AddOns\\MyMedia\\MyFile.ttf or .tga. Used instead of "
+                .. "the menu. New files need a game restart." }, textKey)
     end
     -- Predicates for `disabled`.
     local function whenSet(key) return function() return X.db.profile[key] end end
@@ -84,13 +84,13 @@ function X:BuildOptions()
     options.args.general = { type = "group", name = "General", order = 1, args = {
         bar = section("Tracker", 1, {
             preview = { type = "toggle", name = "Preview", order = 1,
-                desc = "Shows sample data so you can style the bar at any level, ignoring visibility rules. Turns off on /reload.",
+                desc = "Shows sample data, so you can style the bar at any level. Turns off on /reload.",
                 get = function() return X.preview end, set = function(_, v) X.preview = v; X:Render() end },
             hideBlizzard = toggle("hideBlizzard", "Hide the game's XP bar", 2),
         }),
         mouse = section("Mouse", 2, {
             locked = toggle("locked", "Lock position", 1,
-                "Unlock to drag the bar outside Edit Mode."),
+                "Unlock to drag the bar anywhere."),
             clickThrough = option("toggle", "clickThrough", "Click-through", 2, {
                 desc = "While locked, the bar ignores the mouse: clicks and camera drags reach the world behind it, and it "
                     .. "shows no tooltip or right-click settings. Not available with Mouseover only.",
@@ -124,27 +124,23 @@ function X:BuildOptions()
         fade = section("Opacity", 2, {
             alpha = range("alpha", "Opacity", 1, 0.05, 1, 0.01),
             combatAlpha = with(range("combatAlpha", "Combat opacity", 2, 0, 1, 0.01), {
-                desc = "Replaces Opacity during combat.", disabled = whenSet("hideCombat") }),
+                disabled = whenSet("hideCombat") }),
             mouseover = toggle("mouseover", "Mouseover only", 3,
-                "While locked, the bar stays hidden until you point at it. In combat it stays hidden if Ignore mouse in "
-                .. "combat is on."),
+                "While locked, the bar shows only when you point at it."),
         }),
     } }
     options.args.layout = { type = "group", name = "Size & position", order = 3, args = {
         size = section("Size", 1, {
             width = range("width", "Width", 1, 20, 2400), height = range("height", "Height", 2, 6, 600),
             scale = with(range("scale", "Scale", 3, 0.25, 3, 0.01), {
-                desc = "Values other than 100% can blur thin lines and text. For a sharp bar, use Width, Height and Text size instead." }),
+                desc = "Other than 100% can blur the bar. Width, Height and Text size keep it sharp." }),
         }),
         position = section("Position", 2, {
-            help = { type = "description", order = 0,
-                name = "You can also drag the bar in Edit Mode, where it snaps to the grid." },
             x = position(1, "Horizontal", 1, -4000, 4000), y = position(2, "Vertical", 2, -2400, 2400),
             strata = with(dropdown("strata", "Layer", 3, stratas, strataOrder), { desc = "Raise this if other frames cover the bar." }),
             center = { type = "execute", name = "Center", order = 4,
                 func = function() X:SetPosition(0, 0); X:Apply() end },
-            perLayout = toggle("perLayout", "Position per Edit Mode layout", 5,
-                "Remembers a position for each Edit Mode layout. Layouts without one use the shared position."),
+            perLayout = toggle("perLayout", "Position per Edit Mode layout", 5),
             forgetLayouts = { type = "execute", name = "Forget layout positions", order = 6, confirm = true,
                 confirmText = "Forget the bar's position in every Edit Mode layout? Each layout goes back to the shared position.",
                 disabled = function() return next(X.db.profile.layouts) == nil end,
@@ -164,7 +160,7 @@ function X:BuildOptions()
         }),
         colors = section("Colors", 2, {
             xpColor = color("xpColor", "XP", 1),
-            classColor = toggle("classColor", "Use class color", 2, "Colors the XP fill by your class. The XP color's opacity still applies."),
+            classColor = toggle("classColor", "Class color", 2),
             backgroundColor = color("backgroundColor", "Background", 3),
         }),
         projections = section("Rested & quest XP", 3, {
@@ -180,9 +176,9 @@ function X:BuildOptions()
             padding = with(range("padding", "Padding", 3, 0, 20), { desc = "Space between the border and the fill." }),
         }),
         details = section("Divisions & spark", 5, {
-            ticks = with(range("ticks", "Divisions", 1, 0, 40), { desc = "Splits the bar into this many segments. 0 or 1 shows no markers." }),
+            ticks = with(range("ticks", "Divisions", 1, 0, 40), { desc = "Splits the bar into this many parts. 0 or 1: none." }),
             tickColor = with(color("tickColor", "Division color", 2), { disabled = function() return X.db.profile.ticks < 2 end }),
-            spark = toggle("spark", "Spark", 3, "Highlights the leading edge of the XP fill."),
+            spark = toggle("spark", "Spark", 3, "A bright line at the end of the XP fill."),
             sparkWidth = with(range("sparkWidth", "Spark width", 4, 1, 8), { disabled = whenUnset("spark") }),
             sparkColor = with(color("sparkColor", "Spark color", 5), { disabled = whenUnset("spark") }),
         }),
@@ -193,11 +189,11 @@ function X:BuildOptions()
             outline = with(dropdown("outline", "Outline", 2, outlines, outlineOrder), {
                 desc = ns.OutlineDesc(true) }),
             textScale = with(range("textScale", "Text size", 3, 0.5, 3, 0.05), { isPercent = true,
-                desc = "Resizes every label. Sizes are rounded so text stays sharp." }),
+                desc = "Resizes every label." }),
             fontPath = path("fontPath", "Custom font", 4),
         }),
         numbers = section("Numbers", 2, {
-            compact = toggle("compact", "Abbreviate large numbers", 1, "Shows 12.3k and 1.2m instead of full values."),
+            compact = toggle("compact", "Short numbers", 1, "12.3k and 1.2m instead of full numbers."),
             decimals = range("decimals", "Percent decimals", 2, 0, 2),
         }),
     } }
@@ -241,7 +237,7 @@ function X:BuildOptions()
             resetOnReload = toggle("resetOnReload", "New session on /reload", 2),
             pauseAFK = toggle("pauseAFK", "Pause while AFK", 3, "AFK time doesn't count toward XP per hour."),
             updateInterval = with(range("updateInterval", "Refresh every (seconds)", 4, 1, 10), {
-                desc = "How often XP per hour and the time readouts update. XP gains still show right away." }),
+                desc = "How often XP per hour and the times update." }),
             resetStats = { type = "execute", name = "Reset session", order = 5, confirm = true,
                 confirmText = "Reset this character's session XP and time?", func = function() X:ResetSession() end },
         }),

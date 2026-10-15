@@ -351,7 +351,7 @@ ns.Configure(F, defaults, function(m)
     local function toggle(key, name, order, desc) return ns.Option(profile, "toggle", key, name, order, { desc = desc }, apply) end
     local lists, words = {}, {}
     for i, list in ipairs(m.LISTS) do
-        lists[list.key] = toggle(list.key, list.name, i, list.key == "custom" and "The words you add below." or nil)
+        lists[list.key] = toggle(list.key, list.name, i)
         words[list.words] = ns.Option(profile, "input", list.words, list.name, i, { multiline = true,
             disabled = function() return not m.db.profile[list.key] end,
             desc = "Separate words and phrases with commas or lines; capitals don't matter. Press Enter to apply, "

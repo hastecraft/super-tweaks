@@ -54,15 +54,15 @@ local F = HST:NewFeature("FastLoot", {
 ns.FastLoot = F
 Configure(F, { soloBind = false, speed = "MODERATE" }, function(m)
     return ns.OnePage(m.info.name, "settings", "Settings", {
-        autoLoot = { type = "toggle", name = "Auto Loot (game setting)", order = 1,
-            desc = "The game's Auto Loot setting. Fast Loot works while it's on, or while you hold the auto loot key.",
+        autoLoot = { type = "toggle", name = "Auto Loot", order = 1,
+            desc = "The game's own setting. Fast Loot works while it's on, or while you hold the auto loot key.",
             get = function() return GetCVarBool("autoLootDefault") end,
             set = function(_, value) SetCVar("autoLootDefault", value and "1" or "0") end },
         speed = ns.Option(function() return m.db.profile end, "select", "speed", "Speed", 2, {
             values = { MODERATE = "Moderate", MAXIMUM = "Maximum" }, sorting = { "MODERATE", "MAXIMUM" },
             desc = "Moderate waits a frame so addons that track gathering see the loot first. Maximum is instant, but "
                 .. "those addons can miss it." }),
-        soloBind = ns.Option(function() return m.db.profile end, "toggle", "soloBind", "Take bind-on-pickup items when solo", 3,
+        soloBind = ns.Option(function() return m.db.profile end, "toggle", "soloBind", "Take bind-on-pickup loot solo", 3,
             { desc = "Skips the bind confirmation while you're not in a group." }),
     })
 end)
@@ -271,8 +271,7 @@ Configure(L, defaults, function(m)
             window = ns.Section("Loot window", 1, {
                 underMouse = option("toggle", "underMouse", "Open at the mouse", 1,
                     { desc = "When off, it opens where you placed it in Edit Mode." }),
-                ownedCount = option("toggle", "ownedCount", "Show how many you have", 2,
-                    { desc = "Adds how many of each item are already in your bags." }),
+                ownedCount = option("toggle", "ownedCount", "Show how many you have", 2),
                 scale = option("range", "scale", "Scale", 3, { min = 0.6, max = 1.6, step = 0.05, isPercent = true }),
                 hotkey = { type = "input", name = "Take All key", order = 4,
                     desc = "Takes everything while the window is open, out of combat. Leave empty for no key.",
@@ -292,8 +291,8 @@ Configure(L, defaults, function(m)
                     func = function() m:PlayNoticeSample() end },
                 notify = option("toggle", "notify", "List what you pick up", 1,
                     { desc = "Briefly shows each item you auto loot, in the window's spot." }),
-                hoverStay = option("toggle", "hoverStay", "Stay while you point at it", 2, { disabled = quiet,
-                    desc = "Keeps the list up while your mouse is over it. Shift-click an item to link it." }),
+                hoverStay = option("toggle", "hoverStay", "Stay while hovered", 2, { disabled = quiet,
+                    desc = "Shift-click an item to link it." }),
                 combatClickThrough = option("toggle", "combatClickThrough", "Click-through in combat", 2.5, {
                     disabled = function() return quiet() or not m.db.profile.hoverStay end,
                     desc = "In combat, clicks pass through the list and it fades on time, even under the mouse." }),
@@ -317,18 +316,17 @@ Configure(L, defaults, function(m)
         } },
         window = { type = "group", name = "Window", order = 2, args = {
             background = ns.Section("Background", 1, {
-                takeBackground = option("toggle", "takeBackground", "Background when there's loot to take", 1,
-                    { desc = "Shown when you loot by hand, including what auto looting leaves behind." }),
-                noticeAlpha = option("range", "noticeAlpha", "Behind the auto loot list", 2, { min = 0, max = 1, step = 0.05,
+                takeBackground = option("toggle", "takeBackground", "Loot background", 1,
+                    { desc = "When you loot by hand, and for what auto looting leaves behind." }),
+                noticeAlpha = option("range", "noticeAlpha", "Auto loot list background", 2, { min = 0, max = 1, step = 0.05,
                     isPercent = true,
-                    desc = "At 0% the list floats on its own, so it isn't mistaken for loot still to take." }),
+                    desc = "At 0% the list has no background." }),
                 backgroundStyle = option("select", "backgroundStyle", "Style", 3, { disabled = noBackground,
-                    values = { SOLID = "Solid color", PAGE = "Burnt page" }, sorting = { "SOLID", "PAGE" },
-                    desc = "Burnt page is parchment with scorched, ragged edges." }),
+                    values = { SOLID = "Solid color", PAGE = "Burnt page" }, sorting = { "SOLID", "PAGE" } }),
                 backgroundColor = option("color", "backgroundColor", "Solid color", 4,
                     { hidden = otherStyle("SOLID"), disabled = noBackground }),
                 pageColor = option("color", "pageColor", "Page color", 5, { hasAlpha = false, hidden = otherStyle("PAGE"),
-                    disabled = noBackground, desc = "Grain and burn shading are added on top." }),
+                    disabled = noBackground }),
                 pageAlpha = option("range", "pageAlpha", "Page opacity", 6, { min = 0.05, max = 1, step = 0.05, isPercent = true,
                     hidden = otherStyle("PAGE"), disabled = noBackground }),
                 scorchColor = option("color", "scorchColor", "Scorch color", 7, { hasAlpha = false, hidden = otherStyle("PAGE"),
@@ -341,8 +339,7 @@ Configure(L, defaults, function(m)
                     desc = "At 0% the paper just has a ragged edge." }),
             }),
             border = ns.Section("Border", 2, {
-                border = option("toggle", "border", "Show border", 1,
-                    { desc = "The burnt page looks best without one." }),
+                border = option("toggle", "border", "Show border", 1),
                 borderColor = option("color", "borderColor", "Border color", 2, { disabled = off("border") }),
                 borderSize = option("range", "borderSize", "Border size", 3, { min = 1, max = 6, step = 1, disabled = off("border") }),
                 qualityBorder = option("toggle", "qualityBorder", "Border in the best item's color", 4, { disabled = off("border"),
@@ -352,7 +349,7 @@ Configure(L, defaults, function(m)
             }),
             top = ns.Section("Top bar", 3, {
                 headerRule = option("toggle", "headerRule", "Line under the top bar", 1),
-                closeButton = option("toggle", "closeButton", "Close button", 2, { desc = "Escape closes the window too." }),
+                closeButton = option("toggle", "closeButton", "Close button", 2),
             }),
             reset = ns.Section("Reset", 4, {
                 resetLook = { type = "execute", name = "Reset appearance", order = 1, confirm = true,
@@ -386,7 +383,7 @@ Configure(L, defaults, function(m)
             money = ns.Section("Money", 3, {
                 footerAlign = option("select", "footerAlign", "Position", 1, {
                     values = { LEFT = "Left", CENTER = "Middle", RIGHT = "Right" }, sorting = { "LEFT", "CENTER", "RIGHT" },
-                    desc = "Money has its own line at the bottom. Click it to take the money." }),
+                    desc = "Click the money to take it." }),
                 footerSize = option("range", "footerSize", "Text size", 2, { min = 8, max = 20, step = 1 }),
                 footerColor = option("color", "footerColor", "Text color", 3),
                 footerRule = option("toggle", "footerRule", "Line above it", 4),
