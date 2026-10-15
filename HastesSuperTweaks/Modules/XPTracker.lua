@@ -138,13 +138,15 @@ local function SetToken(token, text)
     return true
 end
 
-function X:GetState()
+-- gaining: HiddenReason has just found you can gain XP, so neither is asked again.
+function X:GetState(gaining)
     local xp, cap, level = UnitXP("player") or 0, UnitXPMax("player") or 0, UnitLevel("player")
     local rested, quest, questKnown = GetXPExhaustion() or 0, self.questXP or 0, self.questAvailable ~= false
     local questEstimate = self.questEstimated and "~" or ""
     local gained = self.db.char.session.gained
     -- At the level cap, or with XP turned off (which isn't the cap: the bar still shows where you are).
-    local atMax, xpOff = ns.AtMaxLevel(level, cap), IsXPUserDisabled ~= nil and IsXPUserDisabled() == true
+    local atMax, xpOff = false, false
+    if not gaining then atMax, xpOff = ns.AtMaxLevel(level, cap), IsXPUserDisabled ~= nil and IsXPUserDisabled() == true end
     if self.preview then
         xp, cap, level, rested, quest, questKnown, gained = 6500, 10000, 32, 2200, 1200, true, 14000
         questEstimate, atMax, xpOff = "", false, false
@@ -438,7 +440,7 @@ function X:Render(sameContent)
     if self.faded or (inView and not self.questDirty and not self.hovered) then return end
     -- Quest log changes are only noted; scan once here, while the bar is visible.
     if self.questDirty then self.questDirty = false; self:UpdateQuestXP() end
-    self:GetState()
+    self:GetState(p.hideMax and not self.preview and not self.editMode)
     self:DrawTexts()
     self:DrawBars()
     -- The tooltip follows the readouts while you point at the bar.
