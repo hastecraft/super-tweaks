@@ -16,6 +16,42 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.0.0", date = "2026-10-15",
+        highlights = {
+            { "Behind the new cog beside the close button, pick the settings window's look: Graphite, the new default, accented in your class color; Ember, the old look; or Moonwell. The logo and the Minimap Button match it.",
+                title = "Settings: Themes" },
+        },
+        new = {
+            { "The cog's page can turn off \"Animate previews\" and \"Play click sounds\", and picks the chat window tweaks' messages show in. The New Patch Dot switch, \"Reset window\" and the starting points are there too.",
+                title = "Settings: Window Settings" },
+            { "Middle-click the \"No camp buffs\" reminder to hide it until you reload.",
+                title = "Campfire Helper: Hide the Reminder", module = "CampfireHelper" },
+        },
+        changed = {
+            { "Better Tooltips: \"Show how many you have\" now starts off. Turn it on to get item counts back.",
+                module = "Tooltip", path = { "extras" }, setting = "itemCounts" },
+            { "Better World Refresh: \"Refresh by itself\" now starts at \"Never\".",
+                module = "WorldRefresh", path = { "general" }, setting = "autoRefresh" },
+            { "Campfire Helper: starts near the top of the screen instead of the middle. If you moved it, it stays where you put it.",
+                module = "CampfireHelper" },
+            "Settings: a setting's description shows when you point at it, and names, choices and descriptions are shorter.",
+            "Settings: the previews of Quest Progress Sounds, Fast Loot, Bag Tweaks, Battleground Alerts, Guild Message Popup, Better World Refresh, Swing Timer Style and Aura Sounds show just the preview.",
+            "Patch notes: shorter lines, titled new features, and highlights no longer repeated in the lists.",
+        },
+        fixed = {
+            { "Better Scrolling Combat Text: the combo points notice no longer errors on PvP targets.", module = "CombatText" },
+            { "Better Scrolling Combat Text: spell alerts still hide once used after you change a setting.", module = "CombatText" },
+            { "Chat Spam Filter: turning it off during Find members no longer sends your /who answers to the Who window.",
+                module = "ChatFilter" },
+            { "Consumable Macros: turned off and back on, Feed Pet asks again what your pet eats.", module = "ConsumableMacros" },
+            { "Quest Item Button: turned off and back on, it shows the right item and your current key.", module = "QuestItemButton" },
+            { "Loot Window: the border is sharp at any scale from the first window.", module = "LootWindow" },
+            { "Better Breath Meter: the settings preview no longer turns black or loses its \"Breath\" label.", module = "BreathMeter" },
+            "Settings search shows each setting's description as it is now.",
+            "Patch notes: the Quest Mobs and Guild Message Popup font entries open their settings.",
+        },
+    },
+    {
         version = "2.1.0", date = "2026-10-14",
         highlights = {
             { "The game's swing timer in your own colors and texture, with a color of its own while your target is out of range. Bars can hide while they aren't swinging, so the melee and ranged bars share a spot. Starts off.",
