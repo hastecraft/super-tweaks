@@ -128,10 +128,15 @@ end
 -- you see them, as they talk while they're one of those units, and from any /who (Find members asks for one), and
 -- remembered across sessions: by GUID, or by name from /who, which gives no GUID. Only muted guilds' members are kept.
 ---------------------------------------------------------------------------
-local lowered = {} -- guild names as the game gives them, lowercased, read once each
+-- Guild names as the game gives them, lowercased, read once each; let go once there are many, as with names below.
+local lowered, loweredCount = {}, 0
 local function Lowered(guild)
     local key = lowered[guild]
-    if not key then key = lower(guild); lowered[guild] = key end
+    if not key then
+        key = lower(guild)
+        if loweredCount >= 500 then wipe(lowered); loweredCount = 0 end
+        lowered[guild], loweredCount = key, loweredCount + 1
+    end
     return key
 end
 local function GuildOf(unit)
