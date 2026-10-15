@@ -2163,7 +2163,7 @@ function P:Stage(set, parent, info, scale)
         stage:SetPoint("CENTER")
         set[info.key] = stage
     end
-    stage:SetScale(scale)
+    if scale ~= stage.shownScale then stage.shownScale = scale; stage:SetScale(scale) end
     stage:Show()
     info.preview(stage)
     return stage
@@ -2173,9 +2173,11 @@ end
 function P:ShowPreview(info)
     local d = self.detail
     d.stages = d.stages or {}
-    for key, stage in pairs(d.stages) do if key ~= info.key then stage:Hide() end end
+    -- Of its stages, only the one shown last can be showing.
+    if d.shownStage and d.shownStage ~= info.key then d.stages[d.shownStage]:Hide(); d.shownStage = nil end
     if info.preview then
         d.icon:Hide()
+        d.shownStage = info.key
         self:Stage(d.stages, d.preview, info, (self.detailWidth - 26) / W.PREVIEW_WIDTH)
     else
         d.icon:SetTexture(info.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -2686,12 +2688,14 @@ function P:RefreshOffOverlay(module, on)
     box.title:SetText(info.name .. (unavailable and " isn't available" or " is off"))
     box.text:SetText(unavailable or "Turn it on to change its settings.")
     box.button:SetShown(not unavailable)
-    for key, stage in pairs(box.stages) do if key ~= info.key then stage:Hide() end end
+    -- Of its stages, only the one shown last can be showing.
+    if box.shownStage and box.shownStage ~= info.key then box.stages[box.shownStage]:Hide(); box.shownStage = nil end
     local previewed = info.preview ~= nil
     box.preview:SetShown(previewed)
     box.icon:SetShown(not previewed)
     local y = OFF_PAD
     if previewed then
+        box.shownStage = info.key
         self:Stage(box.stages, box.preview, info, OFF_PREVIEW / W.PREVIEW_HEIGHT)
         y = y + OFF_PREVIEW + 16
     else
@@ -2856,8 +2860,12 @@ end
 function P:DrawLivePreview()
     local live, info = self.live, self.pageInfo
     if not (live:IsShown() and info) then return end
-    for key, frame in pairs(self.lives) do if key ~= info.key then frame:Hide() end end
-    for key, stage in pairs(self.stages) do if key ~= info.key or info.livePreview then stage:Hide() end end
+    -- Of the live frames and stages, only the ones shown last can be showing.
+    if self.shownLive and self.shownLive ~= info.key then self.lives[self.shownLive]:Hide(); self.shownLive = nil end
+    if self.shownStage and (self.shownStage ~= info.key or info.livePreview) then
+        self.stages[self.shownStage]:Hide()
+        self.shownStage = nil
+    end
     local width, height = live.areaWidth, math.max(40, live.areaHeight)
     if info.livePreview then
         local frame = self.lives[info.key]
@@ -2867,9 +2875,11 @@ function P:DrawLivePreview()
             self.lives[info.key] = frame
         end
         frame:Show()
+        self.shownLive = info.key
         info.livePreview(frame, width, height, self.openPath or {})
     else
         local scale = Clamp(math.min((width - 16) / W.PREVIEW_WIDTH, (height - 16) / W.PREVIEW_HEIGHT), 0.5, 1.6)
+        self.shownStage = info.key
         self:Stage(self.stages, live.area, info, scale)
     end
 end
@@ -2916,7 +2926,8 @@ end
 -- on one page can share), is scrolled to and flashed.
 function P:ShowPage(id, group, gate, focus)
     self:StopFlash()
-    for _, page in pairs(self.pages) do page.content:Hide() end
+    -- Of the pages built, only the one shown last can be showing (hidden even when it shows again).
+    if self.page then self.page.content:Hide() end
     local page
     if group then
         page = self.pages[id]
