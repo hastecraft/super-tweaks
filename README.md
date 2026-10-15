@@ -2,33 +2,51 @@
 
 Opinionated and highly optimized quality-of-life tweaks for WoW Forever in one neat package.
 
-More than 40 tweaks, from an XP tracker and better tooltips to a compact loot window and automatic junk selling, each one switched on and set up in a single settings window. It also loads on Classic Era.
+More than 50 tweaks, from a campfire timer and an XP tracker to better tooltips and automatic junk selling, each one switched on and set up in a single settings window. It also loads on Classic Era.
 
-Type `/hst` in game to open the settings. The full list of tweaks and how each behaves is in [HastesSuperTweaks/README.md](HastesSuperTweaks/README.md).
+Type `/hst` in game to open the settings. Each tweak can be turned on or off at any time without a `/reload`. Tweaks that act for you or replace part of the game's interface start off. The full list of tweaks and how each behaves is in [HastesSuperTweaks/README.md](HastesSuperTweaks/README.md).
 
 ## Highlights
 
+### Campfire Helper
+
+![Campfire Helper](.github/highlights/campfire-helper.gif)
+
+On WoW Forever, a campfire on screen shows when you're near a fire, counts down while you sit by it, then shows how long your camp buffs have left and blinks when they're about to run out. Show it as a ring, a bar or an icon. `/hst camp check` lists every camp timer.
+
 ### XP Tracker
 
-![XP Tracker](https://media.forgecdn.net/attachments/description/1739405/description_cfccde86-79d4-46d8-908a-2f5b5b1e8b83.png)
+![XP Tracker](.github/highlights/xp-tracker.png)
 
 An XP bar with rested XP, XP from completed quests, XP per hour and time to level. Mob tooltips say roughly how many more kills of that mob you need to level, and the quest log shows each quest's XP.
 
 ### Better Tooltips
 
-![Better Tooltips](https://media.forgecdn.net/attachments/description/1739405/description_00ec91f5-0e25-48bc-8ced-36b93ed4bb32.png)
+![Better Tooltips](.github/highlights/better-tooltips.png)
 
 A health bar under unit tooltips (in class colors, or green to red by health), borders in class colors, guild ranks and notes, and who the unit is targeting. On WoW Forever, your Recent Allies show where and when you last played together. Item tooltips can say how many you have in your bags and banks, and item, spell and NPC IDs are optional. Works with tooltip styles from other addons.
 
+### Appearance Collector
+
+![Appearance Collector](.github/highlights/appearance-collector.png)
+
+On WoW Forever, a mark on gear whose look you haven't collected, in your bags, at vendors and in the Loot Window, and a line in item tooltips. Choose a hanger, shirt, sparkle or dot. Sell Clutter keeps that gear.
+
+### Consumable Macros
+
+![Consumable Macros](.github/highlights/consumable-macros.png)
+
+Macros that always use your best food, drink, bandage and potions as your bags change, plus one that eats and drinks at once, a hunter's Feed Pet, and ones that put your best stone, oil or poison on each weapon. Drag them onto your action bars from the Macros window.
+
 ### Loot Window and Fast Loot
 
-![Loot Window](https://media.forgecdn.net/attachments/description/1739405/description_42ed96fa-33b9-4e96-b722-14f2f830b381.png)
+![Loot Window](.github/highlights/loot-window.png)
 
 A compact loot list with a Take All button and hotkey. While you auto loot, it lists what you picked up for a few seconds. Fast Loot takes everything at once and still lets gathering trackers see the loot.
 
 ### Sell Junk and Sell Clutter
 
-![Sell Junk and Sell Clutter](https://media.forgecdn.net/attachments/description/1739405/description_6eee7735-23e2-4e57-9161-edd42b246813.png)
+![Sell Junk and Sell Clutter](.github/highlights/sell-junk-and-clutter.png)
 
 Greys are sold at any vendor. Sell Clutter also sells the items you collect while leveling and won't use:
 
@@ -41,9 +59,19 @@ It keeps quest items, items your RestedXP guide needs, equipment sets, professio
 
 ### Better Scrolling Combat Text
 
-![Better Scrolling Combat Text](https://media.forgecdn.net/attachments/description/1739405/description_ed4d5513-f2d9-44ca-90f7-fe595d3222da.gif)
+![Better Scrolling Combat Text](.github/highlights/better-scrolling-combat-text.gif)
 
 Separate scroll areas for damage and healing you take and for notices: entering and leaving combat, low health and mana, combo points, auras, reputation, honor and skill-ups. Damage numbers can show on enemy nameplates. Choose fonts, colors, animations and filters, and move each area in Edit Mode.
+
+## Settings window
+
+![Settings window](.github/highlights/settings-window.png)
+
+- Point at a tweak in the list to see its description, a preview and its main settings beside it.
+- Search finds any tweak or setting by name, description or menu choice. Switches work in the results, and Enter jumps to the setting.
+- Tweaks you can see on screen, like the XP bar, tooltips, the loot window and combat text, have a live preview beside their settings that redraws as you change them.
+- The cog in the title bar picks the window's theme: Graphite, Ember or Moonwell.
+- Profiles hold every tweak's settings. Switch, copy and reset them, or share one as text.
 
 ## All tweaks
 
@@ -57,7 +85,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 **Group and PvP:** Auto Accept Summons, Auto Accept Resurrection, Auto Release in Battlegrounds, Battleground Alerts (a countdown to enter, a gates alert and the match result in chat), Group Finder Whispers (class, level and race beside each whisper, with click-to-invite).
 
-**Social:** Right-Click Guild Invite, Guild Message Popup, Chat Spam Filter (hides gold selling, boosting and recruitment in public channels).
+**Social:** Right-Click Guild Invite, Guild Message Popup, Chat Spam Filter (hides gold selling, boosting, recruitment and guilds you mute in public channels).
 
 **Auto-decline:** Battle.net friend requests, duels, guild charters, join requests, party invites and shared quests. Friends, guildmates and community members can be let through.
 
