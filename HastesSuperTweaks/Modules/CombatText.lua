@@ -118,10 +118,12 @@ function S.FontFlags(p)
 end
 
 -- An amount as the Numbers setting writes it: 12.3k from 10,000 up, 12,345 or 12345. An amount the game hides from
--- addons can't be rounded or compared; the game's own formatters write it.
-function S:Amount(amount)
+-- addons can't be rounded or compared; the game's own formatters write it. secret: whether it's hidden, when the
+-- caller knows.
+function S:Amount(amount, secret)
     local mode = self.db.profile.numbers
-    if IsSecret(amount) then
+    if secret == nil then secret = IsSecret(amount) end
+    if secret then
         local format = mode == "SHORT" and AbbreviateNumbers or mode == "GROUPED" and BreakUpLargeNumbers
         if format then return format(amount) end
         return amount
@@ -569,7 +571,7 @@ function S:OnPet(action, flags, amount, school)
         if secret or amount > 0 then
             if not p.inDamage or (not secret and amount < p.inDamageMin) then return end
             local color = p.schoolColors and SchoolColor(school, p.damageColor) or p.damageColor
-            return self:Show(lane, color, Kind(flags), p.inReduction and PET_PARTIAL[flags] or "Pet -%s", self:Amount(amount))
+            return self:Show(lane, color, Kind(flags), p.inReduction and PET_PARTIAL[flags] or "Pet -%s", self:Amount(amount, secret))
         end
         -- Nothing got through: a full block, absorb or resist. Without one of those it was no hit at all (the swing an
         -- on-next-swing ability like Heroic Strike takes the place of arrives so): nothing to show. Misses come as
@@ -578,7 +580,7 @@ function S:OnPet(action, flags, amount, school)
         if word and p.inReduction then self:Show(lane, p.missColor, "miss", "Pet %s", word) end
     elseif action == "HEAL" then
         if not p.inHeals or (not secret and (amount <= 0 or amount < p.inHealMin)) then return end
-        self:Show(lane, p.healColor, flags == "CRITICAL" and "crit" or nil, "Pet +%s", self:Amount(amount))
+        self:Show(lane, p.healColor, flags == "CRITICAL" and "crit" or nil, "Pet +%s", self:Amount(amount, secret))
     elseif REDUCED[action] then
         if p.inReduction then self:Show(lane, p.missColor, "miss", "Pet %s", REDUCED[action]) end
     elseif MISSES[action] then
@@ -604,14 +606,14 @@ end
 -- Part of a hit taken by a block, absorb or resist, and how much.
 local PARTIAL_BY = { BLOCK = "-%s (%s blocked)", ABSORB = "-%s (%s absorbed)", RESIST = "-%s (%s resisted)" }
 
--- An amount in the game's combat text: a hidden one as it is, else a number or nil.
+-- An amount in the game's combat text: a hidden one as it is, else a number or nil; and whether it's hidden.
 local function TextAmount(value)
-    if IsSecret(value) then return value end
-    return tonumber(value)
+    if IsSecret(value) then return value, true end
+    return tonumber(value), false
 end
 -- Whether an amount (TextAmount's) is one to show: hidden amounts can't be compared, so they are.
-local function Shows(amount, least)
-    return IsSecret(amount) or (amount ~= nil and amount > 0 and amount >= least)
+local function Shows(amount, secret, least)
+    return secret or (amount ~= nil and amount > 0 and amount >= least)
 end
 
 function S:OnTaken(kind)
@@ -619,44 +621,47 @@ function S:OnTaken(kind)
     local crit = TAKEN_DAMAGE[kind]
     if crit ~= nil then
         if not p.inDamage then return end
-        local amount = TextAmount((CombatTextInfo()))
-        if not Shows(amount, p.inDamageMin) then return end
-        return self:Show(lane, p.damageColor, crit and "crit" or nil, "-%s", self:Amount(amount))
+        local amount, secret = TextAmount((CombatTextInfo()))
+        if not Shows(amount, secret, p.inDamageMin) then return end
+        return self:Show(lane, p.damageColor, crit and "crit" or nil, "-%s", self:Amount(amount, secret))
     end
     crit = TAKEN_HEAL[kind]
     if crit ~= nil then
         if not p.inHeals then return end
         -- The healer, then the amount.
-        local _, amount = CombatTextInfo()
-        amount = TextAmount(amount)
-        if not Shows(amount, p.inHealMin) then return end
-        return self:Show(lane, p.healColor, crit and "crit" or nil, "+%s", self:Amount(amount))
+        local _, raw = CombatTextInfo()
+        local amount, secret = TextAmount(raw)
+        if not Shows(amount, secret, p.inHealMin) then return end
+        return self:Show(lane, p.healColor, crit and "crit" or nil, "+%s", self:Amount(amount, secret))
     end
     if TAKEN_ENERGY[kind] then
         if not p.inEnergy then return end
         -- The amount, then the power (MANA, RAGE, ENERGY); without it, your main one.
-        local amount, token = CombatTextInfo()
-        amount = TextAmount(amount)
-        if not Shows(amount, 0) then return end
+        local raw, token = CombatTextInfo()
+        local amount, secret = TextAmount(raw)
+        if not Shows(amount, secret, 0) then return end
         if IsSecret(token) or type(token) ~= "string" then
             local _, main = UnitPowerType("player")
             token = not IsSecret(main) and main or nil
         end
-        return self:Show(lane, PowerColor(token), nil, "+%s %s", self:Amount(amount), token and _G[token] or "")
+        return self:Show(lane, PowerColor(token), nil, "+%s %s", self:Amount(amount, secret), token and _G[token] or "")
     end
     local reduced = TAKEN_REDUCED[kind]
     if reduced then
         -- The damage that got through, how much was stopped (nothing when it was all), and whether it was a critical hit.
         local amount, stopped, critical = CombatTextInfo()
-        amount, stopped = TextAmount(amount), TextAmount(stopped)
-        if not (Shows(stopped, 0) and Shows(amount, 0)) then
+        local amountSecret, stoppedSecret
+        amount, amountSecret = TextAmount(amount)
+        stopped, stoppedSecret = TextAmount(stopped)
+        if not (Shows(stopped, stoppedSecret, 0) and Shows(amount, amountSecret, 0)) then
             if p.inReduction then self:Show(lane, p.missColor, "miss", "%s", REDUCED[reduced]) end
             return
         end
-        if not p.inDamage or not Shows(amount, p.inDamageMin) then return end
+        if not p.inDamage or not Shows(amount, amountSecret, p.inDamageMin) then return end
         local size = not IsSecret(critical) and critical and "crit" or nil
-        if not p.inReduction then return self:Show(lane, p.damageColor, size, "-%s", self:Amount(amount)) end
-        return self:Show(lane, p.damageColor, size, PARTIAL_BY[reduced], self:Amount(amount), self:Amount(stopped))
+        if not p.inReduction then return self:Show(lane, p.damageColor, size, "-%s", self:Amount(amount, amountSecret)) end
+        return self:Show(lane, p.damageColor, size, PARTIAL_BY[reduced], self:Amount(amount, amountSecret),
+            self:Amount(stopped, stoppedSecret))
     end
     local avoided = TAKEN_AVOIDED[kind]
     if avoided and p.inMisses then self:Show(lane, p.missColor, "miss", "%s", MISSES[avoided]) end
@@ -706,7 +711,7 @@ function S:OnEnemy(plate, unit, action, flags, amount, school)
             local kind = Kind(flags)
             local color = kind == "crit" and p.enemyCritColor
                 or p.schoolColors and SchoolColor(school, p.enemyColor) or p.enemyColor
-            return self:Show(lane, color, kind, "%s", self:Amount(amount))
+            return self:Show(lane, color, kind, "%s", self:Amount(amount, secret))
         end
         -- Nothing got through: a full block, absorb or resist; without one of those, no hit at all (see S:OnPet).
         local word = REDUCED[flags]
