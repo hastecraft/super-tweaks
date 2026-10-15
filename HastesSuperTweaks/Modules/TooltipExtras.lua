@@ -46,7 +46,10 @@ local function TargetText(unit)
     local guid = UnitGUID(target)
     if IsSecret(guid) or not guid then return nil end
     if guid == made.guid then return made.text end
-    playerGUID = playerGUID or UnitGUID("player")
+    if not playerGUID then
+        local mine = UnitGUID("player")
+        if not IsSecret(mine) then playerGUID = mine end
+    end
     local text = YOU
     if guid ~= playerGUID then
         local name, surname = UnitName(target)
