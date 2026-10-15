@@ -788,7 +788,8 @@ function L:Layout(f, items, manual, p, money, note, placed)
         footer:EnableMouse(manual and money.slot ~= nil)
         footer.rule:SetShown(p.footerRule and #items > 0)
         local text = money.amount and Money(money.amount, p.footerSize) or money.text or ""
-        footer.text:SetText(manual and text or ("+" .. text))
+        if not manual then text = "+" .. text end
+        footer.text:SetText(text)
         ns.SetFont(footer.text, font, p.footerSize, flags)
         footer.text:SetTextColor(unpack(p.footerColor))
         -- Money on its own fills the window, centered.
@@ -796,7 +797,7 @@ function L:Layout(f, items, manual, p, money, note, placed)
         footer.text:ClearAllPoints()
         footer.text:SetPoint(align, footer, align, align == "LEFT" and inset + 2 or align == "RIGHT" and -inset - 2 or 0, 0)
         ns.SetFont(f.measureFooter, font, p.footerSize, flags)
-        f.measureFooter:SetText(footer.text:GetText())
+        f.measureFooter:SetText(text)
         widest = math.max(widest, f.measureFooter:GetStringWidth() + 4)
     end
     -- Rows have the padding's edge above and below; the money line has its own margins, and money on its own sits in
