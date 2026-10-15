@@ -193,9 +193,11 @@ ns.Listen(F, { "LOOT_READY", "LOOT_OPENED", "LOOT_SLOT_CHANGED", "LOOT_CLOSED", 
         local session = self.session
         if session and not session.stopped then
             session[arg] = nil
-            -- Changes come in bursts; try once they settle.
+            -- Changes come in bursts; try once they settle. Ending the session cancels the retry, so the session it
+            -- finds is this one.
             if self.retry then self.retry:Cancel() end
-            self.retry = C_Timer.NewTimer(0.3, function() self.retry = nil; self:TakeAll(session) end)
+            self.retryTake = self.retryTake or function() self.retry = nil; self:TakeAll(self.session) end
+            self.retry = C_Timer.NewTimer(0.3, self.retryTake)
         end
     elseif event == "LOOT_BIND_CONFIRM" then
         -- Only for what Fast Loot is taking: binding an item you loot by hand (after an error stopped it, say) stays
