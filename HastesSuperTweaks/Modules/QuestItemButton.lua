@@ -407,15 +407,18 @@ function Q:UpdateLook()
         b.count:SetText(count > 1 and count or "")
         b.icon:SetDesaturated(count == 0)
     end
-    self:UpdateCooldown()
-    self:CheckTarget()
+    -- The quest's place in the log, read once for both.
+    local index = self.questID and QL.GetLogIndexForQuestID(self.questID)
+    self:UpdateCooldown(index, true)
+    self:CheckTarget(index, true)
 end
 
--- The cooldown's swipe; the icon is dimmed while the cooldown waits to start (a potion's, in combat).
-function Q:UpdateCooldown()
+-- The cooldown's swipe; the icon is dimmed while the cooldown waits to start (a potion's, in combat). known: index is
+-- the quest's place in the log, already read.
+function Q:UpdateCooldown(index, known)
     local b = self.button
     if not (b and self.link) then return end
-    local index = self.questID and QL.GetLogIndexForQuestID(self.questID)
+    if not known then index = self.questID and QL.GetLogIndexForQuestID(self.questID) end
     local start, duration, enable
     if index and SpecialCooldown then start, duration, enable = SpecialCooldown(index) end
     if IsSecret(start) or IsSecret(duration) or IsSecret(enable) then start, duration, enable = nil, nil, nil end
@@ -438,11 +441,12 @@ local function InRange(index)
     return nil
 end
 
--- Range and glow, checked as your target changes and every RANGE_EVERY seconds while you have one.
-function Q:CheckTarget()
+-- Range and glow, checked as your target changes and every RANGE_EVERY seconds while you have one. known: as for
+-- UpdateCooldown.
+function Q:CheckTarget(index, known)
     local b = self.button
     if not (b and self.link) then return end
-    local index = self.questID and QL.GetLogIndexForQuestID(self.questID)
+    if not known then index = self.questID and QL.GetLogIndexForQuestID(self.questID) end
     ShowRange(b, self.keyText or "", InRange(index))
     Glow(b, self.db.profile.glow and self:RightTarget() or false)
 end
