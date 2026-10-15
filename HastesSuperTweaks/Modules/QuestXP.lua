@@ -75,8 +75,9 @@ end
 -- that watches titles being set (see HookTitle).
 local decorating = false
 local function Decorate(fontString, suffix)
+    if not suffix then return end
     local text = fontString and fontString:GetText()
-    if not (text and suffix) or text:find(suffix, 1, true) then return end
+    if not text or text:find(suffix, 1, true) then return end
     decorating = true
     fontString:SetText(text .. suffix)
     decorating = false
