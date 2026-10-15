@@ -914,9 +914,9 @@ end
 -- the quest log ask for many (Questie hundreds at login). So it's listened to only while a reward is awaited, and
 -- only that data is passed on, to the functions given to ns.OnQuestRewardData.
 local requestedRewards, awaitedRewards, rewardListeners = {}, 0, {}
-local rewardWatcher = CreateFrame("Frame")
+local rewardWatcher -- made with the first request
 local RequestRewardData
-rewardWatcher:SetScript("OnEvent", function(frame, _, questID, success)
+local function OnRewardData(frame, _, questID, success)
     local request = requestedRewards[questID]
     if not request or not request.pending then return end
     request.pending = false
@@ -932,7 +932,7 @@ rewardWatcher:SetScript("OnEvent", function(frame, _, questID, success)
     end
     request.loaded = true
     for _, listener in ipairs(rewardListeners) do listener(questID) end
-end)
+end
 
 RequestRewardData = function(questID)
     if not (C_QuestLog and C_QuestLog.RequestLoadQuestByID) then return end
@@ -943,6 +943,10 @@ RequestRewardData = function(questID)
     request.attempts, request.pending = request.attempts + 1, true
     requestedRewards[questID] = request
     awaitedRewards = awaitedRewards + 1
+    if not rewardWatcher then
+        rewardWatcher = CreateFrame("Frame")
+        rewardWatcher:SetScript("OnEvent", OnRewardData)
+    end
     rewardWatcher:RegisterEvent("QUEST_DATA_LOAD_RESULT")
     C_QuestLog.RequestLoadQuestByID(questID)
 end
