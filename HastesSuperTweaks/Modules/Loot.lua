@@ -728,7 +728,8 @@ function L:Layout(f, items, manual, p, money, note, placed)
         end
         f.rule:SetShown(p.headerRule)
         f.close:SetShown(p.closeButton)
-        f.close.icon:Fit()
+        -- Hidden, its icon is fitted as it shows (W.CloseIcon).
+        if p.closeButton then f.close.icon:Fit() end
         local hotkey = not note and p.hotkey or ""
         f.note:SetShown(note ~= nil)
         if note then
