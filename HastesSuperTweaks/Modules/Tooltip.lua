@@ -207,11 +207,6 @@ function T:CreateFrames()
     end
     bar:SetScript("OnUpdate", self.poll)
     bar:SetScript("OnEvent", function(_, event, token) self:OnHealthEvent(event, token) end)
-    -- Drawn over tooltip skins that replace Blizzard's border.
-    self.overlay = CreateFrame("Frame", nil, tip)
-    self.overlay:SetAllPoints(tip)
-    self.overlay.edges = CreateEdges(self.overlay)
-    self.overlay.edges:SetShown(false)
 end
 
 function T:Apply()
@@ -303,14 +298,21 @@ function T:UpdateBorder()
             self.borderSaved = false
         end
     end
-    local edges = self.overlay.edges
+    local overlay = self.overlay
     if r and not NativeBorder(slice) then
-        self.overlay:SetFrameLevel(tip:GetFrameLevel() + 10)
-        edges:Layout(self.overlay, Pixels(self.overlay, p.borderSize), false)
-        edges:SetColor(r, g, b, 1)
-        edges:SetShown(true)
-    else
-        edges:SetShown(false)
+        -- Drawn over tooltip skins that replace Blizzard's border; made the first time one does.
+        if not overlay then
+            overlay = CreateFrame("Frame", nil, tip)
+            overlay:SetAllPoints(tip)
+            overlay.edges = CreateEdges(overlay)
+            self.overlay = overlay
+        end
+        overlay:SetFrameLevel(tip:GetFrameLevel() + 10)
+        overlay.edges:Layout(overlay, Pixels(overlay, p.borderSize), false)
+        overlay.edges:SetColor(r, g, b, 1)
+        overlay.edges:SetShown(true)
+    elseif overlay then
+        overlay.edges:SetShown(false)
     end
 end
 
@@ -403,12 +405,14 @@ function T:UpdateHealth(recolor, guid)
     if not unit then return end
     -- The unit token names another unit now ("mouseover" moves on while the tooltip fades; the token the game gave, which
     -- can be "target" or a nameplate, may change hands): find the unit again by its GUID, or keep the last reading
-    -- rather than show another unit (and poll until it's found, if ever).
-    guid = guid or UnitGUID(unit)
-    if not IsSecret(guid) and (not guid or (self.guid and guid ~= self.guid)) then
-        local token = self.guid and UnitTokenFromGUID and UnitTokenFromGUID(self.guid)
-        if IsSecret(token) or not token then return self:Watch(nil) end
-        unit, self.unit = token, token
+    -- rather than show another unit (and poll until it's found, if ever). A GUID given is the one just shown.
+    if not guid then
+        guid = UnitGUID(unit)
+        if not IsSecret(guid) and (not guid or (self.guid and guid ~= self.guid)) then
+            local token = self.guid and UnitTokenFromGUID and UnitTokenFromGUID(self.guid)
+            if IsSecret(token) or not token then return self:Watch(nil) end
+            unit, self.unit = token, token
+        end
     end
     local follow = HANDOFF[unit] and unit or nil
     if follow ~= self.watched then self:Watch(follow) end

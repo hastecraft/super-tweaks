@@ -222,6 +222,8 @@ function B:UpdateFreeSlots()
     local text = BackpackCount(button)
     if not text then return end
     local free = B.FreeSlots()
+    -- The game writes its count and freeSlots together: the same count in the same format is already shown.
+    if button.freeSlots == free and BACKPACK_FREESLOTS_FORMAT == "(%s)" then return end
     text:SetText("(" .. free .. ")")
     button.freeSlots = free -- what the game's own tooltip line says
 end

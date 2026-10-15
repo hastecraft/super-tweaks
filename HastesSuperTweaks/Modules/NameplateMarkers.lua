@@ -270,19 +270,26 @@ end
 
 -- Shows or hides the marker on a unit's nameplate. Not on nameplates whose game frame another addon has hidden. mark is
 -- what N:Mark(unit) returns when already known (false for none). The marker keeps its size, level and anchor between
--- units, so those are set only when they change.
+-- units, so those are set only when they change. The one showing for the unit is hidden unless it shows again.
 function N:Place(unit, mark)
     local old = byUnit[unit]
-    if old then old:Hide(); byUnit[unit] = nil end
+    byUnit[unit] = nil
     if mark == nil then mark = self:Mark(unit) end
     mark = mark or nil
     local quest = questUnits[unit] == true
     local plate = (mark or quest) and C_NamePlate.GetNamePlateForUnit(unit)
     local game = plate and plate.UnitFrame
-    if not (game and game:IsShown() and game:GetAlpha() > 0) then return end
+    if not (game and game:IsShown() and game:GetAlpha() > 0) then
+        if old then old:Hide() end
+        return
+    end
     local anchor = game.name and game.name:IsShown() and game.name or game.healthBar
-    if not anchor then return end
+    if not anchor then
+        if old then old:Hide() end
+        return
+    end
     local marker = Marker(plate)
+    if old and old ~= marker then old:Hide() end
     local size = self.db.profile.size
     if marker.size ~= size then marker.size = size; marker:SetSize(size, size) end
     local level = game:GetFrameLevel() + 10
@@ -308,7 +315,7 @@ function N:Place(unit, mark)
         end
     end
     if marker.quest and marker.showsQuest ~= quest then marker.showsQuest = quest; marker.quest:SetShown(quest) end
-    marker:Show()
+    if old ~= marker then marker:Show() end
     byUnit[unit] = marker
 end
 

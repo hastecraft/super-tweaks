@@ -611,21 +611,24 @@ end
 -- The left-hand lines of a tooltip the game fills in: from its tooltip data (getData(...), where the client has it),
 -- or else from a hidden tooltip (setter is its method that shows the same thing).
 local scanner
+local function Append(lines, text)
+    if not IsSecret(text) and type(text) == "string" then lines[#lines + 1] = text end
+end
 local function TooltipLines(getData, setter, ...)
     local lines = {}
-    local function append(text)
-        if not IsSecret(text) and type(text) == "string" then lines[#lines + 1] = text end
-    end
     if getData then
         local data = getData(...)
-        for _, line in ipairs(data and data.lines or {}) do append(line.leftText) end
+        local list = data and data.lines
+        if list then
+            for _, line in ipairs(list) do Append(lines, line.leftText) end
+        end
     else
         scanner = scanner or CreateFrame("GameTooltip", "HastesSuperTweaksScanTooltip", nil, "GameTooltipTemplate")
         scanner:SetOwner(WorldFrame, "ANCHOR_NONE")
         scanner[setter](scanner, ...)
         for i = 1, scanner:NumLines() do
             local line = _G["HastesSuperTweaksScanTooltipTextLeft" .. i]
-            append(line and line:GetText())
+            Append(lines, line and line:GetText())
         end
         scanner:Hide()
     end
@@ -914,9 +917,9 @@ end
 -- the quest log ask for many (Questie hundreds at login). So it's listened to only while a reward is awaited, and
 -- only that data is passed on, to the functions given to ns.OnQuestRewardData.
 local requestedRewards, awaitedRewards, rewardListeners = {}, 0, {}
-local rewardWatcher = CreateFrame("Frame")
+local rewardWatcher -- made with the first request
 local RequestRewardData
-rewardWatcher:SetScript("OnEvent", function(frame, _, questID, success)
+local function OnRewardData(frame, _, questID, success)
     local request = requestedRewards[questID]
     if not request or not request.pending then return end
     request.pending = false
@@ -932,7 +935,7 @@ rewardWatcher:SetScript("OnEvent", function(frame, _, questID, success)
     end
     request.loaded = true
     for _, listener in ipairs(rewardListeners) do listener(questID) end
-end)
+end
 
 RequestRewardData = function(questID)
     if not (C_QuestLog and C_QuestLog.RequestLoadQuestByID) then return end
@@ -943,6 +946,10 @@ RequestRewardData = function(questID)
     request.attempts, request.pending = request.attempts + 1, true
     requestedRewards[questID] = request
     awaitedRewards = awaitedRewards + 1
+    if not rewardWatcher then
+        rewardWatcher = CreateFrame("Frame")
+        rewardWatcher:SetScript("OnEvent", OnRewardData)
+    end
     rewardWatcher:RegisterEvent("QUEST_DATA_LOAD_RESULT")
     C_QuestLog.RequestLoadQuestByID(questID)
 end

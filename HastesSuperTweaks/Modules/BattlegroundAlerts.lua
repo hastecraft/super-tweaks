@@ -133,7 +133,7 @@ function A.info.preview(frame)
     add(p.result, 10, v.line)
     W.Column(frame, parts)
     -- From 0:13 down through the last reminder, which blinks the countdown.
-    local shown
+    local shown, shownAlpha
     W.Loop(frame, 6, function(t)
         local left = 13 - floor(t)
         if left ~= shown then
@@ -141,7 +141,11 @@ function A.info.preview(frame)
             SetCountdown(v.countdown, left, "Warsong Gulch")
         end
         local blink = t >= 3 and t < 3.8 and math.sin((t - 3) / 0.4 * math.pi) ^ 2 or 0
-        v.countdown:SetAlpha(1 - 0.75 * blink)
+        local alpha = 1 - 0.75 * blink
+        if alpha ~= shownAlpha then
+            shownAlpha = alpha
+            v.countdown:SetAlpha(alpha)
+        end
     end)
 end
 
@@ -189,10 +193,10 @@ end
 -- the top of the screen, where the window shows, if it never was). The window is never touched.
 local function Place(banner)
     local dialog = PVPReadyDialog
+    if dialog ~= nil and banner.anchor == dialog then return end -- under it already, shown or not
     local shown = dialog ~= nil and dialog:IsShown()
     if IsSecret(shown) then shown = false end
     if shown then
-        if banner.anchor == dialog then return end
         banner.anchor = dialog
         banner:ClearAllPoints()
         banner:SetPoint("TOP", dialog, "BOTTOM", 0, -6)

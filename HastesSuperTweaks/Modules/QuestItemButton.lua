@@ -47,7 +47,6 @@ ns.Configure(Q, defaults, function(m) return m:BuildOptions() end, "Apply")
 
 -- Quests whose area you're in, as the game's events say (with its own check each time the quest is picked).
 local areas = {}
-Q.areas = areas
 -- Quest log, bag and zone changes come in bursts; the quest is picked once, this long after the first.
 Q.DELAY = 0.2
 
@@ -407,15 +406,18 @@ function Q:UpdateLook()
         b.count:SetText(count > 1 and count or "")
         b.icon:SetDesaturated(count == 0)
     end
-    self:UpdateCooldown()
-    self:CheckTarget()
+    -- The quest's place in the log, read once for both.
+    local index = self.questID and QL.GetLogIndexForQuestID(self.questID)
+    self:UpdateCooldown(index, true)
+    self:CheckTarget(index, true)
 end
 
--- The cooldown's swipe; the icon is dimmed while the cooldown waits to start (a potion's, in combat).
-function Q:UpdateCooldown()
+-- The cooldown's swipe; the icon is dimmed while the cooldown waits to start (a potion's, in combat). known: index is
+-- the quest's place in the log, already read.
+function Q:UpdateCooldown(index, known)
     local b = self.button
     if not (b and self.link) then return end
-    local index = self.questID and QL.GetLogIndexForQuestID(self.questID)
+    if not known then index = self.questID and QL.GetLogIndexForQuestID(self.questID) end
     local start, duration, enable
     if index and SpecialCooldown then start, duration, enable = SpecialCooldown(index) end
     if IsSecret(start) or IsSecret(duration) or IsSecret(enable) then start, duration, enable = nil, nil, nil end
@@ -438,11 +440,12 @@ local function InRange(index)
     return nil
 end
 
--- Range and glow, checked as your target changes and every RANGE_EVERY seconds while you have one.
-function Q:CheckTarget()
+-- Range and glow, checked as your target changes and every RANGE_EVERY seconds while you have one. known: as for
+-- UpdateCooldown.
+function Q:CheckTarget(index, known)
     local b = self.button
     if not (b and self.link) then return end
-    local index = self.questID and QL.GetLogIndexForQuestID(self.questID)
+    if not known then index = self.questID and QL.GetLogIndexForQuestID(self.questID) end
     ShowRange(b, self.keyText or "", InRange(index))
     Glow(b, self.db.profile.glow and self:RightTarget() or false)
 end
@@ -496,7 +499,8 @@ ns.Listen(Q, { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_C
         if event == "PLAYER_TARGET_CHANGED" then self:Watch(); return self:CheckTarget() end
         if REPICK[event] then return self:Queue() end
         if event == "BAG_UPDATE_DELAYED" then
-            self.bag = nil
+            -- An item not found may have arrived; a slot found is checked again when it's next used (see Q:Location).
+            if self.bag == false then self.bag = nil end
             return self:Queue()
         elseif event == "PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED" then
             if not IsSecret(a) and not IsSecret(b) and type(a) == "number" then areas[a] = b == true or nil end
@@ -515,6 +519,8 @@ ns.Listen(Q, { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_C
     end)
 
 function Q:OnListen()
+    -- Your key binding may have changed while it was off.
+    if self.button then self.keyText = KeyText() end
     self:Queue()
     -- Turned on with Edit Mode open: its stand-in shows at once, as when Edit Mode opens.
     self:UpdateEditMode()
@@ -524,6 +530,8 @@ function Q:OnUnlisten()
     -- Their events went with the rest; the button lets go of its item (once combat ends, in combat).
     self.watching, self.ranging, self.waiting = nil, nil, nil
     self.pickQuest, self.pickLink, self.pickTexture = nil, nil, nil
+    -- Quest areas left while off would go unheard; the game is asked again (as after a loading screen).
+    wipe(areas)
     self:UpdateEditMode(false)
     self:Apply()
 end

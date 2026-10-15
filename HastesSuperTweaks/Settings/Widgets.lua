@@ -359,9 +359,15 @@ local TURNS = {
     UP = function(l, r, t, b) return r, t, l, t, r, b, l, b end,
 }
 
-local function FitIcon(t)
+local function ScreenHeight()
+    local _, height = GetPhysicalScreenSize()
+    return height
+end
+
+-- screen: the screen's height, when the caller read it for a pass over many textures.
+local function FitIcon(t, screen)
     local scale = t:GetEffectiveScale()
-    local _, screen = GetPhysicalScreenSize()
+    screen = screen or ScreenHeight()
     if scale == t.fitScale and screen == t.fitScreen then return end
     t.fitScale, t.fitScreen = scale, screen
     local px = 768 / screen / scale -- units per screen pixel here
@@ -382,7 +388,8 @@ end
 
 local icons = setmetatable({}, { __mode = "k" })
 function W.FitIcons()
-    for t in pairs(icons) do t:Fit() end
+    local screen = ScreenHeight()
+    for t in pairs(icons) do t:Fit(screen) end
 end
 -- Fitted again when the interface's scale or the display changes, listened to once there's anything to fit.
 local refit
@@ -391,12 +398,15 @@ local refit
 -- parent changes size. Set its fields (hstParent, the frame it was made on: these are never moved to another), then
 -- Fit it.
 local function FitShown(parent)
-    local list = parent.hstIcons
-    for i = 1, #list do list[i]:Fit() end
+    local list, screen = parent.hstIcons, ScreenHeight()
+    -- Only shapes read their parent's size.
+    local width, height
+    if parent.hstShapes then width, height = parent:GetWidth(), parent:GetHeight() end
+    for i = 1, #list do list[i]:Fit(screen, width, height) end
 end
 local function FitSized(parent)
-    local shapes = parent.hstShapes
-    for i = 1, #shapes do shapes[i]:Fit() end
+    local shapes, screen, width, height = parent.hstShapes, ScreenHeight(), parent:GetWidth(), parent:GetHeight()
+    for i = 1, #shapes do shapes[i]:Fit(screen, width, height) end
 end
 local function Track(t, sized)
     local parent = t.hstParent
@@ -446,7 +456,8 @@ end
 function W.Chevron(parent, size, color, layer)
     local t = W.PixelIcon(parent, ART .. "Chevron", size, color or C.header, layer)
     function t:Point(direction)
-        if self.direction == direction then return end
+        -- It's drawn pointing right until told otherwise.
+        if (self.direction or "RIGHT") == direction then return end
         self.direction, self.fitScale = direction, nil
         self:Fit()
     end
@@ -487,12 +498,18 @@ local INSETS = {
 
 -- The disc's size in pixels, even so halves end on a texel: t.size for a dot; for a shape, as tall as its frame for a
 -- pill, twice the radius for corners, never wider than the frame. Insets are whole pixels too, so shapes inside one
--- another stay concentric.
-local function FitRound(t)
+-- another stay concentric. screen, width and height: the screen's height and the frame's size, when the caller read
+-- them for a pass over many textures.
+local function FitRound(t, screen, width, height)
     local scale = t:GetEffectiveScale()
-    local _, screen = GetPhysicalScreenSize()
-    local frame = t.hstParent
-    local width, height = frame:GetWidth(), frame:GetHeight()
+    screen = screen or ScreenHeight()
+    -- A dot's size is its own.
+    if t.size then
+        width, height = nil, nil
+    elseif not width then
+        local frame = t.hstParent
+        width, height = frame:GetWidth(), frame:GetHeight()
+    end
     if scale == t.fitScale and screen == t.fitScreen and width == t.fitWidth and height == t.fitHeight then return end
     t.fitScale, t.fitScreen, t.fitWidth, t.fitHeight = scale, screen, width, height
     local px = 768 / screen / scale -- units per screen pixel here
@@ -596,10 +613,11 @@ function W.Round(frame, radius, inset, layer, sublevel, ring)
             pieces[#pieces + 1] = middle
         end
     end
+    local screen, width, height = ScreenHeight(), frame:GetWidth(), frame:GetHeight()
     for i = 1, #pieces do
         if pieces[i].Fit then
             Track(pieces[i], true)
-            pieces[i]:Fit()
+            pieces[i]:Fit(screen, width, height)
         end
     end
     return Painter(pieces), pieces
@@ -637,11 +655,13 @@ local function BoxParts(box, round)
         local radius = not shape.pill and (shape.radius or BOX_RADIUS) + (shape.x or 0) or nil
         if box.fill then
             local set, pieces = W.Round(frame, radius, shape, "BACKGROUND", box.sublevel, false)
+            set(box.fill)
             parts.fill = set
             add(pieces)
         end
         if box.rim then
             local set, pieces = W.Round(frame, radius, shape, "BORDER", 0, true)
+            set(box.rim)
             parts.rim = set
             add(pieces)
         end
@@ -664,7 +684,8 @@ local function BoxParts(box, round)
     return parts
 end
 
--- Shows the box in the shape the theme gives it; a hidden box takes it when it next shows.
+-- Shows the box in the shape the theme gives it; a hidden box takes it when it next shows. Returns true when it showed
+-- the box's parts.
 function Box:Shape()
     local round = W.theme.round == true
     if self.isRound == round then return end
@@ -675,11 +696,18 @@ function Box:Shape()
     end
     self.isRound = round
     local key = round and "roundParts" or "squareParts"
-    local parts = self[key] or BoxParts(self, round)
-    self[key], self.parts = parts, parts
-    if parts.fill then parts.fill(self.fill) end
-    if parts.rim then parts.rim(self.rim) end
-    for _, t in ipairs(parts.textures) do t:Show() end
+    local parts = self[key]
+    if parts then
+        if parts.fill then parts.fill(self.fill) end
+        if parts.rim then parts.rim(self.rim) end
+        for _, t in ipairs(parts.textures) do t:Show() end
+    else
+        -- New parts are made painted and shown.
+        parts = BoxParts(self, round)
+        self[key] = parts
+    end
+    self.parts = parts
+    return true
 end
 
 function Box:SetFill(color)
@@ -696,7 +724,7 @@ function Box:SetShown(shown)
     shown = shown and true or false
     if shown == self.shown then return end
     self.shown = shown
-    if shown then self:Shape() end
+    if shown and self:Shape() then return end
     for _, t in ipairs(self.parts.textures) do t:SetShown(shown) end
 end
 function Box:Show() self:SetShown(true) end
@@ -766,9 +794,11 @@ end
 function W.Switch(parent)
     local s = CreateFrame("Button", nil, parent)
     s:SetSize(SWITCH_W, SWITCH_H)
-    s.SetRim, s.SetTrack = W.Outline(s, nil, nil, nil, "ARTWORK")
-    s.knob = W.Dot(s, KNOB, nil, nil, "ARTWORK", 3)
+    -- Made as Paint draws it switched off, unlit and enabled.
+    s.SetRim, s.SetTrack = W.Outline(s, nil, C.border, C.trackOff, "ARTWORK")
+    s.knob = W.Dot(s, KNOB, C.knob, nil, "ARTWORK", 3)
     s.knob:SetPoint("LEFT", KNOB_OFF, 0)
+    s.off = false
     s:SetMotionScriptsWhileDisabled(true)
     function s:Paint()
         local on, lit = self.on, self.lit and not self.off
@@ -819,7 +849,6 @@ function W.Switch(parent)
         if self.onLeave then self.onLeave() end
         W.HideTooltip(self)
     end)
-    s:Paint()
     return s
 end
 
@@ -914,6 +943,7 @@ end
 -- A switch row; the whole row toggles it.
 function W.ToggleRow(parent)
     local c = NewRow(parent, "Button")
+    c.off = false
     Clickable(c)
     c.switch = W.Switch(c)
     c.switch:SetPoint("TOPRIGHT", -2, -ROW_PAD - (HEAD - SWITCH_H) / 2)
@@ -1043,7 +1073,7 @@ end
 function W.Slider(parent)
     local s = CreateFrame("Frame", nil, parent)
     s:SetHeight(20)
-    s.low, s.high, s.step = 0, 1, 1
+    s.low, s.high, s.step, s.off = 0, 1, 1, false
     s.less, s.more = Stepper(s, "LEFT", -1), Stepper(s, "RIGHT", 1)
     s.less:SetPoint("LEFT")
     s.more:SetPoint("RIGHT")
@@ -1100,7 +1130,6 @@ function W.Slider(parent)
         self:SetAlpha(off and 0.4 or 1)
         PaintSlider(self)
     end
-    PaintSlider(s)
     return s
 end
 
@@ -1321,13 +1350,16 @@ function W.Select(parent, source)
         if off and menu and menu.owner == self then menu:Hide() end
         PaintSelect(self)
     end
-    s:SetDisabledLook(false)
+    -- Made as PaintSelect draws it while closed, unlit and enabled.
+    s.off = false
+    s.chevron:Point("DOWN")
     return s
 end
 
 -- A select row. Its source is the row: set getEntries, getValue, onSelect and fontFor on it (see W.Select).
 function W.DropdownRow(parent)
     local c = NewRow(parent)
+    c.off = false
     Tipped(c)
     c.dropdown = W.Select(c, c)
     c.dropdown:SetPoint("TOPRIGHT", -2, -ROW_PAD - (HEAD - SELECT_H) / 2)
@@ -1403,10 +1435,16 @@ function W.ColorRow(parent)
     end)
     c.rgba = {}
     function c:Layout(width) return (PlaceText(self, width, 38)) end
+    -- Only what changed is set: every settings change refreshes the page.
     function c:SetValue(r, g, b, a, off)
-        self.rgba[1], self.rgba[2], self.rgba[3], self.rgba[4] = r, g, b, a or 1
-        self.color:SetColorTexture(r, g, b, a or 1)
+        local rgba = self.rgba
+        a = a or 1
+        if r ~= rgba[1] or g ~= rgba[2] or b ~= rgba[3] or a ~= rgba[4] then
+            rgba[1], rgba[2], rgba[3], rgba[4] = r, g, b, a
+            self.color:SetColorTexture(r, g, b, a)
+        end
         off = off and true or false
+        if off == self.off then return end
         self:SetEnabled(not off)
         self.swatch:SetAlpha(off and 0.45 or 1)
         self.off = off
@@ -1469,10 +1507,13 @@ function W.InputRow(parent, full, onEdit)
         if self.live then kept = e:GetText() == saved else kept = e:HasFocus() or (saved == self.saved and dirty()) end
         self.saved = saved
         if not kept then e:SetText(saved) end
-        e:SetEnabled(not off)
-        W.Paint(e, off and C.disabled or C.bright)
-        self.off = off
-        DimLabel(self, off)
+        off = off and true or false
+        if off ~= self.off then
+            e:SetEnabled(not off)
+            W.Paint(e, off and C.disabled or C.bright)
+            self.off = off
+            DimLabel(self, off)
+        end
         paint()
     end
     return c
@@ -1558,10 +1599,13 @@ function W.TextAreaRow(parent, lines, onEdit)
         if self.live then kept = e:GetText() == saved else kept = e:HasFocus() or (saved == self.saved and dirty()) end
         self.saved = saved
         if not kept then e:SetText(saved) end
-        e:SetEnabled(not off)
-        W.Paint(e, off and C.disabled or C.bright)
-        self.off = off
-        DimLabel(self, off)
+        off = off and true or false
+        if off ~= self.off then
+            e:SetEnabled(not off)
+            W.Paint(e, off and C.disabled or C.bright)
+            self.off = off
+            DimLabel(self, off)
+        end
         paint()
     end
     return c

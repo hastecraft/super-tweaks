@@ -150,6 +150,11 @@ S.CRATES = {
     [248682] = "herbs", [248686] = "herbs", [248690] = "herbs", [248691] = "herbs", [248695] = "herbs", [248696] = "herbs",
     [248704] = "devices", [248707] = "devices", [248710] = "devices", [248713] = "devices",
 }
+-- The kinds any crate takes: other kinds skip counting the crates you hold (see S:CrateKinds).
+local CRATE_KINDS = {}
+for _, takes in pairs(S.CRATES) do
+    for kind in takes:gmatch("%a+") do CRATE_KINDS[kind] = true end
+end
 
 -- The lists as one string, " id=kind id=kind ... ", made the first time an item is looked up: found with one search,
 -- it costs far less memory than a table of every ID.
@@ -334,8 +339,10 @@ local function Professions()
     end
     local knows = not info and (C_SpellBook and C_SpellBook.IsSpellKnown or IsPlayerSpell)
     for id, ranks in pairs(knows and RANKS or {}) do
-        for _, spell in ipairs(known[id] and {} or ranks) do
-            if knows(spell) then known[id] = true; break end
+        if not known[id] then
+            for _, spell in ipairs(ranks) do
+                if knows(spell) then known[id] = true; break end
+            end
         end
     end
     return known
@@ -587,9 +594,11 @@ function S:Verdict(itemID, info, ctx, bag, slot)
     -- Drinks only restore mana: without any, they're clutter at every level.
     if item.drink and p.drinks and self.NO_MANA[ctx.class] then kind = "drinks" end
     if not p[kind] then return nil end
-    local crates = ctx.crates
-    if not crates then crates = self:CrateKinds(); ctx.crates = crates end
-    if crates[kind] then return nil end
+    if CRATE_KINDS[kind] then
+        local crates = ctx.crates
+        if not crates then crates = self:CrateKinds(); ctx.crates = crates end
+        if crates[kind] then return nil end
+    end
     if kind == "drinks" then return not (p.professions ~= "none" and Uses(ctx, item, p.professions)) and kind or nil end
     if kind == "food" or kind == "potions" then
         if item.level <= 0 or item.level + p.levels > ctx.level then return nil end

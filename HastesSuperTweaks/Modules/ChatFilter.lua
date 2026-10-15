@@ -6,6 +6,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 local IsSecret = ns.IsSecret
 local find, lower = string.find, string.lower
+local UNKNOWN_NAME = UNKNOWNOBJECT or "Unknown"
 
 local F = HST:NewFeature("ChatFilter", {
     name = "Chat Spam Filter", category = "social", order = 2.5, command = "spam", enabledByDefault = false,
@@ -127,10 +128,15 @@ end
 -- you see them, as they talk while they're one of those units, and from any /who (Find members asks for one), and
 -- remembered across sessions: by GUID, or by name from /who, which gives no GUID. Only muted guilds' members are kept.
 ---------------------------------------------------------------------------
-local lowered = {} -- guild names as the game gives them, lowercased, read once each
+-- Guild names as the game gives them, lowercased, read once each; let go once there are many, as with names below.
+local lowered, loweredCount = {}, 0
 local function Lowered(guild)
     local key = lowered[guild]
-    if not key then key = lower(guild); lowered[guild] = key end
+    if not key then
+        key = lower(guild)
+        if loweredCount >= 500 then wipe(lowered); loweredCount = 0 end
+        lowered[guild], loweredCount = key, loweredCount + 1
+    end
     return key
 end
 local function GuildOf(unit)
@@ -336,6 +342,11 @@ function F:Apply()
         self:LearnGroup()
     elseif learner then
         learner:UnregisterAllEvents()
+        -- A Find members answer that won't be heard now: later /who answers go back to chat, as LearnWho does.
+        if self.scanning then
+            self.scanning = nil
+            if C_FriendList and C_FriendList.SetWhoToUi then C_FriendList.SetWhoToUi(false) end
+        end
     end
 end
 

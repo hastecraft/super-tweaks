@@ -151,11 +151,16 @@ function B:Layout()
     end
     local sample = self.sampleBar
     if sample then
-        sample:SetShown(self.editMode and shown == 0)
-        if sample:IsShown() then sample:ClearAllPoints(); sample:SetPoint("TOP", f, "TOP") end
+        local showSample = self.editMode and shown == 0 or false
+        sample:SetShown(showSample)
+        if showSample then sample:ClearAllPoints(); sample:SetPoint("TOP", f, "TOP") end
     end
     f:SetShown(shown > 0 or self.editMode or false)
-    if moving ~= (f:GetScript("OnUpdate") ~= nil) then f:SetScript("OnUpdate", moving and self.onUpdate or nil) end
+    -- Only set here, so what was set is kept rather than asked for.
+    if moving ~= (f.updating or false) then
+        f.updating = moving
+        f:SetScript("OnUpdate", moving and self.onUpdate or nil)
+    end
 end
 
 function B:CreateFrame()

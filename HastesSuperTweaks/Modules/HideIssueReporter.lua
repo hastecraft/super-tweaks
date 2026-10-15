@@ -61,9 +61,8 @@ function R.info.preview(frame)
     W.Loop(frame, 4, function(t) button:SetAlpha(1 - W.Window(t, 1.0, 3.6, 0.4)) end, 0.5)
 end
 
--- Hiding an ancestor suppresses rendering and mouse input without a Show/Hide hook.
-local hiddenParent = CreateFrame("Frame")
-hiddenParent:Hide()
+-- Hiding an ancestor suppresses rendering and mouse input without a Show/Hide hook. Made the first time it's on.
+local hiddenParent
 
 -- Moves the reporter under the hidden parent while enabled and back when disabled. Returns false while that has to
 -- wait: Blizzard's reporter isn't loaded yet, or it's protected and combat has to end first.
@@ -103,8 +102,7 @@ function R:HookReporter(reporter)
     end)
 end
 
-R.watcher = CreateFrame("Frame")
-R.watcher:SetScript("OnEvent", function(frame, event, name)
+local function OnWatch(frame, event, name)
     if event == "ADDON_LOADED" and name ~= "Blizzard_PTRFeedback" then return end
     if frame.queued then return end
     -- Run once after Blizzard finishes its own initialization for this event.
@@ -113,9 +111,15 @@ R.watcher:SetScript("OnEvent", function(frame, event, name)
         frame.queued = false
         if R:Update() then frame:UnregisterAllEvents() end
     end)
-end)
+end
 
 function R:OnEnable()
+    if not self.watcher then
+        hiddenParent = CreateFrame("Frame")
+        hiddenParent:Hide()
+        self.watcher = CreateFrame("Frame")
+        self.watcher:SetScript("OnEvent", OnWatch)
+    end
     if not self:Update() then
         self.watcher:RegisterEvent("ADDON_LOADED")
         self.watcher:RegisterEvent("PLAYER_ENTERING_WORLD")

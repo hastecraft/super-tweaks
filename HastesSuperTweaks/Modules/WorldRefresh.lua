@@ -203,16 +203,22 @@ function R:CreateFrame()
     f:SetScript("OnEnter", function() self.hovered = true; self:ShowTooltip() end)
     f:SetScript("OnLeave", function() self.hovered = nil; ns.Widgets.HideTooltip(f) end)
     self.tick = function() self:Tick() end
+    self:Layout()
 end
 
-function R:Apply()
-    if not self:IsEnabled() then return end
-    if not self.frame then self:CreateFrame() end
+-- The bar's size, place and look.
+function R:Layout()
     local p, f = self.db.profile, self.frame
     f:SetSize(p.width, p.height)
     f:ClearAllPoints()
     f:SetPoint("CENTER", UIParent, "CENTER", p.x, p.y)
     Style(f.bar, p, ns.Media("font", p.font), ns.OutlineFlags(p.outline))
+end
+
+-- The bar is made when a refresh starts or Edit Mode shows it.
+function R:Apply()
+    if not self:IsEnabled() then return end
+    if self.frame then self:Layout() end
     if self.deadline then
         local auto = self:AutoWanted()
         -- Switched to "Never" during the notice before refreshing: that refresh is off.
@@ -468,7 +474,10 @@ end
 ---------------------------------------------------------------------------
 -- Edit Mode: while it's open a sample bar shows to drag (see EditMode.lua).
 ---------------------------------------------------------------------------
-function R:EditFrame() return self.frame end
+function R:EditFrame()
+    if not self.frame then self:CreateFrame() end
+    return self.frame
+end
 function R:GetPosition() local p = self.db.profile; return p.x, p.y end
 function R:SetPosition(x, y) local p = self.db.profile; p.x, p.y = floor(x + 0.5), floor(y + 0.5) end
 function R:EditSize() local p = self.db.profile; return p.width, p.height end

@@ -654,7 +654,7 @@ local function WriteQueued()
     if M:IsEnabled() then M:Write() end
 end
 function M:Queue(delay)
-    if self.queued or not self.inWorld then return end
+    if self.queued or not (self.inWorld or HST.worldEntry) then return end
     self.queued = true
     C_Timer.After(delay or 0.3, WriteQueued)
 end
@@ -706,15 +706,6 @@ function M:Refresh()
     self:Queue()
 end
 
--- Macros are ready once you're in the world. The first time is noted even while the module is off.
-local world = CreateFrame("Frame")
-world:RegisterEvent("PLAYER_ENTERING_WORLD")
-world:SetScript("OnEvent", function(frame)
-    frame:UnregisterAllEvents()
-    M.inWorld = true
-    if M:IsEnabled() then M:Queue(1) end
-end)
-
 -- GET_ITEM_INFO_RECEIVED is added while an item is awaited (see Write), and the pet and weapon events while the macros
 -- that need them are kept (see Watch).
 -- Leaving combat and coming back to life (PLAYER_ALIVE also comes on releasing, still a ghost) write what waited.
@@ -722,6 +713,12 @@ local RESUME = { PLAYER_REGEN_ENABLED = true, PLAYER_ALIVE = true, PLAYER_UNGHOS
 ns.Listen(M, { "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "PLAYER_ALIVE", "PLAYER_UNGHOST",
     "SKILL_LINES_CHANGED", "UPDATE_MACROS" },
     function(self, event, arg)
+        -- Macros are ready once you're in the world (see OnListen).
+        if event == "PLAYER_ENTERING_WORLD" then
+            self.events:UnregisterEvent(event)
+            self.inWorld = true
+            return self:Queue(1)
+        end
         if event == "UPDATE_MACROS" then wipe(verifiedBody); wipe(verifiedIcon); return end
         if event == "UNIT_HAPPINESS" then return self:Mood() end
         if event == "UNIT_PET" then
@@ -732,6 +729,7 @@ ns.Listen(M, { "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", 
             if not HANDS[arg] then return end
             self.handsRead = false
         end
+        if self.queued then return end -- the write waiting reads everything again and notes combat or death itself
         if RESUME[event] then
             if not self.dirty then return end
         elseif event == "GET_ITEM_INFO_RECEIVED" and not self.awaiting[arg or 0] then
@@ -744,5 +742,14 @@ ns.Listen(M, { "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", 
         end
         self:Queue()
     end)
-function M:OnListen() self:Refresh() end
-function M:OnUnlisten() wipe(watched); wipe(verifiedBody); wipe(verifiedIcon); self.itemEvents = nil end -- every event was unregistered
+function M:OnListen()
+    -- Before the first world entry (HST.worldEntry), it's waited for here.
+    if not (self.inWorld or HST.worldEntry) then self.events:RegisterEvent("PLAYER_ENTERING_WORLD") end
+    self:Refresh()
+end
+-- Every event was unregistered: what they'd have kept up to date is read again when it's turned back on (another pet
+-- may have been called in the meantime).
+function M:OnUnlisten()
+    wipe(watched); wipe(verifiedBody); wipe(verifiedIcon); wipe(self.eats)
+    self.itemEvents, self.eatsLevel = nil, nil
+end

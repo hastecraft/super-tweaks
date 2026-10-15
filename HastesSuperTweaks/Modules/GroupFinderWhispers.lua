@@ -75,8 +75,7 @@ local function Describe(guid)
         if IsSecret(level) or (level and level <= 0) then level = nil end
     end
     local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
-    return { class = class, text = (level and (level .. " ") or "") .. (race and (race .. " ") or "") .. className,
-        color = color, level = level, race = race, className = className }
+    return { text = (level and (level .. " ") or "") .. (race and (race .. " ") or "") .. className, color = color }
 end
 
 ---------------------------------------------------------------------------
@@ -192,7 +191,7 @@ function L:Whispered(sender, guid)
     for i = #self.whispers, 1, -1 do
         if self.whispers[i].name == sender then table.remove(self.whispers, i) end
     end
-    table.insert(self.whispers, 1, { name = sender, who = Describe(guid), at = GetTime() })
+    table.insert(self.whispers, 1, { name = sender, who = Describe(guid) })
     while #self.whispers > 10 do table.remove(self.whispers) end
     if not self.list then self:CreateList() end
     local f, p = self.list, self.db.profile

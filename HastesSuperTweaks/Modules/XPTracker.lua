@@ -138,13 +138,15 @@ local function SetToken(token, text)
     return true
 end
 
-function X:GetState()
+-- gaining: HiddenReason has just found you can gain XP, so neither is asked again.
+function X:GetState(gaining)
     local xp, cap, level = UnitXP("player") or 0, UnitXPMax("player") or 0, UnitLevel("player")
     local rested, quest, questKnown = GetXPExhaustion() or 0, self.questXP or 0, self.questAvailable ~= false
     local questEstimate = self.questEstimated and "~" or ""
     local gained = self.db.char.session.gained
     -- At the level cap, or with XP turned off (which isn't the cap: the bar still shows where you are).
-    local atMax, xpOff = ns.AtMaxLevel(level, cap), IsXPUserDisabled ~= nil and IsXPUserDisabled() == true
+    local atMax, xpOff = false, false
+    if not gaining then atMax, xpOff = ns.AtMaxLevel(level, cap), IsXPUserDisabled ~= nil and IsXPUserDisabled() == true end
     if self.preview then
         xp, cap, level, rested, quest, questKnown, gained = 6500, 10000, 32, 2200, 1200, true, 14000
         questEstimate, atMax, xpOff = "", false, false
@@ -212,7 +214,7 @@ end
 function X:UpdateMouse()
     local p = self.db.profile
     local enabled = (not p.clickThrough or not p.locked or p.mouseover) and not (p.ignoreMouseInCombat and self:InCombat())
-    self.frame:EnableMouse(enabled)
+    if self.frame.mouseOn ~= enabled then self.frame.mouseOn = enabled; self.frame:EnableMouse(enabled) end
     if not enabled and self.hovered then
         self.hovered = false
         ns.Widgets.HideTooltip(self.frame)
@@ -409,7 +411,8 @@ end
 function X:BarColor(key)
     local p = self.db.profile
     if key == "xp" and p.classColor then
-        local c = RAID_CLASS_COLORS[select(2, UnitClass("player"))]
+        local _, class = UnitClass("player")
+        local c = not ns.IsSecret(class) and class and RAID_CLASS_COLORS[class]
         if c then return { c.r, c.g, c.b, p.xpColor[4] } end
     end
     return p[key .. "Color"]
@@ -425,19 +428,22 @@ function X:Render(sameContent)
         self.frame:Hide()
         return
     end
-    local inView = sameContent and not self.faded and self.frame:IsShown()
-    self.frame:Show()
+    local f = self.frame
+    local shown = f:IsShown()
+    local inView = sameContent and not self.faded and shown
+    if not shown then f:Show() end
     local p = self.db.profile
     local alpha = p.mouseover and not self.hovered and not self.preview and not self.editMode and p.locked and 0
         or self:InCombat() and p.combatAlpha or p.alpha
-    self.frame:SetAlpha(alpha)
+    -- Only set here, so only set when it changes.
+    if f.shownAlpha ~= alpha then f.shownAlpha = alpha; f:SetAlpha(alpha) end
     -- Fully faded (Mouseover only, or no combat opacity): nothing to redraw until the bar shows again,
     -- which pointing at it, combat ending or a settings change all trigger.
     self.faded = alpha == 0
     if self.faded or (inView and not self.questDirty and not self.hovered) then return end
     -- Quest log changes are only noted; scan once here, while the bar is visible.
     if self.questDirty then self.questDirty = false; self:UpdateQuestXP() end
-    self:GetState()
+    self:GetState(p.hideMax and not self.preview and not self.editMode)
     self:DrawTexts()
     self:DrawBars()
     -- The tooltip follows the readouts while you point at the bar.
@@ -478,7 +484,7 @@ end
 -- bar there, so the fills sit side by side: on top of one another, their colors would blend.
 local function PlaceAfter(bar, xpBar, p, width, height, start, amount)
     local offset = (p.orientation == "HORIZONTAL" and width or height) * start
-    bar:ClearAllPoints()
+    -- It only ever has these two points (see Apply), so setting them replaces them.
     if p.orientation == "HORIZONTAL" then
         bar:SetPoint("TOPLEFT", xpBar, "TOPLEFT", p.reverse and 0 or offset, 0)
         bar:SetPoint("BOTTOMRIGHT", xpBar, "BOTTOMRIGHT", p.reverse and -offset or 0, 0)
@@ -503,24 +509,30 @@ function X:DrawBars()
     local width, height = self.bars.xp:GetWidth(), self.bars.xp:GetHeight()
     if drawn.xp == xp and drawn.rested == rested and drawn.quest == quest and drawn.showRested == showRested
         and drawn.showQuest == showQuest and drawn.width == width and drawn.height == height then return end
+    local wasRested, wasQuest, wasSpark = drawn.showRested, drawn.showQuest, drawn.showSpark
     drawn.xp, drawn.rested, drawn.quest, drawn.showRested, drawn.showQuest = xp, rested, quest, showRested, showQuest
     drawn.width, drawn.height = width, height
     self.bars.xp:SetValue(xp)
     PlaceAfter(self.bars.rested, self.bars.xp, p, width, height, xp, rested)
     PlaceAfter(self.bars.quest, self.bars.xp, p, width, height, xp + rested, quest)
-    self.bars.rested:SetShown(showRested)
-    self.bars.quest:SetShown(showQuest)
+    if wasRested ~= showRested then self.bars.rested:SetShown(showRested) end
+    if wasQuest ~= showQuest then self.bars.quest:SetShown(showQuest) end
     local fraction = min(1, state.xp / cap)
     local showSpark = p.spark and fraction > 0 and fraction < 1 and not state.atMax
-    self.spark:SetShown(showSpark)
+    drawn.showSpark = showSpark
+    if wasSpark ~= showSpark then self.spark:SetShown(showSpark) end
     if showSpark then
         if p.reverse then fraction = 1 - fraction end
-        self.spark:ClearAllPoints()
+        -- Its only point is CENTER, so setting it replaces it.
+        local sparkWidth, sparkHeight = p.sparkWidth, height
+        if p.orientation ~= "HORIZONTAL" then sparkWidth, sparkHeight = width, p.sparkWidth end
+        if drawn.sparkWidth ~= sparkWidth or drawn.sparkHeight ~= sparkHeight then
+            drawn.sparkWidth, drawn.sparkHeight = sparkWidth, sparkHeight
+            self.spark:SetSize(sparkWidth, sparkHeight)
+        end
         if p.orientation == "HORIZONTAL" then
-            self.spark:SetSize(p.sparkWidth, height)
             self.spark:SetPoint("CENTER", self.bars.xp, "LEFT", width * fraction, 0)
         else
-            self.spark:SetSize(width, p.sparkWidth)
             self.spark:SetPoint("CENTER", self.bars.xp, "BOTTOM", 0, height * fraction)
         end
     end
@@ -593,8 +605,9 @@ local function Protected(region) return region.IsProtected ~= nil and region:IsP
 -- and catch clicks). This client's bars aren't protected, so this works in combat; protected ones wait for it to end.
 function X:UpdateBlizzardBar()
     local hide = self.db.profile.hideBlizzard and self:IsEnabled()
-    local hidden = self.blizzardHidden or {}
-    if not (hide or next(hidden)) then return end -- off, with nothing to restore
+    local hidden = self.blizzardHidden
+    if not (hide or (hidden and next(hidden))) then return end -- off, with nothing to restore
+    hidden = hidden or {}
     if hide then self:HookBlizzardBar() end
     self.blizzardHidden = hidden
     local regions = hide and self:BlizzardXPRegions() or {}

@@ -193,9 +193,11 @@ ns.Listen(F, { "LOOT_READY", "LOOT_OPENED", "LOOT_SLOT_CHANGED", "LOOT_CLOSED", 
         local session = self.session
         if session and not session.stopped then
             session[arg] = nil
-            -- Changes come in bursts; try once they settle.
+            -- Changes come in bursts; try once they settle. Ending the session cancels the retry, so the session it
+            -- finds is this one.
             if self.retry then self.retry:Cancel() end
-            self.retry = C_Timer.NewTimer(0.3, function() self.retry = nil; self:TakeAll(session) end)
+            self.retryTake = self.retryTake or function() self.retry = nil; self:TakeAll(self.session) end
+            self.retry = C_Timer.NewTimer(0.3, self.retryTake)
         end
     elseif event == "LOOT_BIND_CONFIRM" then
         -- Only for what Fast Loot is taking: binding an item you loot by hand (after an error stopped it, say) stays
@@ -592,9 +594,13 @@ local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     end
     -- Picked-up items take the mouse only when chosen, so the list doesn't get in the way.
     row:EnableMouse(item.slot ~= nil and manual or not manual and noticeMouse and item.link ~= nil)
-    row.icon:SetTexture(item.icon)
-    row.icon:SetDesaturated(item.locked == true)
-    row.quest:SetShown(item.quest == true)
+    -- Icon, quest mark, count and owned text are set only when they change; only this function sets them. A new
+    -- texture gets its desaturation again.
+    if row.shownIcon ~= item.icon then row.shownIcon, row.shownLocked = item.icon, nil; row.icon:SetTexture(item.icon) end
+    local locked = item.locked == true
+    if row.shownLocked ~= locked then row.shownLocked = locked; row.icon:SetDesaturated(locked) end
+    local quest = item.quest == true
+    if row.shownQuest ~= quest then row.shownQuest = quest; row.quest:SetShown(quest) end
     -- An eye on loot whose look you haven't collected (Appearance Collector, Modules/Appearances.lua).
     local looks = ns.Appearances
     if looks then looks:Mark(row.slot, item.link, "loot", p.iconSize) end
@@ -602,7 +608,8 @@ local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     local edge = p.iconBorder and quality >= 2 and QualityEdge(quality) or C.border
     if row.edgeColor ~= edge then row.edgeColor = edge; row.edge(edge) end
     local quantity = item.quantity or 1
-    row.count:SetText(manual and quantity > 1 and quantity or "")
+    local count = manual and quantity > 1 and quantity or ""
+    if row.shownCount ~= count then row.shownCount = count; row.count:SetText(count) end
     ns.SetFont(row.label, font, p.fontSize, flags)
     local text = item.name or ""
     if not manual then
@@ -618,7 +625,8 @@ local function FillRow(row, item, manual, p, font, flags, noticeMouse)
     else row.label:SetTextColor(QualityColor(quality)) end
     local owned = p.ownedCount and L.Owned(item)
     row.shownOwned = owned
-    row.owned:SetText(owned and owned > 0 and (owned .. " owned") or "")
+    local ownedText = owned and owned > 0 and (owned .. " owned") or ""
+    if row.ownedText ~= ownedText then row.ownedText = ownedText; row.owned:SetText(ownedText) end
     return text
 end
 
@@ -708,17 +716,22 @@ function L:Layout(f, items, manual, p, money, note, placed)
     local top = header and extra + HEADER + 2 or edge
     local rowHeight, font, flags = p.iconSize + p.spacing, FontFile(p), ns.OutlineFlags(p.outline)
     f.header:SetShown(header)
-    -- Everything on the top bar is hidden with it, and every layout that shows it sets it all again.
+    -- Everything on the top bar is hidden with it, and every layout that shows it sets it all again, its anchors only
+    -- when the padding or the key changes (only this function anchors them; extra comes from the padding).
     if header then
-        f.header:SetPoint("TOPLEFT", 0, -extra)
-        f.header:SetPoint("TOPRIGHT", 0, -extra)
-        f.rule:SetPoint("BOTTOMLEFT", inset, 0)
-        f.rule:SetPoint("BOTTOMRIGHT", -inset, 0)
-        f.takeAll:SetPoint("LEFT", inset - 4, 0)
-        f.close:SetPoint("RIGHT", -inset + 2, 0)
+        if f.headerInset ~= inset then
+            f.headerInset = inset
+            f.header:SetPoint("TOPLEFT", 0, -extra)
+            f.header:SetPoint("TOPRIGHT", 0, -extra)
+            f.rule:SetPoint("BOTTOMLEFT", inset, 0)
+            f.rule:SetPoint("BOTTOMRIGHT", -inset, 0)
+            f.takeAll:SetPoint("LEFT", inset - 4, 0)
+            f.close:SetPoint("RIGHT", -inset + 2, 0)
+        end
         f.rule:SetShown(p.headerRule)
         f.close:SetShown(p.closeButton)
-        f.close.icon:Fit()
+        -- Hidden, its icon is fitted as it shows (W.CloseIcon).
+        if p.closeButton then f.close.icon:Fit() end
         local hotkey = not note and p.hotkey or ""
         f.note:SetShown(note ~= nil)
         if note then
@@ -730,8 +743,12 @@ function L:Layout(f, items, manual, p, money, note, placed)
         end
         f.takeAll.key:SetShown(hotkey ~= "")
         f.takeAll.key.text:SetText(hotkey)
-        f.takeAll.label:ClearAllPoints()
-        if hotkey ~= "" then f.takeAll.label:SetPoint("LEFT", f.takeAll.key, "RIGHT", 6, 0) else f.takeAll.label:SetPoint("LEFT", 10, 0) end
+        local keyed = hotkey ~= ""
+        if f.takeAll.keyed ~= keyed then
+            f.takeAll.keyed = keyed
+            f.takeAll.label:ClearAllPoints()
+            if keyed then f.takeAll.label:SetPoint("LEFT", f.takeAll.key, "RIGHT", 6, 0) else f.takeAll.label:SetPoint("LEFT", 10, 0) end
+        end
         f.takeAll:SetWidth((hotkey ~= "" and 28 or 10) + f.takeAll.label:GetStringWidth() + 10)
     end
     ns.SetFont(f.measure, font, p.fontSize, flags)
@@ -751,24 +768,30 @@ function L:Layout(f, items, manual, p, money, note, placed)
         row.animX, row.animY, row.animAlpha = nil, nil, nil -- placed anew; the notices' animation starts over
         row:Show()
         f.measure:SetText(text)
-        widest = math.max(widest, p.iconSize + 8 + f.measure:GetStringWidth() + row.owned:GetStringWidth() + 18)
+        local ownedWidth = row.ownedText ~= "" and row.owned:GetStringWidth() or 0 -- empty text is 0 wide
+        widest = math.max(widest, p.iconSize + 8 + f.measure:GetStringWidth() + ownedWidth + 18)
         best = math.max(best, item.quality or 1)
     end
     for i = #items + 1, math.min(before, #f.rows) do f.rows[i]:Hide() end
     -- Money on its own line at the bottom: "+9" and the coin while auto looting.
     local footer, footerHeight = f.footer, 0
     footer:SetShown(money ~= nil)
-    footer:SetPoint("BOTTOMLEFT", 0, extra)
-    footer:SetPoint("BOTTOMRIGHT", 0, extra)
-    footer.rule:SetPoint("TOPLEFT", inset, 0)
-    footer.rule:SetPoint("TOPRIGHT", -inset, 0)
+    -- Anchored again only when the padding changes; only this function anchors them.
+    if footer.inset ~= inset then
+        footer.inset = inset
+        footer:SetPoint("BOTTOMLEFT", 0, extra)
+        footer:SetPoint("BOTTOMRIGHT", 0, extra)
+        footer.rule:SetPoint("TOPLEFT", inset, 0)
+        footer.rule:SetPoint("TOPRIGHT", -inset, 0)
+    end
     if money then
         footerHeight = p.footerSize + 12
         footer:SetHeight(footerHeight)
         footer:EnableMouse(manual and money.slot ~= nil)
         footer.rule:SetShown(p.footerRule and #items > 0)
         local text = money.amount and Money(money.amount, p.footerSize) or money.text or ""
-        footer.text:SetText(manual and text or ("+" .. text))
+        if not manual then text = "+" .. text end
+        footer.text:SetText(text)
         ns.SetFont(footer.text, font, p.footerSize, flags)
         footer.text:SetTextColor(unpack(p.footerColor))
         -- Money on its own fills the window, centered.
@@ -776,7 +799,7 @@ function L:Layout(f, items, manual, p, money, note, placed)
         footer.text:ClearAllPoints()
         footer.text:SetPoint(align, footer, align, align == "LEFT" and inset + 2 or align == "RIGHT" and -inset - 2 or 0, 0)
         ns.SetFont(f.measureFooter, font, p.footerSize, flags)
-        f.measureFooter:SetText(footer.text:GetText())
+        f.measureFooter:SetText(text)
         widest = math.max(widest, f.measureFooter:GetStringWidth() + 4)
     end
     -- Rows have the padding's edge above and below; the money line has its own margins, and money on its own sits in
@@ -793,15 +816,19 @@ function L:Layout(f, items, manual, p, money, note, placed)
     -- while it has a background.
     local r, g, b = QualityColor(best)
     local lit = p.qualityBorder and best >= 2
-    -- Each is laid out only while it shows (every layout that shows it lays it out first).
+    -- Each is laid out and colored only while it shows (every layout that shows it does both first).
     local border = p.border and (manual or p.noticeAlpha > 0)
-    if border then f.edges:Layout(f, ns.Pixels(f, p.borderSize), false) end
+    if border then
+        f.edges:Layout(f, ns.Pixels(f, p.borderSize), false)
+        if lit then f.edges:SetColor(r, g, b, 1) else f.edges:SetColor(unpack(p.borderColor)) end
+    end
     f.edges:SetShown(border)
-    if lit then f.edges:SetColor(r, g, b, 1) else f.edges:SetColor(unpack(p.borderColor)) end
     local glow = border and lit and p.glow
-    if glow then f.glow:Layout(f, ns.Pixels(f, 2), true) end
+    if glow then
+        f.glow:Layout(f, ns.Pixels(f, 2), true)
+        f.glow:SetColor(r, g, b, 0.35)
+    end
     f.glow:SetShown(glow)
-    f.glow:SetColor(r, g, b, 0.35)
 end
 
 -- Lays the border and its glow out again on whole pixels, for a preview window scaled after L:Layout.
@@ -924,10 +951,15 @@ function L:UpdateHotkey(enteringCombat)
             if not InCombatLockdown() then frame:SetPropagateKeyboardInput(not mine) end
             if mine then self:TakeAll() end
         end
-        f:EnableKeyboard(true)
+        -- Turned on once until turned off below; only this function sets the keyboard and its script.
+        if not f.keyboardOn then
+            f.keyboardOn = true
+            f:EnableKeyboard(true)
+            f:SetScript("OnKeyDown", self.onKeyDown)
+        end
         f:SetPropagateKeyboardInput(true)
-        f:SetScript("OnKeyDown", self.onKeyDown)
     else
+        f.keyboardOn = nil
         f:SetScript("OnKeyDown", nil)
         f:EnableKeyboard(false)
         if not InCombatLockdown() then f:SetPropagateKeyboardInput(true) end
@@ -1031,8 +1063,9 @@ function L:ShowManual(items, money)
         f:EnableMouse(true)
     end
     self:CloseOnEscape(true)
-    self:Layout(f, items, true, self.db.profile, money, auto and self:LeftNote(items) or nil)
+    -- Placed (and scaled) first: the border is laid out on whole pixels at the window's scale.
     if not shown then self:Place(not auto and self.db.profile.underMouse) end
+    self:Layout(f, items, true, self.db.profile, money, auto and self:LeftNote(items) or nil)
     WindowAlpha(f, 1)
     if not shown then f:Show() end
     f:Raise()
@@ -1166,20 +1199,24 @@ function L:ShowNotices()
     if #self.notices == 0 and not money then return f:Hide() end
     local appearing = not (f:IsShown() and self.mode == "notices")
     self.mode = "notices"
-    -- Animated every frame only while it lists them.
-    self.animate = self.animate or function() if self.mode == "notices" then self:AnimateNotices() end end
-    f:SetScript("OnUpdate", self.animate)
-    f:EnableMouse(false)
+    -- Animated every frame only while it lists them. Already listing them (only this lists them), the window is set as
+    -- it needs.
+    if appearing then
+        self.animate = self.animate or function() if self.mode == "notices" then self:AnimateNotices() end end
+        f:SetScript("OnUpdate", self.animate)
+        f:EnableMouse(false)
+    end
     self:CloseOnEscape(false)
+    -- Placed (and scaled) first: the border is laid out on whole pixels at the window's scale.
+    if appearing then self:Place(false) end
     -- Its rows are placed by the animation, below, unless that waits for the list to be drawn again.
     self:Layout(f, self.notices, false, self.db.profile, money, nil, not self.noticesQueued)
     f.settled = nil
     if appearing then
-        self:Place(false)
         f.opened, f.animated, f.shownHeight = GetTime(), nil, f.targetHeight
         for _, notice in ipairs(self.notices) do notice.y = nil end
+        f:Show()
     end
-    f:Show()
     self:WatchBags()
     self:AnimateNotices()
 end
@@ -1264,20 +1301,21 @@ function L:Refresh()
     local f = self.window
     if not (f and f:IsShown()) then return end
     self:WatchBags()
+    -- Each is scaled before it's laid out, for its border's whole pixels (a scale just changed, say).
     if self.mode == "sample" then
-        self:Layout(f, self.samples.window, true, self.db.profile, { amount = self.samples.money })
         self:Place(false)
+        self:Layout(f, self.samples.window, true, self.db.profile, { amount = self.samples.money })
         return self:UpdateHotkey()
     end
     if LOOTING[self.mode] then
-        local items, money = self:Remaining()
-        self:Layout(f, items, true, self.db.profile, money, self.mode == "leftovers" and self:LeftNote(items) or nil)
         f:SetScale(self.db.profile.scale)
         f.close.icon:Fit()
+        local items, money = self:Remaining()
+        self:Layout(f, items, true, self.db.profile, money, self.mode == "leftovers" and self:LeftNote(items) or nil)
         self:UpdateHotkey()
     else
-        self:ShowNotices()
         self:Place(false)
+        self:ShowNotices()
     end
 end
 
@@ -1437,7 +1475,8 @@ function L:OnEvent(event, arg, message)
         self:RefreshOwned()
     elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
         inCombat = event == "PLAYER_REGEN_DISABLED"
-        self:UpdateHotkey(inCombat)
+        -- A hidden window's key is off already (hiding it turns it off).
+        if self.window and self.window:IsShown() then self:UpdateHotkey(inCombat) end
         if self.mode == "notices" then self:NoticeRowsMouse() end
     elseif event == "PARTY_LOOT_METHOD_CHANGED" or event == "GROUP_ROSTER_UPDATE" then
         -- Roster updates come in floods in a raid; the windows only change hands when master looting does.
