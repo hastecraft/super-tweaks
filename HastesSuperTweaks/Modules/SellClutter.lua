@@ -339,8 +339,10 @@ local function Professions()
     end
     local knows = not info and (C_SpellBook and C_SpellBook.IsSpellKnown or IsPlayerSpell)
     for id, ranks in pairs(knows and RANKS or {}) do
-        for _, spell in ipairs(known[id] and {} or ranks) do
-            if knows(spell) then known[id] = true; break end
+        if not known[id] then
+            for _, spell in ipairs(ranks) do
+                if knows(spell) then known[id] = true; break end
+            end
         end
     end
     return known
