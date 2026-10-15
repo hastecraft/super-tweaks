@@ -456,7 +456,8 @@ end
 function W.Chevron(parent, size, color, layer)
     local t = W.PixelIcon(parent, ART .. "Chevron", size, color or C.header, layer)
     function t:Point(direction)
-        if self.direction == direction then return end
+        -- It's drawn pointing right until told otherwise.
+        if (self.direction or "RIGHT") == direction then return end
         self.direction, self.fitScale = direction, nil
         self:Fit()
     end
