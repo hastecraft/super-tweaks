@@ -739,6 +739,7 @@ end)
 -- itself, checks whether it's safe; out of combat it counts down a 5-second notice, refreshes and is done.
 Section('Better World Refresh', function()
     local W = mod('WorldRefresh')
+    W.db.profile.autoRefresh = 'safe'
     HST:SetFeatureEnabled('WorldRefresh', true)
     state.evictionWait = 600
     Send('WorldRefresh', 'SHARD_TRANSFER_IMMINENT')
