@@ -237,14 +237,18 @@ function G.info.preview(frame)
         W.Column(frame, { row })
     end
     -- The flight option is picked for you, the chat gives way to the map, and the route draws itself across it.
+    local shownDots
     W.Loop(frame, 5, function(t)
         local out, skipped = 1 - W.Ease(t, 4.3, 4.6), W.Ease(t, 1.1, 1.4)
         v.chat:SetAlpha(W.Ease(t, 0, 0.25) * (1 - 0.55 * skipped) * out)
         v.pick:SetAlpha(W.Ease(t, 0.5, 0.7) * (1 - skipped))
         v.arrow:SetAlpha((0.3 + 0.7 * W.Ease(t, 0.9, 1.2)) * out)
         v.map:SetAlpha(W.Ease(t, 1.1, 1.4) * out)
-        local drawn = W.Ease(t, 1.5, 2.3) * #v.route
-        for i, dot in ipairs(v.route) do dot:SetShown(i <= drawn) end
+        local drawn = math.floor(W.Ease(t, 1.5, 2.3) * #v.route)
+        if drawn ~= shownDots then
+            shownDots = drawn
+            for i, dot in ipairs(v.route) do dot:SetShown(i <= drawn) end
+        end
     end)
 end
 -- Service icons (Interface\GossipFrame): banker, battlemaster, guild charters, tabards, flight master, trainer, vendor.
