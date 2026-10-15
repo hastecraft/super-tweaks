@@ -548,12 +548,17 @@ function C:CreateCampfire()
     f:SetFrameStrata("MEDIUM")
     Shown(f, false)
     -- Hovering shows what it's counting; clicks pass through to the world, except once the buffs ended, when a click
-    -- puts the reminder away.
+    -- puts the reminder away, and on the reminder without them, which a middle-click hides until the next reload.
     f:SetScript("OnEnter", function() self:ShowTooltip(f) end)
     f:SetScript("OnLeave", function() ns.Widgets.HideTooltip(f) end)
-    f:SetScript("OnMouseUp", function()
-        if self.state ~= "ended" then return end
-        self.ended = false
+    f:SetScript("OnMouseUp", function(_, button)
+        if self.state == "ended" then
+            self.ended = false
+        elseif self.state == "missing" and button == "MiddleButton" then
+            self.missingHidden = true
+        else
+            return
+        end
         ns.Widgets.HideTooltip(f)
         self:Refresh()
     end)
@@ -605,7 +610,7 @@ function C:Refresh(now)
     elseif n.on and p.nearby then
         state = "nearby"
     elseif p.without == "always" then
-        state = "missing"
+        state = not self.missingHidden and "missing" or nil
     elseif self.ended and p.without == "ended" then
         state = "ended"
     end
@@ -627,7 +632,7 @@ function C:Refresh(now)
         C_Timer.After(delay, self.onTick)
     end
     self.state = state
-    local clicks = state == "ended" and not self.editMode
+    local clicks = (state == "ended" or state == "missing") and not self.editMode
     if d.clicks ~= clicks then d.clicks = clicks; f:SetMouseClickEnabled(clicks) end
     Shown(f, true)
 end
@@ -732,6 +737,7 @@ function C:ShowTooltip(owner)
     elseif state == "missing" then
         GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
         Line("No camp buffs. Sit by a campfire for " .. Span(60) .. " to get them.", WHITE)
+        Line("Middle-click to hide this until you reload.", GREY)
     else
         GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
         Line("Your camp buffs ended. Sit by a campfire for " .. Span(60) .. " for new ones.", WHITE)
