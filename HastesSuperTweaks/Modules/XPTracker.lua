@@ -214,7 +214,7 @@ end
 function X:UpdateMouse()
     local p = self.db.profile
     local enabled = (not p.clickThrough or not p.locked or p.mouseover) and not (p.ignoreMouseInCombat and self:InCombat())
-    self.frame:EnableMouse(enabled)
+    if self.frame.mouseOn ~= enabled then self.frame.mouseOn = enabled; self.frame:EnableMouse(enabled) end
     if not enabled and self.hovered then
         self.hovered = false
         ns.Widgets.HideTooltip(self.frame)
@@ -428,12 +428,15 @@ function X:Render(sameContent)
         self.frame:Hide()
         return
     end
-    local inView = sameContent and not self.faded and self.frame:IsShown()
-    self.frame:Show()
+    local f = self.frame
+    local shown = f:IsShown()
+    local inView = sameContent and not self.faded and shown
+    if not shown then f:Show() end
     local p = self.db.profile
     local alpha = p.mouseover and not self.hovered and not self.preview and not self.editMode and p.locked and 0
         or self:InCombat() and p.combatAlpha or p.alpha
-    self.frame:SetAlpha(alpha)
+    -- Only set here, so only set when it changes.
+    if f.shownAlpha ~= alpha then f.shownAlpha = alpha; f:SetAlpha(alpha) end
     -- Fully faded (Mouseover only, or no combat opacity): nothing to redraw until the bar shows again,
     -- which pointing at it, combat ending or a settings change all trigger.
     self.faded = alpha == 0
