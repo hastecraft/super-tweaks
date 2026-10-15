@@ -187,7 +187,7 @@ LOGO_PATHS = [
      '-1072.07-12.31-1081.938 0L-773.907-143.884-701.986-392.777-540.969-464.256-379.951-392.777-308.028-143.884Z'),
 ]
 LOGO_BOX = (1904.02, 1428.883, 2985.958, 2571.116)
-LOGO_COLOR = (245, 194, 50)  # gold, close to the accent: the logo is shown untinted
+LOGO_COLOR = (245, 194, 50)  # gold: Logo, the addon list's icon; the settings window tints a white one by theme
 
 
 def logo_mask(big, margin=0.04):
@@ -205,10 +205,10 @@ def logo_mask(big, margin=0.04):
     return mask
 
 
-def logo(size=64, margin=0.04, samples=8):
-    """The logo in gold on transparent, centered in a square."""
+def logo(size=64, margin=0.04, samples=8, color=LOGO_COLOR):
+    """The logo in gold (or `color`) on transparent, centered in a square."""
     mask = logo_mask(size * samples, margin)
-    image = Image.new('RGBA', (size, size), LOGO_COLOR + (0,))
+    image = Image.new('RGBA', (size, size), color + (0,))
     image.putalpha(mask.resize((size, size), Image.BOX))
     return image
 
@@ -756,6 +756,7 @@ def campfire_glow(size=128):
 if __name__ == '__main__':
     ART.mkdir(exist_ok=True)
     images = {'Cog': cog(), 'GitHub': svg_icon(GITHUB_PATH), 'Heart': heart(), 'Chevron': chevron(), 'Logo': logo(),
+              'LogoTint': logo(color=(255, 255, 255)),
               'LogoOff': logo_off(), 'Search': magnifier(),
               'LogoSearch': logo_search(), 'Grip': grip()}
     # Every size drawn on its own pixel grid, with fine supersampling since the pixels are few.
@@ -773,7 +774,7 @@ if __name__ == '__main__':
         'ChevronSizes': lambda n: chevron(n, samples=16),
         'GitHubSizes': lambda n: svg_icon(GITHUB_PATH, size=n, samples=16),
         'HeartSizes': lambda n: heart(n, samples=16),
-        'LogoSizes': lambda n: logo(n, samples=16),
+        'LogoSizes': lambda n: logo(n, samples=16, color=(255, 255, 255)),
         'LogoOffSizes': lambda n: logo_off(n, samples=16),
         'SearchSizes': lambda n: weighted(magnifier(n, samples=16)),
         'LogoSearchSizes': lambda n: logo_search(n, samples=16),
