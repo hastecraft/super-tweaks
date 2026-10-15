@@ -732,6 +732,7 @@ ns.Listen(M, { "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", 
             if not HANDS[arg] then return end
             self.handsRead = false
         end
+        if self.queued then return end -- the write waiting reads everything again and notes combat or death itself
         if RESUME[event] then
             if not self.dirty then return end
         elseif event == "GET_ITEM_INFO_RECEIVED" and not self.awaiting[arg or 0] then
