@@ -396,13 +396,11 @@ function Q.info.preview(frame)
         v.progress:SetText(SAMPLE_PROGRESS)
         v.quest = W.Text(frame, "GameFontNormal", { 1, 1, 0 }, "CENTER")
         v.quest:SetText(SAMPLE_QUEST)
-        v.channel = W.Caption(frame, "Volume: Master") -- one line, laid out with this text
-        W.Column(frame, { panel, 14, v.progress, 4, v.quest, 12, v.channel })
+        W.Column(frame, { panel, 14, v.progress, 4, v.quest })
     end
     local p = Q.db.profile
     ShowRow(v.rows[1], p.objectiveSound)
     ShowRow(v.rows[2], p.questSound)
-    v.channel:SetFormattedText("Volume: %s", CHANNELS[Channel(p)])
     local message, fallback = p.message, p.questSound == ""
     W.Loop(frame, LOOP, function(t)
         local out = 1 - W.Ease(t, LOOP - 0.6, LOOP - 0.2)

@@ -73,8 +73,8 @@ local function AutoLootKey()
     return KEY_NAMES[GetModifiedClick and GetModifiedClick("AUTOLOOTTOGGLE") or "SHIFT"]
 end
 
--- Settings preview: a corpse's loot all taken at once, listed as the Loot Window would list it, and under it what
--- Auto Loot and bind-on-pickup items do.
+-- Settings preview: a corpse's loot all taken at once, listed as the Loot Window would list it, and under it a line
+-- when Auto Loot is off.
 local FAST_MONEY = { amount = 152 }
 function F.info.preview(frame)
     local L, W = ns.LootWindow, ns.Widgets
@@ -89,15 +89,14 @@ function F.info.preview(frame)
     local list = L:SampleNotices(look)
     local money = look.money and FAST_MONEY or nil
     local empty = #list == 0 and not money
-    local text = F.db.profile.soloBind and "Solo, bind-on-pickup items are taken too"
-        or "Bind-on-pickup items wait for you to confirm"
+    local text = empty and "Nothing at the Loot Window's lowest quality" or nil
     if not GetCVarBool("autoLootDefault") then
         local key = AutoLootKey()
-        text = (key and "Auto Loot is off: hold " .. key .. " as you loot" or "Auto Loot is off, with no auto loot key")
-            .. "\n" .. text
+        local off = key and "Auto Loot is off: hold " .. key .. " as you loot" or "Auto Loot is off, with no auto loot key"
+        text = text and text .. "\n" .. off or off
     end
-    if empty then text = "Nothing at the Loot Window's lowest quality\n" .. text end
-    caption:SetText(text)
+    caption:SetText(text or "")
+    caption:SetShown(text ~= nil)
     f:SetShown(not empty)
     if empty then
         frame:SetScript("OnUpdate", nil)
@@ -105,10 +104,10 @@ function F.info.preview(frame)
     end
     L:Layout(f, list, false, look, money)
     -- Most of its size, smaller to fit above the caption.
-    local room = W.PREVIEW_HEIGHT - caption:GetStringHeight() - 14
+    local room = W.PREVIEW_HEIGHT - (text and caption:GetStringHeight() + 6 or 0) - 8
     f:SetScale(math.min(0.8, room / f:GetHeight(), (W.PREVIEW_WIDTH - 8) / f:GetWidth()))
     L:SnapEdges(f, look)
-    W.Column(frame, { f, 6, caption })
+    W.Column(frame, text and { f, 6, caption } or { f })
     -- The list opens and every item lands in it at once, a beat apart (newest at the edge it grows toward), the money
     -- last.
     local count, up = #list, look.growUp

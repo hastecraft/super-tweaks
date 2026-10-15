@@ -47,24 +47,19 @@ function M:SetMessage(f, motd)
 end
 
 -- Settings preview: the popup as the settings draw it, at 0.6 of its size in a band narrower than the screen,
--- fading in and out as it does (staying up at most 5 seconds here), and how long and where it shows.
+-- fading in and out as it does (staying up at most 5 seconds here).
 local PREVIEW_SCALE, PREVIEW_BAND = 0.6, 360
 function M.info.preview(frame)
     local W, p = ns.Widgets, M.db.profile
-    local band, caption = frame.hstBand, frame.hstCaption
+    local band = frame.hstBand
     if not band then
         band = CreateFrame("Frame", nil, frame)
         frame.hstBand = band
         BuildBand(band, PREVIEW_BAND)
         band:SetScale(PREVIEW_SCALE)
-        caption = W.Caption(frame, "")
-        frame.hstCaption = caption
     end
     M:SetMessage(band, SAMPLE)
-    local where = p.y == 0 and "in the middle of the screen"
-        or ("%d %s the middle of the screen"):format(math.abs(p.y), p.y > 0 and "above" or "below")
-    caption:SetText(("Shows for %d seconds%s\n%s"):format(p.duration, p.sound and ", with a sound" or "", where))
-    W.Column(frame, { band, 8, caption })
+    W.Column(frame, { band })
     local shown = math.min(p.duration, 5) + FADE * 2
     W.Loop(frame, shown + 1, function(t) band:SetAlpha(W.Window(t, 0.3, 0.3 + shown, FADE)) end)
 end

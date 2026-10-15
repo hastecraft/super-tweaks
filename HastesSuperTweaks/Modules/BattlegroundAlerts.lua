@@ -98,8 +98,8 @@ local function Name(text)
 end
 
 ---------------------------------------------------------------------------
--- Settings preview: the game's invite window with the countdown under it, ticking through the last reminder, a note
--- of the alerts that are on, and the result line.
+-- Settings preview: the game's invite window with the countdown under it, ticking through the last reminder, and the
+-- result line.
 ---------------------------------------------------------------------------
 A.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
 
@@ -121,26 +121,15 @@ function A.info.preview(frame)
         end
         v.countdown = W.Text(frame, "GameFontHighlight", { 1, 1, 1 }, "CENTER")
         ns.SetFont(v.countdown, ns.Media("font", "Inter Semi Bold"), 13, "OUTLINE")
-        v.caption = W.Caption(frame, "")
         v.line = W.ChatLine(frame, "Victory in Arathi Basin (18:42)" .. (MATCH_RESULTS and DOT .. "+214 Honor" or ""))
     end
     local p = A.db.profile
-    local notes = {}
-    local flash = p.sound and "Taskbar flash and sound" or "Taskbar flash"
-    if p.invite then notes[#notes + 1] = flash .. " at 20 and 10 seconds left" end
-    if p.gates then
-        notes[#notes + 1] = flash .. (p.gatesWarning and " 10 seconds before the gates open, and as they do"
-            or " as the gates open")
-    end
-    v.caption:SetText(table.concat(notes, "\n"))
     v.countdown:SetShown(p.invite)
-    v.caption:SetShown(#notes > 0)
     v.line:SetShown(p.result)
     -- Only what shows takes room.
     local parts = { v.dialog }
     local function add(shown, gap, region) if shown then parts[#parts + 1], parts[#parts + 2] = gap, region end end
     add(p.invite, 6, v.countdown)
-    add(#notes > 0, 6, v.caption)
     add(p.result, 10, v.line)
     W.Column(frame, parts)
     -- From 0:13 down through the last reminder, which blinks the countdown.

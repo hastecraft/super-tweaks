@@ -481,10 +481,8 @@ ns.EditMode.Add(R)
 
 ---------------------------------------------------------------------------
 -- Settings preview: the last minute and a half, fast, into the last warning and its message above the bar. Refreshing
--- by itself, it turns safe on the way down: the notice before refreshing, then the refresh. The chat lines go under it.
+-- by itself, it turns safe on the way down: the notice before refreshing, then the refresh.
 ---------------------------------------------------------------------------
-local AUTO_CAPTIONS = { safe = "Refreshes by itself once you're safe",
-    rested = "Refreshes by itself once you're safe in an inn or city" }
 local RAID_WARNING_COLOR = { r = 1, g = 0.28, b = 0 } -- the game's default, should it have none
 -- The countdown's length in the loop (the bar running out), each second of the notice, and the refresh at the end.
 local COUNT, GRACE_STEP, REFRESHED = 8, 0.5, 1.5
@@ -493,12 +491,10 @@ function R.info.preview(frame)
     local W, p = ns.Widgets, R.db.profile
     local v = frame.hstWorldRefresh
     if not v then
-        v = { parts = {} }
+        v = {}
         frame.hstWorldRefresh = v
         v.bar = CreateBar(frame)
         v.warning = W.Text(frame, "GameFontNormalLarge", nil, "CENTER")
-        v.chat = W.ChatLine(frame, "")
-        v.caption = W.Caption(frame, "")
     end
     local bar, warnAt, auto = v.bar, p.warnAt, p.autoRefresh ~= "off"
     Style(bar, p, ns.Media("font", p.font), ns.OutlineFlags(p.outline))
@@ -519,39 +515,12 @@ function R.info.preview(frame)
         v.warning:SetTextColor(color.r, color.g, color.b)
         v.warning:SetText(WarnText(warnAt))
     end
-    local startLine, autoLine
-    if p.chat then
-        startLine, autoLine = W.Chat(StartText(from, false, auto)), W.Chat(AUTO_CHAT)
-        v.chat:SetText(startLine) -- the longer of the two, to lay out with
-    end
-    local caption = AUTO_CAPTIONS[p.autoRefresh]
-    if caption then v.caption:SetText(caption) end
+    -- The message above the bar; the border sits outside the bar, so it's in the gap.
+    W.Column(frame, message and { v.warning, 6 + p.border, bar } or { bar })
 
-    -- Top to bottom: the message, the bar, then the chat line and the caption while they fit. The border sits outside
-    -- the bar, so it's in the gaps.
-    local parts, n, used = v.parts, 0, p.height + 2 * p.border
-    wipe(parts)
-    if message then
-        parts[1], parts[2], n = v.warning, 6 + p.border, 2
-        used = used + v.warning:GetStringHeight() + 6
-    end
-    n = n + 1
-    parts[n] = bar
-    local chat = p.chat and used + 8 + v.chat:GetStringHeight() <= W.PREVIEW_HEIGHT or false
-    if chat then
-        parts[n + 1], parts[n + 2], n = 8 + p.border, v.chat, n + 2
-        used = used + 8 + v.chat:GetStringHeight()
-    end
-    caption = caption and used + 6 + v.caption:GetStringHeight() <= W.PREVIEW_HEIGHT or false
-    if caption then parts[n + 1], parts[n + 2] = chat and 6 or 8 + p.border, v.caption end
-    v.chat:SetShown(chat)
-    v.caption:SetShown(caption)
-    W.Column(frame, parts)
-
-    local seconds, clock, graceShown, graceText, line
+    local seconds, clock, graceShown, graceText
     W.Loop(frame, loop, function(t)
         if message then v.warning:SetAlpha(W.Window(t, warnFrom, min(warnFrom + 3, loop - 0.1), 0.2)) end
-        local now = startLine
         if t < stop then
             local left = from - t * speed
             local whole = ceil(left)
@@ -567,10 +536,8 @@ function R.info.preview(frame)
                 Paint(bar, REFRESHING_IN, graceText, p.autoColor, value, false)
             else
                 Paint(bar, REFRESHING, "", p.autoColor, value, false)
-                now = autoLine
             end
         end
-        if chat and now ~= line then line = now; v.chat:SetText(now) end
     end, warnAt > 0 and warnFrom + 0.5 or stop / 2)
 end
 
