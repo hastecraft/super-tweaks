@@ -2325,7 +2325,8 @@ function P:ShowResultDetail(result)
     d.result = result
     d.title:SetText(result.name)
     d.category:SetText(result.where)
-    d.text:SetText(result.desc or "")
+    -- Read now, as the setting's page shows it: some say what's set (the search index keeps the text it was built with).
+    d.text:SetText(Resolve(result.option.desc, result) or "")
     self:ShowPreview(HST:GetModule(result.owner).info)
     d.status:Hide()
     d.button.label:SetText("Go to setting")
