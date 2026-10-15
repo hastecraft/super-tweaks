@@ -133,7 +133,7 @@ function A.info.preview(frame)
     add(p.result, 10, v.line)
     W.Column(frame, parts)
     -- From 0:13 down through the last reminder, which blinks the countdown.
-    local shown
+    local shown, shownAlpha
     W.Loop(frame, 6, function(t)
         local left = 13 - floor(t)
         if left ~= shown then
@@ -141,7 +141,11 @@ function A.info.preview(frame)
             SetCountdown(v.countdown, left, "Warsong Gulch")
         end
         local blink = t >= 3 and t < 3.8 and math.sin((t - 3) / 0.4 * math.pi) ^ 2 or 0
-        v.countdown:SetAlpha(1 - 0.75 * blink)
+        local alpha = 1 - 0.75 * blink
+        if alpha ~= shownAlpha then
+            shownAlpha = alpha
+            v.countdown:SetAlpha(alpha)
+        end
     end)
 end
 
