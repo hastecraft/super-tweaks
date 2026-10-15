@@ -1516,7 +1516,7 @@ function P:CreateTitleBar(f)
     bar:RegisterForDrag("LeftButton")
     bar:SetScript("OnDragStart", function() f:StartMoving() end)
     bar:SetScript("OnDragStop", function() f:StopMovingOrSizing(); self:SavePlace() end)
-    local logo = W.PixelIcon(bar, W.ART .. "Logo", 24)
+    local logo = W.PixelIcon(bar, W.ART .. "Logo", 24, C.logo)
     logo:SetPoint("LEFT", PAD - 2, 0)
     local title = W.Text(bar, "GameFontNormalLarge", C.title)
     title:SetPoint("LEFT", logo, "RIGHT", 8, 0)
@@ -2033,7 +2033,7 @@ function P:CreateEmpty(view)
     e.icons = {
         search = W.PixelIcon(e, W.ART .. "LogoSearch", EMPTY_ICON),
         off = W.PixelIcon(e, W.ART .. "LogoOff", EMPTY_ICON, C.muted),
-        on = W.PixelIcon(e, W.ART .. "Logo", EMPTY_ICON),
+        on = W.PixelIcon(e, W.ART .. "Logo", EMPTY_ICON, C.logo),
     }
     for _, icon in pairs(e.icons) do icon:SetPoint("TOP") end
     e.title = W.Text(e, "GameFontNormalLarge", C.bright, "CENTER")

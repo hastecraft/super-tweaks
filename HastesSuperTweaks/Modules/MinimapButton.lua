@@ -2,7 +2,7 @@
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
-local LOGO = "Interface\\AddOns\\HastesSuperTweaks\\Art\\Logo"
+local LOGO = "Interface\\AddOns\\HastesSuperTweaks\\Art\\LogoTint"
 local M = HST:NewFeature("MinimapButton", {
     name = "Minimap Button", category = "interface", order = 3,
     summary = "A minimap button that opens these settings.",
@@ -20,11 +20,12 @@ local function DrawButton(button)
     background:SetPoint("TOPLEFT", 7, -5)
     background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
     -- The plain logo, not a pixel-exact one: minimap button skins crop icons with SetTexCoord, which would show a strip
-    -- of the sizes atlas.
+    -- of the sizes atlas. In the settings window's logo color, so it follows the theme.
     button.icon = button:CreateTexture(nil, "ARTWORK")
     button.icon:SetSize(18, 18)
     button.icon:SetPoint("TOPLEFT", 7, -6)
     button.icon:SetTexture(LOGO)
+    ns.Widgets.Paint(button.icon, ns.Widgets.C.logo)
     local border = button:CreateTexture(nil, "OVERLAY")
     border:SetSize(53, 53)
     border:SetPoint("TOPLEFT")

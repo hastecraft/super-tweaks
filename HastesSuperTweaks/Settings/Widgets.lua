@@ -30,6 +30,7 @@ local THEMES = {
         body = { 0.74, 0.74, 0.74 },
         muted = { 0.60, 0.60, 0.60 },
         accent = { 0.651, 0.490, 0.949 },
+        logo = { 0.651, 0.490, 0.949 },
         onAccent = { 0.08, 0.05, 0.14 },
         warning = { 0.96, 0.60, 0.26 },
         disabled = { 0.40, 0.40, 0.40 },
@@ -58,6 +59,7 @@ local THEMES = {
         body = { 0.72, 0.69, 0.64 },
         muted = { 0.58, 0.54, 0.49 },
         accent = { 1, 0.80, 0.40 },
+        logo = { 0.961, 0.761, 0.196 },
         onAccent = { 0.12, 0.08, 0.03 },
         warning = { 0.95, 0.52, 0.22 },
         disabled = { 0.45, 0.45, 0.45 },
@@ -86,6 +88,7 @@ local THEMES = {
         body = { 0.70, 0.77, 0.82 },
         muted = { 0.54, 0.62, 0.68 },
         accent = { 0.36, 0.84, 0.82 },
+        logo = { 0.36, 0.84, 0.82 },
         onAccent = { 0.03, 0.10, 0.11 },
         warning = { 0.98, 0.62, 0.38 },
         disabled = { 0.38, 0.43, 0.47 },
@@ -167,8 +170,9 @@ local function FillPalette(into, theme)
         c[1], c[2], c[3], c[4] = color[1], color[2], color[3], color[4]
     end
     if theme.accentable and accent then
-        local a, track, knob = into.accent, into.trackOn, into.knobOn
+        local a, logo, track, knob = into.accent, into.logo, into.trackOn, into.knobOn
         a[1], a[2], a[3], a[4] = accent[1], accent[2], accent[3], nil
+        logo[1], logo[2], logo[3] = accent[1], accent[2], accent[3]
         track[1], track[2], track[3], track[4] = accent[1], accent[2], accent[3], 1
         local k = Light(accent) and 0.1 or 1
         knob[1], knob[2], knob[3], knob[4] = k, k, k, 1
