@@ -36,11 +36,11 @@ Labels say what each change is: `new`, `changed` or `fixed`, plus `minor` or `ma
 Add one entry at the top of `HST.patchNotes` in `HastesSuperTweaks/PatchNotes.lua`. The file's comment shows the format.
 
 - Cover what players notice: new tweaks, new settings and features, changed behavior or defaults, and fixes for problems players could run into. Leave out refactors, invisible performance work, tooling, docs and `tools/`.
-- One short line per change, under `new`, `changed` or `fixed`, in player terms. Name tweaks as the settings window does. Start from the PR's "For the patch notes" line, but rewrite it to fit.
-- Highlights are only for major new features: a new tweak, or a big new feature or setting players will want to try. Put the one to four biggest under `highlights`, each as a title and a short text. Never highlight fixes or small changes; a release with only those has no `highlights`.
+- Under `new`, give each feature a `title` ("Tweak: Feature" in title case, or a new tweak's own name) over a sentence or two; a title alone is fine when it says everything. Under `changed` and `fixed`, one short line per change that starts with the tweak's name ("Fast Loot: ..."). Write in player terms and name tweaks as the settings window does. Start from the PR's "For the patch notes" line, but rewrite it to fit.
+- Highlights are only for major new features: a new tweak, or a big new feature or setting players will want to try. Put the one to four biggest under `highlights`, each as a title and a short text, and don't list them again under `new`. Never highlight fixes or small changes; a release with only those has no `highlights`.
 - When a line or highlight is about one tweak, give it `module` (and `setting` when it's about one setting) so players can click through to it. Check that the module key exists.
 - Merge related PRs into one line. Never edit shipped entries, except to correct mistakes.
-- Optionally give the entry a `summary` of one sentence.
+- Leave out `summary` unless the release needs a sentence the highlights and lists don't say.
 - Call the game "WoW Forever", never "WoW Classic Forever".
 
 ## 4. Set the version
