@@ -1800,12 +1800,21 @@ function P:CreateSearch(sidebar)
     paint()
 end
 
+-- The sidebar's nth row, its table reused from the last time the rows were listed (every field is set again).
+local function NavEntry(entries, n, kind, key, text, count, open, module, selected)
+    local entry = entries[n] or {}
+    entries[n] = entry
+    entry.kind, entry.key, entry.text, entry.count, entry.open = kind, key, text, count, open
+    entry.module, entry.selected = module, selected
+    return entry
+end
+
 -- The sidebar's rows: All modules, then each category, its modules listed while it's open.
 function P:NavEntries()
-    local entries, state = {}, State()
-    local onCount, total = 0, 0
-    local home = { kind = "home", text = "All tweaks", selected = self.mode == "modules" }
-    entries[1] = home
+    local entries, state = self.navEntries or {}, State()
+    self.navEntries = entries
+    local onCount, total, n = 0, 0, 1
+    local home = NavEntry(entries, 1, "home", nil, "All tweaks", nil, nil, nil, self.mode == "modules")
     local features = HST:Features()
     for _, category in ipairs(HST.categories) do
         local on, count = 0, 0
@@ -1818,19 +1827,21 @@ function P:NavEntries()
         if count > 0 then
             onCount, total = onCount + on, total + count
             local open = state.expanded[category.key] == true
-            entries[#entries + 1] = { kind = "category", key = category.key, text = category.name,
-                count = on .. "/" .. count, open = open }
+            n = n + 1
+            NavEntry(entries, n, "category", category.key, category.name, on .. "/" .. count, open, nil, nil)
             if open then
                 for _, module in ipairs(features) do
                     if module.info.category == category.key then
                         local key = module:GetName()
-                        entries[#entries + 1] = { kind = "module", key = key, text = module.info.name, module = module,
-                            selected = self.mode == "page" and self.view == "module" and self.openModule == key }
+                        n = n + 1
+                        NavEntry(entries, n, "module", key, module.info.name, nil, nil, module,
+                            self.mode == "page" and self.view == "module" and self.openModule == key)
                     end
                 end
             end
         end
     end
+    for i = #entries, n + 1, -1 do entries[i] = nil end
     home.count = onCount .. "/" .. total
     return entries
 end
