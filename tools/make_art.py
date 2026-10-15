@@ -236,10 +236,11 @@ def logo_off(size=64, samples=8, stroke=0.06, gap=0.04, reach=0.12):
 
 
 def logo_search(size=64, samples=8, logo_size=0.8, lens=(0.67, 0.67), radius=0.17, stroke=0.07, handle=0.085,
-                gap=0.045, color=(246, 241, 233), glass=LOGO_COLOR):
+                gap=0.045, color=(246, 241, 233), glass=LOGO_COLOR, part=None):
     """The logo, up and left, searched by a magnifying glass at its lower right, a gap cut around the glass: the
-    settings window's empty search. In color, shown untinted: the logo near white, the glass gold. Inside the lens is
-    left empty: bits of logo there read as noise at small sizes."""
+    settings window's empty search. In color: the logo near white, the glass gold. Inside the lens is left empty: bits
+    of logo there read as noise at small sizes. With `part` ('logo' or 'glass'), that part alone in white, tinted in
+    game: the settings window draws the glass in the theme's logo color."""
     from PIL import ImageDraw, ImageChops
     big = size * samples
     inner = round(big * logo_size)
@@ -261,6 +262,10 @@ def logo_search(size=64, samples=8, logo_size=0.8, lens=(0.67, 0.67), radius=0.1
         draw.ellipse([end[0] - h - extra, end[1] - h - extra, end[0] + h + extra, end[1] + h + extra], fill=255)
         return mask
     cut = ImageChops.subtract(shape, glass_mask(g, hollow=False))
+    if part:
+        image = Image.new('RGBA', (size, size), (255, 255, 255, 0))
+        image.putalpha((cut if part == 'logo' else glass_mask(0)).resize((size, size), Image.BOX))
+        return image
     image = Image.new('RGBA', (size, size), color + (0,))
     image.putalpha(cut.resize((size, size), Image.BOX))
     lens_layer = Image.new('RGBA', (size, size), glass + (0,))
@@ -758,7 +763,8 @@ if __name__ == '__main__':
     images = {'Cog': cog(), 'GitHub': svg_icon(GITHUB_PATH), 'Heart': heart(), 'Chevron': chevron(), 'Logo': logo(),
               'LogoTint': logo(color=(255, 255, 255)),
               'LogoOff': logo_off(), 'Search': magnifier(),
-              'LogoSearch': logo_search(), 'Grip': grip()}
+              'LogoSearch': logo_search(part='logo'), 'LogoSearchGlass': logo_search(part='glass'),
+              'Grip': grip()}
     # Every size drawn on its own pixel grid, with fine supersampling since the pixels are few.
     rounds = {
         'RoundSizes': [lambda n: weighted(disc(n, samples=16))],
@@ -777,7 +783,8 @@ if __name__ == '__main__':
         'LogoSizes': lambda n: logo(n, samples=16, color=(255, 255, 255)),
         'LogoOffSizes': lambda n: logo_off(n, samples=16),
         'SearchSizes': lambda n: weighted(magnifier(n, samples=16)),
-        'LogoSearchSizes': lambda n: logo_search(n, samples=16),
+        'LogoSearchSizes': lambda n: logo_search(n, samples=16, part='logo'),
+        'LogoSearchGlassSizes': lambda n: logo_search(n, samples=16, part='glass'),
         'GripSizes': grip,
     }
     for name, draw in atlases.items():

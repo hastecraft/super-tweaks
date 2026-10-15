@@ -2030,8 +2030,13 @@ function P:CreateEmpty(view)
     local e = CreateFrame("Frame", nil, view)
     self.empty = e
     e:SetWidth(EMPTY_WIDTH)
+    -- Search: the logo in white, its magnifying glass in the logo's color.
+    local search = CreateFrame("Frame", nil, e)
+    search:SetSize(EMPTY_ICON, EMPTY_ICON)
+    W.PixelIcon(search, W.ART .. "LogoSearch", EMPTY_ICON, C.bright):SetPoint("CENTER")
+    W.PixelIcon(search, W.ART .. "LogoSearchGlass", EMPTY_ICON, C.logo):SetPoint("CENTER")
     e.icons = {
-        search = W.PixelIcon(e, W.ART .. "LogoSearch", EMPTY_ICON),
+        search = search,
         off = W.PixelIcon(e, W.ART .. "LogoOff", EMPTY_ICON, C.muted),
         on = W.PixelIcon(e, W.ART .. "Logo", EMPTY_ICON, C.logo),
     }
