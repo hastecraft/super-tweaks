@@ -403,12 +403,14 @@ function T:UpdateHealth(recolor, guid)
     if not unit then return end
     -- The unit token names another unit now ("mouseover" moves on while the tooltip fades; the token the game gave, which
     -- can be "target" or a nameplate, may change hands): find the unit again by its GUID, or keep the last reading
-    -- rather than show another unit (and poll until it's found, if ever).
-    guid = guid or UnitGUID(unit)
-    if not IsSecret(guid) and (not guid or (self.guid and guid ~= self.guid)) then
-        local token = self.guid and UnitTokenFromGUID and UnitTokenFromGUID(self.guid)
-        if IsSecret(token) or not token then return self:Watch(nil) end
-        unit, self.unit = token, token
+    -- rather than show another unit (and poll until it's found, if ever). A GUID given is the one just shown.
+    if not guid then
+        guid = UnitGUID(unit)
+        if not IsSecret(guid) and (not guid or (self.guid and guid ~= self.guid)) then
+            local token = self.guid and UnitTokenFromGUID and UnitTokenFromGUID(self.guid)
+            if IsSecret(token) or not token then return self:Watch(nil) end
+            unit, self.unit = token, token
+        end
     end
     local follow = HANDOFF[unit] and unit or nil
     if follow ~= self.watched then self:Watch(follow) end
