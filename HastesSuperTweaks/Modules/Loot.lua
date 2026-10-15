@@ -1063,8 +1063,9 @@ function L:ShowManual(items, money)
         f:EnableMouse(true)
     end
     self:CloseOnEscape(true)
-    self:Layout(f, items, true, self.db.profile, money, auto and self:LeftNote(items) or nil)
+    -- Placed (and scaled) first: the border is laid out on whole pixels at the window's scale.
     if not shown then self:Place(not auto and self.db.profile.underMouse) end
+    self:Layout(f, items, true, self.db.profile, money, auto and self:LeftNote(items) or nil)
     WindowAlpha(f, 1)
     if not shown then f:Show() end
     f:Raise()
@@ -1206,11 +1207,12 @@ function L:ShowNotices()
         f:EnableMouse(false)
     end
     self:CloseOnEscape(false)
+    -- Placed (and scaled) first: the border is laid out on whole pixels at the window's scale.
+    if appearing then self:Place(false) end
     -- Its rows are placed by the animation, below, unless that waits for the list to be drawn again.
     self:Layout(f, self.notices, false, self.db.profile, money, nil, not self.noticesQueued)
     f.settled = nil
     if appearing then
-        self:Place(false)
         f.opened, f.animated, f.shownHeight = GetTime(), nil, f.targetHeight
         for _, notice in ipairs(self.notices) do notice.y = nil end
         f:Show()
@@ -1299,20 +1301,21 @@ function L:Refresh()
     local f = self.window
     if not (f and f:IsShown()) then return end
     self:WatchBags()
+    -- Each is scaled before it's laid out, for its border's whole pixels (a scale just changed, say).
     if self.mode == "sample" then
-        self:Layout(f, self.samples.window, true, self.db.profile, { amount = self.samples.money })
         self:Place(false)
+        self:Layout(f, self.samples.window, true, self.db.profile, { amount = self.samples.money })
         return self:UpdateHotkey()
     end
     if LOOTING[self.mode] then
-        local items, money = self:Remaining()
-        self:Layout(f, items, true, self.db.profile, money, self.mode == "leftovers" and self:LeftNote(items) or nil)
         f:SetScale(self.db.profile.scale)
         f.close.icon:Fit()
+        local items, money = self:Remaining()
+        self:Layout(f, items, true, self.db.profile, money, self.mode == "leftovers" and self:LeftNote(items) or nil)
         self:UpdateHotkey()
     else
-        self:ShowNotices()
         self:Place(false)
+        self:ShowNotices()
     end
 end
 
