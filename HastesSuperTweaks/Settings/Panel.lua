@@ -159,22 +159,23 @@ local function Flip(module, quiet)
     HST:SetFeatureEnabled(module:GetName(), on)
 end
 
--- A setting's current value as a short text, for search results and the details pane.
-local function ValueText(o)
-    if o.type == "range" then return FormatNumber(o, o.get({ option = o })) end
+-- A setting's current value as a short text, for search results and the details pane. info: the search index entry
+-- or details pane item it's for, which has the option and its key.
+local function ValueText(o, info)
+    if o.type == "range" then return FormatNumber(o, o.get(info)) end
     if o.type == "select" then
-        local value = o.get({ option = o })
-        local values = Resolve(o.values, { option = o }) or {}
+        local value = o.get(info)
+        local values = Resolve(o.values, info) or {}
         return value ~= nil and tostring(values[value] or value) or nil
     end
     if o.type == "input" then
-        local text = o.get({ option = o })
+        local text = o.get(info)
         text = text and text:gsub("%s+", " ")
         return text and text ~= "" and (#text > 18 and (text:sub(1, 16) .. "...") or text) or nil
     end
     if o.type == "items" then
         local count = 0
-        for _ in pairs(o.get({ option = o }) or {}) do count = count + 1 end
+        for _ in pairs(o.get(info) or {}) do count = count + 1 end
         return count .. (count == 1 and " item" or " items")
     end
 end
@@ -2290,18 +2291,19 @@ function P:ShowExamples(module)
         row:ClearAllPoints()
         row:SetPoint("BOTTOMLEFT", 12, 12 + 26 + 10 + (count - i) * 22)
         row:SetWidth(width)
-        row.label:SetText(item.label or Resolve(o.name, { option = o, key = item.key }))
+        -- The item, which has the option and its key, is the option's info.
+        row.label:SetText(item.label or Resolve(o.name, item))
         row.swatch:SetShown(o.type == "color")
         row.value:SetShown(o.type ~= "color")
         if o.type == "color" then
-            local r, g, b, a = o.get({ option = o, key = item.key })
+            local r, g, b, a = o.get(item)
             row.swatch:SetColorTexture(r, g, b, a or 1)
         elseif o.type == "toggle" then
-            local on = o.get({ option = o, key = item.key })
+            local on = o.get(item)
             row.value:SetText(on and "On" or "Off")
             W.Paint(row.value, on and C.accent or C.muted)
         else
-            local text = ValueText(o)
+            local text = ValueText(o, item)
             row.value:SetText(text ~= nil and text ~= "" and text or "None")
             W.Paint(row.value, text ~= nil and text ~= "" and C.header or C.muted)
         end
@@ -3238,7 +3240,7 @@ function P:ResultRow(index)
     row.switch:SetPoint("RIGHT", -12, 0)
     row.switch.onClick = function(on)
         local result = row.result
-        Write(result.option, { option = result.option, key = result.key }, on)
+        Write(result.option, result, on)
     end
     row:SetScript("OnEnter", function(r)
         r.highlight:Show()
@@ -3266,17 +3268,18 @@ function P:PaintResult(row)
         row.swatch:SetShown(o.type == "color")
         row.value:SetShown(o.type ~= "toggle" and o.type ~= "color")
     end
+    -- The result, which has the option and its key, is the option's info.
     if o.type == "toggle" then
-        local off = not HST:GetModule(result.owner):IsEnabled() or Disabled(result.chain, { option = o, key = result.key })
+        local off = not HST:GetModule(result.owner):IsEnabled() or Disabled(result.chain, result)
         -- It slides when this setting changes, not when another search puts a different one in the row.
-        row.switch:SetOn(o.get({ option = o, key = result.key }), row.painted == result)
+        row.switch:SetOn(o.get(result), row.painted == result)
         row.painted = result
         row.switch:SetDisabledLook(off)
     elseif o.type == "color" then
-        local r, g, b, a = o.get({ option = o, key = result.key })
+        local r, g, b, a = o.get(result)
         row.swatch:SetColorTexture(r, g, b, a or 1)
     else
-        local text = ValueText(o) or ""
+        local text = ValueText(o, result) or ""
         if text ~= row.valueText then row.valueText = text; row.value:SetText(text) end
     end
 end
@@ -3306,7 +3309,7 @@ function P:Search(text, again)
     local ranked = {}
     for i, entry in ipairs(self:SettingsIndex()) do
         if All(entry.all, words)
-            and not Resolve(Inherited(entry.chain, "hidden"), { option = entry.option, key = entry.key }) then
+            and not Resolve(Inherited(entry.chain, "hidden"), entry) then
             local rank = All(entry.lname, words) and 1 or All(entry.near, words) and 2 or 3
             ranked[#ranked + 1] = { entry = entry, rank = rank, order = i }
         end
