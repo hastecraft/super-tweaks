@@ -479,7 +479,7 @@ end
 -- bar there, so the fills sit side by side: on top of one another, their colors would blend.
 local function PlaceAfter(bar, xpBar, p, width, height, start, amount)
     local offset = (p.orientation == "HORIZONTAL" and width or height) * start
-    bar:ClearAllPoints()
+    -- It only ever has these two points (see Apply), so setting them replaces them.
     if p.orientation == "HORIZONTAL" then
         bar:SetPoint("TOPLEFT", xpBar, "TOPLEFT", p.reverse and 0 or offset, 0)
         bar:SetPoint("BOTTOMRIGHT", xpBar, "BOTTOMRIGHT", p.reverse and -offset or 0, 0)
@@ -509,19 +509,25 @@ function X:DrawBars()
     self.bars.xp:SetValue(xp)
     PlaceAfter(self.bars.rested, self.bars.xp, p, width, height, xp, rested)
     PlaceAfter(self.bars.quest, self.bars.xp, p, width, height, xp + rested, quest)
-    self.bars.rested:SetShown(showRested)
-    self.bars.quest:SetShown(showQuest)
+    local wasRested, wasQuest, wasSpark = drawn.showRested, drawn.showQuest, drawn.showSpark
+    if wasRested ~= showRested then self.bars.rested:SetShown(showRested) end
+    if wasQuest ~= showQuest then self.bars.quest:SetShown(showQuest) end
     local fraction = min(1, state.xp / cap)
     local showSpark = p.spark and fraction > 0 and fraction < 1 and not state.atMax
-    self.spark:SetShown(showSpark)
+    drawn.showSpark = showSpark
+    if wasSpark ~= showSpark then self.spark:SetShown(showSpark) end
     if showSpark then
         if p.reverse then fraction = 1 - fraction end
-        self.spark:ClearAllPoints()
+        -- Its only point is CENTER, so setting it replaces it.
+        local sparkWidth, sparkHeight = p.sparkWidth, height
+        if p.orientation ~= "HORIZONTAL" then sparkWidth, sparkHeight = width, p.sparkWidth end
+        if drawn.sparkWidth ~= sparkWidth or drawn.sparkHeight ~= sparkHeight then
+            drawn.sparkWidth, drawn.sparkHeight = sparkWidth, sparkHeight
+            self.spark:SetSize(sparkWidth, sparkHeight)
+        end
         if p.orientation == "HORIZONTAL" then
-            self.spark:SetSize(p.sparkWidth, height)
             self.spark:SetPoint("CENTER", self.bars.xp, "LEFT", width * fraction, 0)
         else
-            self.spark:SetSize(width, p.sparkWidth)
             self.spark:SetPoint("CENTER", self.bars.xp, "BOTTOM", 0, height * fraction)
         end
     end
