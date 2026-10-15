@@ -47,7 +47,6 @@ ns.Configure(Q, defaults, function(m) return m:BuildOptions() end, "Apply")
 
 -- Quests whose area you're in, as the game's events say (with its own check each time the quest is picked).
 local areas = {}
-Q.areas = areas
 -- Quest log, bag and zone changes come in bursts; the quest is picked once, this long after the first.
 Q.DELAY = 0.2
 
