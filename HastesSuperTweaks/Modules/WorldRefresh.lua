@@ -23,7 +23,7 @@ if not (Confirm and GetEvictionTimeRemaining) then R.info.unavailable = "Only Wo
 ns.WorldRefresh = R
 
 local defaults = {
-    hideBlizzard = true, autoRefresh = "safe", autoDelay = 5,
+    hideBlizzard = true, autoRefresh = "off", autoDelay = 5,
     chat = true, startSound = true, flash = true,
     warnAt = 60, warnSound = true, warnMessage = true, warnPulse = true,
     showLabel = true, width = 220, height = 20, x = 0, y = -180,
