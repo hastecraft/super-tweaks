@@ -342,6 +342,11 @@ function F:Apply()
         self:LearnGroup()
     elseif learner then
         learner:UnregisterAllEvents()
+        -- A Find members answer that won't be heard now: later /who answers go back to chat, as LearnWho does.
+        if self.scanning then
+            self.scanning = nil
+            if C_FriendList and C_FriendList.SetWhoToUi then C_FriendList.SetWhoToUi(false) end
+        end
     end
 end
 
