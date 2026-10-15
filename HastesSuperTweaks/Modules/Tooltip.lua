@@ -207,11 +207,6 @@ function T:CreateFrames()
     end
     bar:SetScript("OnUpdate", self.poll)
     bar:SetScript("OnEvent", function(_, event, token) self:OnHealthEvent(event, token) end)
-    -- Drawn over tooltip skins that replace Blizzard's border.
-    self.overlay = CreateFrame("Frame", nil, tip)
-    self.overlay:SetAllPoints(tip)
-    self.overlay.edges = CreateEdges(self.overlay)
-    self.overlay.edges:SetShown(false)
 end
 
 function T:Apply()
@@ -303,14 +298,21 @@ function T:UpdateBorder()
             self.borderSaved = false
         end
     end
-    local edges = self.overlay.edges
+    local overlay = self.overlay
     if r and not NativeBorder(slice) then
-        self.overlay:SetFrameLevel(tip:GetFrameLevel() + 10)
-        edges:Layout(self.overlay, Pixels(self.overlay, p.borderSize), false)
-        edges:SetColor(r, g, b, 1)
-        edges:SetShown(true)
-    else
-        edges:SetShown(false)
+        -- Drawn over tooltip skins that replace Blizzard's border; made the first time one does.
+        if not overlay then
+            overlay = CreateFrame("Frame", nil, tip)
+            overlay:SetAllPoints(tip)
+            overlay.edges = CreateEdges(overlay)
+            self.overlay = overlay
+        end
+        overlay:SetFrameLevel(tip:GetFrameLevel() + 10)
+        overlay.edges:Layout(overlay, Pixels(overlay, p.borderSize), false)
+        overlay.edges:SetColor(r, g, b, 1)
+        overlay.edges:SetShown(true)
+    elseif overlay then
+        overlay.edges:SetShown(false)
     end
 end
 
