@@ -747,4 +747,9 @@ function M:OnListen()
     if not (self.inWorld or HST.worldEntry) then self.events:RegisterEvent("PLAYER_ENTERING_WORLD") end
     self:Refresh()
 end
-function M:OnUnlisten() wipe(watched); wipe(verifiedBody); wipe(verifiedIcon); self.itemEvents = nil end -- every event was unregistered
+-- Every event was unregistered: what they'd have kept up to date is read again when it's turned back on (another pet
+-- may have been called in the meantime).
+function M:OnUnlisten()
+    wipe(watched); wipe(verifiedBody); wipe(verifiedIcon); wipe(self.eats)
+    self.itemEvents, self.eatsLevel = nil, nil
+end
