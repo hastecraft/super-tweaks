@@ -1592,6 +1592,7 @@ local function NavButton(parent)
     b.chevron:SetPoint("LEFT", 8, 0)
     b:SetScript("OnEnter", function(self)
         self.highlight:Show()
+        self.labelColor = C.bright
         W.Paint(self.label, C.bright)
     end)
     b:SetScript("OnLeave", function(self)
@@ -1599,12 +1600,15 @@ local function NavButton(parent)
         self:Paint()
     end)
     b:SetScript("OnClick", function(self) P:NavClick(self.entry) end)
+    -- Only what changed is set: every navigation paints every row (a theme change repaints the label itself).
     function b:Paint()
         local entry = self.entry
         local category = entry.kind == "category"
-        W.Paint(self.label, entry.selected and C.bright or category and C.header or C.text)
+        local color = entry.selected and C.bright or category and C.header or C.text
+        if color ~= self.labelColor then self.labelColor = color; W.Paint(self.label, color) end
         self.selected:SetShown(entry.selected == true)
-        self.bar:SetShown(entry.selected == true and not W.theme.round)
+        local bar = entry.selected == true and not W.theme.round
+        if bar ~= self.barShown then self.barShown = bar; self.bar:SetShown(bar) end
     end
     return b
 end
@@ -1849,6 +1853,8 @@ end
 function P:RefreshNav()
     local child, y = self.navArea.child, 4
     local entries = self:NavEntries()
+    -- The rows shown are always the first navCount.
+    local shown = self.navCount or 0
     for i, entry in ipairs(entries) do
         local b = self.nav[i]
         if not b then
@@ -1871,6 +1877,7 @@ function P:RefreshNav()
             b.label:SetPoint("LEFT", module and 28 or category and 24 or 14, 0)
             b.label:SetPoint("RIGHT", -46, 0)
             b.label:SetFontObject(category and "GameFontNormalSmall" or "GameFontNormal")
+            b.labelColor = nil -- a font object brings its own color
             b.chevron:SetShown(category)
             b.shownOn = nil
         end
@@ -1881,7 +1888,8 @@ function P:RefreshNav()
         if module and b.module ~= entry.module then b.module, b.shownOn = entry.module, nil end
         -- A module with a page shows whether it's on with a dot; one without has its switch here.
         local simple = module and not HasPage(entry.module)
-        b.dot:SetShown(module and not simple)
+        local dot = module and not simple
+        if dot ~= b.dotShown then b.dotShown = dot; b.dot:SetShown(dot) end
         if simple and not b.switch then
             b.switch = W.Switch(b)
             b.switch:SetPoint("RIGHT", -8, 0)
@@ -1889,12 +1897,13 @@ function P:RefreshNav()
             b.switch.onEnter = function() b:GetScript("OnEnter")(b) end
             b.switch.onLeave = function() b:GetScript("OnLeave")(b) end
         end
-        if b.switch then b.switch:SetShown(simple) end
+        if b.switch and simple ~= b.switchShown then b.switchShown = simple; b.switch:SetShown(simple) end
         b:Paint()
-        b:Show()
+        if i > shown then b:Show() end
         y = y + NAV_ROW
     end
-    for i = #entries + 1, #self.nav do self.nav[i]:Hide() end
+    for i = #entries + 1, shown do self.nav[i]:Hide() end
+    self.navCount = #entries
     if self.navHeight ~= y then
         self.navHeight = y
         self.navArea:SetContentHeight(y + 4)
@@ -1907,8 +1916,9 @@ end
 -- Module dots and counts follow modules turning on and off, without rebuilding the rows.
 function P:PaintNav()
     local features = HST:Features()
-    for _, b in ipairs(self.nav) do
-        local entry = b:IsShown() and b.entry
+    for i = 1, self.navCount or 0 do
+        local b = self.nav[i]
+        local entry = b.entry
         if entry and entry.kind == "module" then
             local module = entry.module
             local on = module:IsEnabled()
