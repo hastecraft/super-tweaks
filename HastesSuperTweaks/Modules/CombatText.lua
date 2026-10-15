@@ -1185,6 +1185,12 @@ function S:UpdateEvents()
         self:ReadComboPoints()
     end
     if p.skills then Register(general, "CHAT_MSG_SKILL") end
+    -- Spell alerts still up go once their spell is used, as when they showed (see S:Alert).
+    if p.reactiveHide then
+        for i = 1, #live do
+            if live[i].spell or live[i].unmatched then Register(general, "UNIT_SPELLCAST_SUCCEEDED", "player"); break end
+        end
+    end
     if Taking(p) and p.inPet then Register(pet, "UNIT_COMBAT", "pet") end
     if p.enemyMode == "NAMEPLATE" then
         Register(general, "NAME_PLATE_UNIT_ADDED")
