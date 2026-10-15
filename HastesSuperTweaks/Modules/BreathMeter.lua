@@ -371,7 +371,6 @@ function B.info.preview(frame)
         v.breath, v.other = CreateBar(v.box), CreateBar(v.box)
         v.breath:SetMinMaxValues(0, 1)
         v.other:SetMinMaxValues(0, 1)
-        v.breath.label:SetText(LABELS.BREATH)
     end
     local font, flags = ns.Media("font", p.font), Flags(p)
     -- As wide as the preview allows; both bars and the space between them, smaller only to fit its height.
@@ -381,6 +380,7 @@ function B.info.preview(frame)
     v.box:SetScale(min(1, 128 / tall))
     Style(v.breath, p, font, flags)
     Style(v.other, p, font, flags)
+    v.breath.label:SetText(LABELS.BREATH) -- after Style: a font string without a font can't take text
     v.breath:SetWidth(width)
     v.other:SetWidth(width)
     v.breath.shownAlpha, v.other.shownAlpha = nil, nil
