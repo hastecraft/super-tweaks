@@ -14,7 +14,7 @@ from harness import LuaRuntime  # noqa: E402  (lupa, from tools/mockgame/pydeps 
 
 ADDON = PROJECT / 'HastesSuperTweaks'
 CHANGELOG = PROJECT / 'CHANGELOG.md'
-KINDS = [('new', 'New'), ('changed', 'Changed'), ('fixed', 'Fixed')]
+KINDS = [('new', 'New Features'), ('changed', 'Changes'), ('fixed', 'Bug Fixes')]
 HEADER = ("# Changelog\n\nGenerated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. "
           "The same notes show in game: click the version beside the settings window's title.\n")
 
@@ -42,7 +42,11 @@ def text_of(change):
 
 
 def line(change):
-    return f'- {text_of(change)}'
+    """A change as a list item: its text, after its title when it has one."""
+    text = text_of(change)
+    if isinstance(change, str) or not change.get('title'):
+        return f'- {text}'
+    return f"- {change['title']}. {text}" if text else f"- {change['title']}"
 
 
 def highlight(change, level):
