@@ -611,21 +611,24 @@ end
 -- The left-hand lines of a tooltip the game fills in: from its tooltip data (getData(...), where the client has it),
 -- or else from a hidden tooltip (setter is its method that shows the same thing).
 local scanner
+local function Append(lines, text)
+    if not IsSecret(text) and type(text) == "string" then lines[#lines + 1] = text end
+end
 local function TooltipLines(getData, setter, ...)
     local lines = {}
-    local function append(text)
-        if not IsSecret(text) and type(text) == "string" then lines[#lines + 1] = text end
-    end
     if getData then
         local data = getData(...)
-        for _, line in ipairs(data and data.lines or {}) do append(line.leftText) end
+        local list = data and data.lines
+        if list then
+            for _, line in ipairs(list) do Append(lines, line.leftText) end
+        end
     else
         scanner = scanner or CreateFrame("GameTooltip", "HastesSuperTweaksScanTooltip", nil, "GameTooltipTemplate")
         scanner:SetOwner(WorldFrame, "ANCHOR_NONE")
         scanner[setter](scanner, ...)
         for i = 1, scanner:NumLines() do
             local line = _G["HastesSuperTweaksScanTooltipTextLeft" .. i]
-            append(line and line:GetText())
+            Append(lines, line and line:GetText())
         end
         scanner:Hide()
     end
