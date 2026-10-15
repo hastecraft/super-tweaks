@@ -308,13 +308,14 @@ function R:Watch()
         if resume then frame:RegisterEvent(event) else frame:UnregisterEvent(event) end
     end
 end
+local function ResumeSoon() R:Resume() end
 ns.Listen(R, { "SPELLS_CHANGED", "SPELL_TEXT_UPDATE", "LEARNED_SPELL_IN_TAB", "LEARNED_SPELL_IN_SKILL_LINE" }, function(self, event, spellID)
     if event == "PLAYER_REGEN_ENABLED" or event == "CURSOR_CHANGED" then
         -- Our own spells passing through the cursor: the upgrade under way isn't started over for each button.
         if self.swapping or not (next(self.pending) or self.upgradeAllPending) then return end
         -- The cursor says it changed in the middle of whatever changed it (another addon may be moving buttons):
         -- buttons change once that's done.
-        if event == "CURSOR_CHANGED" then return C_Timer.After(0, function() self:Resume() end) end
+        if event == "CURSOR_CHANGED" then return C_Timer.After(0, ResumeSoon) end
         return self:Resume()
     end
     if (event == "LEARNED_SPELL_IN_TAB" or event == "LEARNED_SPELL_IN_SKILL_LINE") and spellID then self.learned[spellID] = GetTime() end
