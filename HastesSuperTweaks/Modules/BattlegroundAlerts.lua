@@ -189,10 +189,10 @@ end
 -- the top of the screen, where the window shows, if it never was). The window is never touched.
 local function Place(banner)
     local dialog = PVPReadyDialog
+    if dialog ~= nil and banner.anchor == dialog then return end -- under it already, shown or not
     local shown = dialog ~= nil and dialog:IsShown()
     if IsSecret(shown) then shown = false end
     if shown then
-        if banner.anchor == dialog then return end
         banner.anchor = dialog
         banner:ClearAllPoints()
         banner:SetPoint("TOP", dialog, "BOTTOM", 0, -6)
