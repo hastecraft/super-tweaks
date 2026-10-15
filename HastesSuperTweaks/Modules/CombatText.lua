@@ -1067,7 +1067,7 @@ function S:CheckLowHealth()
 end
 
 local MANA = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
-local COMBO = Enum and Enum.PowerType and Enum.PowerType.ComboPoints or 14
+local COMBO = Enum and Enum.PowerType and Enum.PowerType.ComboPoints or 4
 -- The game may not take your target as a unit addons can ask about (in a PvP match): then there are none to read.
 local function ComboPoints()
     if not GetComboPoints then return UnitPower("player", COMBO) end
