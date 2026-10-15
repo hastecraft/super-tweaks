@@ -467,7 +467,7 @@ function A.info.preview(frame)
             badge:SetPoint("CENTER", slot, "BOTTOMRIGHT", -1, 1)
             v.slots[i], v.badges[i] = slot, badge
         end
-        W.Column(frame, { row, 10, W.Caption(frame, "The game plays them, in combat too") })
+        W.Column(frame, { row })
     end
     W.Loop(frame, 6, function(t)
         for i, sample in ipairs(SAMPLES) do

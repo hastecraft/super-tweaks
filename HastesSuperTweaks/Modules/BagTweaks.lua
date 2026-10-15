@@ -88,8 +88,7 @@ function B.info.preview(frame)
             slot.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
             v.slots[i] = slot.icon
         end
-        v.caption = W.Caption(frame, "5 free in your bags, not counting the quiver")
-        W.Column(frame, { v.bags, 8, v.caption })
+        W.Column(frame, { v.bags })
     end
     -- The items scattered, then cleaned up to the front.
     local scattered, shown = { 2, 5, 6, 8, 10 }, nil
