@@ -69,7 +69,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 - Point at a tweak in the list to see its description, a preview and its main settings beside it.
 - Search finds any tweak or setting by name, description or menu choice. Switches work in the results, and Enter jumps to the setting.
-- A live preview sits beside each tweak's settings and redraws as you change them.
+- Tweaks you can see on screen, like the XP bar, tooltips, the loot window and combat text, have a live preview beside their settings that redraws as you change them.
 - The cog in the title bar picks the window's theme: Graphite, Ember or Moonwell.
 - Profiles hold every tweak's settings. Switch, copy and reset them, or share one as text.
 
