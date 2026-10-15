@@ -2819,9 +2819,12 @@ function P:LayoutPageView()
     toggle:SetPoint("TOPRIGHT", view, "TOPRIGHT", -PAD, -y - 3)
     local tabWidth = main - PAD * 2 - (toggle:IsShown() and toggle:GetWidth() + 12 or 0)
     local tabsBottom = y
-    if self.tabCount > 0 then tabsBottom = FlowButtons(self.tabs, self.tabCount, PAD, y, tabWidth, 28, 2) end
+    if self.tabCount > 0 then
+        tabsBottom = FlowButtons(self.tabs, self.tabCount, PAD, y, tabWidth, 28, 2)
+    else
+        for _, tab in ipairs(self.tabs) do tab:Hide() end
+    end
     if self.tabCount == 0 and toggle:IsShown() then tabsBottom = y + 28 end
-    for i = self.tabCount + 1, #self.tabs do self.tabs[i]:Hide() end
     y = tabsBottom
     header.rule:ClearAllPoints()
     header.rule:SetPoint("TOPLEFT", view, "TOPLEFT", PAD, -y)
