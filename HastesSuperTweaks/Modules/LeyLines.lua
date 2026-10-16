@@ -20,6 +20,8 @@ local KINDS = {
 }
 -- A buff lasting longer than this (seconds) was given at a spot: 15 minutes there, 15 or 30 seconds elsewhere.
 local FOUND = 60
+-- A buff with at most this much (seconds) of its time gone was just given.
+local FRESH = 5
 -- A spot closer than this (yards) to one already kept is that one.
 local SAME = 40
 
@@ -372,7 +374,9 @@ function L:ReadBuff(cast)
     if self.warning then self.warning:Cancel(); self.warning = nil end
     local duration, ends = self:Buff()
     if not duration or duration <= FOUND then return end
-    if cast then self:Add() end
+    -- Only a buff this cast gave marks a spot: a long one from an earlier cast (2 minutes or more before, the racial's
+    -- cooldown) can outlast a cast elsewhere.
+    if cast and ends - GetTime() >= duration - FRESH then self:Add() end
     local wait = ends - self.db.profile.warnAt * 60 - GetTime()
     if self.db.profile.warnAt > 0 and wait > 0 then self.warning = C_Timer.NewTimer(wait, self.warn) end
 end
