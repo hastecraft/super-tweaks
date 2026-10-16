@@ -18,7 +18,7 @@ HST.patchNotes = {
     {
         version = "3.0.1", date = "2026-10-16",
         changed = {
-            { "Better Scrolling Combat Text: the \"Damage over time\" switch is gone; the game's own \"Log Periodic Effects\" option does the same.",
+            { "Better Scrolling Combat Text: the \"Damage over time\" switch is gone, and your choice carries over to the game's own \"Log Periodic Effects\" option.",
                 module = "CombatText" },
             { "Aura Sounds: \"A blessing fades\" names Salvation and Mass Salvation, as the game now calls them.",
                 module = "AuraSounds" },

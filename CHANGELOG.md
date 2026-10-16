@@ -6,7 +6,7 @@ Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't
 
 ### Changes
 
-- Better Scrolling Combat Text: the "Damage over time" switch is gone; the game's own "Log Periodic Effects" option does the same.
+- Better Scrolling Combat Text: the "Damage over time" switch is gone, and your choice carries over to the game's own "Log Periodic Effects" option.
 - Aura Sounds: "A blessing fades" names Salvation and Mass Salvation, as the game now calls them.
 
 ### Bug Fixes
