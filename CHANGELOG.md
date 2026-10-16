@@ -2,6 +2,19 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.0.1 (2026-10-16)
+
+### Changes
+
+- Better Scrolling Combat Text: the "Damage over time" switch is gone, and your choice carries over to the game's own "Log Periodic Effects" option.
+- Aura Sounds: "A blessing fades" names Salvation and Mass Salvation, as the game now calls them.
+
+### Bug Fixes
+
+- Better World Refresh: "Refresh now" during combat says it can't, instead of leaving the bar stuck on "Refreshing".
+- Better World Refresh: the bar goes away when the game calls a world refresh off.
+- Better Scrolling Combat Text: turning off the game's "Show Damage" option now sticks.
+
 ## 3.0.0 (2026-10-15)
 
 ### Settings: Themes

@@ -16,6 +16,21 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.0.1", date = "2026-10-16",
+        changed = {
+            { "Better Scrolling Combat Text: the \"Damage over time\" switch is gone, and your choice carries over to the game's own \"Log Periodic Effects\" option.",
+                module = "CombatText" },
+            { "Aura Sounds: \"A blessing fades\" names Salvation and Mass Salvation, as the game now calls them.",
+                module = "AuraSounds" },
+        },
+        fixed = {
+            { "Better World Refresh: \"Refresh now\" during combat says it can't, instead of leaving the bar stuck on \"Refreshing\".",
+                module = "WorldRefresh" },
+            { "Better World Refresh: the bar goes away when the game calls a world refresh off.", module = "WorldRefresh" },
+            { "Better Scrolling Combat Text: turning off the game's \"Show Damage\" option now sticks.", module = "CombatText" },
+        },
+    },
+    {
         version = "3.0.0", date = "2026-10-15",
         highlights = {
             { "Behind the new cog beside the close button, pick the settings window's look: Graphite, the new default, accented in your class color; Ember, the old look; or Moonwell. The logo and the Minimap Button match it.",
