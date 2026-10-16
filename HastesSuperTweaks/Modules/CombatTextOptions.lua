@@ -148,7 +148,8 @@ function S:BuildOptions()
                         GAME = "The game's own numbers", OFF = "Off" },
                     sorting = { "GAME", "NAMEPLATE", "AREA", "OFF" },
                     desc = "Nameplates and the scroll area show everyone's damage, not only yours. Nameplate numbers "
-                        .. "need enemy nameplates on. The game's own numbers show only your damage." }),
+                        .. "need enemy nameplates on. The game's own numbers show only your damage, and need the game's "
+                        .. "Show Damage option on." }),
                 hideWorldDamage = enemyOption("toggle", "hideWorldDamage", "Hide the game's damage numbers", 2, {
                     desc = "Turns off the game's floating damage numbers while this shows its own." }),
                 skipTapped = enemyOption("toggle", "skipTapped", "Skip other players' mobs", 3,
@@ -197,8 +198,6 @@ function S:BuildOptions()
                     "Shows a number for each of your auto attacks, not only the ones that stand out."),
                 gamePetMelee = gameSwitch("gamePetMelee", "Your pet's melee damage", 5),
                 gamePetSpells = gameSwitch("gamePetSpells", "Your pet's spell damage", 6),
-                gamePeriodic = gameSwitch("gamePeriodic", "Damage over time", 7,
-                    "Shows each tick of your damage over time spells."),
             }, { hidden = mode("GAME") }),
         } },
         notices = { type = "group", name = "Notices", order = 4, args = {
