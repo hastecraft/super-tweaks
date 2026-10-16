@@ -1,6 +1,7 @@
 -- Event-name fixture from Blizzard API documentation, build 1.60.1 (70205).
 -- Source: Gethe/wow-ui-source e3ecc27b64d30fdc735a3f6579b866858f9f9df1.
 -- Flavor-specific differences are overridden by the relevant fixtures.
+-- Added since: SHARD_TRANSFER_CANCELLED (70425).
 KNOWN_EVENTS = {}
 for event in ([[
 ACCOUNT_CHARACTER_CURRENCY_DATA_RECEIVED
@@ -1382,6 +1383,7 @@ SETTINGS_LOADED
 SETTINGS_PANEL_OPEN
 SET_SEEN_PRODUCTS
 SHARD_TRANSFER
+SHARD_TRANSFER_CANCELLED
 SHARD_TRANSFER_IMMINENT
 SHIPMENT_CRAFTER_CLOSED
 SHIPMENT_CRAFTER_INFO
