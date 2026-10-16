@@ -341,6 +341,11 @@ function R:RefreshNow(auto)
         Print("(Sample) The world would refresh now.")
         return self:Finish()
     end
+    -- The game turns the refresh down in combat; asking anyway would leave the bar waiting on an answer that never comes.
+    -- Refreshing by itself, the tick has just checked.
+    if not auto and (InCombatLockdown() or UnitAffectingCombat("player")) then
+        return Print("Can't refresh during combat. Try again after the fight.")
+    end
     self.graceLeft, self.requested = nil, true
     self:ListenToWindows(false)
     if auto and self.db.profile.chat then Print(AUTO_CHAT) end
