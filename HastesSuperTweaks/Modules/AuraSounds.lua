@@ -146,7 +146,8 @@ A.PRESETS = {
         { key = "blessing", name = "A blessing fades", trigger = "faded",
             ids = { 19740, 19834, 19835, 19836, 19837, 19838, 25291, 25782, 25916, 19742, 19850, 19852, 19853, 19854,
                 25290, 25894, 25918, 20217, 25898, 1038, 25895, 19977, 19978, 19979, 25890 },
-            desc = "A paladin's Blessing of Might, Wisdom, Kings, Salvation or Light on you, greater blessings too." },
+            desc = "A paladin's Blessing of Might, Wisdom, Kings or Light, or Salvation, on you. Greater blessings and "
+                .. "Mass Salvation too." },
     },
 }
 

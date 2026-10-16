@@ -1241,9 +1241,9 @@ end
 -- The game's own combat text. While this replaces it, the game's frame stops listening to what it shows damage and
 -- healing from, so nothing shows twice, and shows only the notices set to show there (S:GameShows): combat, low health
 -- and low mana by leaving it their events, and those that come with damage in the game's combat text events (spell
--- alerts, auras, reputation, honor) by handing each to it. The game's own setting for each kind it's handed is held on
--- (see S:UpdateCVars), since this client's options don't offer them; with its combat text off it shows none. Its
--- damage numbers over enemies are turned off while ours show, and held on when they're the ones chosen.
+-- alerts, auras, reputation, honor) by handing each to it. The game's own option for each kind it's handed is held on
+-- (see S:UpdateCVars), so the choice made here wins; with its combat text off it shows none.
+-- Its damage numbers over enemies are turned off while ours show and theirs are set to hide, and left to it otherwise.
 ---------------------------------------------------------------------------
 -- The events behind the notices the game's frame shows by itself, by the notice's setting.
 local GAME_FRAME_EVENTS = {
@@ -1379,7 +1379,9 @@ function S:HoldCVar(name, value, hold)
 end
 
 -- The game's own setting for each kind of notice its frame shows when it's off here, and the settings here that hand
--- it over. This client's options don't offer them, so each is held on while one of its notices is handed over.
+-- it over. The game's options offer each (Text on Me on WoW Forever); each is held on while one of its notices is
+-- handed over, so a notice set to show in the game's combat text shows there, and released goes back as it was
+-- unless changed since.
 local GAME_NOTICE_CVARS = {
     floatingCombatTextReactives_v2 = { "reactives" },
     floatingCombatTextAuras_v2 = { "buffs", "debuffs", "fades" },
@@ -1389,16 +1391,17 @@ local GAME_NOTICE_CVARS = {
     floatingCombatTextLowManaHealth_v2 = { "lowHealth", "lowMana" },
 }
 
--- The game's own damage numbers' switches, by their setting here: flying out to the sides, every auto attack, your
--- pet's melee and spell damage, and damage over time. Each is left to the game until it's set here, and held as set
--- while the game's numbers are the ones shown.
+-- The game's own damage numbers' switches, by their setting here: flying out to the sides, every auto attack, and your
+-- pet's melee and spell damage. Each is left to the game until it's set here, and held as set while the game's numbers
+-- are the ones shown.
 S.GAME_NUMBER_CVARS = {
     gameDirectional = "floatingCombatTextCombatDamageDirectionalScale_v2",
     gameAllAutos = "floatingCombatTextCombatDamageAllAutos_v2",
     gamePetMelee = "floatingCombatTextPetMeleeDamage_v2",
     gamePetSpells = "floatingCombatTextPetSpellDamage_v2",
-    gamePeriodic = "floatingCombatTextCombatLogPeriodicSpells_v2",
 }
+-- An earlier build had a switch for damage over time too, which the game's options now offer (Log Periodic Effects).
+local PERIODIC_CVAR = "floatingCombatTextCombatLogPeriodicSpells_v2"
 
 -- Whether one of those switches is on: as set here, else as the game has it. nil on a client without it.
 function S:GameNumberOn(key)
@@ -1415,11 +1418,11 @@ function S:UpdateCVars()
     local on, p = self:IsEnabled(), self.db.profile
     -- An earlier build held the game's combat text on for its events; a hold left from then is given back.
     self:HoldCVar("enableFloatingCombatText", "1", false)
-    -- The game's damage numbers over enemies: on when they're the ones shown, off while ours are and theirs are hidden.
-    local damage
-    if on and p.enemyMode == "GAME" then damage = "1"
-    elseif on and p.hideWorldDamage and OwnEnemyNumbers(p) then damage = "0" end
-    self:HoldCVar("floatingCombatTextCombatDamage_v2", damage or "0", damage ~= nil)
+    -- The game's damage numbers over enemies: off while ours show and theirs are hidden, else left to the game's own
+    -- Show Damage option. An earlier build held them on while they were the ones shown: that hold is given back as
+    -- "1", so they're put back as they were only if they're still on.
+    local hide = on and p.hideWorldDamage and OwnEnemyNumbers(p)
+    self:HoldCVar("floatingCombatTextCombatDamage_v2", (hide or p.enemyMode ~= "GAME") and "0" or "1", hide)
     -- The size of the game's floating text, which its damage numbers share with its XP popups and the rest: set for
     -- its damage numbers when they're the ones shown. An earlier build sized it to nothing; a hold left from then is
     -- given back too (released, a hold is put back when the setting is the value given here or the one held).
@@ -1432,9 +1435,12 @@ function S:UpdateCVars()
         local hold = game and choice ~= nil
         if hold or saved[name] ~= nil then self:HoldCVar(name, choice and "1" or "0", hold) end
     end
-    -- The game's frame reads these settings only as it loads, its combat text is turned on or the screen is resized,
-    -- so one changed here shows from the next reload. Its own update, called from here, would run as addon code and
-    -- taint the frame: the game's combat text would then fail on the values it hides from addons.
+    -- The damage over time switch an earlier build had: a hold left from it is given back, and its setting dropped.
+    if saved[PERIODIC_CVAR] ~= nil then self:HoldCVar(PERIODIC_CVAR, p.gamePeriodic and "1" or "0", false) end
+    if p.gamePeriodic ~= nil then p.gamePeriodic = nil end
+    -- The game's frame reads these settings only as it loads, its combat text is turned on, the screen is resized or
+    -- its own options change, so one changed here shows from the next reload. Its own update, called from here, would
+    -- run as addon code and taint the frame: the game's combat text would then fail on the values it hides from addons.
     for name, keys in pairs(GAME_NOTICE_CVARS) do
         local handed = false
         if on and p.replaceBlizzard then

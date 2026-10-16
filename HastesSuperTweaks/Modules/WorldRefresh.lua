@@ -1,9 +1,9 @@
 -- Better World Refresh: the game's "World refresh in N minutes" notice (WoW Forever moves you to another copy of the
 -- world, a layer, when it closes yours), redone as a countdown bar you place in Edit Mode, with alerts, a click or key
 -- to refresh now, and an automatic refresh at a safe moment, before the game does it at a bad one.
--- The game says when a refresh is coming (SHARD_TRANSFER_IMMINENT) and when it's done (SHARD_TRANSFER); the time left
--- is read once and counted down by a one-second ticker that runs only while a refresh is waiting. Nothing runs
--- otherwise.
+-- The game says when a refresh is coming (SHARD_TRANSFER_IMMINENT), when it's done (SHARD_TRANSFER) and when it's
+-- called off (SHARD_TRANSFER_CANCELLED); the time left is read once and counted down by a one-second ticker that runs
+-- only while a refresh is waiting. Nothing runs otherwise.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -39,7 +39,7 @@ local AUTO_CHAT = "Refreshing the world now, while it's safe."
 -- Longest wait taken from the game as a real one: it answers 0 while no refresh is waiting.
 local MAX_WAIT = 2 * 60 * 60
 -- Events heard while the tweak is on; the NPC window events only while a refresh is waiting and it may refresh by itself.
-local EVENTS = { "SHARD_TRANSFER_IMMINENT", "SHARD_TRANSFER", "PLAYER_ENTERING_WORLD" }
+local EVENTS = { "SHARD_TRANSFER_IMMINENT", "SHARD_TRANSFER", "SHARD_TRANSFER_CANCELLED", "PLAYER_ENTERING_WORLD" }
 local WINDOW_EVENTS = { "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" }
 
 local function Print(text) HST:Print(text) end
@@ -297,7 +297,7 @@ function R:Start(seconds, sample, quiet)
     self:Draw()
 end
 
--- The refresh is done (or the sample over).
+-- The refresh is done or called off (or the sample over).
 function R:Finish()
     if self.ticker then self.ticker:Cancel(); self.ticker = nil end
     self.deadline, self.sample, self.graceLeft, self.requested, self.declined, self.hiddenUntil = nil, nil, nil, nil, nil, nil
@@ -340,6 +340,11 @@ function R:RefreshNow(auto)
     if self.sample then
         Print("(Sample) The world would refresh now.")
         return self:Finish()
+    end
+    -- The game turns the refresh down in combat; asking anyway would leave the bar waiting on an answer that never comes.
+    -- Refreshing by itself, the tick has just checked.
+    if not auto and (InCombatLockdown() or UnitAffectingCombat("player")) then
+        return Print("Can't refresh during combat. Try again after the fight.")
     end
     self.graceLeft, self.requested = nil, true
     self:ListenToWindows(false)
@@ -398,7 +403,7 @@ end
 ns.Listen(R, EVENTS, function(self, event, kind)
     if event == "SHARD_TRANSFER_IMMINENT" then
         self:Start(GameWait())
-    elseif event == "SHARD_TRANSFER" then
+    elseif event == "SHARD_TRANSFER" or event == "SHARD_TRANSFER_CANCELLED" then
         if not self.sample then self:Finish() end
     elseif event == "PLAYER_ENTERING_WORLD" then
         self:ReadWait()
@@ -437,8 +442,8 @@ end
 
 ---------------------------------------------------------------------------
 -- The game's notice (a toast above the chat frame, and its minimize button): while this replaces it, it stops hearing
--- that a refresh is coming, and hears it again when this stops. It still hears when the refresh is done, so one it
--- was showing goes away.
+-- that a refresh is coming, and hears it again when this stops. It still hears when the refresh is done or called
+-- off, so one it was showing goes away.
 ---------------------------------------------------------------------------
 function R:UpdateBlizzard()
     local hide = self:IsEnabled() and self.db.profile.hideBlizzard or false
