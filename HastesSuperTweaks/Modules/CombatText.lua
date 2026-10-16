@@ -1435,8 +1435,9 @@ function S:UpdateCVars()
         local hold = game and choice ~= nil
         if hold or saved[name] ~= nil then self:HoldCVar(name, choice and "1" or "0", hold) end
     end
-    -- The damage over time switch an earlier build had: a hold left from it is given back, and its setting dropped.
-    if saved[PERIODIC_CVAR] ~= nil then self:HoldCVar(PERIODIC_CVAR, p.gamePeriodic and "1" or "0", false) end
+    -- The damage over time switch an earlier build had: its setting is dropped, and a hold left from it is forgotten
+    -- without putting the old value back, so the choice made there stays in the game's Log Periodic Effects option.
+    if saved[PERIODIC_CVAR] ~= nil then saved[PERIODIC_CVAR], self.db.global.heldAs[PERIODIC_CVAR] = nil, nil end
     if p.gamePeriodic ~= nil then p.gamePeriodic = nil end
     -- The game's frame reads these settings only as it loads, its combat text is turned on, the screen is resized or
     -- its own options change, so one changed here shows from the next reload. Its own update, called from here, would
