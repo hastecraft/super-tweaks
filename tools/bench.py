@@ -646,6 +646,28 @@ Section('Campfire Helper', function()
     AdvanceTime(3700)
 end)
 
+-- Ley Line Tracker, as a High Order Skyborne (its racial known only here) with two ley lines found on this continent,
+-- one in the minimap's reach and one at its edge, and one on another: the pins move ten times a second while you move.
+Section('Ley Line Tracker', function()
+    local T, known = mod('LeyLines'), C_SpellBook.IsSpellKnown
+    C_SpellBook.IsSpellKnown = function(id) return id == 1259705 end
+    local spots = T.db.global.spots.ley
+    spots[1], spots[2], spots[3] = { 1, 150, 220 }, { 1, 900, -600 }, { 0, 0, 0 }
+    LEY_POSITION[1], LEY_POSITION[2], LEY_POSITION[3] = 100, 200, 1
+    HST:SetFeatureEnabled('LeyLines', false); HST:SetFeatureEnabled('LeyLines', true)
+    Seconds(1)
+    Measure('Ley Line Tracker: minimap pins, one second standing still (64 fps)', 20, function() Seconds(1) end)
+    Measure('Ley Line Tracker: minimap pins, one second walking (64 fps)', 20, function()
+        for _ = 1, 64 do LEY_POSITION[1] = LEY_POSITION[1] + 0.1; RenderFrame(FRAME) end
+    end)
+    Measure('Ley Line Tracker: a spell cast, not the racial', 300, function()
+        Send('LeyLines', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-1', 78, 0)
+    end)
+    HST:SetFeatureEnabled('LeyLines', false)
+    wipe(spots)
+    C_SpellBook.IsSpellKnown = known
+end)
+
 Section('Battleground Alerts', function()
     local B, queue = mod('BattlegroundAlerts'), { status = 'queued', map = 'Warsong Gulch' }
     BATTLEFIELDS[1] = queue

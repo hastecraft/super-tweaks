@@ -252,6 +252,13 @@ C_UnitAuras.GetAuraDataByAuraInstanceID = function(_, id)
     for _, aura in ipairs(PLAYER_BUFFS) do if aura.auraInstanceID == id then return aura end end
 end
 C_Spell.DoesSpellExist = function() return true end
+
+-- Ley Line Tracker: where you are (LEY_POSITION: north, west and continent), which way you face, and how far the
+-- minimap reaches. No world map in this runtime.
+LEY_POSITION = { 0, 0, 1 }
+function UnitPosition(unit) if unit == 'player' then return LEY_POSITION[1], LEY_POSITION[2], 0, LEY_POSITION[3] end end
+function GetPlayerFacing() return 0 end
+C_Minimap.GetViewRadius = function() return 200 end
 ITEMS[279981] = { name = 'Basic Campfire Kit', spell = 'Basic Campfire Kit' }
 ITEMS[279961] = { name = 'Journeyman Campfire Kit', spell = 'Journeyman Campfire Kit' }
 ITEMS[279974] = { name = 'Expert Campfire Kit', spell = 'Expert Campfire Kit' }
