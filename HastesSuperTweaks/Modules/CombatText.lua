@@ -2024,7 +2024,7 @@ function S:DrawLivePreview(stage, w, h, focus)
             Add(v, "taken", lane, p.missColor, "miss", REDUCED.BLOCK)
         end
     end
-    if p.inEnergy then Add(v, "taken", lane, PowerColor("MANA"), nil, ("+%s %s"):format(self:Amount(35), MANA or "Mana")) end
+    if p.inEnergy then Add(v, "taken", lane, PowerColor("MANA"), nil, ("+%s %s"):format(self:Amount(35), _G.MANA or "Mana")) end
     if p.inPet and p.inDamage and 87 >= p.inDamageMin then Add(v, "taken", lane, p.damageColor, nil, "Pet -" .. self:Amount(87)) end
     -- Damage enemies take (see S:OnEnemy), or the game's own numbers.
     local mode = p.enemyMode

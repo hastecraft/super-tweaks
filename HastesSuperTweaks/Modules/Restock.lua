@@ -247,8 +247,9 @@ end
 local function AddPurchases(plan, planned, budget, index, itemID, want, recipes)
     local already = planned[itemID] or 0
     local need = want - (ItemCount(itemID) or 0) - already
+    if need <= 0 then return budget end
     local price, bundle, left, plain = Offer(index)
-    if not (need > 0 and plain) then return budget end
+    if not plain then return budget end
     -- Whole bundles, enough to reach the amount; no more than the vendor has, or the budget allows.
     local bundles = math.ceil(need / bundle)
     if left >= 0 then bundles = math.min(bundles, left - already / bundle) end
@@ -410,6 +411,8 @@ ns.Listen(R, { "MERCHANT_SHOW", "MERCHANT_CLOSED", "PLAYER_EQUIPMENT_CHANGED", "
         self:CheckAmmo()
     elseif event == "TRACKED_RECIPE_UPDATE" then
         self:ForgetRecipes()
+    elseif event == "PLAYER_EQUIPMENT_CHANGED" and ... ~= RANGED_SLOT and ... ~= AMMO_SLOT then
+        return -- only the ranged weapon and ammo matter
     else
         self:WatchAmmo()
     end

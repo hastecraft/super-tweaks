@@ -223,7 +223,7 @@ function T:Apply()
     bar:SetStatusBarTexture(ns.Media("statusbar", p.texture))
     -- Colored again with the new texture, and redrawn: colored by health, the color comes with the reading.
     wipe(self.shownColor)
-    self.shownCurrent = nil
+    self.shownCurrent, self.shownText = nil, nil
     bar.background:SetVertexColor(unpack(p.backgroundColor))
     bar.edges:Layout(bar, px, true)
     bar.edges:SetColor(unpack(p.barBorderColor))
@@ -438,7 +438,7 @@ function T:UpdateHealth(recolor, guid)
         bar:SetMinMaxValues(0, maximum)
         self.secretRange = true
         bar:SetValue(current)
-        self.shownMode = nil
+        self.shownMode, self.shownText = nil, nil
         -- A hidden color by health is a new table each time: while polled, it's taken with the other colors (every
         -- RECOLOR_EVERY readings); followed by events, every reading is a change.
         if byHealth and (recolor or self.watched) then self:SecretHealthColor(unit) end
@@ -467,7 +467,7 @@ function T:UpdateHealth(recolor, guid)
             if mode == "BOTH" then text = text .. " (" .. floor(fraction * 100 + 0.5) .. "%)" end
         end
     end
-    bar.text:SetText(text)
+    if text ~= self.shownText then self.shownText = text; bar.text:SetText(text) end
 end
 
 -- Health text from hidden values, formatted by the game (as EllesmereUI's unit frames do). Hidden values can't be
@@ -476,7 +476,9 @@ function T:SecretHealthText(unit, current, maximum)
     local text, mode = self.bar.text, self.db.profile.barText
     local canPercent = UnitHealthPercent ~= nil and CurveConstants ~= nil and CurveConstants.ScaleTo100 ~= nil
     local percent
-    if canPercent then percent = UnitHealthPercent(unit, false, CurveConstants.ScaleTo100) end
+    if canPercent and (not AbbreviateNumbers or mode == "PERCENT" or mode == "BOTH") then
+        percent = UnitHealthPercent(unit, false, CurveConstants.ScaleTo100)
+    end
     if not AbbreviateNumbers then
         if canPercent then text:SetFormattedText("%d%%", percent) else text:SetText("") end
     elseif mode == "PERCENT" and canPercent then

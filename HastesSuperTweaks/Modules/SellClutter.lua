@@ -816,14 +816,17 @@ function S:TooltipLine(tip, itemID, link)
     if not self:Keeps(itemID) then
         if not self.db.profile.sell[itemID] and not self:Item(itemID) then return end
         local info, bag, slot = TooltipSlot(tip, itemID)
-        local ctx = self:Context()
-        local category, look
+        local ctx, category, look
         if info then
             local _
             _, category, look = ns.VendorSale:Price(self, info, bag, slot)
-        elseif not ctx.hidden then
-            category = self:Verdict(itemID, nil, ctx)
-            if GEAR[category] then look = self:KeepsLook(itemID, not IsSecret(link) and link or nil) end
+            ctx = self.context
+        else
+            ctx = self:Context()
+            if not ctx.hidden then
+                category = self:Verdict(itemID, nil, ctx)
+                if GEAR[category] then look = self:KeepsLook(itemID, not IsSecret(link) and link or nil) end
+            end
         end
         if not category then return end
         if look then
