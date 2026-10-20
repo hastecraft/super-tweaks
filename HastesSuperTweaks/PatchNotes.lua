@@ -16,6 +16,25 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.1.0", date = "2026-10-20",
+        new = {
+            { "The sidebar lists the categories, and clicking one scrolls the tweak list to it. Each tweak has one switch.",
+                title = "Settings: Category Sidebar" },
+            { "Tweaks with several pages open on an Essentials tab with their main settings and a link to each other page.",
+                title = "Settings: Essentials Tab" },
+            { "A graph in the sidebar shows how much time Super Tweaks takes each frame. Turn it off with \"CPU graph\" in the cog's page.",
+                title = "Settings: CPU Graph" },
+        },
+        changed = {
+            "Settings: the path at the top of a tweak's page takes you back to its category or page.",
+        },
+        fixed = {
+            { "Better Scrolling Combat Text: your old \"Damage over time\" choice now carries over to the game's \"Log Periodic Effects\" option.",
+                module = "CombatText" },
+            { "Better Scrolling Combat Text: the preview's mana gain says \"Mana\" again instead of 0.", module = "CombatText" },
+        },
+    },
+    {
         version = "3.0.1", date = "2026-10-16",
         changed = {
             { "Better Scrolling Combat Text: the \"Damage over time\" switch is gone, and your choice carries over to the game's own \"Log Periodic Effects\" option.",
