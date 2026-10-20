@@ -1641,7 +1641,8 @@ local function NavButton(parent)
     -- Only what changed is set: every navigation paints every row (a theme change repaints the label itself).
     function b:Paint()
         local entry = self.entry
-        W.Paint(self.label, entry.selected and C.bright or C.text)
+        local color = entry.selected and C.bright or C.text
+        if color ~= self.labelColor then self.labelColor = color; W.Paint(self.label, color) end
         self.selected:SetShown(entry.selected == true)
         local bar = entry.selected == true and not W.theme.round
         if bar ~= self.barShown then self.barShown = bar; self.bar:SetShown(bar) end
@@ -1850,12 +1851,20 @@ function P:NavSelected(entry)
     return false
 end
 
+-- The sidebar's nth row, its table reused from the last time the rows were listed (every field is set again).
+local function NavEntry(entries, n, kind, key, text, count)
+    local entry = entries[n] or {}
+    entries[n] = entry
+    entry.kind, entry.key, entry.text, entry.count = kind, key, text, count
+    return entry
+end
+
 -- The sidebar's rows: All tweaks, then each category.
 function P:NavEntries()
-    local entries = {}
-    local onCount, total = 0, 0
-    local home = { kind = "home", text = "All tweaks" }
-    entries[1] = home
+    local entries = self.navEntries or {}
+    self.navEntries = entries
+    local onCount, total, n = 0, 0, 1
+    local home = NavEntry(entries, 1, "home", nil, "All tweaks", nil)
     local features = HST:Features()
     for _, category in ipairs(HST.categories) do
         local on, count = 0, 0
@@ -1867,10 +1876,11 @@ function P:NavEntries()
         end
         if count > 0 then
             onCount, total = onCount + on, total + count
-            entries[#entries + 1] = { kind = "category", key = category.key, text = category.name,
-                count = on .. "/" .. count }
+            n = n + 1
+            NavEntry(entries, n, "category", category.key, category.name, on .. "/" .. count)
         end
     end
+    for i = #entries, n + 1, -1 do entries[i] = nil end
     home.count = onCount .. "/" .. total
     return entries
 end
@@ -1896,7 +1906,7 @@ function P:RefreshNav()
             b:SetPoint("TOPRIGHT", 0, -y)
         end
         if b.text ~= entry.text then b.text = entry.text; b.label:SetText(entry.text) end
-        b.count:SetText(entry.count)
+        if b.countText ~= entry.count then b.countText = entry.count; b.count:SetText(entry.count) end
         entry.selected = self:NavSelected(entry)
         b:Paint()
         if i > shown then b:Show() end
@@ -1926,7 +1936,8 @@ function P:PaintNav()
                 end
             end
             local text = on .. "/" .. count
-            if text ~= entry.count then entry.count = text; b.count:SetText(text) end
+            entry.count = text
+            if b.countText ~= text then b.countText = text; b.count:SetText(text) end
         end
     end
 end
