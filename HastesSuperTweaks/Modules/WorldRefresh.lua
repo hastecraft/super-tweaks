@@ -402,6 +402,8 @@ end
 
 ns.Listen(R, EVENTS, function(self, event, kind)
     if event == "SHARD_TRANSFER_IMMINENT" then
+        -- The game can say so again for a refresh already waiting: only the time left is new.
+        if self.deadline and not self.sample then return self:ReadWait() end
         self:Start(GameWait())
     elseif event == "SHARD_TRANSFER" or event == "SHARD_TRANSFER_CANCELLED" then
         if not self.sample then self:Finish() end
