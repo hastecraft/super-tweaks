@@ -1769,7 +1769,7 @@ local function FormatSmall(value, unit)
     if value >= 10 then return ("%.0f%s"):format(value, unit) end
     if value >= 1 then return ("%.1f%s"):format(value, unit) end
     if value >= 0.01 then return ("%.2f%s"):format(value, unit) end
-    if value < 1e-8 then return "0" .. unit end
+    if value ~= value or value < 1e-8 then return "0" .. unit end
     return ("%." .. math.ceil(-math.log10(value) - 1e-9) .. "f%s"):format(value, unit)
 end
 
@@ -1855,8 +1855,9 @@ function P:PaintCpuFigures()
     if not profiler then return end
     local metric = Enum.AddOnProfilerMetric
     local figures = cpu.figures
-    figures[1].value:SetText(FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), " ms"))
-    figures[2].value:SetText(FormatSmall(cpu.ms, " ms"))
+    local avg, now = FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), " ms"), FormatSmall(cpu.ms, " ms")
+    if figures[1].shown ~= avg then figures[1].shown = avg; figures[1].value:SetText(avg) end
+    if figures[2].shown ~= now then figures[2].shown = now; figures[2].value:SetText(now) end
 end
 
 -- ms: the addon's average time a frame over the bar's readings.
