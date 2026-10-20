@@ -2568,6 +2568,8 @@ function P:RefreshRows(skipResults)
 end
 
 function P:ShowModules()
+    -- The list is shown afresh, so the sidebar follows it again (P:NavClick pins it after).
+    self.navPinned = nil
     self:ClearSearch()
     self:SetMode("modules")
     local all, shown = HST:Features(), {}
@@ -2998,6 +3000,8 @@ function P:SetCrumbs(category, names)
         header.crumbCount = count
         header.crumb:Hide()
         for i, part in ipairs(header.parts) do
+            -- A part hidden while pointed at missed its OnLeave.
+            if i <= count and not part:IsShown() then W.Paint(part.label, C.header) end
             part:SetShown(i <= count)
             part.sep:SetShown(i > 1 and i <= count)
         end
@@ -3119,10 +3123,15 @@ function P:Essentials(module, options)
         local info = module.info
         items = false
         if (info.essentials or info.examples) and not options.args[ESSENTIALS] and #Pages(options) > 1 then
-            local found = self:Examples(module, info.essentials and "essentials")
+            -- Full-width blocks (item lists) stay on their own pages.
+            local found = {}
+            for _, item in ipairs(self:Examples(module, info.essentials and "essentials")) do
+                if not FULL[item.option.type] then found[#found + 1] = item end
+            end
             if #found >= 2 then items = found end
         end
-        self.essentialsCache[key] = items
+        -- A tweak whose pages come and go is asked again each time.
+        if not PagesChange(options) then self.essentialsCache[key] = items end
     end
     return items or nil
 end
