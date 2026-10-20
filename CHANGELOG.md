@@ -2,6 +2,23 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.1.0 (2026-10-20)
+
+### New Features
+
+- Settings: Category Sidebar. The sidebar lists the categories, and clicking one scrolls the tweak list to it. Each tweak has one switch.
+- Settings: Essentials Tab. Tweaks with several pages open on an Essentials tab with their main settings and a link to each other page.
+- Settings: CPU Graph. A graph in the sidebar shows how much time Super Tweaks takes each frame. Turn it off with "CPU graph" in the cog's page.
+
+### Changes
+
+- Settings: the path at the top of a tweak's page takes you back to its category or page.
+
+### Bug Fixes
+
+- Better Scrolling Combat Text: your old "Damage over time" choice now carries over to the game's "Log Periodic Effects" option.
+- Better Scrolling Combat Text: the preview's mana gain says "Mana" again instead of 0.
+
 ## 3.0.1 (2026-10-16)
 
 ### Changes
