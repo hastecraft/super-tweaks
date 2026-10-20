@@ -32,6 +32,7 @@ HST.patchNotes = {
             { "Better Scrolling Combat Text: your old \"Damage over time\" choice now carries over to the game's \"Log Periodic Effects\" option.",
                 module = "CombatText" },
             { "Better Scrolling Combat Text: the preview's mana gain says \"Mana\" again instead of 0.", module = "CombatText" },
+            "Settings: Loot Window's font list says \"Game font\" and Better Scrolling Combat Text's says \"Combat text font\", whichever you open first.",
         },
     },
     {
