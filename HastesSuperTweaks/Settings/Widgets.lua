@@ -940,6 +940,23 @@ local function Clickable(c)
     end)
 end
 
+-- A row that leads somewhere else, with an arrow at its right; the whole row is the button (c.onClick).
+function W.LinkRow(parent)
+    local c = NewRow(parent, "Button")
+    Clickable(c)
+    c.arrow = W.Chevron(c, 14, C.header)
+    c.arrow:SetPoint("TOPRIGHT", -4, -ROW_PAD - (HEAD - 14) / 2)
+    c:HookScript("OnEnter", function(self) W.Paint(self.arrow, C.accent) end)
+    c:HookScript("OnLeave", function(self) W.Paint(self.arrow, C.header) end)
+    c:SetScript("OnClick", function(self)
+        Play("IG_CHARACTER_INFO_TAB")
+        if self.onClick then self.onClick() end
+    end)
+    function c:Layout(width) return (PlaceText(self, width, 24)) end
+    function c:Refresh() end
+    return c
+end
+
 -- A switch row; the whole row toggles it.
 function W.ToggleRow(parent)
     local c = NewRow(parent, "Button")
@@ -1678,6 +1695,9 @@ function W.Card(parent, title)
     return card
 end
 
+-- How long a scroll area's glide takes, in seconds.
+local GLIDE = 0.3
+
 -- Scroll frame with a slim draggable thumb. Content goes in area.child; call area:SetContentHeight.
 function W.ScrollArea(parent)
     local area = CreateFrame("ScrollFrame", nil, parent)
@@ -1700,6 +1720,24 @@ function W.ScrollArea(parent)
         local range = self:GetVerticalScrollRange()
         self:SetVerticalScroll(math.max(0, math.min(range, offset)))
     end
+    -- Glides to an offset, easing out, with a frame handler only while it moves. The wheel and the thumb stop it.
+    local glideFrom, glideTo, glideTime
+    local function glide(self, elapsed)
+        glideTime = glideTime + elapsed
+        local t = math.min(1, glideTime / GLIDE)
+        self:SetVerticalScroll(glideFrom + (glideTo - glideFrom) * (1 - (1 - t) ^ 3))
+        if t == 1 then self:SetScript("OnUpdate", nil) end
+    end
+    function area:GlideTo(offset)
+        local range = self:GetVerticalScrollRange()
+        glideFrom, glideTo, glideTime = self:GetVerticalScroll(), math.max(0, math.min(range, offset)), 0
+        self:SetScript("OnUpdate", math.abs(glideTo - glideFrom) >= 1 and glide or nil)
+    end
+    -- The wheel or the thumb took over: onUserScroll, when set, hears of it.
+    local function taken()
+        area:SetScript("OnUpdate", nil)
+        if area.onUserScroll then area.onUserScroll() end
+    end
     function area:UpdateThumb()
         local range, height = self:GetVerticalScrollRange(), self:GetHeight()
         track:SetShown(self:IsShown() and range > 0.5)
@@ -1716,13 +1754,24 @@ function W.ScrollArea(parent)
         self:ScrollTo(self:GetVerticalScroll())
         self:UpdateThumb()
     end
-    area:SetScript("OnMouseWheel", function(self, delta) self:ScrollTo(self:GetVerticalScroll() - delta * 60) end)
-    area:SetScript("OnVerticalScroll", function(self) self:UpdateThumb() end)
+    area:SetScript("OnMouseWheel", function(self, delta)
+        taken()
+        self:ScrollTo(self:GetVerticalScroll() - delta * 60)
+    end)
+    area:SetScript("OnVerticalScroll", function(self)
+        self:UpdateThumb()
+        if self.onScroll then self.onScroll() end
+    end)
     area:SetScript("OnScrollRangeChanged", function(self) self:UpdateThumb() end)
     area:SetScript("OnSizeChanged", function(self, width) self.child:SetWidth(width); self:UpdateThumb() end)
     area:SetScript("OnShow", function(self) self:UpdateThumb() end)
-    area:SetScript("OnHide", function() track:Hide() end)
+    area:SetScript("OnHide", function(self)
+        track:Hide()
+        -- A glide cut short ends where it was going.
+        if self:GetScript("OnUpdate") then self:SetScript("OnUpdate", nil); self:ScrollTo(glideTo) end
+    end)
     thumb:SetScript("OnMouseDown", function(self)
+        taken()
         local _, cursorY = GetCursorPosition()
         local startY, startScroll, scale = cursorY, area:GetVerticalScroll(), self:GetEffectiveScale()
         self:SetScript("OnUpdate", function()

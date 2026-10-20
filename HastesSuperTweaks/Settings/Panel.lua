@@ -1,4 +1,4 @@
--- The settings window: a sidebar with search and every module by category, an overview of all modules, and each
+-- The settings window: a sidebar with search and the categories, an overview of all modules, and each
 -- module's settings page beside a live preview of what its settings change; Profiles and About. The window can be
 -- moved, resized and scaled, and opens the way it was left.
 -- Settings pages are rendered from options trees (AceConfig-style tables) supplied by the modules.
@@ -15,6 +15,8 @@ local MIN_W, MIN_H, DEFAULT_W, DEFAULT_H = 820, 480, 1000, 640
 -- The sidebar can be dragged between these widths (SIDEBAR is its default), as far as the main area keeps the width it
 -- has in the smallest window.
 local SIDEBAR_LEAST, SIDEBAR_MOST = 170, 400
+-- The path of a tweak's Essentials page, which isn't in its options (see P:Essentials).
+local ESSENTIALS = "essentials"
 -- The overview's details pane, a share of the main area within these widths.
 local DETAIL_LEAST, DETAIL_MOST = 240, 300
 local MIN_SCALE, MAX_SCALE = 0.6, 1.5
@@ -30,8 +32,7 @@ local OFF_PAD, OFF_WIDTH, OFF_PREVIEW, OFF_ICON = 20, 460, 190, 56
 -- Round boxes inside cards are a little less round; round hover and selection tints in lists are this round.
 local INNER, TINT, NAV_TINT = { radius = 6 }, { radius = 6 }, { radius = 6, x = 6, top = 1, bottom = 1 }
 
--- How the window was left, saved account-wide: size, scale, place, sidebar width, whether previews show and which
--- sidebar categories are open.
+-- How the window was left, saved account-wide: size, scale, place, sidebar width and whether previews show.
 local function State()
     local global = HST.db.global
     local state = global.window
@@ -39,7 +40,8 @@ local function State()
         state = {}
         global.window = state
     end
-    state.expanded = state.expanded or {}
+    -- Forgets which sidebar categories were open: the sidebar no longer lists each category's tweaks.
+    state.expanded = nil
     return state
 end
 
@@ -1073,7 +1075,19 @@ end
 ---------------------------------------------------------------------------
 local FULL = { description = true, commands = true, items = true, release = true }
 
-function P:BuildPage(group, gate)
+-- What's on a page, for its link on the Essentials page: its sections and sub-pages, by name.
+local function PageSummary(group)
+    local names = {}
+    for _, entry in ipairs(Sorted(group.args)) do
+        local o = entry.option
+        local info = { option = o, key = entry.key }
+        if o.type == "group" and o.name and not Resolve(o.hidden, info) then names[#names + 1] = Resolve(o.name, info) end
+    end
+    return table.concat(names, ", ")
+end
+
+-- essentials, given: the Essentials page of the tweak whose options are group (see P:Essentials).
+function P:BuildPage(group, gate, essentials)
     local content = CreateFrame("Frame", nil, self.pageArea.child)
     -- hiders: the rows and blocks whose `hidden` can change, each with its hiddenWhen (see HidesLater).
     local page = { content = content, blocks = {}, controls = {}, hiders = {} }
@@ -1118,6 +1132,30 @@ function P:BuildPage(group, gate)
                 add(card, entry.key, o, path, info)
             end
         end
+    end
+    if essentials then
+        -- A tweak's Essentials page: its main settings (named for showing outside their sections), then a link to
+        -- each of its other pages, listing what's on it.
+        local card = W.Card(content)
+        card.rows, card.isCard = {}, true
+        page.blocks[1] = card
+        for _, item in ipairs(essentials) do
+            local o, info = item.option, { option = item.option, key = item.key }
+            if not skip(item.chain, info) then
+                if item.label then o = setmetatable({ name = item.label }, { __index = o }) end
+                add(card, item.key, o, item.chain, info)
+            end
+        end
+        local more = W.Card(content, "More settings")
+        more.rows, more.isCard = {}, true
+        page.blocks[2] = more
+        for _, entry in ipairs(Pages(group)) do
+            local row = W.LinkRow(more)
+            W.SetTexts(row, Resolve(entry.option.name, {}), PageSummary(entry.option))
+            row.onClick = function() self:OpenModule(self.openModule, { entry.key }) end
+            more.rows[#more.rows + 1] = row
+        end
+        return page
     end
     local loose
     for _, entry in ipairs(Sorted(group.args)) do
@@ -1586,12 +1624,10 @@ local function NavButton(parent)
     b.bar:Hide()
     b.label = W.Text(b, "GameFontNormal", C.text)
     b.label:SetWordWrap(false)
+    b.label:SetPoint("LEFT", 14, 0)
+    b.label:SetPoint("RIGHT", -46, 0)
     b.count = W.Badge(b)
     b.count:SetPoint("RIGHT", -8, 0)
-    b.dot = W.Dot(b, 7)
-    b.dot:SetPoint("RIGHT", -14, 0)
-    b.chevron = W.Chevron(b, 12, C.header)
-    b.chevron:SetPoint("LEFT", 8, 0)
     b:SetScript("OnEnter", function(self)
         self.highlight:Show()
         self.labelColor = C.bright
@@ -1605,8 +1641,7 @@ local function NavButton(parent)
     -- Only what changed is set: every navigation paints every row (a theme change repaints the label itself).
     function b:Paint()
         local entry = self.entry
-        local category = entry.kind == "category"
-        local color = entry.selected and C.bright or category and C.header or C.text
+        local color = entry.selected and C.bright or C.text
         if color ~= self.labelColor then self.labelColor = color; W.Paint(self.label, color) end
         self.selected:SetShown(entry.selected == true)
         local bar = entry.selected == true and not W.theme.round
@@ -1806,21 +1841,30 @@ function P:CreateSearch(sidebar)
     paint()
 end
 
+-- Whether a sidebar row is selected: in the list, the category scrolled to (All tweaks at the top); on a tweak's page,
+-- its category.
+function P:NavSelected(entry)
+    if self.mode == "modules" then return entry.key == self.inView end
+    if self.mode == "page" and self.view == "module" and entry.key then
+        return HST:GetModule(self.openModule).info.category == entry.key
+    end
+    return false
+end
+
 -- The sidebar's nth row, its table reused from the last time the rows were listed (every field is set again).
-local function NavEntry(entries, n, kind, key, text, count, open, module, selected)
+local function NavEntry(entries, n, kind, key, text, count)
     local entry = entries[n] or {}
     entries[n] = entry
-    entry.kind, entry.key, entry.text, entry.count, entry.open = kind, key, text, count, open
-    entry.module, entry.selected = module, selected
+    entry.kind, entry.key, entry.text, entry.count = kind, key, text, count
     return entry
 end
 
--- The sidebar's rows: All modules, then each category, its modules listed while it's open.
+-- The sidebar's rows: All tweaks, then each category.
 function P:NavEntries()
-    local entries, state = self.navEntries or {}, State()
+    local entries = self.navEntries or {}
     self.navEntries = entries
     local onCount, total, n = 0, 0, 1
-    local home = NavEntry(entries, 1, "home", nil, "All tweaks", nil, nil, nil, self.mode == "modules")
+    local home = NavEntry(entries, 1, "home", nil, "All tweaks", nil)
     local features = HST:Features()
     for _, category in ipairs(HST.categories) do
         local on, count = 0, 0
@@ -1832,19 +1876,8 @@ function P:NavEntries()
         end
         if count > 0 then
             onCount, total = onCount + on, total + count
-            local open = state.expanded[category.key] == true
             n = n + 1
-            NavEntry(entries, n, "category", category.key, category.name, on .. "/" .. count, open, nil, nil)
-            if open then
-                for _, module in ipairs(features) do
-                    if module.info.category == category.key then
-                        local key = module:GetName()
-                        n = n + 1
-                        NavEntry(entries, n, "module", key, module.info.name, nil, nil, module,
-                            self.mode == "page" and self.view == "module" and self.openModule == key)
-                    end
-                end
-            end
+            NavEntry(entries, n, "category", category.key, category.name, on .. "/" .. count)
         end
     end
     for i = #entries, n + 1, -1 do entries[i] = nil end
@@ -1864,42 +1897,17 @@ function P:RefreshNav()
             self.nav[i] = b
         end
         b.entry = entry
-        local category, module = entry.kind == "category", entry.kind == "module"
-        if category and i > 1 then y = y + 6 end
-        -- A row keeps its place, look and text while they stay the same (most navigation only moves the selection).
+        if i == 2 then y = y + 6 end
+        -- A row keeps its place and text while they stay the same (most navigation only moves the selection).
         if b.top ~= y then
             b.top = y
             b:ClearAllPoints()
             b:SetPoint("TOPLEFT", 0, -y)
             b:SetPoint("TOPRIGHT", 0, -y)
         end
-        if b.kind ~= entry.kind then
-            b.kind = entry.kind
-            b.label:ClearAllPoints()
-            b.label:SetPoint("LEFT", module and 28 or category and 24 or 14, 0)
-            b.label:SetPoint("RIGHT", -46, 0)
-            b.label:SetFontObject(category and "GameFontNormalSmall" or "GameFontNormal")
-            b.labelColor = nil -- a font object brings its own color
-            b.chevron:SetShown(category)
-            b.shownOn = nil
-        end
-        local text = category and entry.text:upper() or entry.text
-        if b.text ~= text then b.text = text; b.label:SetText(text) end
-        b.count:SetText(not module and entry.count or nil)
-        if category then b.chevron:Point(entry.open and "DOWN" or "RIGHT") end
-        if module and b.module ~= entry.module then b.module, b.shownOn = entry.module, nil end
-        -- A module with a page shows whether it's on with a dot; one without has its switch here.
-        local simple = module and not HasPage(entry.module)
-        local dot = module and not simple
-        if dot ~= b.dotShown then b.dotShown = dot; b.dot:SetShown(dot) end
-        if simple and not b.switch then
-            b.switch = W.Switch(b)
-            b.switch:SetPoint("RIGHT", -8, 0)
-            b.switch.onClick = function() Flip(b.entry.module, true) end
-            b.switch.onEnter = function() b:GetScript("OnEnter")(b) end
-            b.switch.onLeave = function() b:GetScript("OnLeave")(b) end
-        end
-        if b.switch and simple ~= b.switchShown then b.switchShown = simple; b.switch:SetShown(simple) end
+        if b.text ~= entry.text then b.text = entry.text; b.label:SetText(entry.text) end
+        if b.countText ~= entry.count then b.countText = entry.count; b.count:SetText(entry.count) end
+        entry.selected = self:NavSelected(entry)
         b:Paint()
         if i > shown then b:Show() end
         y = y + NAV_ROW
@@ -1910,29 +1918,16 @@ function P:RefreshNav()
         self.navHeight = y
         self.navArea:SetContentHeight(y + 4)
     end
-    self:PaintNav()
     for kind, b in pairs(self.fixedNav) do b:SetSelected(self.mode == "page" and self.view == kind) end
     self:PaintPip()
 end
 
--- Module dots and counts follow modules turning on and off, without rebuilding the rows.
+-- Counts follow tweaks turning on and off, without rebuilding the rows.
 function P:PaintNav()
     local features = HST:Features()
-    for i = 1, self.navCount or 0 do
-        local b = self.nav[i]
-        local entry = b.entry
-        if entry and entry.kind == "module" then
-            local module = entry.module
-            local on = module:IsEnabled()
-            if b.shownOn ~= on then
-                b.shownOn = on
-                W.Paint(b.dot, module.info.unavailable and C.warning or on and C.accent or C.border)
-                if b.switch and b.switch:IsShown() then
-                    b.switch:SetOn(on, true)
-                    b.switch:SetDisabledLook(module.info.unavailable ~= nil)
-                end
-            end
-        elseif entry and (entry.kind == "category" or entry.kind == "home") then
+    for _, b in ipairs(self.nav) do
+        local entry = b:IsShown() and b.entry
+        if entry then
             local on, count = 0, 0
             for _, module in ipairs(features) do
                 if entry.kind == "home" or module.info.category == entry.key then
@@ -1941,25 +1936,53 @@ function P:PaintNav()
                 end
             end
             local text = on .. "/" .. count
-            if text ~= entry.count then entry.count = text; b.count:SetText(text) end
+            entry.count = text
+            if b.countText ~= text then b.countText = text; b.count:SetText(text) end
         end
     end
 end
 
-function P:NavClick(entry)
-    if entry.kind == "home" then
-        self:ClearSearch()
-        self:ShowModules()
-    elseif entry.kind == "category" then
-        local state = State()
-        state.expanded[entry.key] = not entry.open or nil
-        if self.mode == "modules" and not entry.open then
-            local top = self.categoryTop and self.categoryTop[entry.key]
-            if top then self.list:ScrollTo(top) end
+-- Moves the sidebar's selection without rebuilding its rows.
+function P:PaintNavSelection()
+    for _, b in ipairs(self.nav) do
+        local entry = b:IsShown() and b.entry
+        if entry then
+            local selected = self:NavSelected(entry)
+            if entry.selected ~= selected then entry.selected = selected; b:Paint() end
         end
-        self:RefreshNav()
-    elseif entry.kind == "module" then
-        if HasPage(entry.module) then self:OpenModule(entry.key) else Flip(entry.module) end
+    end
+end
+
+-- Selects the category whose tweaks are at the top of the list as it scrolls; All tweaks above the first. A category
+-- picked in the sidebar stays selected until the list is scrolled by hand (the last ones can't reach the top).
+function P:SpyNav()
+    if self.navPinned or self.mode ~= "modules" then return end
+    local scroll, key, best = self.list:GetVerticalScroll() + 8, nil, -1
+    if scroll > 8.5 then
+        for category, top in pairs(self.categoryTop) do
+            if top <= scroll and top > best then key, best = category, top end
+        end
+    end
+    if key ~= self.inView then
+        self.inView = key
+        self:PaintNavSelection()
+    end
+end
+
+function P:NavClick(entry)
+    if entry.kind == "home" or entry.kind == "category" then
+        -- All tweaks glides to the top of the list, a category to its tweaks.
+        self:ClearSearch()
+        if self.mode ~= "modules" then self:ShowModules() end
+        local top = entry.key and self.categoryTop[entry.key]
+        if entry.key and not top then
+            self.filter = "all"
+            self:ShowModules()
+            top = self.categoryTop[entry.key]
+        end
+        self.inView, self.navPinned = entry.key, true
+        self:PaintNavSelection()
+        self.list:GlideTo(top or 0)
     elseif entry.kind == "profiles" then
         self:ShowProfiles()
     elseif entry.kind == "about" then
@@ -2028,6 +2051,8 @@ function P:CreateOverview(main)
     view.rule = W.FadeLine(view, C.line, 0.5)
     self.list = W.ScrollArea(view)
     self.list:SetPoint("BOTTOMRIGHT", detail, "BOTTOMLEFT", -GAP - SCROLLBAR, 0)
+    self.list.onScroll = function() self:SpyNav() end
+    self.list.onUserScroll = function() self.navPinned = nil end
     self:ListTop(false)
 end
 
@@ -2139,10 +2164,7 @@ function P:CreateDetail(view)
     d.examples = {}
     d.button:SetScript("OnClick", function()
         if d.result then return self:OpenModule(d.result.owner, d.result.path, d.result.option) end
-        local module = self.detailModule
-        if HasPage(module) then return self:OpenModule(module:GetName()) end
-        Flip(module)
-        self:ShowDetail(module)
+        self:OpenModule(self.detailModule:GetName())
     end)
 end
 
@@ -2199,21 +2221,25 @@ function P:ShowDetail(module)
     self:ShowPreview(info)
     d.status:SetText(info.unavailable or "")
     d.status:SetShown(info.unavailable ~= nil)
-    d.button.label:SetText(HasPage(module) and "Open settings" or module:IsEnabled() and "Turn off" or "Turn on")
+    -- A tweak without settings is turned on and off by its row's switch alone.
+    d.button.label:SetText("Open settings")
+    d.button:SetShown(HasPage(module))
     d.button:SetDisabled(info.unavailable ~= nil)
     self:ShowExamples(module)
 end
 
 -- A few of a tweak's settings (info.examples: option keys, or { key, label } to name one more clearly out of its section;
--- else its first few), each with the page it's on, found in its options once and kept.
-function P:Examples(module)
+-- else its first few), each with the page it's on, found in its options once and kept. field names another list
+-- like info.examples, such as "essentials".
+function P:Examples(module, field)
+    field = field or "examples"
     self.exampleCache = self.exampleCache or {}
-    local key = module:GetName()
+    local key = module:GetName() .. "/" .. field
     local found = self.exampleCache[key]
     if found then return found end
     found = {}
     local options = module.info.options and module.info.options()
-    local wanted = module.info.examples
+    local wanted = module.info[field]
     if options then
         local seen = {}
         local function walk(group, chain, path)
@@ -2227,7 +2253,7 @@ function P:Examples(module)
                 elseif not seen[entry.key] and (o.type == "toggle" or o.type == "range" or o.type == "select"
                     or o.type == "color" or o.type == "input" or o.type == "items") then
                     seen[entry.key] = true
-                    found[#found + 1] = { key = entry.key, option = o, chain = subChain, path = path, owner = key }
+                    found[#found + 1] = { key = entry.key, option = o, chain = subChain, path = path, owner = module:GetName() }
                 end
             end
         end
@@ -2330,12 +2356,13 @@ function P:ShowResultDetail(result)
     self:ShowPreview(HST:GetModule(result.owner).info)
     d.status:Hide()
     d.button.label:SetText("Go to setting")
+    d.button:Show()
     d.button:SetDisabled(false)
     self:ShowExamples(nil)
 end
 
--- A module's row: name and description, a switch, and an arrow to its page. A module without a page has no arrow, and
--- clicking its row flips its switch.
+-- A module's row: name and description, a switch, and an arrow to its page. Switches line up whether or not the arrow
+-- shows. A module without a page has no arrow, and clicking its row flips its switch.
 function P:ModuleRow(index)
     local row = self.rows[index]
     if row then return row end
@@ -2526,9 +2553,7 @@ function P:RefreshRows(skipResults)
                 W.Paint(row.label, info.unavailable and C.disabled or C.text)
                 row.switch:SetDisabledLook(info.unavailable ~= nil)
                 row.switch.tipTitle = info.name
-                local page = HasPage(module)
-                row.arrow:SetShown(page)
-                row.switch:SetPoint("RIGHT", page and -38 or -12, 0)
+                row.arrow:SetShown(HasPage(module))
             end
             local on = module:IsEnabled()
             row.switch:SetOn(on, same)
@@ -2543,6 +2568,8 @@ function P:RefreshRows(skipResults)
 end
 
 function P:ShowModules()
+    -- The list is shown afresh, so the sidebar follows it again (P:NavClick pins it after).
+    self.navPinned = nil
     self:ClearSearch()
     self:SetMode("modules")
     local all, shown = HST:Features(), {}
@@ -2576,6 +2603,7 @@ function P:ShowModules()
         detail = shown[1] or all[1]
     end
     self:ShowDetail(detail)
+    self:SpyNav()
     self:RefreshNav()
 end
 
@@ -2610,6 +2638,11 @@ function P:CreatePageView(main)
     header.crumb = W.Text(header, "GameFontNormalSmall", C.header)
     header.crumb:SetPoint("TOPLEFT", header.title, "BOTTOMLEFT", 0, -6)
     header.crumb:SetWordWrap(false)
+    -- On a tweak's page the crumb is in parts that take you back (P:SetCrumbs), and why the tweak isn't available
+    -- follows them. The crumb keeps its text, hidden, so the header measures the same.
+    header.parts = {}
+    header.crumbNote = W.Text(header, "GameFontNormalSmall", C.warning)
+    header.crumbNote:SetWordWrap(false)
     header.text = W.Text(header, "GameFontHighlight", C.body)
     header.text:SetSpacing(3)
     -- The module's own switch, with "On" or "Off" beside it.
@@ -2907,7 +2940,81 @@ function P:SetHeader(title, crumb, text)
     local header = self.pageHeader
     header.title:SetText(title)
     header.crumb:SetText(crumb or "")
+    -- A tweak's page shows its crumb in parts (P:SetCrumbs); other pages, as it is.
+    if self.view ~= "module" and header.crumbCount then
+        header.crumbCount = nil
+        header.crumb:Show()
+        for _, part in ipairs(header.parts) do part:Hide(); part.sep:Hide() end
+        header.crumbNote:Hide()
+    end
     header.text:SetText(text or "")
+end
+
+-- A part of a tweak's crumb, from its pool: a category or page name, after the part before it and a >.
+function P:CrumbPart(index)
+    local header = self.pageHeader
+    local part = header.parts[index]
+    if part then return part end
+    part = CreateFrame("Button", nil, header)
+    part:SetHeight(18)
+    part.label = W.Text(part, "GameFontNormalSmall", C.header)
+    part.label:SetPoint("LEFT")
+    part.sep = W.Text(header, "GameFontNormalSmall", C.header)
+    part.sep:SetText(">")
+    local previous = header.parts[index - 1]
+    if previous then
+        part.sep:SetPoint("LEFT", previous, "RIGHT", 7, 0)
+        part:SetPoint("LEFT", part.sep, "RIGHT", 7, 0)
+    else
+        part:SetPoint("LEFT", header.crumb, "LEFT")
+    end
+    part:SetScript("OnEnter", function(b) W.Paint(b.label, C.bright) end)
+    part:SetScript("OnLeave", function(b) W.Paint(b.label, C.header) end)
+    part:SetScript("OnClick", function() self:CrumbClick(index) end)
+    header.parts[index] = part
+    return part
+end
+
+-- A tweak's crumb: its category, then the names of the pages down to the open one. Each but the last is a link.
+function P:SetCrumbs(category, names)
+    local header = self.pageHeader
+    local count = #names + 1
+    -- Only what changed is written: moving between pages mostly changes the last part.
+    for i = 1, count do
+        local part = self:CrumbPart(i)
+        local text = i == 1 and category or names[i - 1]
+        if part.text ~= text then
+            part.text = text
+            part.label:SetText(text)
+            part:SetWidth(math.ceil(part.label:GetStringWidth()))
+        end
+        -- The last part is where you are.
+        local link = i < count
+        if part.link ~= link then
+            part.link = link
+            part:EnableMouse(link)
+            W.Paint(part.label, C.header)
+        end
+    end
+    if header.crumbCount ~= count then
+        header.crumbCount = count
+        header.crumb:Hide()
+        for i, part in ipairs(header.parts) do
+            -- A part hidden while pointed at missed its OnLeave.
+            if i <= count and not part:IsShown() then W.Paint(part.label, C.header) end
+            part:SetShown(i <= count)
+            part.sep:SetShown(i > 1 and i <= count)
+        end
+        header.crumbNote:ClearAllPoints()
+        header.crumbNote:SetPoint("LEFT", header.parts[count], "RIGHT", 12, 0)
+    end
+end
+
+-- A crumb part clicked: its category in the tweak list, or its page.
+function P:CrumbClick(index)
+    if index == 1 then return self:NavClick({ kind = "category", key = self.pageInfo.category }) end
+    W.Play("IG_CHARACTER_INFO_TAB")
+    self:OpenModule(self.openModule, { unpack(self.openPath, 1, index - 1) })
 end
 
 -- The header's switch and its On/Off, and the overlay over the settings while the module is off.
@@ -2940,17 +3047,14 @@ function P:RefreshHeader()
         header.state:SetText(on and "On" or "Off")
         W.Paint(header.state, on and C.accent or C.muted)
     end
-    local crumb = self.crumb
-    if info.unavailable then
-        crumb = crumb .. "   " .. Hex(C.warning) .. info.unavailable .. "|r"
-    end
-    header.crumb:SetText(crumb)
+    header.crumbNote:SetText(info.unavailable or "")
+    header.crumbNote:SetShown(info.unavailable ~= nil)
     self:RefreshOffOverlay(module, on)
 end
 
 -- Shows a settings page's content. id names it in the page cache. focus, a setting's option (or its key, which sections
--- on one page can share), is scrolled to and flashed.
-function P:ShowPage(id, group, gate, focus)
+-- on one page can share), is scrolled to and flashed. essentials: the settings of the Essentials page group belongs to.
+function P:ShowPage(id, group, gate, focus, essentials)
     self:StopFlash()
     -- Of the pages built, only the one shown last can be showing (hidden even when it shows again).
     if self.page then self.page.content:Hide() end
@@ -2958,7 +3062,7 @@ function P:ShowPage(id, group, gate, focus)
     if group then
         page = self.pages[id]
         if not page then
-            page = self:BuildPage(group, gate)
+            page = self:BuildPage(group, gate, essentials)
             self.pages[id] = page
         end
         page.content:ClearAllPoints()
@@ -2991,6 +3095,7 @@ function P:SetSettingsOwner(key)
 end
 
 function P:SetMode(mode, view)
+    if mode ~= "modules" then self.navPinned = nil end
     self.mode, self.view = mode, mode == "page" and view or nil
     -- A settings page keeps its owner until another page opens.
     if mode ~= "page" or view ~= "module" then self:SetSettingsOwner(nil) end
@@ -3008,8 +3113,31 @@ function P:SetMode(mode, view)
     if not list then self.tabCount, self.chipCount = 0, 0 end
 end
 
--- Opens a module's page: path selects a settings page (by default the one last shown, then the first), focus
--- highlights a setting (see P:ShowPage).
+-- The settings on a tweak's Essentials page (info.essentials, else info.examples), when it has more than one page: nil
+-- for a tweak without one. Found once per tweak and kept.
+function P:Essentials(module, options)
+    self.essentialsCache = self.essentialsCache or {}
+    local key = module:GetName()
+    local items = self.essentialsCache[key]
+    if items == nil then
+        local info = module.info
+        items = false
+        if (info.essentials or info.examples) and not options.args[ESSENTIALS] and #Pages(options) > 1 then
+            -- Full-width blocks (item lists) stay on their own pages.
+            local found = {}
+            for _, item in ipairs(self:Examples(module, info.essentials and "essentials")) do
+                if not FULL[item.option.type] then found[#found + 1] = item end
+            end
+            if #found >= 2 then items = found end
+        end
+        -- A tweak whose pages come and go is asked again each time.
+        if not PagesChange(options) then self.essentialsCache[key] = items end
+    end
+    return items or nil
+end
+
+-- Opens a module's page: path selects a settings page (by default the one last shown, then Essentials or the first),
+-- focus highlights a setting (see P:ShowPage).
 function P:OpenModule(key, path, focus)
     local module = HST:GetModule(key)
     local options = module.info.options and module.info.options()
@@ -3017,6 +3145,8 @@ function P:OpenModule(key, path, focus)
     self:ClearSearch()
     self.lastPath = self.lastPath or {}
     path = path or self.lastPath[key]
+    local essentials = self:Essentials(module, options)
+    self.essentials = essentials
     -- A path can name a page the module doesn't have (a patch note naming a section, or a page since removed): it
     -- opens the deepest page it does have, or the first.
     local depth, group = 0, options
@@ -3026,7 +3156,7 @@ function P:OpenModule(key, path, focus)
         depth, group = depth + 1, page
     end
     if depth == 0 then
-        path = { Pages(options)[1].key }
+        path = { essentials and ESSENTIALS or Pages(options)[1].key }
     elseif depth < #path then
         path = { unpack(path, 1, depth) }
     end
@@ -3036,18 +3166,22 @@ function P:OpenModule(key, path, focus)
     self:SetSettingsOwner(key)
     local info = module.info
     self.pageInfo, self.pageOptions = info, options
-    -- The category opens in the sidebar, showing the module there.
-    State().expanded[info.category] = true
     local names = {}
     group = options
-    for _, part in ipairs(path) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
-    self.crumb = CategoryName(info.category) .. (#names > 0 and ("  >  " .. table.concat(names, "  >  ")) or "")
-    self:SetHeader(info.name, self.crumb, info.description)
+    local onEssentials = path[1] == ESSENTIALS
+    if onEssentials then
+        names[1] = "Essentials"
+    else
+        for _, part in ipairs(path) do group = group.args[part]; names[#names + 1] = Resolve(group.name, {}) end
+    end
+    local category = CategoryName(info.category)
+    self:SetHeader(info.name, category .. (#names > 0 and ("  >  " .. table.concat(names, "  >  ")) or ""), info.description)
+    self:SetCrumbs(category, names)
     self:BuildTabs()
     self.tabsChange = PagesChange(options)
     self:RefreshHeader()
     local gate = function() return not module:IsEnabled() end
-    self:ShowPage(key .. "/" .. table.concat(path, "/"), group, gate, focus)
+    self:ShowPage(key .. "/" .. table.concat(path, "/"), group, gate, focus, onEssentials and essentials or nil)
     self:RefreshNav()
 end
 
@@ -3059,7 +3193,17 @@ function P:BuildTabs()
     local tabs, chips = {}, {}
     local pages = Pages(options)
     if #pages > 1 or (pages[1] and #Pages(pages[1].option) > 0) then
-        for i, page in ipairs(pages) do
+        -- Essentials first, for a tweak that has it.
+        local first = self.essentials and 1 or 0
+        if first == 1 then
+            local b = self:TabButton(self.tabs, 1)
+            b.path = { ESSENTIALS }
+            b:SetText("Essentials")
+            b:SetSelected(path[1] == ESSENTIALS)
+            tabs[1] = ESSENTIALS
+        end
+        for n, page in ipairs(pages) do
+            local i = n + first
             local b = self:TabButton(self.tabs, i)
             b.path = { page.key }
             b:SetText(Resolve(page.option.name, {}))
@@ -3502,8 +3646,6 @@ function P:Refresh()
     if not (self.frame and self.frame:IsShown()) then return end
     if self.mode == "modules" or self.mode == "search" then
         self:RefreshRows()
-        -- The details pane's button says what it will do (Turn on, Turn off), so it follows the module's state.
-        if self.detailModule and not self.detail.result then self:ShowDetail(self.detailModule) end
         self:PaintNav()
     else
         if self.view == "profiles" then self.pageHeader.crumb:SetText("Active profile: " .. HST.db:GetCurrentProfile()) end
