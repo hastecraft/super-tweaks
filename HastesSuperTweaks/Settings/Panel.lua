@@ -1737,10 +1737,160 @@ function P:CreateSidebar(f)
             x = x - 24
         end
     end
+    self.sidebarBottom = bottom
+    self:CreateCpuGraph(bottom)
     self.navArea = W.ScrollArea(sidebar)
     self.navArea:SetPoint("TOPLEFT", 0, -56)
     self.navArea:SetPoint("BOTTOMRIGHT", bottom, "TOPRIGHT", -8, 4)
     self.navArea.child:SetWidth(SIDEBAR - 9)
+end
+
+-- The CPU graph above Profiles and About: this addon's time per frame, as the game's AddOns list counts it, while the
+-- window is open. The game averages the last 60 frames; reading it every 60th frame covers every frame once, so a
+-- burst between readings is never missed. Each bar is a second or more of those readings, oldest to newest. The
+-- scale is logarithmic, from 0.00001 ms up to the highest bar shown or 0.01 ms: an idle addon costs a millionth of a
+-- frame and a busy one a thousand times that, and a straight scale would show only the bursts. Under the graph: the
+-- average since login and the last bar. The frame count runs only while the graph
+-- shows: OnUpdate stops with the window, and the graph turned off is hidden.
+local CPU_BARS, CPU_WINDOW = 40, 60
+local CPU_LOW, CPU_TOP = math.log10(0.00001), math.log10(0.01)
+-- The header, graph and figures lines, and the gaps between them.
+local CPU_HEAD, CPU_GRAPH, CPU_LINE, CPU_GAP = 12, 24, 12, 4
+local CPU_FIGURES = CPU_LINE
+local CPU_ROW = CPU_HEAD + CPU_GRAPH + CPU_FIGURES + 2 * CPU_GAP
+
+local function CpuProfiler()
+    local profiler = C_AddOnProfiler
+    return profiler and profiler.IsEnabled and profiler.IsEnabled() and profiler or nil
+end
+
+-- Enough digits that a light load doesn't read as 0: below 0.01, down to its first digit (0.00006).
+local function FormatSmall(value, unit)
+    if value >= 10 then return ("%.0f%s"):format(value, unit) end
+    if value >= 1 then return ("%.1f%s"):format(value, unit) end
+    if value >= 0.01 then return ("%.2f%s"):format(value, unit) end
+    if value ~= value or value < 1e-8 then return "0" .. unit end
+    return ("%." .. math.ceil(-math.log10(value) - 1e-9) .. "f%s"):format(value, unit)
+end
+
+function P:CreateCpuGraph(bottom)
+    local cpu = CreateFrame("Frame", nil, bottom)
+    self.cpu = cpu
+    cpu:SetPoint("TOPLEFT", PAD - 4, 0)
+    cpu:SetPoint("TOPRIGHT", -(PAD - 3), 0)
+    cpu:SetHeight(CPU_ROW)
+    cpu:EnableMouse(true)
+    local title = W.Text(cpu, "GameFontNormalSmall", C.header)
+    title:SetPoint("TOPLEFT")
+    title:SetText("CPU")
+    local unit = W.Text(cpu, "GameFontNormalSmall", C.muted, "RIGHT")
+    unit:SetPoint("TOPRIGHT")
+    unit:SetText("ms/frame")
+    local graph = CreateFrame("Frame", nil, cpu)
+    graph:SetPoint("TOPLEFT", 0, -(CPU_HEAD + CPU_GAP))
+    graph:SetPoint("TOPRIGHT", 0, -(CPU_HEAD + CPU_GAP))
+    graph:SetHeight(CPU_GRAPH)
+    local floor = W.Fill(graph, C.divider, "BORDER")
+    floor:SetPoint("BOTTOMLEFT"); floor:SetPoint("BOTTOMRIGHT"); floor:SetHeight(1)
+    cpu.bars, cpu.samples, cpu.head, cpu.ms = {}, {}, 1, 0
+    for i = 1, CPU_BARS do
+        local bar = W.Fill(graph, C.accent, "ARTWORK")
+        bar:SetHeight(1)
+        bar:Hide()
+        cpu.bars[i] = bar
+        cpu.samples[i] = 0
+    end
+    graph:SetScript("OnSizeChanged", function(_, width)
+        local step = width / CPU_BARS
+        for i, bar in ipairs(cpu.bars) do
+            bar:SetPoint("BOTTOMLEFT", (i - 1) * step, 0)
+            bar:SetWidth(math.max(1, step - 1))
+        end
+    end)
+    -- Avg at the left and Now at the right, under the graph, each a label and its figure.
+    local y = -(CPU_HEAD + CPU_GRAPH + 2 * CPU_GAP)
+    cpu.figures = {}
+    for i, label in ipairs({ "Avg", "Now" }) do
+        local figure = { label = W.Text(cpu, "GameFontNormalSmall", C.muted),
+            value = W.Text(cpu, "GameFontNormalSmall", C.text) }
+        figure.label:SetText(label)
+        figure.value:SetText("0 ms")
+        if i == 1 then
+            figure.label:SetPoint("TOPLEFT", 0, y)
+            figure.value:SetPoint("LEFT", figure.label, "RIGHT", 3, 0)
+        else
+            figure.value:SetPoint("TOPRIGHT", 0, y)
+            figure.label:SetPoint("RIGHT", figure.value, "LEFT", -3, 0)
+        end
+        cpu.figures[i] = figure
+    end
+    cpu:SetScript("OnEnter", function()
+        W.ShowTooltip(cpu, "CPU use", "How long " .. HST.title .. " takes to run each frame.")
+    end)
+    cpu:SetScript("OnLeave", function() W.HideTooltip(cpu) end)
+    -- Frames since the last reading; the readings, the addon's time and the seconds since the last bar.
+    local frames, readings, addonTime, seconds = 0, 0, 0, 0
+    cpu:SetScript("OnUpdate", function(_, elapsed)
+        frames, seconds = frames + 1, seconds + elapsed
+        if frames < CPU_WINDOW then return end
+        frames = 0
+        local profiler = CpuProfiler()
+        if not profiler then return end
+        local metric = Enum.AddOnProfilerMetric.RecentAverageTime
+        readings, addonTime = readings + 1, addonTime + profiler.GetAddOnMetric(ADDON, metric)
+        if seconds < 1 then return end
+        self:AddCpuBar(addonTime / readings)
+        readings, addonTime, seconds = 0, 0, 0
+    end)
+    -- A new open starts counting afresh, so the time the window was closed isn't in the first bar; Avg shows at once.
+    cpu:SetScript("OnShow", function()
+        frames, readings, addonTime, seconds = 0, 0, 0, 0
+        self:PaintCpuFigures()
+    end)
+    self:ApplyCpuGraph()
+end
+
+function P:PaintCpuFigures()
+    local cpu, profiler = self.cpu, CpuProfiler()
+    if not profiler then return end
+    local metric = Enum.AddOnProfilerMetric
+    local figures = cpu.figures
+    local avg, now = FormatSmall(profiler.GetAddOnMetric(ADDON, metric.SessionAverageTime), " ms"), FormatSmall(cpu.ms, " ms")
+    if figures[1].shown ~= avg then figures[1].shown = avg; figures[1].value:SetText(avg) end
+    if figures[2].shown ~= now then figures[2].shown = now; figures[2].value:SetText(now) end
+end
+
+-- ms: the addon's average time a frame over the bar's readings.
+function P:AddCpuBar(ms)
+    local cpu = self.cpu
+    local samples = cpu.samples
+    samples[cpu.head] = ms
+    cpu.head = cpu.head % CPU_BARS + 1
+    cpu.ms = ms
+    local most = 0
+    for i = 1, CPU_BARS do
+        if samples[i] > most then most = samples[i] end
+    end
+    local top = most > 0 and math.max(CPU_TOP, math.log10(most)) or CPU_TOP
+    local height = CPU_GRAPH - 1
+    for i, bar in ipairs(cpu.bars) do
+        local value = samples[(cpu.head + i - 2) % CPU_BARS + 1]
+        local share = value > 0 and (math.log10(value) - CPU_LOW) / (top - CPU_LOW) or 0
+        if share > 0 then
+            bar:SetHeight(math.max(1, share * height))
+            bar:Show()
+        else
+            bar:Hide()
+        end
+    end
+    self:PaintCpuFigures()
+end
+
+-- Shows or hides the graph for its setting; the sidebar's list ends above whatever shows.
+function P:ApplyCpuGraph()
+    local on = HST.db.global.cpuGraph ~= false and CpuProfiler() ~= nil
+    self.cpu:SetShown(on)
+    self.sidebarBottom:SetHeight(on and 24 + CPU_ROW + 10 or 24)
 end
 
 -- The sidebar's right edge: drag it to widen or narrow the sidebar, right-click for its default width. It lights while
@@ -3675,6 +3825,14 @@ end
 
 function HST:ResetSettingsWindow()
     if P.frame then P:ResetWindow() end
+end
+
+function HST:ApplyCpuGraph()
+    if P.cpu then P:ApplyCpuGraph() end
+end
+
+function HST:CanShowCpuGraph()
+    return CpuProfiler() ~= nil
 end
 
 function HST:RefreshSettings()
