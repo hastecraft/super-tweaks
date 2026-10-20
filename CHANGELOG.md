@@ -18,6 +18,7 @@ Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't
 
 - Better Scrolling Combat Text: your old "Damage over time" choice now carries over to the game's "Log Periodic Effects" option.
 - Better Scrolling Combat Text: the preview's mana gain says "Mana" again instead of 0.
+- Settings: Loot Window's font list says "Game font" and Better Scrolling Combat Text's says "Combat text font", whichever you open first.
 
 ## 3.0.1 (2026-10-16)
 
