@@ -411,6 +411,8 @@ ns.Listen(R, { "MERCHANT_SHOW", "MERCHANT_CLOSED", "PLAYER_EQUIPMENT_CHANGED", "
         self:CheckAmmo()
     elseif event == "TRACKED_RECIPE_UPDATE" then
         self:ForgetRecipes()
+    elseif event == "PLAYER_EQUIPMENT_CHANGED" and ... ~= RANGED_SLOT and ... ~= AMMO_SLOT then
+        return -- only the ranged weapon and ammo matter
     else
         self:WatchAmmo()
     end
