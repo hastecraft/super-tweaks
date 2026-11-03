@@ -54,6 +54,7 @@ function GetActionInfo(slot)
     local a = ACTIONS[slot]
     if a then return a[1], a[2] end
 end
+function HasAction(slot) return ACTIONS[slot] ~= nil end
 function GetCursorInfo() if CURSOR then return CURSOR.kind, CURSOR.id end end
 function ClearCursor() CURSOR = nil end
 function PlaceAction(slot)
