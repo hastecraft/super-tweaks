@@ -16,6 +16,19 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.2.0", date = "2026-11-03",
+        new = {
+            { "A spell you learn goes on an empty action button, now that the game no longer puts it there. Turn it off with \"Put new spells on your bars\".",
+                title = "Upgrade Spell Ranks: New Spells on Your Bars", module = "SpellRanks", path = { "settings" }, setting = "placeNew" },
+        },
+        fixed = {
+            { "Swing Timer Style: the out-of-range color waits for the swing to end, as the game's dimming now does.",
+                module = "SwingTimer" },
+            { "Better World Refresh: the chat line and alerts for a waiting refresh no longer repeat when the game announces it again.",
+                module = "WorldRefresh" },
+        },
+    },
+    {
         version = "3.1.0", date = "2026-10-20",
         new = {
             { "The sidebar lists the categories, and clicking one scrolls the tweak list to it. Each tweak has one switch.",
