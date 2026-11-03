@@ -203,12 +203,16 @@ end
 -- Where a new spell may go, in order: the main bar, then the game's other bars while they show ({ first slot, bar }).
 local PLACE_SLOTS = { { 1 }, { 61, "MultiBarBottomLeft" }, { 49, "MultiBarBottomRight" }, { 25, "MultiBarRight" },
     { 37, "MultiBarLeft" } }
+-- WoW Forever has these in C_ActionBar only (its HasAction global is a deprecated fallback the game may not load);
+-- Classic Era has the HasAction global.
+local HasActionAt = C_ActionBar and C_ActionBar.HasAction or HasAction
+local FindSpellButtons = C_ActionBar and C_ActionBar.FindSpellActionButtons
 local function EmptySlot()
     for _, range in ipairs(PLACE_SLOTS) do
         local bar = range[2] and _G[range[2]]
         if not range[2] or (bar and bar:IsShown()) then
             for slot = range[1], range[1] + 11 do
-                if not HasAction(slot) then return slot end
+                if not HasActionAt(slot) then return slot end
             end
         end
     end
@@ -218,15 +222,27 @@ end
 -- Returns the names placed, and those that found no empty button. The cursor must be empty; it is left empty.
 function R:Place(placing, spells)
     local placed, full = {}, {}
-    if not next(placing) then return placed, full end
-    local onBars, order = {}, {}
-    for slot = 1, self.SLOTS do
-        local ok, kind, id = pcall(GetActionInfo, slot)
-        if ok and kind == "spell" and id then onBars[id] = true end
+    if not (next(placing) and HasActionAt) then return placed, full end
+    -- Whether a button holds the spell: the game finds it where it can (a hidden answer counts as yes), else every
+    -- slot is read once.
+    local onBars, order
+    if not FindSpellButtons then
+        onBars = {}
+        for slot = 1, self.SLOTS do
+            local ok, kind, id = pcall(GetActionInfo, slot)
+            if ok and kind == "spell" and id then onBars[id] = true end
+        end
     end
+    local function OnBars(spellID)
+        if onBars then return onBars[spellID] end
+        local ok, slots = pcall(FindSpellButtons, spellID)
+        if not ok or ns.IsSecret(slots) then return true end
+        return type(slots) == "table" and slots[1] ~= nil
+    end
+    order = {}
     for spellID, name in pairs(placing) do
         local spell = spells[name]
-        if spell and spell.index[spellID] and not onBars[spellID] then order[#order + 1] = spellID end
+        if spell and spell.index[spellID] and not OnBars(spellID) then order[#order + 1] = spellID end
     end
     table.sort(order, function(a, b) return spells[placing[a]].index[a] < spells[placing[b]].index[b] end)
     self.swapping = true
