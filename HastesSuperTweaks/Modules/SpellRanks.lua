@@ -147,7 +147,7 @@ end
 -- Action slots: every keyboard and mouse slot either client has (slots a client lacks read as empty), and the gamepad
 -- bars' own range where this client has them, which starts past those; only valid gamepad slots are touched.
 R.SLOTS, R.GAMEPAD_SLOTS = 180, 200
-R.pending, R.placing, R.learned, R.nameOf, R.everKnown = {}, {}, {}, {}, {}
+R.pending, R.placing, R.learned, R.nameOf, R.everKnown, R.firstSeen = {}, {}, {}, {}, {}, {}
 
 -- Replaces the spell on each action slot holding a key of `swaps` (spellID -> new spellID). Returns how many buttons
 -- changed per new spellID. The cursor must be empty; it is left empty.
@@ -218,8 +218,9 @@ local function EmptySlot()
     end
 end
 
--- Puts each spell of `placing` (spellID -> name) that no button holds yet on an empty button, in spellbook order.
--- Returns the names placed, and those that found no empty button. The cursor must be empty; it is left empty.
+-- Puts each spell of `placing` (by name) that no button holds yet on an empty button, in spellbook order: its best
+-- rank, so a higher rank learned while it waited goes on in its place. Returns the names placed, and those that found
+-- no empty button. The cursor must be empty; it is left empty.
 function R:Place(placing, spells)
     local placed, full = {}, {}
     if not (next(placing) and HasActionAt) then return placed, full end
@@ -240,18 +241,20 @@ function R:Place(placing, spells)
         return type(slots) == "table" and slots[1] ~= nil
     end
     order = {}
-    for spellID, name in pairs(placing) do
+    for name in pairs(placing) do
         local spell = spells[name]
-        if spell and spell.index[spellID] and not OnBars(spellID) then order[#order + 1] = spellID end
+        local best = spell and spell.best
+        if best and spell.index[best] and not OnBars(best) then order[#order + 1] = name end
     end
-    table.sort(order, function(a, b) return spells[placing[a]].index[a] < spells[placing[b]].index[b] end)
+    local function Index(name) return spells[name].index[spells[name].best] end
+    table.sort(order, function(a, b) return Index(a) < Index(b) end)
     self.swapping = true
-    for _, spellID in ipairs(order) do
-        local name, slot = placing[spellID], EmptySlot()
+    for _, name in ipairs(order) do
+        local spellID, slot = spells[name].best, EmptySlot()
         if not slot then
             full[#full + 1] = name
         else
-            Book.Pickup(spells[name].index[spellID])
+            Book.Pickup(Index(name))
             if GetCursorInfo() == "spell" then PlaceAction(slot) end
             ClearCursor()
             local _, now = GetActionInfo(slot)
@@ -287,14 +290,26 @@ end
 --
 -- A spell the game says you just learned whose name you've never had since this was turned on is new, and goes on an
 -- empty button. Names are never forgotten, so a spellbook that briefly lists fewer spells doesn't make one new again.
+-- One the spellbook lists before the game says you learned it stays new for KEEP_LEARNED seconds, waiting for that.
+local function JustLearned(learned, spell)
+    for spellID in pairs(spell.index) do
+        if learned[spellID] then return true end
+    end
+    return false
+end
 function R:Update()
     self.scanQueued = false
-    local spells, known, place = self:Scan(), self.spells or {}, self.db.profile.placeNew
+    local spells, known, place, now = self:Scan(), self.spells or {}, self.db.profile.placeNew, GetTime()
     for name, spell in pairs(spells) do
         for spellID in pairs(spell.index) do self.nameOf[spellID] = name end
         if not self.everKnown[name] then
-            self.everKnown[name] = true
-            if place and self.bookRead and self.learned[spell.best] then self.placing[spell.best] = name end
+            local seen, learnedNow = self.firstSeen[name], self.bookRead and JustLearned(self.learned, spell)
+            if not self.bookRead or learnedNow or (seen and now - seen > self.KEEP_LEARNED) then
+                self.everKnown[name], self.firstSeen[name] = true, nil
+                if place and learnedNow then self.placing[name] = true end
+            elseif not seen then
+                self.firstSeen[name] = now
+            end
         end
         local before, best = known[name], spell.best
         if not spell.complete and before then
@@ -322,7 +337,6 @@ function R:Update()
     end
     -- A learned spell the spellbook doesn't list yet is kept for the next scans, for a while: some never show there
     -- (passives, for one).
-    local now = GetTime()
     for spellID, learnedAt in pairs(self.learned) do
         local spell = spells[self.nameOf[spellID]]
         if (spell and spell.complete and spell.index[spellID]) or now - learnedAt > self.KEEP_LEARNED then self.learned[spellID] = nil end
@@ -406,7 +420,8 @@ end)
 function R:OnListen()
     self.generation = (self.generation or 0) + 1
     self.scanQueued, self.upgradeAllPending = false, false
-    self.pending, self.placing, self.learned, self.nameOf, self.everKnown, self.swapping = {}, {}, {}, {}, {}, false
+    self.pending, self.placing, self.learned, self.nameOf, self.everKnown, self.firstSeen = {}, {}, {}, {}, {}, {}
+    self.swapping = false
     self.spells = self:Scan()
     for name in pairs(self.spells) do self.everKnown[name] = true end
     self.bookRead = next(self.spells) ~= nil
