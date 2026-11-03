@@ -2,6 +2,17 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.2.0 (2026-11-03)
+
+### New Features
+
+- Upgrade Spell Ranks: New Spells on Your Bars. A spell you learn goes on an empty action button, now that the game no longer puts it there. Turn it off with "Put new spells on your bars".
+
+### Bug Fixes
+
+- Swing Timer Style: the out-of-range color waits for the swing to end, as the game's dimming now does.
+- Better World Refresh: the chat line and alerts for a waiting refresh no longer repeat when the game announces it again.
+
 ## 3.1.0 (2026-10-20)
 
 ### New Features
