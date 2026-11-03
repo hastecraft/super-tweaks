@@ -54,6 +54,18 @@ function GetActionInfo(slot)
     local a = ACTIONS[slot]
     if a then return a[1], a[2] end
 end
+function HasAction(slot) return ACTIONS[slot] ~= nil end
+-- WoW Forever's own action bar API: the slots holding a spell, and whether a slot holds anything.
+if MODERN_SPELLBOOK then
+    C_ActionBar = { HasAction = HasAction, FindSpellActionButtons = function(spellID)
+        local slots = {}
+        for slot = 1, 180 do
+            local a = ACTIONS[slot]
+            if a and a[1] == 'spell' and a[2] == spellID then slots[#slots + 1] = slot end
+        end
+        return slots
+    end }
+end
 function GetCursorInfo() if CURSOR then return CURSOR.kind, CURSOR.id end end
 function ClearCursor() CURSOR = nil end
 function PlaceAction(slot)

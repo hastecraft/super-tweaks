@@ -520,6 +520,16 @@ Section('Upgrade Spell Ranks', function()
         Send('SpellRanks', 'SPELLS_CHANGED')
         AdvanceTime(0.2)
     end)
+    local new = 0
+    Measure('Spell Ranks: new spell learned, put on an empty button', 20, function()
+        new = new + 1
+        local id = 7000 + new
+        ACTIONS[12] = nil
+        BOOK[#BOOK + 1] = { id = id, name = 'New Spell ' .. new, sub = '' }
+        Send('SpellRanks', 'LEARNED_SPELL_IN_SKILL_LINE', id, 1, false)
+        Send('SpellRanks', 'SPELLS_CHANGED')
+        AdvanceTime(0.2)
+    end)
 end)
 
 Section('Mail Expiry & Alt List', function()

@@ -1,12 +1,14 @@
--- Upgrade Spell Ranks: when you learn a new rank of a spell, the action buttons holding your old rank get the new one.
--- Buttons can only change out of combat, so a rank learned in combat is put on your bars when combat ends.
+-- Upgrade Spell Ranks: when you learn a new rank of a spell, the action buttons holding your old rank get the new one,
+-- and a spell new to you goes on an empty button (the game stopped placing them itself at WoW Forever's launch).
+-- Buttons can only change out of combat, so a spell learned in combat is put on your bars when combat ends.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
 local R = HST:NewFeature("SpellRanks", {
     name = "Upgrade Spell Ranks", category = "leveling", order = 5, command = "ranks", enabledByDefault = false,
-    summary = "New spell ranks replace the old ones on your bars.", examples = { "keepLower", "summary" },
-    description = "When you learn a new rank of a spell, your action bars get it in place of the old one.",
+    summary = "New spells and ranks go on your bars.", examples = { "placeNew", "keepLower", "summary" },
+    description = "When you learn a new rank of a spell, your action bars get it in place of the old one. A new spell "
+        .. "goes on an empty button.",
 })
 ns.SpellRanks = R
 
@@ -40,13 +42,15 @@ function R.info.preview(frame)
     end, 1.5)
 end
 
-ns.Configure(R, { keepLower = true, summary = true }, function(self)
+ns.Configure(R, { placeNew = true, keepLower = true, summary = true }, function(self)
     local function profile() return self.db.profile end
     return ns.OnePage(self.info.name, "settings", "Settings", {
-        keepLower = ns.Option(profile, "toggle", "keepLower", "Leave lower ranks you placed", 1, { desc =
+        placeNew = ns.Option(profile, "toggle", "placeNew", "Put new spells on your bars", 1, { desc =
+            "The first empty button on your main bar gets it, then your other bars that show." }),
+        keepLower = ns.Option(profile, "toggle", "keepLower", "Leave lower ranks you placed", 2, { desc =
             "Only buttons with your previous highest rank get the new one." }),
-        summary = ns.Option(profile, "toggle", "summary", "Say what was upgraded", 2),
-        upgradeAll = { type = "execute", name = "Upgrade all buttons now", order = 3,
+        summary = ns.Option(profile, "toggle", "summary", "Say what was placed or upgraded", 3),
+        upgradeAll = { type = "execute", name = "Upgrade all buttons now", order = 4,
             desc = "Puts your highest rank on every button with a lower rank, including ones you placed on purpose.",
             confirm = true, confirmText = "Put your highest rank on every button with a lower rank, including ones you placed on purpose?",
             func = function() self:UpgradeAll() end },
@@ -143,7 +147,7 @@ end
 -- Action slots: every keyboard and mouse slot either client has (slots a client lacks read as empty), and the gamepad
 -- bars' own range where this client has them, which starts past those; only valid gamepad slots are touched.
 R.SLOTS, R.GAMEPAD_SLOTS = 180, 200
-R.pending, R.learned, R.nameOf = {}, {}, {}
+R.pending, R.placing, R.learned, R.nameOf, R.everKnown, R.firstSeen = {}, {}, {}, {}, {}, {}
 
 -- Replaces the spell on each action slot holding a key of `swaps` (spellID -> new spellID). Returns how many buttons
 -- changed per new spellID. The cursor must be empty; it is left empty.
@@ -196,15 +200,85 @@ function R:Report(changed, spells)
     return total
 end
 
--- Applies the waiting upgrades now if the game allows it: out of combat, with nothing held on the cursor. Otherwise
--- they wait for combat to end (PLAYER_REGEN_ENABLED), or for the cursor to change (CURSOR_CHANGED).
+-- Where a new spell may go, in order: the main bar, then the game's other bars while they show ({ first slot, bar }).
+local PLACE_SLOTS = { { 1 }, { 61, "MultiBarBottomLeft" }, { 49, "MultiBarBottomRight" }, { 25, "MultiBarRight" },
+    { 37, "MultiBarLeft" } }
+-- WoW Forever has these in C_ActionBar only (its HasAction global is a deprecated fallback the game may not load);
+-- Classic Era has the HasAction global.
+local HasActionAt = C_ActionBar and C_ActionBar.HasAction or HasAction
+local FindSpellButtons = C_ActionBar and C_ActionBar.FindSpellActionButtons
+local function EmptySlot()
+    for _, range in ipairs(PLACE_SLOTS) do
+        local bar = range[2] and _G[range[2]]
+        if not range[2] or (bar and bar:IsShown()) then
+            for slot = range[1], range[1] + 11 do
+                if not HasActionAt(slot) then return slot end
+            end
+        end
+    end
+end
+
+-- Puts each spell of `placing` (by name) that no button holds yet on an empty button, in spellbook order: its best
+-- rank, so a higher rank learned while it waited goes on in its place. Returns the names placed, and those that found
+-- no empty button. The cursor must be empty; it is left empty.
+function R:Place(placing, spells)
+    local placed, full = {}, {}
+    if not (next(placing) and HasActionAt) then return placed, full end
+    -- Whether a button holds the spell: the game finds it where it can (a hidden answer counts as yes), else every
+    -- slot is read once.
+    local onBars, order
+    if not FindSpellButtons then
+        onBars = {}
+        for slot = 1, self.SLOTS do
+            local ok, kind, id = pcall(GetActionInfo, slot)
+            if ok and kind == "spell" and id then onBars[id] = true end
+        end
+    end
+    local function OnBars(spellID)
+        if onBars then return onBars[spellID] end
+        local ok, slots = pcall(FindSpellButtons, spellID)
+        if not ok or ns.IsSecret(slots) then return true end
+        return type(slots) == "table" and slots[1] ~= nil
+    end
+    order = {}
+    for name in pairs(placing) do
+        local spell = spells[name]
+        local best = spell and spell.best
+        if best and spell.index[best] and not OnBars(best) then order[#order + 1] = name end
+    end
+    local function Index(name) return spells[name].index[spells[name].best] end
+    table.sort(order, function(a, b) return Index(a) < Index(b) end)
+    self.swapping = true
+    for _, name in ipairs(order) do
+        local spellID, slot = spells[name].best, EmptySlot()
+        if not slot then
+            full[#full + 1] = name
+        else
+            Book.Pickup(Index(name))
+            if GetCursorInfo() == "spell" then PlaceAction(slot) end
+            ClearCursor()
+            local _, now = GetActionInfo(slot)
+            if now == spellID then placed[#placed + 1] = name end
+        end
+    end
+    self.swapping = false
+    return placed, full
+end
+
+-- Applies the waiting upgrades and new spells now if the game allows it: out of combat, with nothing held on the
+-- cursor. Otherwise they wait for combat to end (PLAYER_REGEN_ENABLED), or for the cursor to change (CURSOR_CHANGED).
 function R:Apply(spells)
-    if not next(self.pending) or not self:IsEnabled() or InCombatLockdown() or GetCursorInfo() then return end
-    local swaps = self.pending
-    self.pending = {}
+    if not (next(self.pending) or next(self.placing)) or not self:IsEnabled() or InCombatLockdown() or GetCursorInfo() then return end
+    local swaps, placing = self.pending, self.placing
+    self.pending, self.placing = {}, {}
     spells = spells or self:Scan()
-    local changed = self:Swap(swaps, spells)
-    if self.db.profile.summary then self:Report(changed, spells) end
+    local changed = next(swaps) and self:Swap(swaps, spells) or {}
+    local placed, full = self:Place(placing, spells)
+    if self.db.profile.summary then
+        self:Report(changed, spells)
+        if #placed > 0 then HST:Print("Put " .. table.concat(placed, ", ") .. " on your action bars.") end
+        if #full > 0 then HST:Print("No empty action button for " .. table.concat(full, ", ") .. ".") end
+    end
     self:Watch()
 end
 
@@ -213,11 +287,30 @@ end
 -- doesn't matter whether the game says you learned a rank before or after the spellbook shows it. Only a rank the
 -- game says you just learned counts, and never a lower one, so a spellbook that briefly lists fewer ranks never swaps
 -- a button down.
+--
+-- A spell the game says you just learned whose name you've never had since this was turned on is new, and goes on an
+-- empty button. Names are never forgotten, so a spellbook that briefly lists fewer spells doesn't make one new again.
+-- One the spellbook lists before the game says you learned it stays new for KEEP_LEARNED seconds, waiting for that.
+local function JustLearned(learned, spell)
+    for spellID in pairs(spell.index) do
+        if learned[spellID] then return true end
+    end
+    return false
+end
 function R:Update()
     self.scanQueued = false
-    local spells, known = self:Scan(), self.spells or {}
+    local spells, known, place, now = self:Scan(), self.spells or {}, self.db.profile.placeNew, GetTime()
     for name, spell in pairs(spells) do
         for spellID in pairs(spell.index) do self.nameOf[spellID] = name end
+        if not self.everKnown[name] then
+            local seen, learnedNow = self.firstSeen[name], self.bookRead and JustLearned(self.learned, spell)
+            if not self.bookRead or learnedNow or (seen and now - seen > self.KEEP_LEARNED) then
+                self.everKnown[name], self.firstSeen[name] = true, nil
+                if place and learnedNow then self.placing[name] = true end
+            elseif not seen then
+                self.firstSeen[name] = now
+            end
+        end
         local before, best = known[name], spell.best
         if not spell.complete and before then
             spell.best, spell.rank = before.best, before.rank
@@ -244,12 +337,13 @@ function R:Update()
     end
     -- A learned spell the spellbook doesn't list yet is kept for the next scans, for a while: some never show there
     -- (passives, for one).
-    local now = GetTime()
     for spellID, learnedAt in pairs(self.learned) do
         local spell = spells[self.nameOf[spellID]]
         if (spell and spell.complete and spell.index[spellID]) or now - learnedAt > self.KEEP_LEARNED then self.learned[spellID] = nil end
     end
     self.spells = spells
+    -- A spellbook that hadn't loaded when this was turned on: everything in it now is what you knew.
+    self.bookRead = self.bookRead or next(spells) ~= nil
     self:Apply(spells)
     if self.upgradeAllPending then self:UpgradeAll(spells, true) end
     self:Watch()
@@ -301,7 +395,8 @@ local RESUME_EVENTS = { "PLAYER_REGEN_ENABLED", "CURSOR_CHANGED" }
 function R:Watch()
     local frame = self.events
     if not frame then return end
-    local resume = self:IsEnabled() and (next(self.pending) ~= nil or self.upgradeAllPending) or false
+    local resume = self:IsEnabled() and (next(self.pending) ~= nil or next(self.placing) ~= nil or self.upgradeAllPending)
+        or false
     if resume == self.watching then return end
     self.watching = resume
     for _, event in ipairs(RESUME_EVENTS) do
@@ -312,7 +407,7 @@ local function ResumeSoon() R:Resume() end
 ns.Listen(R, { "SPELLS_CHANGED", "SPELL_TEXT_UPDATE", "LEARNED_SPELL_IN_TAB", "LEARNED_SPELL_IN_SKILL_LINE" }, function(self, event, spellID)
     if event == "PLAYER_REGEN_ENABLED" or event == "CURSOR_CHANGED" then
         -- Our own spells passing through the cursor: the upgrade under way isn't started over for each button.
-        if self.swapping or not (next(self.pending) or self.upgradeAllPending) then return end
+        if self.swapping or not (next(self.pending) or next(self.placing) or self.upgradeAllPending) then return end
         -- The cursor says it changed in the middle of whatever changed it (another addon may be moving buttons):
         -- buttons change once that's done.
         if event == "CURSOR_CHANGED" then return C_Timer.After(0, ResumeSoon) end
@@ -325,14 +420,17 @@ end)
 function R:OnListen()
     self.generation = (self.generation or 0) + 1
     self.scanQueued, self.upgradeAllPending = false, false
-    self.pending, self.learned, self.nameOf, self.swapping = {}, {}, {}, false
+    self.pending, self.placing, self.learned, self.nameOf, self.everKnown, self.firstSeen = {}, {}, {}, {}, {}, {}
+    self.swapping = false
     self.spells = self:Scan()
+    for name in pairs(self.spells) do self.everKnown[name] = true end
+    self.bookRead = next(self.spells) ~= nil
     self.watching = nil
     self:Watch()
 end
 function R:OnUnlisten()
     self.generation = (self.generation or 0) + 1
     self.scanQueued, self.upgradeAllPending = false, false
-    self.pending, self.learned = {}, {}
+    self.pending, self.placing, self.learned = {}, {}, {}
     self.watching = nil -- every event was unregistered
 end
