@@ -253,7 +253,7 @@ function R:Apply(spells)
     local swaps, placing = self.pending, self.placing
     self.pending, self.placing = {}, {}
     spells = spells or self:Scan()
-    local changed = self:Swap(swaps, spells)
+    local changed = next(swaps) and self:Swap(swaps, spells) or {}
     local placed, full = self:Place(placing, spells)
     if self.db.profile.summary then
         self:Report(changed, spells)
