@@ -91,10 +91,10 @@ local function Swinging(frame)
     return IsSecret(duration) or duration ~= nil
 end
 local function InEditMode(frame) return frame.isInEditMode == true end
--- As the game's IsOutOfRange: dimmed for range, and never in Edit Mode.
+-- As the game's IsOutOfRange: dimmed for range, never in Edit Mode, and not until a swing under way ends.
 local function OutOfRange(frame)
     local out = frame.isOutOfRange
-    return not IsSecret(out) and out == true and frame.isInEditMode ~= true
+    return not IsSecret(out) and out == true and frame.isInEditMode ~= true and not Swinging(frame)
 end
 
 -- A bar hides by its art, fill and text going see-through, as the game dims them out of range. The alpha the game gave

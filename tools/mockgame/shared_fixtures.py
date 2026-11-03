@@ -164,10 +164,14 @@ function swingBar:GetBackground() return self.Background end
 function swingBar:GetBorder() return self.Border end
 function swingBar:GetStatusBar() return self.StatusBar end
 function swingBar:GetStatusBarPip() return self.StatusBar.Pip end
-function swingBar:ResetSwingTimer(duration) if duration and duration > 0 then self.swingDuration = duration end end
-function swingBar:ClearSwingTimer() self.swingDuration = nil end
+-- Since build 70707, starting and ending a swing also set its range look, and a swing under way is never dimmed.
+function swingBar:ResetSwingTimer(duration)
+    if duration and duration > 0 then self.swingDuration = duration end
+    self:ApplyRangePresentation()
+end
+function swingBar:ClearSwingTimer() self.swingDuration = nil; self:ApplyRangePresentation() end
 function swingBar:ApplyRangePresentation()
-    local alpha = self.isOutOfRange and not self.isInEditMode and 0.4 or 1
+    local alpha = self.isOutOfRange and not self.isInEditMode and not self.swingDuration and 0.4 or 1
     self.Background:SetAlpha(alpha); self.Border:SetAlpha(alpha); self.StatusBar:SetAlpha(alpha)
 end
 function swingBar:SetOutOfRange(out)
