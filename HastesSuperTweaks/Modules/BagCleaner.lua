@@ -79,6 +79,16 @@ local function Dress(f, clickable)
     end
 end
 
+-- Places the row, moved along by shift while it holds fewer items than the window has room for.
+local function PlaceRow(f, shift)
+    if f.rowShift == shift then return end
+    f.rowShift = shift
+    for i, slot in ipairs(f.slots) do
+        slot:ClearAllPoints()
+        slot:SetPoint("TOPLEFT", f, "TOPLEFT", f.rowX + shift + (i - 1) * f.pitch, f.rowY)
+    end
+end
+
 -- Sizes everything from the settings. The window keeps this size while the row is empty, so it doesn't jump.
 local function Layout(f, p)
     local font, flags = ns.Media("font", p.font), ns.OutlineFlags(p.outline)
@@ -125,8 +135,6 @@ local function Layout(f, p)
     end
     for i, slot in ipairs(f.slots) do
         slot:SetSize(p.size, p.size)
-        slot:ClearAllPoints()
-        slot:SetPoint("TOPLEFT", f, "TOPLEFT", rowX + (i - 1) * pitch, rowY)
         for _, text in ipairs({ slot.count, slot.price }) do
             ns.SetFont(text, font, p.fontSize, flags)
             text:SetShadowOffset(shadow, -shadow)
@@ -135,6 +143,12 @@ local function Layout(f, p)
     end
     f:SetSize(f.width, f.height)
     f.shownFree = nil
+    -- A short row stays against the line's side: to the right under a right-hand line or before a line on its right,
+    -- in the middle under a centered one.
+    f.rowX, f.rowY, f.pitch, f.rowShift = rowX, rowY, pitch, nil
+    f.rowPull = (place.beside == "right" or place.align == "RIGHT" and not place.beside) and 1
+        or place.align == "CENTER" and 0.5 or 0
+    PlaceRow(f, 0)
 end
 
 local function ShowBags(f, p, free, total, special)
@@ -337,16 +351,20 @@ function B:Frame()
     return f
 end
 
--- Quest changes can change what's offered, so they count while there's a row to keep right.
+-- Changes to your quests, professions and sets can change what's offered, so they count while there's a row to keep right.
 function B:Watch(watch)
     if watch == (self.watching or false) then return end
     self.watching = watch
     if watch then
         self.events:RegisterEvent("QUEST_LOG_UPDATE")
         self.events:RegisterEvent("QUEST_DATA_LOAD_RESULT")
+        self.events:RegisterEvent("SKILL_LINES_CHANGED")
+        self.events:RegisterEvent("EQUIPMENT_SETS_CHANGED")
     else
         self.events:UnregisterEvent("QUEST_LOG_UPDATE")
         self.events:UnregisterEvent("QUEST_DATA_LOAD_RESULT")
+        self.events:UnregisterEvent("SKILL_LINES_CHANGED")
+        self.events:UnregisterEvent("EQUIPMENT_SETS_CHANGED")
     end
 end
 
@@ -355,6 +373,8 @@ function B:Draw()
     local editing = self.editMode or false
     ShowBags(f, p, self.free, self.total, self.special)
     local low = p.alwaysItems or self.free <= p.lowAt
+    local shown = editing and p.count or low and picked or 0
+    PlaceRow(f, (p.count - shown) * f.pitch * f.rowPull)
     for i, slot in ipairs(f.slots) do
         local pick = low and i <= picked and picks[i] or nil
         local sample = not pick and editing and i <= p.count and SAMPLES[i] or nil
@@ -465,7 +485,7 @@ end
 -- Events
 ---------------------------------------------------------------------------
 ns.Listen(B, { "BAG_UPDATE_DELAYED", "PLAYER_ENTERING_WORLD" }, function(self, event)
-    if event == "QUEST_LOG_UPDATE" or event == "QUEST_DATA_LOAD_RESULT" then self.fresh = true end
+    if event ~= "BAG_UPDATE_DELAYED" then self.fresh = true end
     self:Queue()
 end)
 
