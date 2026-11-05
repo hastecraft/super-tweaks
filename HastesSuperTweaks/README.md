@@ -106,7 +106,7 @@ Profiles made on one character are listed on all of them. The Loot Window's "Sho
 - `/hst train`, `/hst tracker`, `/hst rolls`, `/hst restock`, `/hst mailguard`, `/hst bags`, `/hst cleaner`, `/hst spam`, `/hst game`: Train All, Hide Quest Tracker, Movable Loot Rolls, Restock at Vendors, Mail Gold Guard, Bag Tweaks, Bag Cleaner, Chat Spam Filter and Game Settings settings.
 - `/hst refresh`: Better World Refresh settings. `/hst refresh now`: refresh the world now, when a refresh is waiting. `/hst refresh sample`: a sample countdown.
 - `/hst camp`: Campfire Helper settings. `/hst camp check`: your campfire, when you can light another, your camp buffs and Boosted Rest.
-- `/hst keep <item>`, `/hst sell <item>`: put an item on Sell Clutter's Never sell or Always sell list (shift-click it into the chat line); again takes it off. `/hst clutter list`: what Sell Clutter would sell right now.
+- `/hst keep <item>`, `/hst sell <item>`: put an item on Sell Clutter's Never sell or Always sell list (shift-click it into the chat line); again takes it off. `/hst clutter list`: what Sell Clutter would sell right now. `/hst cleaner list`: what Bag Cleaner can offer, and why it won't offer the rest.
 - `/hst sort`: clean up your bags (the game's Clean Up Bags).
 - `/hst legacy`: open or close the Legacy window (WoW Forever).
 
