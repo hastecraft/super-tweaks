@@ -2,6 +2,16 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.3.0 (2026-11-05)
+
+### Bag Cleaner
+
+Shows your free bag slots and your cheapest items by vendor price, wherever you place it in Edit Mode. Click an item to delete it, or right-click it to never see it here again.
+
+### Bug Fixes
+
+- Right-Click Guild Invite: the game blocks addons from sending guild invites, so it now fills in your chat line and Enter sends the invite.
+
 ## 3.2.0 (2026-11-03)
 
 ### New Features
