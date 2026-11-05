@@ -1313,6 +1313,50 @@ Section('Auto-Equip Bags (64 occupied slots)', function()
 end)
 '''
 
+BAG_CLEANER_MOCKS = r'''
+C_Container.GetContainerNumFreeSlots = function(bag)
+    if bag ~= 0 then return 0, 0 end
+    local free = 0
+    for slot = 1, BAG_SIZE do if not BAGS[slot] then free = free + 1 end end
+    return free, 0
+end
+local held
+function GetCursorInfo() if held then return 'item', BAGS[held].itemID end end
+function ClearCursor() held = nil end
+C_Container.PickupContainerItem = function(_, slot) held = slot end
+function DeleteCursorItem() BAGS[held], held = nil, nil end
+'''
+
+BAG_CLEANER = r'''
+local B = HST:GetModule('BagCleaner')
+Only({ 'BagCleaner' })
+state.class, state.level = 'WARRIOR', 30
+ITEMS[101] = { name = 'Stringy Wolf Meat', class = 7, sub = 8, price = 4 }
+ITEMS[103] = { name = 'Linen Cloth', class = 7, sub = 5, price = 13 }
+ITEMS[110] = { name = 'Tough Jerky', class = 0, sub = 5, price = 1, level = 1 }
+ITEMS[130] = { name = 'Hearthstone', class = 15, sub = 0, price = 0 }
+local kinds = { 101, 103, 110, 130 }
+BAG_SIZE = 64
+local SLOTS = {}
+for slot = 1, 64 do SLOTS[slot] = Slot(kinds[slot % #kinds + 1], slot % 7 + 1) end
+local function fill(upTo) for slot = 1, 64 do BAGS[slot] = slot <= upTo and SLOTS[slot] or nil end end
+state.quests = {}
+for i = 1, 20 do state.quests[i] = { questID = 900 + i }; OBJECTIVES[900 + i] = { { type = 'item', text = 'Quest Thing ' .. i .. ': 1/8' } } end
+local function bagEvent() Send('BagCleaner', 'BAG_UPDATE_DELAYED'); AdvanceTime(B.DELAY) end
+Section('Bag Cleaner (64 slots, 20 quests)', function()
+    fill(32); bagEvent()
+    Measure('Bag cleaner: bag event with plenty of free slots', 100, bagEvent)
+    fill(62); AdvanceTime(5); bagEvent()
+    Measure('Bag cleaner: bag event with low bags, items unchanged', 100, bagEvent)
+    Measure('Bag cleaner: item deleted by a click, and the bag event after', 20, function()
+        AdvanceTime(B.CLICK_GUARD)
+        Script(B.frame.slots[1], 'OnClick', 'LeftButton')
+        bagEvent()
+        fill(62); bagEvent()
+    end)
+end)
+'''
+
 BREATH = r'''
 Only({ 'BreathMeter' })
 local B = HST:GetModule('BreathMeter')
@@ -1420,6 +1464,7 @@ def main():
     runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + mock('appearance_mocks.lua'), APPEARANCES)
     runtime(full, STARTUP_SETTINGS, start=False, measure_load=True)
     runtime(mock('bags_mocks.lua'), BAGS)
+    runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + BAG_CLEANER_MOCKS, BAG_CLEANER)
     runtime(BREATH_MOCKS, BREATH)
     runtime(SWING_MOCKS, SWING)
     runtime(DRUID_MOCKS, DRUID)

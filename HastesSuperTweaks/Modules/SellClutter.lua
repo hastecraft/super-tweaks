@@ -573,6 +573,18 @@ local function Uses(ctx, item, keep)
     return false
 end
 
+-- Whether an item has to stay, however little it's worth (Bag Cleaner asks): your Never sell list, what's never sold by
+-- kind, your equipment sets, what your quests or a RestedXP guide need, your class's reagents and your professions'
+-- materials. These hold with this tweak off too.
+function S:MustKeep(itemID, name, ctx)
+    if self.db.profile.keep[itemID] or Listed(itemID) == "never" or ctx.sets[itemID] then return true end
+    if Needed(ctx, itemID, name) or self:GuideStatus(itemID, ctx) == "needed" then return true end
+    local classes = self.REAGENTS[itemID]
+    if classes and ctx.class and classes:find(ctx.class, 1, true) then return true end
+    local item = self:Item(itemID)
+    return item and Uses(ctx, item, "all") or false
+end
+
 -- Why an item is clutter for you: its category key, or nil to keep it. info is the bag slot's (bag, slot when known),
 -- for whether that copy is bound, opens, or can still be traded; without it, it's taken as unbound.
 function S:Verdict(itemID, info, ctx, bag, slot)
