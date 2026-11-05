@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.3.1", date = "2026-11-05",
+        fixed = {
+            { "Better Tooltips: the guild line no longer shows a server's internal name after the guild on WoW Forever.",
+                module = "Tooltip" },
+        },
+    },
+    {
         version = "3.3.0", date = "2026-11-05",
         highlights = {
             { "Shows your free bag slots and your cheapest items by vendor price, wherever you place it in Edit Mode. Click an item to delete it, or right-click it to never see it here again.",

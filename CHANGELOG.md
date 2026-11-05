@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.3.1 (2026-11-05)
+
+### Bug Fixes
+
+- Better Tooltips: the guild line no longer shows a server's internal name after the guild on WoW Forever.
+
 ## 3.3.0 (2026-11-05)
 
 ### Bag Cleaner
