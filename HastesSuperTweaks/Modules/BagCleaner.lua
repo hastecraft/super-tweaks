@@ -35,6 +35,9 @@ local NEVER_CLASS = { [1] = true, [6] = true, [11] = true, [12] = true, [13] = t
 B.DELAY = 0.1
 -- After a delete the next item moves under the mouse, and a double-click's second click would delete that too.
 B.CLICK_GUARD = 0.5
+-- At login your quest log is empty until the game's first update, so nothing a quest needs would be protected yet. The
+-- row waits for that update, or this many seconds if it never comes.
+B.QUEST_WAIT = 5
 
 ---------------------------------------------------------------------------
 -- The look, shared by the window and the settings preview: the bag line, then a row of items with their prices.
@@ -233,22 +236,29 @@ local picks = {}
 for i = 1, MAX_ITEMS do picks[i] = {} end
 local picked = 0
 
--- What a stack in your bags sells for, or nil if it can't be offered for deleting. ctx is Sell Clutter's facts about
--- your quests, professions and sets.
+-- What a stack in your bags sells for, or nil and why it can't be offered for deleting. ctx is Sell Clutter's facts
+-- about your quests, professions and sets.
 function B:Worth(info, bag, slot, ctx)
-    if not (info and info.itemID) or info.isLocked or info.hasNoValue or info.hasLoot then return nil end
+    if not (info and info.itemID) then return nil end
+    if info.isLocked then return nil, "Locked" end
+    if info.hasNoValue then return nil, "No vendor price" end
+    if info.hasLoot then return nil, "Opens when used" end
     local p, itemID = self.db.profile, info.itemID
-    if not info.quality or info.quality > QUALITY[p.quality] or p.keep[itemID] then return nil end
+    if not info.quality then return nil, "Still loading" end
+    if info.quality > QUALITY[p.quality] then return nil, "Above your Highest quality" end
+    if p.keep[itemID] then return nil, "On your Never delete list" end
     local name, _, _, _, _, _, _, _, _, _, price, classID = ItemInfo(itemID)
     if not name then
         self.loading = true
         if C_Item and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(itemID) end
-        return nil
+        return nil, "Still loading"
     end
-    if (price or 0) <= 0 or NEVER_CLASS[classID] then return nil end
+    if (price or 0) <= 0 then return nil, "No vendor price" end
+    if NEVER_CLASS[classID] then return nil, "Bags, ammo, quivers, quest items and keys" end
     local quest = C_Container.GetContainerItemQuestInfo and C_Container.GetContainerItemQuestInfo(bag, slot)
-    if quest and (quest.isQuestItem or quest.questID) then return nil end
-    if ns.SellClutter:MustKeep(itemID, name, ctx) then return nil end
+    if quest and (quest.isQuestItem or quest.questID) then return nil, "Quest item" end
+    local why = ns.SellClutter:MustKeep(itemID, name, ctx)
+    if why then return nil, why end
     return price * (info.stackCount or 1)
 end
 
@@ -293,6 +303,7 @@ end
 
 function B:Scan()
     picked, self.loading = 0, nil
+    if self.questsPending then return end
     local clutter, fresh = ns.SellClutter, self.fresh
     self.fresh = nil
     local ctx = clutter:Context(fresh)
@@ -477,16 +488,65 @@ function B:Keep(pick)
     self:Queue(0)
 end
 
+-- Prints every stack in your regular bags: what can be offered, and why the rest can't.
+function B:PrintList()
+    if not self:IsEnabled() then return HST:Print("Bag Cleaner is off.") end
+    local ctx = ns.SellClutter:Context(true)
+    if not ctx.complete then return HST:Print("Your quest data is still loading. Try again in a moment.") end
+    if ctx.hidden then return HST:Print("Expand the headers in your quest log. Items aren't offered while quests are under them.") end
+    local groups, order = {}, {}
+    for bag = 0, NUM_BAG_SLOTS or 4 do
+        if IsRegular(bag) then
+            for slot = 1, C_Container.GetContainerNumSlots(bag) do
+                local info = C_Container.GetContainerItemInfo(bag, slot)
+                local worth, why = self:Worth(info, bag, slot, ctx)
+                local key = worth and "Can be offered" or why
+                if key then
+                    if not groups[key] then
+                        groups[key] = {}
+                        order[#order + 1] = key
+                    end
+                    local links = groups[key]
+                    links[#links + 1] = info.hyperlink or tostring(info.itemID)
+                end
+            end
+        end
+    end
+    if #order == 0 then return HST:Print("Your regular bags are empty.") end
+    table.sort(order, function(a, b)
+        if (a == "Can be offered") ~= (b == "Can be offered") then return a == "Can be offered" end
+        return a < b
+    end)
+    for _, key in ipairs(order) do HST:Print(key .. ": " .. table.concat(groups[key], " ")) end
+end
+
+HST.commands.cleaner = function(text)
+    if (text or ""):lower():match("^%s*list") then return B:PrintList() end
+    HST:OpenSettings("BagCleaner")
+end
+
 ---------------------------------------------------------------------------
 -- Events
 ---------------------------------------------------------------------------
 ns.Listen(B, { "BAG_UPDATE_DELAYED", "PLAYER_ENTERING_WORLD" }, function(self, event)
-    if event == "QUEST_LOG_UPDATE" or event == "QUEST_DATA_LOAD_RESULT" then self.fresh = true end
+    if event == "PLAYER_ENTERING_WORLD" then self.inWorld = true end
+    if event == "QUEST_LOG_UPDATE" or event == "QUEST_DATA_LOAD_RESULT" then
+        self.fresh, self.questsPending = true, nil
+    end
     self:Queue()
 end)
 
 function B:OnListen()
     self:Frame()
+    if not self.inWorld then
+        self.questsPending = true
+        C_Timer.After(self.QUEST_WAIT, function()
+            if self.questsPending then
+                self.questsPending = nil
+                self:Queue(0)
+            end
+        end)
+    end
     self:Apply()
     self:UpdateEditMode()
 end
