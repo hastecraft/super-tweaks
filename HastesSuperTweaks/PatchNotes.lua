@@ -16,6 +16,17 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.3.0", date = "2026-11-05",
+        highlights = {
+            { "Shows your free bag slots and your cheapest items by vendor price, wherever you place it in Edit Mode. Click an item to delete it, or right-click it to never see it here again.",
+                title = "Bag Cleaner", module = "BagCleaner" },
+        },
+        fixed = {
+            { "Right-Click Guild Invite: the game blocks addons from sending guild invites, so it now fills in your chat line and Enter sends the invite.",
+                module = "GuildInvite" },
+        },
+    },
+    {
         version = "3.2.0", date = "2026-11-03",
         new = {
             { "A spell you learn goes on an empty action button, now that the game no longer puts it there. Turn it off with \"Put new spells on your bars\".",
