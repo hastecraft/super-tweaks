@@ -133,7 +133,7 @@ local function Layout(f, p)
         f.label:SetPoint(place.align, f, "TOPLEFT", textX, textY)
         f.bag:SetPoint("RIGHT", f.label, "LEFT", -5, 0)
     end
-    for i, slot in ipairs(f.slots) do
+    for _, slot in ipairs(f.slots) do
         slot:SetSize(p.size, p.size)
         for _, text in ipairs({ slot.count, slot.price }) do
             ns.SetFont(text, font, p.fontSize, flags)
@@ -351,20 +351,16 @@ function B:Frame()
     return f
 end
 
--- Changes to your quests, professions and sets can change what's offered, so they count while there's a row to keep right.
+-- Quest changes can change what's offered, so they count while there's a row to keep right.
 function B:Watch(watch)
     if watch == (self.watching or false) then return end
     self.watching = watch
     if watch then
         self.events:RegisterEvent("QUEST_LOG_UPDATE")
         self.events:RegisterEvent("QUEST_DATA_LOAD_RESULT")
-        self.events:RegisterEvent("SKILL_LINES_CHANGED")
-        self.events:RegisterEvent("EQUIPMENT_SETS_CHANGED")
     else
         self.events:UnregisterEvent("QUEST_LOG_UPDATE")
         self.events:UnregisterEvent("QUEST_DATA_LOAD_RESULT")
-        self.events:UnregisterEvent("SKILL_LINES_CHANGED")
-        self.events:UnregisterEvent("EQUIPMENT_SETS_CHANGED")
     end
 end
 
@@ -485,7 +481,7 @@ end
 -- Events
 ---------------------------------------------------------------------------
 ns.Listen(B, { "BAG_UPDATE_DELAYED", "PLAYER_ENTERING_WORLD" }, function(self, event)
-    if event ~= "BAG_UPDATE_DELAYED" then self.fresh = true end
+    if event == "QUEST_LOG_UPDATE" or event == "QUEST_DATA_LOAD_RESULT" then self.fresh = true end
     self:Queue()
 end)
 
