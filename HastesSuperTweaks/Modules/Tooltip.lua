@@ -141,7 +141,8 @@ function T:ReadUnit(unit, guid)
     local guild, rank, _, realm = GetGuildInfo(unit)
     if IsSecret(guild) or IsSecret(rank) or not guild or guild == "" then return end
     self.guildName, self.guildRank = guild, rank
-    self.guildRealm = not IsSecret(realm) and realm ~= "" and realm or nil
+    -- WoW Forever gives a server's internal name here, and names there are unique across the region anyway.
+    self.guildRealm = not ns.RegionalNames() and not IsSecret(realm) and realm ~= "" and realm or nil
     if UnitIsInMyGuild then
         local mine = UnitIsInMyGuild(unit)
         if not IsSecret(mine) then self.myGuild = mine and true or false end
