@@ -5,12 +5,13 @@ local HST = ns.HST
 local G = HST:NewFeature("GuildInvite", {
     name = "Right-Click Guild Invite", category = "social", order = 1,
     summary = "Adds Guild Invite to player name menus.",
-    description = "Adds Guild Invite to the right-click menu on player names in chat.",
+    description = "Adds Guild Invite to the right-click menu on player names in chat. It fills in your chat line, and "
+        .. "Enter sends the invite. The game doesn't let addons send one.",
 })
 ns.GuildInvite = G
 
--- Settings preview: the player menu opens, the mouse moves down to the added entry and clicks it, and the game says
--- the invite went out.
+-- Settings preview: the player menu opens, the mouse moves down to the added entry and clicks it, the chat line fills
+-- in, and the game says the invite went out.
 local function RowY(i) return -6 - (i - 1) * 19 end
 function G.info.preview(frame)
     local W = ns.Widgets
@@ -32,10 +33,12 @@ function G.info.preview(frame)
         local invited = type(ERR_GUILD_INVITE_S) == "string" and ERR_GUILD_INVITE_S or "You have invited %s to join your guild."
         v.line = W.Text(frame, "GameFontHighlightSmall", { 1, 1, 0 }, "CENTER")
         v.line:SetWidth(242)
-        v.line:SetText(invited:format("Haste Forever"))
+        v.invited = invited:format("Haste Forever")
+        v.line:SetText(v.invited)
         W.Column(frame, { v.menu, 10, v.line })
     end
-    W.Loop(frame, 4.6, function(t)
+    local sent
+    W.Loop(frame, 5.6, function(t)
         -- From Invite down to Guild Invite, then a click: the row lights brighter and the menu closes.
         local row = 2 + W.Ease(t, 0.6, 1.0)
         local y = RowY(row)
@@ -43,7 +46,12 @@ function G.info.preview(frame)
         v.hover:SetAlpha(t < 0.4 and 0 or 0.25 + 0.3 * W.Window(t, 1.3, 1.6, 0.1))
         v.cursor:SetPoint("TOPLEFT", v.menu, "TOPLEFT", 86, y - 7)
         v.menu:SetAlpha(W.Window(t, 0.1, 1.9, 0.2))
-        v.line:SetAlpha(W.Window(t, 1.8, 4.4, 0.2))
+        v.line:SetAlpha(W.Window(t, 1.8, 5.4, 0.2))
+        local now = t > 3.4
+        if now ~= sent then
+            sent = now
+            v.line:SetText(now and v.invited or (SLASH_GUILD_INVITE1 or "/ginvite") .. " Haste Forever")
+        end
     end, 1.45)
 end
 
@@ -56,7 +64,15 @@ local LABEL = "Guild Invite"
 -- Name-based menus only (chat links, channel roster, communities). Unit-frame menus
 -- carry protected actions (Set Focus, markers) that are best left untouched.
 local MENUS = { "MENU_UNIT_FRIEND", "MENU_UNIT_CHAT_ROSTER", "MENU_UNIT_COMMUNITIES_WOW_MEMBER" }
-local Invite = (C_GuildInfo and C_GuildInfo.Invite) or GuildInvite
+
+-- The game refuses guild invites from addon code and from macros, even from a secure button. A /ginvite you send from
+-- the chat line goes through, so the menu fills the line in and Enter sends it.
+local COMMAND = SLASH_GUILD_INVITE1 or "/ginvite"
+
+local function FillChatLine(name)
+    local open = ChatFrameUtil and ChatFrameUtil.OpenChat or ChatFrame_OpenChat
+    open(COMMAND .. " " .. name)
+end
 
 local function IsUsable(value)
     return not ns.IsSecret(value) and type(value) == "string" and value ~= ""
@@ -83,14 +99,14 @@ end
 
 function G.AddGuildInvite(_, rootDescription, contextData)
     -- Menus can't be unmodified, so the hook stays registered and checks the module state.
-    if not (G:IsEnabled() and contextData and Invite and IsInGuild()) then return end
+    if not (G:IsEnabled() and contextData and IsInGuild()) then return end
     local name = FullName(contextData)
     if not IsUsable(name) or IsSelf(name) then return end
     -- Already in your guild (a name in guild chat, say): nothing to invite.
     local member = C_GuildInfo and C_GuildInfo.MemberExistsByName
     if member and member(name) then return end
 
-    local button = MenuUtil.CreateButton(LABEL, function() Invite(name) end)
+    local button = MenuUtil.CreateButton(LABEL, function() FillChatLine(name) end)
     if not CanGuildInvite() then
         button:SetEnabled(false)
         button:SetTooltip(function(tooltip) GameTooltip_SetTitle(tooltip, "Your guild rank can't invite members.") end)
