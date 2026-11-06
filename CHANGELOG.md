@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.3.2 (2026-11-05)
+
+### Bug Fixes
+
+- Settings window: the text on filled buttons such as "Turn on" could be missing.
+
 ## 3.3.1 (2026-11-05)
 
 ### Bug Fixes
