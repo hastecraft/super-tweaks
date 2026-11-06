@@ -498,6 +498,32 @@ local function GuildText(guild, realm, color, rank, rankColor)
     return text
 end
 
+-- A tooltip's name line without the server after the player's name. By the unit's own name where the game says it, so a
+-- surname's hyphen stays; else by what a server's internal name looks like.
+local function WithoutServer(text, unit)
+    local name, surname = UnitName(unit)
+    if not IsSecret(name) and not IsSecret(surname) and name then
+        local _, stop = text:find(ns.FullName(name, surname), 1, true)
+        if stop and text:sub(stop + 1, stop + 1) == "-" then
+            return text:sub(1, stop) .. text:sub(stop + 1):gsub("^%-[^%s,|]+", "")
+        end
+    end
+    return (text:gsub("%-%a*WOW%w*", ""))
+end
+
+-- WoW Forever puts a server's internal name after the name of a player from another server, and names there are unique
+-- across the region anyway. Only a line with a hyphen is looked at, and its answer is kept: unit frames redraw their
+-- tooltip several times a second.
+function T:FormatName(unit)
+    local line = GameTooltipTextLeft1
+    local current = line and line:GetText()
+    if IsSecret(current) or not current or not current:find("-", 1, true) then return end
+    if current ~= self.nameFrom then
+        self.nameFrom, self.nameTo = current, WithoutServer(current, unit)
+    end
+    if self.nameTo ~= current then line:SetText(self.nameTo) end
+end
+
 -- Rewrites the guild line as "<Guild> Rank". Built from the unit's guild, not from the line's own text, so a rank
 -- another addon appended (EllesmereUI's "Guild [Rank]") is replaced rather than repeated. The text is kept while
 -- what it's made from stays the same, so redrawing a tooltip puts no new text together.
@@ -666,6 +692,7 @@ function T:OnUnitTooltip(tip, data, unit)
     -- What the bar shows depends only on the reading (see UpdateHealth), so a unit tooltip redrawn several times a
     -- second (unit frames refresh theirs) redraws nothing that didn't change.
     self.unit, self.guid = unit, guid
+    if self.isPlayer ~= false and ns.RegionalNames() then self:FormatName(unit) end
     if self.db.profile.guildLine then self:FormatGuild(tip) end
     local style = self.db.profile.factionStyle
     if style ~= "NONE" then self:FormatFaction(tip, style) end
