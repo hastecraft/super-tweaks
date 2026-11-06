@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.4.0", date = "2026-11-06",
+        changed = {
+            { "Elite & Rare Markers is now Quest Marks & Rare Alerts. The game's nameplates mark elite and rare mobs themselves, so the dragons are gone: turn on the rarity icon in the game's nameplate settings if you don't see them.",
+                module = "NameplateMarkers" },
+        },
+    },
+    {
         version = "3.3.2", date = "2026-11-05",
         fixed = {
             "Settings window: the text on filled buttons such as \"Turn on\" could be missing.",

@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.4.0 (2026-11-06)
+
+### Changes
+
+- Elite & Rare Markers is now Quest Marks & Rare Alerts. The game's nameplates mark elite and rare mobs themselves, so the dragons are gone: turn on the rarity icon in the game's nameplate settings if you don't see them.
+
 ## 3.3.2 (2026-11-05)
 
 ### Bug Fixes
