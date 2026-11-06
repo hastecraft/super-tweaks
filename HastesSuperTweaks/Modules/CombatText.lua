@@ -1350,8 +1350,6 @@ function S:GiveToGame(kind)
     local scroll = frame.scrollFunction or (CombatTextUtil and CombatTextUtil.StandardScroll)
     if frame.AddMessage then
         frame:AddMessage(text, scroll, info.r, info.g, info.b, display, info.isStaggered)
-    elseif CombatText_AddMessage then
-        CombatText_AddMessage(text, scroll, info.r, info.g, info.b, display, info.isStaggered)
     end
 end
 

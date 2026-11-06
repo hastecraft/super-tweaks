@@ -720,7 +720,7 @@ Section('Interface', function()
     end)
 end)
 
-Section('Elite & Rare Markers', function()
+Section('Quest Marks & Rare Alerts', function()
     local N = mod('NameplateMarkers')
     -- Eight nameplates as the game's: the unit's token, and a unit frame with the name above the health bar. Three are
     -- mobs of one kind (NPC ID 6) a quest of yours needs, the rest each of their own kind. The game lists the nameplates

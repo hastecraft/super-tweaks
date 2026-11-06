@@ -288,7 +288,6 @@ Block("DeclineCharters", {
 }, { "PETITION_SHOW" }, function()
     local kind, _, _, _, originator, isOriginator = GetPetitionInfo()
     if kind ~= "guild" or isOriginator or ns.IsTrusted(originator) then return end
-    if DeclinePetition then DeclinePetition() end
     ClosePetition()
     HST:Print("Declined a guild charter from " .. Who(originator) .. ".")
 end)
