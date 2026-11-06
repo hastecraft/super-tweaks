@@ -72,7 +72,7 @@ C_NamePlate = {
     GetNamePlateForUnit = function(unit) return PLATES[unit] end,
     GetNamePlates = function() return {} end,
 }
--- Elite & Rare Markers' quest marks: whether a quest you have needs a unit (UNITS[token].quest), objects with a
+-- Quest Marks & Rare Alerts' quest marks: whether a quest you have needs a unit (UNITS[token].quest), objects with a
 -- nameplate, and a unit's tooltip data (its name, and for a quest unit the quest's title and an objective still to do),
 -- built anew on every call as the game builds it.
 C_QuestLog.UnitIsRelatedToActiveQuest = function(unit) local u = UNITS[unit]; return u ~= nil and u.quest == true end

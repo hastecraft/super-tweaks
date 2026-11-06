@@ -457,9 +457,8 @@ local function CanSelfResurrect()
         for _, option in ipairs(C_DeathInfo.GetSelfResurrectOptions() or {}) do
             if option.canUse then return true end
         end
-        return false
     end
-    return HasSoulstone and HasSoulstone() ~= nil
+    return false
 end
 
 -- Whether to release now: in a battleground (not Alterac Valley when skipped), with no way back but releasing.

@@ -1,7 +1,5 @@
--- Elite & Rare Markers: a gold dragon beside the names of elite mobs and a silver one beside rares on their nameplates
--- (WoW Forever's nameplates don't mark them; Classic Era's do, so it leaves those), a quest mark beside the mobs your
--- quests need (the game's nameplates show none), and a chat line, with a sound if chosen, the first time a rare's
--- nameplate shows.
+-- Quest Marks & Rare Alerts: a quest mark beside the mobs your quests need (the game's nameplates show none), and a chat
+-- line, with a sound if chosen, the first time a rare's nameplate shows. The game marks elite and rare mobs itself.
 -- Only the game's own nameplates are marked: nameplate addons that replace them draw their own.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -9,12 +7,11 @@ local HST = ns.HST
 local IsSecret = ns.IsSecret
 
 local N = HST:NewFeature("NameplateMarkers", {
-    name = "Elite & Rare Markers", category = "interface", order = 2.7,
-    summary = "Marks elite, rare and quest mobs on nameplates and tells you when a rare is near.",
-    examples = { "elite", "rare", "quest", "alert", "sound" },
-    description = "Puts a gold dragon beside elite mobs' names on their nameplates, a silver one beside rares' and a quest "
-        .. "mark beside the mobs your quests need. The first time a rare's nameplate shows, it says so in chat, with a "
-        .. "sound if you like.",
+    name = "Quest Marks & Rare Alerts", category = "interface", order = 2.7,
+    summary = "Marks quest mobs on nameplates and tells you when a rare is near.",
+    examples = { "quest", "alert", "sound" },
+    description = "Puts a quest mark beside the mobs your quests need on their nameplates. The first time a rare's "
+        .. "nameplate shows, it says so in chat, with a sound if you like.",
 })
 ns.NameplateMarkers = N
 
@@ -30,13 +27,8 @@ local function SetMark(texture, atlas, file)
     else texture:SetColorTexture(1, 0.82, 0, 1) end
 end
 
--- What marks each classification: the game's own art for it, and the setting that shows it.
-local MARKS = {
-    elite = { atlas = "nameplates-icon-elite-gold", key = "elite" },
-    worldboss = { atlas = "nameplates-icon-elite-gold", key = "elite" },
-    rareelite = { atlas = "nameplates-icon-elite-silver", key = "rare", rare = true },
-    rare = { atlas = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star", key = "rare", rare = true },
-}
+-- The classifications announced as rares.
+local RARES = { rareelite = true, rare = true }
 -- The quest mark: the badge the game's target frame shows on quest bosses, or the gossip window's quest icon.
 local QUEST = { atlas = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Quest", file = "Interface\\GossipFrame\\AvailableQuestIcon" }
 
@@ -58,35 +50,32 @@ N.CHECKS = 4 -- nameplates read to check the quest log's no: at first, and again
 local trusted, checks = UnitData == nil, N.CHECKS -- without tooltip data there's nothing to check its answers with
 local questOn = false -- quest marks on (and possible on this client)
 
-ns.Configure(N, { elite = true, rare = true, quest = true, enemiesOnly = true, size = 14, alert = true, sound = false }, function(m)
+ns.Configure(N, { quest = true, enemiesOnly = true, size = 14, alert = true, sound = false }, function(m)
     local function profile() return m.db.profile end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra, function() m:Refresh() end) end
     local quests = m.questSource ~= nil
     return ns.OnePage(m.info.name, "markers", "Markers", {
-        elite = option("toggle", "elite", "Elite mobs", 1, { desc = "A gold dragon, also on bosses." }),
-        rare = option("toggle", "rare", "Rare mobs", 2, { desc = "A silver dragon on rare elites, a silver star on other rares." }),
-        quest = option("toggle", "quest", "Quest mobs", 3, quests
+        quest = option("toggle", "quest", "Quest mobs", 1, quests
             and { desc = "A quest mark beside the mobs your quests need, and objects with a nameplate." }
             or { desc = "This client doesn't tell addons which mobs your quests need.", disabled = true,
                 get = function() return false end }),
-        enemiesOnly = option("toggle", "enemiesOnly", "Only mobs you can attack", 4,
-            { desc = "Leaves friendly elites, such as city guards, and friendly quest NPCs unmarked, and friendly rares "
-                .. "unannounced." }),
-        size = option("range", "size", "Size", 5, { min = 8, max = 28, step = 1 }),
-        alert = option("toggle", "alert", "Say when a rare is near", 6,
+        enemiesOnly = option("toggle", "enemiesOnly", "Only mobs you can attack", 2,
+            { desc = "Leaves friendly quest NPCs unmarked, and friendly rares unannounced." }),
+        size = option("range", "size", "Size", 3, { min = 8, max = 28, step = 1 }),
+        alert = option("toggle", "alert", "Say when a rare is near", 4,
             { desc = "Says so in chat the first time each rare's nameplate shows this session. Rares are seen once their "
                 .. "nameplate shows: turn on enemy nameplates, and raise the distance in Game Settings, to spot them sooner." }),
-        sound = option("toggle", "sound", "Play a sound", 7,
+        sound = option("toggle", "sound", "Play a sound", 5,
             { desc = "The raid warning sound.", disabled = function() return not m.db.profile.alert end }),
     })
 end, "Refresh")
 
 ---------------------------------------------------------------------------
--- Settings preview: nameplates of an elite, a rare and a quest mob, and the chat line for the rare.
+-- Settings preview: a quest mob's nameplate, and the chat line for a rare.
 ---------------------------------------------------------------------------
 N.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
 
-local function SamplePlate(parent, name, atlas, color, quest)
+local function SamplePlate(parent, name, color)
     local W = ns.Widgets
     local plate = CreateFrame("Frame", nil, parent)
     plate:SetSize(110, 26)
@@ -98,20 +87,11 @@ local function SamplePlate(parent, name, atlas, color, quest)
     local label = W.Text(plate, "GameFontHighlightSmall")
     label:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 16, 3)
     label:SetText(name)
-    if atlas then
-        local mark = plate:CreateTexture(nil, "OVERLAY")
-        mark:SetSize(14, 14)
-        mark:SetPoint("RIGHT", label, "LEFT", -1, 0)
-        SetMark(mark, atlas)
-        plate.mark = mark
-    end
-    if quest then
-        local mark = plate:CreateTexture(nil, "OVERLAY")
-        mark:SetSize(14, 14)
-        mark:SetPoint("LEFT", label, "RIGHT", 1, 0)
-        SetMark(mark, QUEST.atlas, QUEST.file)
-        plate.quest = mark
-    end
+    local mark = plate:CreateTexture(nil, "OVERLAY")
+    mark:SetSize(14, 14)
+    mark:SetPoint("LEFT", label, "RIGHT", 1, 0)
+    SetMark(mark, QUEST.atlas, QUEST.file)
+    plate.quest = mark
     return plate
 end
 
@@ -121,63 +101,41 @@ function N.info.preview(frame)
     if not v then
         v = {}
         frame.hstPlates = v
-        local red = { 0.85, 0.1, 0.1, 1 }
-        local row = CreateFrame("Frame", nil, frame)
-        row:SetSize(236, 26)
-        v.elite = SamplePlate(row, "Defias Pillager", MARKS.elite.atlas, red)
-        v.elite:SetPoint("LEFT")
-        v.rare = SamplePlate(row, "Mor'Ladim", MARKS.rareelite.atlas, red)
-        v.rare:SetPoint("RIGHT")
         v.line = W.ChatLine(frame, "Rare nearby: Mor'Ladim.")
         -- The quest mob only where this client can tell which mobs your quests need.
         if N.questSource then
-            v.quest = SamplePlate(frame, "Kobold Vermin", nil, red, true)
-            W.Column(frame, { row, 10, v.quest, 14, v.line })
+            v.quest = SamplePlate(frame, "Kobold Vermin", { 0.85, 0.1, 0.1, 1 })
+            W.Column(frame, { v.quest, 14, v.line })
         else
-            W.Column(frame, { row, 14, v.line })
+            W.Column(frame, { v.line })
         end
     end
     local p = N.db.profile
-    v.elite.mark:SetShown(p.elite)
-    v.rare.mark:SetShown(p.rare)
     if v.quest then v.quest.quest:SetShown(p.quest) end
     W.Loop(frame, 4, function(t) v.line:SetAlpha(p.alert and W.Window(t, 0.6, 3.8, 0.3) or 0) end)
 end
 
 ---------------------------------------------------------------------------
--- Markers. Each nameplate frame (the game reuses them) gets one marker, made the first time it's needed: the dragon left
--- of the name, and the quest mark right of it. It's placed a frame after the nameplate shows, once the game (or a
--- nameplate addon) has set the plate up.
+-- Markers. Each nameplate frame (the game reuses them) gets one marker, made the first time it's needed: the quest mark
+-- right of the name. It's placed a frame after the nameplate shows, once the game (or a nameplate addon) has set the
+-- plate up.
 ---------------------------------------------------------------------------
 local markers = {} -- by nameplate frame
 local byUnit = {} -- the marker showing for each nameplate unit
 local questUnits = {} -- nameplate units with the quest mark, as last checked
 local shown = {} -- the nameplate units showing, so quest changes needn't ask the game for its list (a new table each time)
-local queued, flushing = {}, false
+local flushing = false
+local queued = {} -- nameplate units to place a marker on next frame
 N.alerted = {} -- rares already announced this session, by GUID
 
 local function Marker(plate)
     local marker = markers[plate]
     if not marker then
         marker = CreateFrame("Frame", nil, plate)
-        marker.icon = marker:CreateTexture(nil, "OVERLAY")
-        marker.icon:SetAllPoints()
         marker:Hide()
         markers[plate] = marker
     end
     return marker
-end
-
--- The quest mark of a marker, made the first time one is needed.
-local function QuestIcon(marker)
-    local icon = marker.quest
-    if not icon then
-        icon = marker:CreateTexture(nil, "OVERLAY")
-        SetMark(icon, QUEST.atlas, QUEST.file)
-        icon:Hide()
-        marker.quest, marker.showsQuest = icon, false
-    end
-    return icon
 end
 
 -- Whether a unit is one this marks or announces: any, or with Only mobs you can attack, those.
@@ -250,34 +208,13 @@ function N:QuestMark(unit, counts)
     return true
 end
 
--- Whether the game marks a unit's nameplate itself: Classic Era shows its own elite and rare art on enemy nameplates,
--- which WoW Forever turns off (NamePlateEnemyFrameOptions.showClassificationIndicator).
-local function GameMarks(unit)
-    if not (NamePlateEnemyFrameOptions and NamePlateEnemyFrameOptions.showClassificationIndicator) then return false end
-    local attackable = UnitCanAttack("player", unit)
-    return IsSecret(attackable) or attackable == true
-end
-
--- What a unit is marked with, or nil. mark is its classification's entry in MARKS, and counts N:Counts(unit), when
--- already known.
-function N:Mark(unit, mark, counts)
-    if mark == nil then mark = MARKS[UnitClassification(unit) or ""] end
-    if not (mark and self.db.profile[mark.key]) then return nil end
-    if counts == nil then counts = self:Counts(unit) end
-    if not counts or GameMarks(unit) then return nil end
-    return mark
-end
-
--- Shows or hides the marker on a unit's nameplate. Not on nameplates whose game frame another addon has hidden. mark is
--- what N:Mark(unit) returns when already known (false for none). The marker keeps its size, level and anchor between
--- units, so those are set only when they change. The one showing for the unit is hidden unless it shows again.
-function N:Place(unit, mark)
+-- Shows or hides the marker on a unit's nameplate. Not on nameplates whose game frame another addon has hidden. The
+-- marker keeps its size, level and anchor between units, so those are set only when they change. The one showing for the
+-- unit is hidden unless it shows again.
+function N:Place(unit)
     local old = byUnit[unit]
     byUnit[unit] = nil
-    if mark == nil then mark = self:Mark(unit) end
-    mark = mark or nil
-    local quest = questUnits[unit] == true
-    local plate = (mark or quest) and C_NamePlate.GetNamePlateForUnit(unit)
+    local plate = questUnits[unit] == true and C_NamePlate.GetNamePlateForUnit(unit)
     local game = plate and plate.UnitFrame
     if not (game and game:IsShown() and game:GetAlpha() > 0) then
         if old then old:Hide() end
@@ -294,27 +231,16 @@ function N:Place(unit, mark)
     if marker.size ~= size then marker.size = size; marker:SetSize(size, size) end
     local level = game:GetFrameLevel() + 10
     if marker.level ~= level then marker.level = level; marker:SetFrameLevel(level) end
+    if not marker.icon then
+        marker.icon = marker:CreateTexture(nil, "OVERLAY")
+        marker.icon:SetAllPoints()
+        SetMark(marker.icon, QUEST.atlas, QUEST.file)
+    end
     if marker.anchor ~= anchor then
         marker.anchor = anchor
         marker:ClearAllPoints()
-        marker:SetPoint("RIGHT", anchor, "LEFT", -1, 0)
+        marker:SetPoint("LEFT", anchor, "RIGHT", 1, 0)
     end
-    if mark and marker.atlas ~= mark.atlas then
-        marker.atlas = mark.atlas
-        SetMark(marker.icon, mark.atlas)
-    end
-    local dragon = mark ~= nil
-    if marker.showsMark ~= dragon then marker.showsMark = dragon; marker.icon:SetShown(dragon) end
-    if quest then
-        local icon = QuestIcon(marker)
-        if icon.size ~= size then icon.size = size; icon:SetSize(size, size) end
-        if icon.anchor ~= anchor then
-            icon.anchor = anchor
-            icon:ClearAllPoints()
-            icon:SetPoint("LEFT", anchor, "RIGHT", 1, 0)
-        end
-    end
-    if marker.quest and marker.showsQuest ~= quest then marker.showsQuest = quest; marker.quest:SetShown(quest) end
     if old ~= marker then marker:Show() end
     byUnit[unit] = marker
 end
@@ -323,7 +249,7 @@ end
 local function Flush()
     flushing = false
     if not N:IsEnabled() then return wipe(queued) end
-    for unit, mark in pairs(queued) do N:Place(unit, mark) end
+    for unit in pairs(queued) do N:Place(unit) end
     wipe(queued)
 end
 
@@ -399,18 +325,16 @@ ns.Listen(N, { "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }, function(se
         return self:OnQuestChange(event)
     end
     shown[unit] = true
-    -- Whether the unit counts is asked once, and only for a classified unit or a quest mob. What it's marked with is
-    -- worked out now and placed a frame later.
-    local mark, counts = MARKS[UnitClassification(unit) or ""], nil
-    if mark then
+    -- Whether the unit counts is asked once, and only for a rare or a quest mob. Its mark is placed a frame later.
+    local counts
+    if RARES[UnitClassification(unit) or ""] then
         counts = self:Counts(unit)
-        if mark.rare and counts then self:Alert(unit) end
-        mark = self:Mark(unit, mark, counts) or false
+        if counts then self:Alert(unit) end
     end
     local quest = questOn and self:QuestMark(unit, counts) or nil
     if questUnits[unit] ~= quest then questUnits[unit] = quest end
-    if not (mark or quest) then return end
-    queued[unit] = mark or false
+    if not quest then return end
+    queued[unit] = true
     if not flushing then flushing = true; C_Timer.After(0, Flush) end
 end)
 
