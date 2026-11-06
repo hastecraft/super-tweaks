@@ -18,7 +18,7 @@ HST.patchNotes = {
     {
         version = "3.3.2", date = "2026-11-05",
         fixed = {
-            { "Settings window: the text on filled buttons such as \"Turn on\" could be missing." },
+            "Settings window: the text on filled buttons such as \"Turn on\" could be missing.",
         },
     },
     {
