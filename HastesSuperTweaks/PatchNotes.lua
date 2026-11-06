@@ -16,6 +16,12 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.3.2", date = "2026-11-05",
+        fixed = {
+            { "Settings window: the text on filled buttons such as \"Turn on\" could be missing." },
+        },
+    },
+    {
         version = "3.3.1", date = "2026-11-05",
         fixed = {
             { "Better Tooltips: the guild line no longer shows a server's internal name after the guild on WoW Forever.",
