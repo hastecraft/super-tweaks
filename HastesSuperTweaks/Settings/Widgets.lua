@@ -1643,14 +1643,22 @@ function W.Button(parent, text, style, colors)
     b.label = W.Text(b, "GameFontNormal", color, "CENTER")
     b.label:SetPoint("LEFT", 12, 0)
     b.label:SetPoint("RIGHT", -12, 0)
-    b.label:SetText(text or "")
     -- Dark text on the accent fill: without the font's shadow (or an outline another addon gives it), which would smear it.
     if primary then
         local file, size
         if GameFontNormal then file, size = GameFontNormal:GetFont() end
-        if file and size then b.label:SetFont(file, size, "") end
+        if file and size then ns.SetFont(b.label, file, size, "") end
         b.label:SetShadowColor(0, 0, 0, 0)
         b.label:SetShadowOffset(0, 0)
+    end
+    -- After the font: text set before a font change can stay blank until it's set again.
+    b.label:SetText(text or "")
+    if primary then
+        C_Timer.After(0, function()
+            local shown = b.label:GetText()
+            b.label:SetText("")
+            b.label:SetText(shown)
+        end)
     end
     b:SetMotionScriptsWhileDisabled(true)
     b:SetScript("OnEnter", function(self)
