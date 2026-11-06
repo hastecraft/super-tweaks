@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.4.1 (2026-11-06)
+
+### Bug Fixes
+
+- Better Tooltips: a player's name no longer shows a server's internal name after it on WoW Forever.
+
 ## 3.4.0 (2026-11-06)
 
 ### Changes
