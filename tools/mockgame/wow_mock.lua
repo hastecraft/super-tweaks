@@ -196,7 +196,7 @@ local methods = {}
 local function noop() end
 for _, method in ipairs({ "SetMovable", "SetClampedToScreen", "RegisterForDrag", "StartMoving", "StopMovingOrSizing",
     "SetBackdrop", "SetBackdropBorderColor", "SetJustifyH", "SetShadowColor", "SetShadowOffset", "AddLine", "AddDoubleLine",
-    "RegisterForClicks", "SetHighlightTexture", "SetTexCoord", "SetTextHeight" }) do methods[method] = noop end
+    "RegisterForClicks", "SetHighlightTexture", "SetTexCoord", "SetTextHeight", "SetBlendMode", "SetColorTexture", "SetSnapToPixelGrid", "SetTexelSnappingBias" }) do methods[method] = noop end
 function methods:SetScript(name, fn) self.scripts[name] = fn end
 function methods:GetScript(name) return self.scripts[name] end
 function methods:HookScript(name, fn)
@@ -365,6 +365,7 @@ function ui:GetAttribute(name) local attributes = self.attributes; return attrib
 function ui:Click(button) if self.scripts.OnClick and enabled(self) then CallIn(self.scripts.OnClick, self, button or 'LeftButton') end end
 -- Animation groups (the patch notes pip's blink): played and stopped, never animated. Unknown methods error.
 local animation = { SetFromAlpha = noop, SetToAlpha = noop, SetDuration = noop, SetSmoothing = noop,
+    SetDegrees = noop,
     SetFlipBookRows = noop, SetFlipBookColumns = noop, SetFlipBookFrames = noop }
 animation.__index = animation
 local animationGroup = { SetLooping = noop }

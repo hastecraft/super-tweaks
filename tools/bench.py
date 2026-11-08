@@ -1432,6 +1432,69 @@ end)
 '''
 
 
+SUPER_AH_MOCKS = TOOLTIP_MOCKS + r'''
+C_AuctionHouse = { SendBrowseQuery = function() end }
+Enum.TooltipDataType.Item = 0
+function GetServerTime() return 1800000000 end
+ITEM_INFO = { 'Peacebloom', 'link', 1, 5, 1, 'Trade', 'Herb', 20, '', 1, 4, 7, 0, 0, 0 }
+C_Item = { GetItemInfo = function() return unpack(ITEM_INFO) end, GetDetailedItemLevelInfo = function() return 5 end,
+    GetItemInfoInstant = function() return 2589, 'Trade', 'Cloth', '', 132889, 7, 5 end }
+function IsShiftKeyDown() return false end
+debugprofilestop = debugprofilestop or function() return GetTime() * 1000 end
+'''
+
+SUPER_AH = r'''
+-- The base of a pull request that adds this tweak doesn't have it.
+local S = HST:GetModule('SuperAuctionHouse', true)
+if not S then return end
+Only({ 'SuperAuctionHouse' })
+local fill = POSTCALLS[Enum.TooltipDataType.Item]
+local data, unknown = { id = 2447 }, { id = 2448 }
+Section('Super Auction House: item tooltips', function()
+    Only({})
+    Measure('Item tooltip: tweak off (hook already installed by an earlier enable)', 300, function() fill(GameTooltip, data) end)
+    Only({ 'SuperAuctionHouse' })
+    S.Prices.Record(2447, 12345, 20)
+    RunTimers()
+    Measure('Item tooltip: redraw of the same item', 300, function() fill(GameTooltip, data) end)
+    Measure('Item tooltip: item with no saved price, redraw', 300, function() fill(GameTooltip, unknown) end)
+    Measure('Item tooltip: first draw after prices changed', 100, function()
+        S.Tooltip.Forget()
+        fill(GameTooltip, data)
+    end)
+    S.db.profile.tipMean, S.db.profile.tipAge = true, true
+    S:Apply()
+    Measure('Item tooltip: every line on, redraw', 300, function() fill(GameTooltip, data) end)
+end)
+
+-- History reads auction mail as the inbox changes: a mailbox of sale letters over a long history.
+Section('Super Auction House: auction mail', function()
+    local letters = {}
+    for i = 1, 20 do letters[i] = { 'Linen Cloth', 'Buyer' .. i, 1000 + i } end
+    function GetInboxNumItems() return #letters end
+    function GetInboxHeaderInfo(i)
+        return nil, nil, 'Auction House', 'Auction successful: Linen Cloth', letters[i][3], 0, 29.5, 0, true, false,
+            true, false, false, 0, nil
+    end
+    function GetInboxInvoiceInfo(i)
+        return 'seller', letters[i][1], letters[i][2], letters[i][3], 0, 100, 50, 0, 0, 0, 1, false
+    end
+    function GetInboxText() end
+    AUCTION_SOLD_MAIL_SUBJECT = 'Auction successful: %s'
+    local book = {}
+    for i = 1, 5000 do book[i] = { k = 'sold', t = 1700000000 + i * 60, n = 'Old Item', i = 1, q = 1, g = 10, c = 'Haste' } end
+    S.db.global.ledger.TestRealm = book
+    S.History.MailOpened()
+    RunTimers()
+    S.History.MailClosed()
+    Measure('Mailbox opened: 20 auction letters already read, 5000 older records', 50, function()
+        S.History.MailOpened()
+        RunTimers()
+        S.History.MailClosed()
+    end)
+end)
+'''
+
 def runtime(prelude, scenario, start=True, measure_load=False):
     """Loads the addon on these mocks and runs a scenario script; a failure is reported, and the other runtimes go on."""
     quiet = "print = function(...) io.stderr:write(table.concat({ ... }, '\\t'), '\\n') end\n" if JSON else ''
@@ -1468,6 +1531,7 @@ def main():
     runtime(BREATH_MOCKS, BREATH)
     runtime(SWING_MOCKS, SWING)
     runtime(DRUID_MOCKS, DRUID)
+    runtime(SUPER_AH_MOCKS, SUPER_AH)
     if JSON:
         json.dump(REPORT.results, sys.stdout, indent=1)
         print()
