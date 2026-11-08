@@ -36,8 +36,28 @@ function K.Box(frame, fill, rim, shape)
     return W.Box(frame, fill, rim, shape)
 end
 
+-- Money with coin icons, as the game writes it but with the coins lowered to sit centered on the digits (the game's
+-- own coins sit high next to them).
+local GOLD = "%d|TInterface\\MoneyFrame\\UI-GoldIcon:%d:%d:2:-2|t"
+local SILVER = "%d|TInterface\\MoneyFrame\\UI-SilverIcon:%d:%d:2:-2|t"
+local COPPER = "%d|TInterface\\MoneyFrame\\UI-CopperIcon:%d:%d:2:-2|t"
+local format = string.format
+
 function K.Money(copper, height)
-    return ns.Money(max(0, floor(copper or 0)), height or 12)
+    copper = max(0, floor(copper or 0))
+    height = height or 12
+    local gold, silver, rest = floor(copper / 10000), floor(copper / 100) % 100, copper % 100
+    local text
+    if gold > 0 then text = format(GOLD, gold, height, height) end
+    if silver > 0 then
+        local s = format(SILVER, silver, height, height)
+        text = text and text .. " " .. s or s
+    end
+    if rest > 0 or not text then
+        local c = format(COPPER, rest, height, height)
+        text = text and text .. " " .. c or c
+    end
+    return text
 end
 
 function K.Plural(count, one, many) return count == 1 and one or many end
