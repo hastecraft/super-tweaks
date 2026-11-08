@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.5.1 (2026-11-08)
+
+### Bug Fixes
+
+- Super Auction House: sales and purchases no longer show twice in History, and ones already doubled are merged.
+
 ## 3.5.0 (2026-11-07)
 
 ### Super Auction House

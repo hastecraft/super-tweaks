@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.5.1", date = "2026-11-08",
+        fixed = {
+            { "Super Auction House: sales and purchases no longer show twice in History, and ones already doubled are merged.",
+                module = "SuperAuctionHouse" },
+        },
+    },
+    {
         version = "3.5.0", date = "2026-11-07",
         highlights = {
             { "Opens its own window at the auction house, with shopping lists, a selling screen that undercuts for you and a history of your sales and purchases. Scan the auction house to see prices on item tooltips anywhere.",
