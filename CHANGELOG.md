@@ -2,6 +2,14 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.5.2 (2026-11-08)
+
+### Bug Fixes
+
+- Super Auction House: buying an item out works again.
+- Super Auction House: the coin icons in prices line up with the amounts.
+- Campfire Helper: no more error when hovering its icon in combat.
+
 ## 3.5.1 (2026-11-08)
 
 ### Bug Fixes
