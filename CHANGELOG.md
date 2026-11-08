@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.5.0 (2026-11-07)
+
+### Super Auction House
+
+Opens its own window at the auction house, with shopping lists, a selling screen that undercuts for you and a history of your sales and purchases. Scan the auction house to see prices on item tooltips anywhere.
+
 ## 3.4.1 (2026-11-06)
 
 ### Bug Fixes
