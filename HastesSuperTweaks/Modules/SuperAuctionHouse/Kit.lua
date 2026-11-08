@@ -932,10 +932,15 @@ local function BuildDialog(parent)
     extra:SetPoint("BOTTOMLEFT", 16, 14)
     dialog = { veil = veil, card = card, title = title, text = text, input = input, box = box, multi = multi, ok = ok, no = no,
         extra = extra, scroll = scroll }
+    -- The action runs before the dialog closes: buying an item out from it was refused by the game when it ran after.
+    -- An action that opens another dialog leaves that one up.
     ok:SetScript("OnClick", function()
         local spec = dialog.spec
-        dialog:Close()
-        if spec and spec.onConfirm then spec.onConfirm(dialog, dialog.lastInput) end
+        local text = spec and (spec.multiline and dialog.multi:GetText() or dialog.input:GetText()) or ""
+        dialog.spec = nil
+        if spec and spec.onConfirm then spec.onConfirm(dialog, text) end
+        if dialog.spec == nil then dialog:Close() end
+        dialog.lastInput = text
     end)
     no:SetScript("OnClick", function()
         local spec = dialog.spec
