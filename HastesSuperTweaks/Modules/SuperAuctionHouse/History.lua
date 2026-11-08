@@ -108,15 +108,20 @@ local function LetterKey(kind, name, gold, character)
 end
 
 -- A sale or purchase read before its letter named the other player was saved again once it did, as two. Each realm's
--- book is gone through once: the one with no name goes.
+-- book is gone through once: the one with no name goes. Until 3.5.1 a letter that didn't name them yet was saved with
+-- an empty name, which the first pass took for a name: MERGE_PASS goes through every book again.
+local MERGE_PASS = 2
 local mergedThisSession = {}
 MergeTwice = function(book, realm)
     if mergedThisSession[realm] then return end
     mergedThisSession[realm] = true
     local merged = S.db.global.ledgerMerged or {}
     S.db.global.ledgerMerged = merged
-    if merged[realm] then return end
-    merged[realm] = true
+    if merged[realm] == MERGE_PASS then return end
+    merged[realm] = MERGE_PASS
+    for _, record in ipairs(book) do
+        if record.w == "" then record.w = nil end
+    end
     local named = {}
     for _, record in ipairs(book) do
         if record.w and record.m and (record.k == "sold" or record.k == "bought") then
@@ -190,6 +195,8 @@ local function ReadMail()
                 name = ExpiredName(subject)
                 if name then kind, gold = "expired", 0 end
             end
+            -- Until the letter's text loads, the game names the other player as "".
+            if who == "" then who = nil end
             local expires = now + days * DAY
             -- A letter's time is only known to within its delivery, so one from just before the history was deleted can
             -- come back; older ones don't.
