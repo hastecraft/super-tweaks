@@ -672,11 +672,13 @@ local function AddStat(words, sign, amount, name)
     statAmount[key] = (statAmount[key] or 0) + tonumber(percent == "" and amount or amount:sub(1, -2))
     added = added + 1
 end
--- Reads a buff's stats; true when it had any.
+-- Reads a buff's stats; true when it had any. The game refuses the tooltip (an error, not a secret value) while the
+-- player's auras are secret, as in combat on WoW Forever: the buff is then listed by name alone.
 local function ReadStats(id)
     added = 0
-    local data = id and GetBuffTooltip("player", id)
-    if IsSecret(data) or type(data) ~= "table" or IsSecret(data.lines) or type(data.lines) ~= "table" then return false end
+    if not id then return false end
+    local ok, data = pcall(GetBuffTooltip, "player", id)
+    if not ok or IsSecret(data) or type(data) ~= "table" or IsSecret(data.lines) or type(data.lines) ~= "table" then return false end
     local lines = data.lines
     for i = 2, #lines do
         local line = lines[i]
