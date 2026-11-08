@@ -23,4 +23,8 @@ globals = {
     "HastesSuperTweaks_RefreshWorld",            -- Better World Refresh's key binding (Bindings.xml)
     "DAMAGE_TEXT_FONT",                          -- Better Scrolling Combat Text sets the game's world text font
     "StaticPopupDialogs",                        -- the settings window's confirmation dialogs
+    "Auctionator",                               -- Super Auction House answers the price API other addons read
+    "HastesSuperTweaks_OpenSuperAuctionHouse",   -- Super Auction House's key binding (Bindings.xml)
+    "SLASH_HSTSUPERAH1",                         -- Super Auction House's /ah
+    "SlashCmdList",                              -- where the game looks for /ah's function
 }

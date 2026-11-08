@@ -396,6 +396,52 @@ def grip(size=64):
     return image
 
 
+def loader_arc(size=128, samples=4, mid=0.4, half=0.045, sweep=300, track=0.14):
+    """A ring with a bright head and a tail that fades behind it, round at the head, over a faint full track: spun
+    clockwise around the logo, the auction house's loader."""
+    c, r, w = size / 2, mid * size, half * size
+    hx, hy = c, c - r  # the head, at the top
+
+    def value(x, y):
+        dx, dy = x - c, y - c
+        if (x - hx) ** 2 + (y - hy) ** 2 <= w * w:
+            return 1.0
+        if abs(math.hypot(dx, dy) - r) > w:
+            return 0.0
+        behind = math.degrees(math.atan2(dx, -dy)) % 360  # clockwise from the top; the tail trails anticlockwise
+        t = (behind - (360 - sweep)) / sweep
+        return max(track, t ** 1.6) if t > 0 else track
+
+    image = Image.new('RGBA', (size, size))
+    for py in range(size):
+        for px in range(size):
+            total = sum(value(px + (sx + 0.5) / samples, py + (sy + 0.5) / samples)
+                        for sy in range(samples) for sx in range(samples))
+            image.putpixel((px, py), (255, 255, 255, round(255 * total / samples ** 2)))
+    return image
+
+
+def padlock(size=64, samples=4, opened=False):
+    """A padlock with a keyhole. Opened, its shackle lets go on the right."""
+    cx, top, bottom = 0.5 * size, 0.47 * size, 0.92 * size
+    half, corner = 0.32 * size, 0.08 * size
+    r, s = 0.18 * size, 0.055 * size  # the shackle's middle line, and half its width
+    arch = 0.28 * size  # where the shackle's curve ends and its straight legs start
+    hole = 0.075 * size
+    hole_y = 0.675 * size
+
+    def inside(x, y):
+        dx, dy = abs(x - cx) - (half - corner), max(top + corner - y, y - (bottom - corner))
+        if (max(dx, 0) ** 2 + max(dy, 0) ** 2 <= corner * corner):
+            return (x - cx) ** 2 + (y - hole_y) ** 2 > hole * hole
+        if opened and x > cx and y > arch - 0.02 * size:
+            return False
+        if y <= arch:
+            return abs(math.hypot(x - cx, y - arch) - r) <= s
+        return y <= top + corner and abs(abs(x - cx) - r) <= s
+    return coverage(size, size, inside, samples)
+
+
 def heart(size=64, samples=4):
     """Heart from the curve (x^2 + y^2 - 1)^3 = x^2 y^3, antialiased by supersampling."""
     image = Image.new('RGBA', (size, size))
@@ -764,7 +810,7 @@ if __name__ == '__main__':
               'LogoTint': logo(color=(255, 255, 255)),
               'LogoOff': logo_off(), 'Search': magnifier(),
               'LogoSearch': logo_search(part='logo'), 'LogoSearchGlass': logo_search(part='glass'),
-              'Grip': grip()}
+              'Grip': grip(), 'Lock': padlock(), 'Unlock': padlock(opened=True)}
     # Every size drawn on its own pixel grid, with fine supersampling since the pixels are few.
     rounds = {
         'RoundSizes': [lambda n: weighted(disc(n, samples=16))],
@@ -786,6 +832,8 @@ if __name__ == '__main__':
         'LogoSearchSizes': lambda n: logo_search(n, samples=16, part='logo'),
         'LogoSearchGlassSizes': lambda n: logo_search(n, samples=16, part='glass'),
         'GripSizes': grip,
+        'LockSizes': lambda n: weighted(padlock(n, samples=16)),
+        'UnlockSizes': lambda n: weighted(padlock(n, samples=16, opened=True)),
     }
     for name, draw in atlases.items():
         sizes_atlas(draw).save(ART / f'{name}.tga')
@@ -796,6 +844,9 @@ if __name__ == '__main__':
     image = appearance_marks()
     image.save(ART / 'AppearanceMarks.tga')
     print(f'Wrote {ART / "AppearanceMarks.tga"} ({image.size[0]}x{image.size[1]})')
+    image = loader_arc()
+    image.save(ART / 'LoaderArc.tga')
+    print(f'Wrote {ART / "LoaderArc.tga"} ({image.size[0]}x{image.size[1]})')
     campfire = {'CampfireFire': campfire_fire(), 'CampfireGlow': campfire_glow()}
     campfire.update({name: campfire_ring(**args) for name, args in CAMPFIRE_RINGS.items()})
     for name, image in campfire.items():
