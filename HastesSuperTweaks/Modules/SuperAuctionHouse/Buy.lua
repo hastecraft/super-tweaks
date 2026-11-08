@@ -160,8 +160,8 @@ local function AskBuyItem(e)
         confirmDisabled = ((buyout and buyout > 0) and buyout or bid or 0) > GetMoney(),
         extra = (buyout and buyout > 0 and bid and bid > 0) and ("Bid " .. K.Money(bid)) or nil,
         onExtra = function(dialog)
-            dialog:Close()
             N.PlaceBid(e.auctionID, bid)
+            dialog:Close()
         end,
         onConfirm = function()
             N.PlaceBid(e.auctionID, (buyout and buyout > 0) and buyout or bid)
