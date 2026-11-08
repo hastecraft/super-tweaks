@@ -16,6 +16,14 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.5.2", date = "2026-11-08",
+        fixed = {
+            { "Super Auction House: buying an item out works again.", module = "SuperAuctionHouse" },
+            { "Super Auction House: the coin icons in prices line up with the amounts.", module = "SuperAuctionHouse" },
+            { "Campfire Helper: no more error when hovering its icon in combat.", module = "CampfireHelper" },
+        },
+    },
+    {
         version = "3.5.1", date = "2026-11-08",
         fixed = {
             { "Super Auction House: sales and purchases no longer show twice in History, and ones already doubled are merged.",
