@@ -366,9 +366,9 @@ function S.info.preview(frame)
             tab:SetText(name)
             x = x + 54
         end
-        local money = W.Text(v, "GameFontHighlightSmall", nil, "RIGHT")
+        local money = W.MoneyText(v, "GameFontHighlightSmall")
         money:SetPoint("TOPRIGHT", -8, -7)
-        money:SetText(ns.Money(1234500))
+        money:SetMoney(1234500)
         local rows = { { "Interface\\Icons\\INV_Misc_Herb_10", "Peacebloom", 2550, "1,204" },
             { "Interface\\Icons\\INV_Ingot_03", "Copper Bar", 11300, "388" },
             { "Interface\\Icons\\INV_Potion_51", "Healing Potion", 48000, "72" },
@@ -380,9 +380,9 @@ function S.info.preview(frame)
             local name = W.Text(v, "GameFontHighlightSmall")
             name:SetPoint("LEFT", icon, "RIGHT", 5, 0)
             name:SetText(row[2])
-            local price = W.Text(v, "GameFontHighlightSmall", nil, "RIGHT")
+            local price = W.MoneyText(v, "GameFontHighlightSmall")
             price:SetPoint("TOPRIGHT", v, "TOPRIGHT", -44, y - 2)
-            price:SetText(ns.Money(row[3]))
+            price:SetMoney(row[3])
             local count = W.Text(v, "GameFontDisableSmall", nil, "RIGHT")
             count:SetPoint("TOPRIGHT", v, "TOPRIGHT", -8, y - 2)
             count:SetText(row[4])

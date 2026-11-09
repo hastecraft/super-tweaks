@@ -48,7 +48,7 @@ function Win.Status(text)
 end
 
 local function UpdateMoney()
-    if Win.money then Win.money:SetText(K.Money(GetMoney(), 13)) end
+    if Win.money then Win.money:SetMoney(GetMoney()) end
 end
 
 ---------------------------------------------------------------------------
@@ -364,7 +364,7 @@ local function Build()
         HST:RefreshSettings()
     end)
     PaintLock()
-    Win.money = K.Text(head, "GameFontHighlight", P.bright, "RIGHT")
+    Win.money = W.MoneyText(head, "GameFontHighlight", P.bright)
     Win.money:SetPoint("RIGHT", Win.lock, "LEFT", -8, 0)
 
     local foot = CreateFrame("Frame", nil, f)

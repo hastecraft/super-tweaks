@@ -6,7 +6,7 @@ local S = ns.SuperAuctionHouse
 local C = {}
 S.Crafting = C
 
-local Money = ns.Money
+local W = ns.Widgets
 local AH_CUT = 0.95
 local NAME_RETRIES = 5
 
@@ -74,13 +74,13 @@ local function Update(panel)
     local cost, unknown, schematic = C.Cost(form)
     if not cost then return panel:Hide() end
     panel:Show()
-    panel.cost:SetText("Materials: " .. Money(cost, 12) .. (unknown and " + unknown" or ""))
+    panel.cost:SetMoney(cost, "Materials: ", unknown and " + unknown" or nil)
     local sale = C.Sale(form, schematic)
     if sale then
         local profit = sale - cost
-        panel.profit:SetText((profit >= 0 and "Profit: " or "Loss: ") .. Money(math.abs(profit), 12))
+        panel.profit:SetMoney(math.abs(profit), profit >= 0 and "Profit: " or "Loss: ")
     else
-        panel.profit:SetText("")
+        panel.profit:SetMoney(nil)
     end
     panel.search:SetShown(S.Window.IsLive())
 end
@@ -156,9 +156,9 @@ local function Attach()
     local below = form.Reagents or form
     panel:SetPoint("LEFT", below, "LEFT", 0, 0)
     panel:SetPoint("TOP", below, "BOTTOM", 0, -6)
-    panel.cost = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    panel.cost = W.MoneyText(panel, "GameFontHighlightSmall")
     panel.cost:SetPoint("TOPLEFT")
-    panel.profit = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    panel.profit = W.MoneyText(panel, "GameFontHighlightSmall")
     panel.profit:SetPoint("TOPLEFT", panel.cost, "BOTTOMLEFT", 0, -3)
     panel.search = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     panel.search:SetSize(90, 20)
