@@ -1146,7 +1146,8 @@ function L:Notify(item)
     local junk = p.combineJunk and item.quality == 0 and not item.quest
     local key = junk and "junk" or item.link or item.name
     local now = GetTime()
-    local price = p.vendorPrice ~= "OFF" and VendorPrice(item) or nil
+    -- Worked out whatever "Vendor price" says, so a line already listed shows it as soon as it's turned on.
+    local price = VendorPrice(item)
     local value = price and price * (item.quantity or 1) or 0
     local notice
     for _, existing in ipairs(self.notices) do
@@ -1314,6 +1315,9 @@ function L:Refresh()
         self:Layout(f, items, true, self.db.profile, money, self.mode == "leftovers" and self:LeftNote(items) or nil)
         self:UpdateHotkey()
     else
+        -- "Most items at once" lowered: the oldest lines go, as when a new one comes in.
+        local p = self.db.profile
+        while #self.notices > p.maxRows do table.remove(self.notices, p.growUp and #self.notices or 1) end
         self:Place(false)
         self:ShowNotices()
     end
