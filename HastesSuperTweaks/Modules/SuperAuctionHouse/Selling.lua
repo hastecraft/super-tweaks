@@ -561,6 +561,7 @@ function Se.Select(item)
     -- A post still on its way stays: its answer records it.
     cur = item
     priceTouched = false
+    thresholdUnit = nil -- the last item's, until this one's listing arrives (see FindThreshold)
     cur.priceKey = PriceKey(item)
     local status = AH.GetItemCommodityStatus(item.location)
     local commodity = Enum.ItemCommodityStatus and Enum.ItemCommodityStatus.Commodity or 2
@@ -747,7 +748,12 @@ local function Post()
     if not CanPost() then return FillSummary() end
     local reason = LowPriceReason(price, quantity)
     if reason then
-        K.Dialog({ title = "Post at " .. K.Money(price) .. "?", text = reason, confirm = "Post", onConfirm = DoPost })
+        -- The keys still pick another item while the question is up, and a box may still take typing: yes posts only
+        -- what was asked about.
+        local key = cur.key
+        K.Dialog({ title = "Post at " .. K.Money(price) .. "?", text = reason, confirm = "Post", onConfirm = function()
+            if cur and cur.key == key and Se.price:GetValue() == price and Se.quantity:GetNumber() == quantity then DoPost() end
+        end })
     else
         DoPost()
     end
