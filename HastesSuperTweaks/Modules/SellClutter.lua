@@ -581,17 +581,17 @@ function S:MustKeep(itemID, name, ctx)
     if Listed(itemID) == "never" then return "Tools and valuable materials" end
     if ctx.sets[itemID] then return "In an equipment set" end
     if Needed(ctx, itemID, name) then return "A quest needs it" end
-    if self:GuideStatus(itemID, ctx) == "needed" then return "A RestedXP guide needs it" end
+    if self.db.profile.rxp and self:GuideStatus(itemID, ctx) == "needed" then return "A RestedXP guide needs it" end
     local classes = self.REAGENTS[itemID]
     if classes and ctx.class and classes:find(ctx.class, 1, true) then return "Your class's reagent" end
     local item = self:Item(itemID)
     return item and Uses(ctx, item, "all") and "Your professions use it" or nil
 end
 
--- Whether a quest in your log, or a RestedXP guide you'd follow, needs an item (Bank Helper asks). Holds with this
--- tweak off too.
+-- Whether a quest in your log, or a RestedXP guide you'd follow ("Keep what its guides will need"), needs an item (Bank
+-- Helper and Sell Junk ask). Holds with this tweak off too.
 function S:QuestNeeds(itemID, name, ctx)
-    return Needed(ctx, itemID, name) or self:GuideStatus(itemID, ctx) == "needed"
+    return Needed(ctx, itemID, name) or self.db.profile.rxp and self:GuideStatus(itemID, ctx) == "needed"
 end
 
 -- Whether a profession of yours uses an item, whatever it's worth (Bank Helper asks).
