@@ -263,31 +263,63 @@ function X:DrawPreview(frame)
             v.fills[key] = v.bar:CreateTexture(nil, "ARTWORK", nil, i)
         end
         v.ticks = {}
+        v.spark = v.bar:CreateTexture(nil, "OVERLAY", nil, 1)
+        v.spark:SetTexture(ns.WHITE)
         v.level = v.bar:CreateFontString(nil, "OVERLAY")
         v.percent = v.bar:CreateFontString(nil, "OVERLAY")
         v.labels = { v.level, v.percent }
     end
     local p = self.db.profile
+    -- Laid along the bar's orientation and fill direction: a vertical bar stands in the card, its labels beside it.
+    local horizontal = p.orientation == "HORIZONTAL"
     -- The preview box may not be laid out yet on the frame it is created (width 0).
     local available = frame:GetWidth()
-    local width, height = min((available and available > 100 and available or 256) - 32, 200), max(8, min(p.height, 22))
-    local inset = min(p.padding + p.border, height / 2 - 1)
+    local length = horizontal and min((available and available > 100 and available or 256) - 32, 200) or 96
+    local thickness = max(8, min(horizontal and p.height or p.width, 22))
+    local inset = min(p.padding + p.border, thickness / 2 - 1)
+    local width, height = horizontal and length or thickness, horizontal and thickness or length
     v.bar:SetSize(width, height)
     v.border:Layout(v.bar, p.border, false)
     v.border:SetColor(unpack(p.borderColor))
     v.border:SetShown(p.border > 0)
     v.background:SetTexture(ns.Media("statusbar", p.backgroundTexture, p.backgroundPath))
     v.background:SetVertexColor(unpack(p.backgroundColor))
-    local inner = width - inset * 2
+    local inner, across = length - inset * 2, thickness - inset * 2
+    -- The side the bar fills from, and the corners of that side.
+    local first, second
+    if horizontal then first, second = p.reverse and "TOPRIGHT" or "TOPLEFT", p.reverse and "BOTTOMRIGHT" or "BOTTOMLEFT"
+    else first, second = p.reverse and "TOPLEFT" or "BOTTOMLEFT", p.reverse and "TOPRIGHT" or "BOTTOMRIGHT" end
+    local step = p.reverse and -1 or 1
     for key, fraction in pairs(PREVIEW_FILLS) do
         local fill = v.fills[key]
         fill:SetTexture(ns.Media("statusbar", p.texture, p.texturePath))
         fill:SetVertexColor(unpack(self:BarColor(key)))
         fill:ClearAllPoints()
-        fill:SetPoint("TOPLEFT", inset, -inset)
-        fill:SetPoint("BOTTOMLEFT", inset, inset)
-        fill:SetWidth(inner * fraction)
+        if horizontal then
+            fill:SetPoint(first, inset * step, -inset)
+            fill:SetPoint(second, inset * step, inset)
+            fill:SetWidth(inner * fraction)
+        else
+            fill:SetPoint(first, inset, inset * step)
+            fill:SetPoint(second, -inset, inset * step)
+            fill:SetHeight(inner * fraction)
+        end
         fill:SetShown(key == "xp" or (key == "rested" and p.showRested) or (key == "quest" and p.showQuests))
+    end
+    -- The spark at the XP fill's end.
+    v.spark:SetShown(p.spark)
+    if p.spark then
+        local edge = inset + inner * PREVIEW_FILLS.xp
+        if p.reverse then edge = length - edge end
+        v.spark:SetVertexColor(unpack(p.sparkColor))
+        v.spark:ClearAllPoints()
+        if horizontal then
+            v.spark:SetSize(p.sparkWidth, across)
+            v.spark:SetPoint("CENTER", v.bar, "BOTTOMLEFT", edge, thickness / 2)
+        else
+            v.spark:SetSize(across, p.sparkWidth)
+            v.spark:SetPoint("CENTER", v.bar, "BOTTOMLEFT", thickness / 2, edge)
+        end
     end
     for i = 1, 39 do
         local tick = v.ticks[i]
@@ -295,8 +327,13 @@ function X:DrawPreview(frame)
             if not tick then tick = v.bar:CreateTexture(nil, "OVERLAY"); v.ticks[i] = tick end
             tick:SetColorTexture(unpack(p.tickColor))
             tick:ClearAllPoints()
-            tick:SetSize(1, height - inset * 2)
-            tick:SetPoint("BOTTOMLEFT", inset + inner * i / p.ticks, inset)
+            if horizontal then
+                tick:SetSize(1, across)
+                tick:SetPoint("BOTTOMLEFT", inset + inner * i / p.ticks, inset)
+            else
+                tick:SetSize(across, 1)
+                tick:SetPoint("BOTTOMLEFT", inset, inset + inner * i / p.ticks)
+            end
             tick:Show()
         elseif tick then tick:Hide() end
     end
@@ -304,9 +341,17 @@ function X:DrawPreview(frame)
     for _, fs in ipairs(v.labels) do
         ns.SetFont(fs, font, 11, ns.OutlineFlags(p.outline))
         fs:SetTextColor(0.93, 0.95, 1)
+        fs:ClearAllPoints()
     end
-    v.level:SetPoint("LEFT", 6, 0); v.level:SetText("Lv 32")
-    v.percent:SetPoint("RIGHT", -6, 0); v.percent:SetText("62.0%")
+    if horizontal then
+        v.level:SetPoint("LEFT", 6, 0)
+        v.percent:SetPoint("RIGHT", -6, 0)
+    else
+        v.level:SetPoint("BOTTOMLEFT", v.bar, "TOPRIGHT", 6, -12)
+        v.percent:SetPoint("TOPLEFT", v.bar, "BOTTOMRIGHT", 6, 12)
+    end
+    v.level:SetText("Lv 32")
+    v.percent:SetText(string.format("%." .. p.decimals .. "f%%", 62))
 end
 
 -- Live preview in the settings window: the whole bar at its own size and scale (smaller only to fit), every shown label
