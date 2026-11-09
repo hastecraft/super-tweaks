@@ -611,9 +611,10 @@ function S:Verdict(itemID, info, ctx, bag, slot)
     local p = self.db.profile
     if p.keep[itemID] or not ctx.complete then return nil end
     if p.sell[itemID] then
-        -- Your own list: sold whatever its kind, while it has a price and no quest needs it.
+        -- Your own list: sold whatever its kind, while it has a price, isn't in an equipment set and no quest (or
+        -- RestedXP guide) needs it.
         local name, _, _, _, _, _, _, _, _, _, price = ItemInfo(itemID)
-        if not name or (price or 0) <= 0 or Needed(ctx, itemID, name) then return nil end
+        if not name or (price or 0) <= 0 or ctx.sets[itemID] or self:QuestNeeds(itemID, name, ctx) then return nil end
         return "list"
     end
     local item = self:Item(itemID)
@@ -1001,9 +1002,9 @@ ns.Configure(S, S.DEFAULTS, function(m)
         lists = { type = "group", name = "Your lists", order = 2, args = {
             lists = ns.Section("Never sell and Always sell", 1, {
                 help = { type = "description", order = 1, name = "Never sell items are always kept, by Sell Junk too. "
-                    .. "Always sell items go at every vendor visit unless a quest needs them or they're on your Restock "
-                    .. "list. Drop an item on a list to add it, or right-click it to remove it. /hst keep and /hst sell "
-                    .. "work too." },
+                    .. "Always sell items go at every vendor visit unless a quest needs them, they're in an equipment set "
+                    .. "or on your Restock list. Drop an item on a list to add it, or right-click it to remove it. "
+                    .. "/hst keep and /hst sell work too." },
                 keep = items("keep", "Never sell", 2),
                 sell = items("sell", "Always sell", 3),
             }),
