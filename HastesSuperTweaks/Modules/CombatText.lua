@@ -1550,7 +1550,7 @@ function S:SampleArea(key, n)
         local lane = self:Lane(key)
         local plate = p.enemyMode == "NAMEPLATE" and C_NamePlate and C_NamePlate.GetNamePlateForUnit("target")
         if plate then lane = self:PlateLane(plate) end
-        local color = n == 3 and p.enemyCritColor or n == 2 and SCHOOLS[16] or p.enemyColor
+        local color = n == 3 and p.enemyCritColor or n == 2 and p.schoolColors and SCHOOLS[16] or p.enemyColor
         return self:Show(lane, color, n == 3 and "crit" or nil, "%s", self:Amount(n == 3 and 2480 or n == 2 and 615 or 870))
     end
     local lane = self:Lane(key)
