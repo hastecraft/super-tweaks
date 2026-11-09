@@ -225,16 +225,17 @@ local function DoCancel(e)
     end
 end
 
-local function AskCancel(e)
+-- Cancel next asks only when cancelling costs something; a click on a row always asks.
+local function AskCancel(e, always)
     if e.sold then return end
     if not AH.CanCancelAuction(e.auctionID) then
         return Status("You can't cancel that auction.")
     end
     local cost = AH.GetCancelCost(e.auctionID)
-    if cost and cost > 0 then
-        if cost > GetMoney() then return Status("Not enough money to cancel.") end
-        K.Dialog({ title = "Cancel " .. (e.name or "") .. "?", text = "It costs " .. K.Money(cost) .. ".", confirm = "Cancel auction",
-            cancel = "Keep it", onConfirm = function() DoCancel(e) end })
+    if cost and cost > 0 and cost > GetMoney() then return Status("Not enough money to cancel.") end
+    if always or (cost and cost > 0) then
+        K.Dialog({ title = "Cancel " .. (e.name or "") .. "?", text = (cost and cost > 0) and ("It costs " .. K.Money(cost) .. ".") or nil,
+            confirm = "Cancel auction", cancel = "Keep it", onConfirm = function() DoCancel(e) end })
     else
         DoCancel(e)
     end
@@ -334,7 +335,7 @@ function A.Build(frame)
             if button == "RightButton" then
                 if e.name and e.name ~= "" then S.Shopping.SearchExact(e.name) end
             else
-                AskCancel(e)
+                AskCancel(e, true)
             end
         end,
         onEnter = function(e, row) K.ItemTip(row, e.link, e.itemKey) end,
