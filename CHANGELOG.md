@@ -2,6 +2,56 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.7.0 (2026-11-09)
+
+### New Features
+
+- Quest Reward Value: marks the reward that sells for the most in the quest log too.
+
+### Changes
+
+- Better Breath Meter, Campfire Helper, Guild Message Popup and Quest Marks & Rare Alerts: "Play a sound" plays on the Master channel, so you hear it with sound effects off.
+- Better Scrolling Combat Text: hidden numbers in dungeons and raids are shortened like the rest (12.3k, 1.2m).
+- Better Tooltips: the health text in dungeons and raids is shortened like the rest.
+- Sell Junk Automatically: keeps grey items a quest needs or an equipment set holds.
+- Sell Clutter Automatically: items on your Restock list are kept.
+- Sell Clutter Automatically: Always sell items in an equipment set, or that a RestedXP guide needs, are kept.
+- Bag Cleaner: keeps gear Sell Clutter keeps for its look.
+- Bag Cleaner and Bank Helper: items a RestedXP guide needs are kept only while "Keep what its guides will need" is on.
+- Super Auction House: asks before cancelling an auction you clicked.
+- Super Auction House: alt-right-click buys show the price rise and ask for the typed quantity, as Shopping does.
+- Super Auction House: History names your characters by their whole name on WoW Forever.
+- Bag Tweaks: the combined bags description points to the game's options, where WoW Forever moved the setting.
+
+### Bug Fixes
+
+- Settings window: "Money as letters (1g 1s 1c)" now covers every amount: the Loot Window, tooltips, chat lines, previews and Super Auction House's price boxes.
+- Better Scrolling Combat Text: no more Lua error at login when the character's own profile is picked as it loads.
+- Better Scrolling Combat Text: the sample hits use school colors only when "Color spells by school" is on.
+- Sell Junk Automatically: keeps your Never sell items while Sell Clutter is off.
+- Sell Junk Automatically: "Sell All Junk without asking" leaves the game's confirmation up when the button would sell an item Sell Junk keeps.
+- Sell Clutter Automatically: the preview lists the items sold when "List every item sold" is on.
+- Sell Clutter Automatically and Sell Junk Automatically: the previews say "1 item", not "1 items".
+- Bag Cleaner: waits for quest data before offering anything to delete.
+- Bank Helper: waits for quest data before listing items.
+- Super Auction House: "Auction listings" off now leaves prices off the rows in its own window too.
+- Super Auction House: no longer posts with a buyout equal to the starting bid.
+- Super Auction House: its keys are let go while the game's auction window is up.
+- Super Auction House: tooltip prices worked out before an item loaded are no longer kept.
+- Super Auction House: "Show favorites you have none of" and "Key for Cancel Next" apply as soon as you change them.
+- Appearance Collector: tooltips only mark the looks "Which looks" asks for.
+- Campfire Helper: tooltip times match the countdown on screen.
+- Campfire Helper: uses a font or bar texture another addon registers after login.
+- Combo Points on Nameplates: empty points show while the game hides the count.
+- Quest Marks & Rare Alerts: the preview follows the quest marker settings.
+- Aura Sounds: Play sample plays the sound you chose.
+- Auto-Decline Shared Quests: the chat line names the whole character.
+- Instance Tracker: group members who share a first name are both recorded.
+- Loot Window: "Vendor price" and "Most items at once" apply to the lines already listed.
+- Quest XP in Quest Log: the reward on hover is written as the title writes it.
+- XP Tracker: the tweak list preview follows the bar's orientation, fill direction, spark and decimals.
+- Mail Expiry & Alt List: turned off at the mailbox, it no longer reads mail expiry away from it.
+
 ## 3.6.0 (2026-11-09)
 
 ### Instance Tracker
