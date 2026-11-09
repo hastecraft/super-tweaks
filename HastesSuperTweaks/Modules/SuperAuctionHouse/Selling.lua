@@ -801,12 +801,20 @@ end
 ---------------------------------------------------------------------------
 -- Rows in Current Prices: clicks price from them, and shortcuts cancel or buy
 ---------------------------------------------------------------------------
+-- Asked as Shopping asks: with what the price went up by, and the quantity typed when "Type the quantity to confirm
+-- buying materials" is on.
 local function BuyPrice(job, unit, total)
     if job.total == total then return end
     -- A price that moves while the question is up changes the question: confirming buys at the newest price.
     job.total = total
-    K.Dialog({ title = "Buy " .. job.quantity .. " for " .. K.Money(total) .. "?", text = K.Money(unit) .. " each", confirm = "Buy",
-        replaces = job.asked,
+    local text = K.Money(unit) .. " each"
+    if job.expected and total > job.expected then
+        text = text .. "\nThe price went up by " .. K.Money(total - job.expected) .. "."
+    end
+    local must = Profile().confirmQuantity
+    K.Dialog({ title = "Buy " .. job.quantity .. " for " .. K.Money(total) .. "?", text = text, confirm = "Buy",
+        confirmDisabled = must, input = must and true or nil, inputNumeric = must, replaces = job.asked,
+        onInput = must and function(value, dialog) dialog.ok:SetDisabled(tonumber(value) ~= job.quantity) end or nil,
         onConfirm = function() N.ConfirmPurchase(job) end,
         onCancel = function() N.CancelPurchase(job) end })
     job.asked = true
@@ -819,7 +827,8 @@ end
 local function BuyRow(e)
     if e.isCommodity then
         -- One at a time: the game's answer doesn't say which quantity it prices.
-        N.StartPurchase(e.itemID, e.quantity, BuyPrice, BuyGone)
+        local job = N.StartPurchase(e.itemID, e.quantity, BuyPrice, BuyGone)
+        if job then job.expected = e.price and e.price * e.quantity or nil end
         return
     end
     if not e.price or e.price <= 0 then return end
