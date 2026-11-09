@@ -858,9 +858,11 @@ function A.info.preview(frame)
             slot.bar:SetPoint("LEFT", track, "LEFT")
             v.slots[i] = slot
         end
-        v.line = W.ChatLine(frame, "Repaired for " .. Money(14250) .. ".")
-        W.Column(frame, { panel, 10, v.line })
+        v.line = W.ChatLine(frame, "")
     end
+    -- Written each time, in the money style of the moment, and laid out by its height.
+    v.line:SetText(W.Chat("Repaired for " .. Money(14250) .. "."))
+    W.Column(frame, { panel, 10, v.line })
     local summary = A.db.profile.summary
     local shownMended
     W.Loop(frame, 5, function(t)

@@ -45,6 +45,8 @@ local format = string.format
 
 function K.Money(copper, height)
     copper = max(0, floor(copper or 0))
+    -- The settings window's "Money as letters".
+    if ns.MoneyLetters() then return ns.Money(copper) end
     height = height or 12
     local gold, silver, rest = floor(copper / 10000), floor(copper / 100) % 100, copper % 100
     local text
@@ -357,12 +359,35 @@ function K.Input(parent, spec)
     return f
 end
 
+-- The coin beside each box: its icon, or its letter when the settings window's "Money as letters" is on (the colors
+-- ns.Money writes them in). Every input follows the setting as it changes.
+local COIN_LETTERS = { { "g", 1, 0.843, 0 }, { "s", 0.78, 0.78, 0.812 }, { "c", 0.929, 0.647, 0.373 } }
+local moneyInputs
+local function InputCoins(f)
+    local letters = ns.MoneyLetters()
+    if f.letters == letters then return end
+    f.letters = letters
+    for i, coin in ipairs(f.coins) do
+        coin:SetShown(not letters)
+        local letter = f.coinLetters[i]
+        if letters and not letter then
+            local spec = COIN_LETTERS[i]
+            letter = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+            letter:SetText(spec[1])
+            letter:SetTextColor(spec[2], spec[3], spec[4])
+            letter:SetPoint("LEFT", coin, "LEFT", 1, 0)
+            f.coinLetters[i] = letter
+        end
+        if letter then letter:SetShown(letters) end
+    end
+end
+
 -- Gold, silver and copper boxes in one field. onChange(copper) runs on edits by the player.
 function K.MoneyInput(parent, onChange, onEnter)
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(178, 24)
     f.box = K.Box(f, P.field, P.border, K.PILL)
-    local parts, order = {}, { { "gold", 62, "Interface\\MoneyFrame\\UI-GoldIcon" },
+    local parts, coins, order = {}, {}, { { "gold", 62, "Interface\\MoneyFrame\\UI-GoldIcon" },
         { "silver", 26, "Interface\\MoneyFrame\\UI-SilverIcon" }, { "copper", 26, "Interface\\MoneyFrame\\UI-CopperIcon" } }
     local x = 10
     for i, spec in ipairs(order) do
@@ -376,7 +401,7 @@ function K.MoneyInput(parent, onChange, onEnter)
         coin:SetTexture(spec[3])
         coin:SetPoint("LEFT", e, "RIGHT", 2, 0)
         x = x + spec[2] + 18
-        parts[i] = e
+        parts[i], coins[i] = e, coin
         e:SetScript("OnTextChanged", function(_, user) if user and onChange then onChange(f:GetValue()) end end)
         e:SetScript("OnEnterPressed", function(self)
             self:ClearFocus()
@@ -408,6 +433,13 @@ function K.MoneyInput(parent, onChange, onEnter)
         self:SetAlpha(on and 1 or 0.5)
     end
     function f:Focus() parts[1]:SetFocus() end
+    f.coins, f.coinLetters, f.letters = coins, {}, false
+    if not moneyInputs then
+        moneyInputs = {}
+        ns.OnMoneyStyle(function() for _, input in ipairs(moneyInputs) do InputCoins(input) end end)
+    end
+    moneyInputs[#moneyInputs + 1] = f
+    InputCoins(f)
     return f
 end
 

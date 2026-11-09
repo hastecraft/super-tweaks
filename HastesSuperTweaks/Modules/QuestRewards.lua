@@ -34,11 +34,12 @@ function Q.info.preview(frame)
                 v.coin:SetPoint("CENTER", slot, "TOPLEFT", 2, -2)
                 v.price = W.Text(row, "GameFontNormalSmall", nil, "CENTER")
                 v.price:SetPoint("TOP", slot, "BOTTOM", 0, -3)
-                v.price:SetText(Money(12575, 10))
             end
         end
         W.Column(frame, { row })
     end
+    -- Written each time, in the money style of the moment.
+    v.price:SetText(Money(12575, 10))
     W.Loop(frame, 3, function(t) v.coin:SetAlpha(0.6 + 0.4 * math.abs(math.cos(t * math.pi))) end, 1)
 end
 

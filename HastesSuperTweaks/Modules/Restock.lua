@@ -44,9 +44,11 @@ function R.info.preview(frame)
         name:SetText("Jagged Arrow")
         v.count = W.Text(row, "GameFontHighlightSmall")
         v.count:SetPoint("BOTTOMLEFT", slot, "BOTTOMRIGHT", 8, 2)
-        v.line = W.ChatLine(frame, "Bought 1000 Jagged Arrow for " .. Money(2500) .. ".")
-        W.Column(frame, { row, 10, v.line })
+        v.line = W.ChatLine(frame, "")
     end
+    -- Written each time, in the money style of the moment, and laid out by its height.
+    v.line:SetText(W.Chat("Bought 1000 Jagged Arrow for " .. Money(2500) .. "."))
+    W.Column(frame, { row, 10, v.line })
     local shown
     W.Loop(frame, 4.5, function(t)
         local have = 200 + math.floor(W.Ease(t, 0.8, 1.8) * 5) * 200

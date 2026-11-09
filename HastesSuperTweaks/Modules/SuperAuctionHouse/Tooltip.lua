@@ -19,6 +19,8 @@ local NONE = {}
 function T.Forget()
     if builtCount > 0 then built, stacks, builtCount = {}, {}, 0 end
 end
+-- Built lines hold their money as letters or coins.
+ns.OnMoneyStyle(T.Forget)
 
 -- An item tooltip that's up when prices change shows them at once.
 function T.RefreshShown()

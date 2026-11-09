@@ -672,7 +672,7 @@ function I.info.preview(frame)
     v.line:SetPoint("BOTTOMLEFT", 12 + pips * (PIP + PIP_GAP) + 4, 9)
     local filled = min(3, pips)
     local chat = p.sayEnter and ("Entered Deadmines. " .. filled .. " of " .. limit .. " instances this hour.")
-        or p.sayLeave and "Deadmines: 42m, 12.3k XP (17.6k an hour), 2g 14s, 48 kills." or nil
+        or p.sayLeave and "Deadmines: 42m, 12.3k XP (17.6k an hour), " .. ns.Money(21400, 12) .. ", 48 kills." or nil
     v.chat:SetShown(chat ~= nil)
     if chat and v.chatText ~= chat then v.chatText = chat; v.chat:SetText(W.Chat(chat)) end
     v.line:SetText("next frees in 23m")

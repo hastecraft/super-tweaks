@@ -269,7 +269,7 @@ function HST:OnInitialize()
     self:ApplyAccent()
     ns.Widgets.SetSounds(self.db.global.sounds ~= false)
     ns.Widgets.SetAnimate(self.db.global.animate ~= false)
-    ns.Widgets.SetMoneyLetters(self.db.global.moneyLetters == true)
+    ns.SetMoneyLetters(self.db.global.moneyLetters == true)
     for _, module in ipairs(self:Features()) do
         module:SetEnabledState(self.db.global.modules[module:GetName()] and not module.info.unavailable)
     end
@@ -433,7 +433,7 @@ function HST:GeneralOptions()
                 set = function(_, on)
                     -- Saved only when on.
                     self.db.global.moneyLetters = on or nil
-                    ns.Widgets.SetMoneyLetters(on)
+                    ns.SetMoneyLetters(on)
                 end },
         } },
         window = { type = "group", inline = true, name = "Window", order = 2, args = {
@@ -770,18 +770,51 @@ function ns.FindTooltipLine(tip, text, exact)
     end
 end
 
--- Money with coin icons, as the game shows it; size sets the icons' height to match the text.
-function ns.Money(copper, size, back) -- luacheck: ignore 212
+-- Money in text, as the settings window's "Money as letters" says: "47g 21s 14c", or digits with coin icons as the game
+-- writes them. size: the icons' height, to match the text (0 or nil: the text's own; WoW Forever always uses that).
+-- back: inside a colored text, its color code, for a colored letter to go back to (color codes don't nest).
+local moneyLetters, moneyListeners, coinIcons = false, {}, {}
+local function CoinIcons(size)
+    local icons = coinIcons[size]
+    if not icons then
+        icons = {}
+        for i, coin in ipairs({ "Gold", "Silver", "Copper" }) do
+            icons[i] = string.format("|TInterface\\MoneyFrame\\UI-%sIcon:%d:%d:2:0|t", coin, size, size)
+        end
+        coinIcons[size] = icons
+    end
+    return icons
+end
+function ns.Money(copper, size, back)
     copper = math.floor(copper or 0)
-    back = back or "|r" -- color codes don't nest: inside a colored text, pass its code to go back to it
     local gold, silver = math.floor(copper / 10000), math.floor(copper / 100) % 100
     copper = copper % 100
+    local g, s, c
+    if moneyLetters then
+        back = back or "|r"
+        g, s, c = "|cffffd700g" .. back, "|cffc7c7cfs" .. back, "|cffeda55fc" .. back
+    else
+        local icons = CoinIcons(math.floor(size or 0))
+        g, s, c = icons[1], icons[2], icons[3]
+    end
     local text
-    if gold > 0 then text = gold .. "|cffffd700g" .. back end
-    if silver > 0 then text = (text and text .. " " or "") .. silver .. "|cffc7c7cfs" .. back end
-    if copper > 0 or not text then text = (text and text .. " " or "") .. copper .. "|cffeda55fc" .. back end
+    if gold > 0 then text = gold .. g end
+    if silver > 0 then text = (text and text .. " " or "") .. silver .. s end
+    if copper > 0 or not text then text = (text and text .. " " or "") .. copper .. c end
     return text
 end
+
+-- Switches all money between letters and coins: the coin widgets redraw, and so does anything that ns.OnMoneyStyle(fn)
+-- asked for (text kept as written, such as built tooltip lines).
+function ns.SetMoneyLetters(on)
+    on = on == true
+    if moneyLetters == on then return end
+    moneyLetters = on
+    ns.Widgets.SetMoneyLetters(on)
+    for i = 1, #moneyListeners do securecallfunction(moneyListeners[i]) end
+end
+function ns.MoneyLetters() return moneyLetters end
+function ns.OnMoneyStyle(fn) moneyListeners[#moneyListeners + 1] = fn end
 
 -- 1.2m for millions, 12.3k from `from` (default 1000) up, and smaller values rounded. Values that would round up to
 -- the next unit (999,960 to "1000.0k") take that unit.

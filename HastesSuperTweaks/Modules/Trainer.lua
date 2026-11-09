@@ -52,9 +52,11 @@ function T.info.preview(frame)
         end
         v.button = W.GameButton(panel, "Train All", 80)
         v.button:SetPoint("BOTTOMRIGHT", -6, 5)
-        v.line = W.ChatLine(frame, "Learned 3 spells for " .. Money(10500) .. ".")
-        W.Column(frame, { panel, 8, v.line })
+        v.line = W.ChatLine(frame, "")
     end
+    -- Written each time, in the money style of the moment, and laid out by its height.
+    v.line:SetText(W.Chat("Learned 3 spells for " .. Money(10500) .. "."))
+    W.Column(frame, { panel, 8, v.line })
     W.Loop(frame, 4.5, function(t)
         v.button:SetLit(t > 0.8 and t < 1.1)
         for i, mark in ipairs(v.rows) do mark:SetShown(t > 1.1 + i * 0.35) end
