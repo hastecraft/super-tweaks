@@ -84,12 +84,14 @@ end
 ---------------------------------------------------------------------------
 -- The lines
 ---------------------------------------------------------------------------
+-- Whether the item binds when picked up; the second value is false while the game hasn't loaded the item.
 local function BoundOnPickup(itemID)
-    local bind = select(14, ItemInfo(itemID))
-    return bind == 1 or bind == 4
+    local name, _, _, _, _, _, _, _, _, _, _, _, _, bind = ItemInfo(itemID)
+    return bind == 1 or bind == 4, name ~= nil
 end
 
--- Builds the lines for one item. Label and money text alternate.
+-- Builds the lines for one item. Label and money text alternate. Also returns true while the game hasn't loaded the
+-- item yet: its vendor price and binding are missing, so the lines aren't kept.
 local function Build(itemID, link, count, stack)
     local p = S.db.profile
     local lines = {}
@@ -97,8 +99,10 @@ local function Build(itemID, link, count, stack)
     local suffix = multiplier > 1 and (" x" .. count) or ""
     local key = link and S.Prices.KeyForLink(link) or itemID
     local price = key and S.Prices.Get(key)
+    local loading = false
     if p.tipVendor then
-        local vendor = select(11, ItemInfo(link or itemID))
+        local name, _, _, _, _, _, _, _, _, _, vendor = ItemInfo(link or itemID)
+        loading = name == nil
         if vendor and vendor > 0 then
             lines[#lines + 1] = "Vendor" .. suffix
             lines[#lines + 1] = Money(vendor * multiplier)
@@ -108,9 +112,14 @@ local function Build(itemID, link, count, stack)
         if price then
             lines[#lines + 1] = "Auction" .. suffix
             lines[#lines + 1] = Money(price * multiplier)
-        elseif not BoundOnPickup(itemID) then
-            lines[#lines + 1] = "Auction"
-            lines[#lines + 1] = "Unknown"
+        else
+            local bound, loaded = BoundOnPickup(itemID)
+            if not loaded then
+                loading = true
+            elseif not bound then
+                lines[#lines + 1] = "Auction"
+                lines[#lines + 1] = "Unknown"
+            end
         end
     end
     if p.tipMean and key then
@@ -134,7 +143,7 @@ local function Build(itemID, link, count, stack)
             lines[#lines + 1] = Money(value)
         end
     end
-    return #lines > 0 and lines or NONE
+    return #lines > 0 and lines or NONE, loading
 end
 
 local function Show(tooltip, lines)
@@ -189,13 +198,16 @@ local function AddItemLines(tooltip, itemID, link, count)
     end
     local lines = cache[id]
     if not lines then
-        lines = Build(itemID, link, count, stack)
-        if builtCount >= CACHE_LIMIT then
-            built, stacks, builtCount = {}, {}, 0
-            cache = stack and {} or built
-            if stack then stacks[count] = cache end
+        local loading
+        lines, loading = Build(itemID, link, count, stack)
+        if not loading then
+            if builtCount >= CACHE_LIMIT then
+                built, stacks, builtCount = {}, {}, 0
+                cache = stack and {} or built
+                if stack then stacks[count] = cache end
+            end
+            cache[id], builtCount = lines, builtCount + 1
         end
-        cache[id], builtCount = lines, builtCount + 1
     end
     if lines ~= NONE then Show(tooltip, lines) end
 end
