@@ -976,6 +976,9 @@ function Sh.Apply() end
 -- A search asked for from elsewhere (reagents, other addons), as a temporary list.
 function Sh.External(name, terms)
     S.Window.Select("shopping")
+    -- A list of your own with that name keeps its searches: these run without a list.
+    local own = FindList(name)
+    if own and not own.temporary then return Sh.Run(terms) end
     local list = CreateList(name, terms, true)
     S.db.profile.shoppingView = "lists"
     Sh.view:Choose("lists")
