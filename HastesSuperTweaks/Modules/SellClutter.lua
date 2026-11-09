@@ -1057,8 +1057,8 @@ function S.info.preview(frame)
             if kinds <= 2 then parts[#parts + 1] = category.noun .. " " .. counts[category.key] end
         end
     end
-    v.line:SetText(W.Chat(#sold == 0 and "Nothing to sell." or string.format("Sold %d items you won't use for %s: %s%s.",
-        #sold, Money(total), table.concat(parts, ", "), kinds > 2 and ", ..." or "")))
+    v.line:SetText(W.Chat(#sold == 0 and "Nothing to sell." or string.format("Sold %d %s you won't use for %s: %s%s.",
+        #sold, #sold == 1 and "item" or "items", Money(total), table.concat(parts, ", "), kinds > 2 and ", ..." or "")))
     W.Column(frame, { v.bag, 8, v.line })
     for _, icon in pairs(v.icons) do icon:SetAlpha(1) end
     local finish = 0.6 + #sold * 0.35

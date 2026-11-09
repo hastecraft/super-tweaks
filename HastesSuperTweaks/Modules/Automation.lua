@@ -552,7 +552,7 @@ function J.info.preview(frame)
             total = total + item[2]
         end
     end
-    v.line:SetText(W.Chat(string.format("Sold %d junk items for %s.", #sold, Money(total))))
+    v.line:SetText(W.Chat(string.format("Sold %d junk %s for %s.", #sold, #sold == 1 and "item" or "items", Money(total))))
     W.Column(frame, { v.bag, 10, v.line })
     for _, icon in pairs(v.icons) do icon:SetAlpha(1) end
     local finish = 0.6 + #sold * 0.4
