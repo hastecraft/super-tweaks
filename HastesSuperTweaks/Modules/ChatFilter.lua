@@ -386,7 +386,8 @@ ns.Configure(F, defaults, function(m)
                     local count = 0
                     for _ in pairs(m.db.global.guildMembers) do count = count + 1 end
                     for _ in pairs(m.db.global.guildNames) do count = count + 1 end
-                    return "Hides everything their members say, and messages naming one as <Guild>. A member is "
+                    return "Hides what their members say in the channels under Where, and messages naming one as "
+                        .. "<Guild>. A member is "
                         .. "only recognized once you've seen them: by pointing at or targeting them, their nameplate, "
                         .. "grouping with them or a /who. Members recognized: " .. count .. "." end },
                 mutedGuilds = ns.Option(profile, "input", "mutedGuilds", "Guilds", 1, { width = "full", multiline = true,
