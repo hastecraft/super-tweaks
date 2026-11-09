@@ -506,7 +506,8 @@ function P:OnUnlisten() self.death = (self.death or 0) + 1 end
 local J = HST:NewFeature("SellJunk", {
     name = "Sell Junk Automatically", category = "loot", order = 3, enabledByDefault = false,
     summary = "Sells your grey items at vendors.", examples = { "summary", "keepGear" },
-    description = "Sells your grey items whenever you visit a vendor. Hold Shift to skip.",
+    description = "Sells your grey items whenever you visit a vendor. Those a quest needs or an equipment set holds "
+        .. "stay. Hold Shift to skip.",
 })
 ns.SellJunk = J
 Settings(J,{ summary = true, keepGear = false, skipConfirm = false }, function(m) return {
@@ -782,14 +783,28 @@ function Sale:Listen(seller)
     function seller:OnUnlisten() Sale:Left() end
 end
 
--- Grey items, keeping grey weapons and armor when asked (the sale has checked the slot: see Sale:SlotAllowed).
+-- Grey items, keeping grey weapons and armor when asked (the sale has checked the slot: see Sale:SlotAllowed), and
+-- what Sell Clutter keeps whether it's on or not: items in an equipment set, named by a quest in your log, or that a
+-- RestedXP guide needs. Its facts are read once a grey item would sell: fresh for each scan of the bags, or as Sell
+-- Clutter read them for that scan when it's on.
 local GetInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
 local IsEquippable = C_Item and C_Item.IsEquippableItem or IsEquippableItem
+function J:PrepareSale()
+    self.freshFacts = true
+    return true
+end
 function J:SalePrice(info)
     local itemID = info.itemID
     if info.quality ~= 0 or self.db.profile.keepGear and IsEquippable and IsEquippable(itemID) then return nil end
-    local price = select(11, GetInfo(itemID)) or 0
-    return price > 0 and price or nil
+    local name, _, _, _, _, _, _, _, _, _, price = GetInfo(itemID)
+    if not name or (price or 0) <= 0 then return nil end
+    local clutter = ns.SellClutter
+    if clutter then
+        local ctx = clutter:Context(self.freshFacts and not clutter:IsEnabled())
+        self.freshFacts = nil
+        if ctx.sets[itemID] or clutter:QuestNeeds(itemID, name, ctx) then return nil end
+    end
+    return price
 end
 function J:Sold(sold)
     if not self.db.profile.summary then return end
