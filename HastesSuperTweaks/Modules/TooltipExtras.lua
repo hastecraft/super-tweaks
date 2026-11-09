@@ -248,7 +248,11 @@ local function HookCounts()
 end
 local HookTooltip, Apply = T.HookTooltip, T.Apply
 function T:HookTooltip() HookTooltip(self); HookCounts() end
-function T:Apply() Apply(self); HookCounts() end
+function T:Apply()
+    Apply(self)
+    HookCounts()
+    if hooked and self.db.profile.ids then HookIds() end -- a profile with IDs on, switched to
+end
 
 -- Its settings: an Item counts section on the Extras page.
 local BuildWithoutCounts = T.BuildOptions
