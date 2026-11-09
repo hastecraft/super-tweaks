@@ -125,13 +125,14 @@ local function Finished(run)
     Sh.progress:SetProgress(nil)
     Sh.results:SetLoading(false)
     Sh.entries = run.results
+    -- Counted before the rows for what wasn't found join them.
+    local count = #run.results
     if S.db.profile.missingTerms then
         for _, text in ipairs(run.missing) do
             Sh.entries[#Sh.entries + 1] = { name = T.Pretty(text), missing = true, term = text, keyString = "?" .. text }
         end
     end
     ResultsChanged()
-    local count = #run.results
     Status(count .. K.Plural(count, " result", " results"))
 end
 
