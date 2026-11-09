@@ -596,10 +596,10 @@ function Sale:Leads(seller)
     return false
 end
 
--- Whether a selling module that's on keeps this item from every seller.
+-- Whether a selling module keeps this item from every seller (a Never sell list holds whether its module is on or not).
 function Sale:Kept(itemID)
     for _, seller in ipairs(self.sellers) do
-        if seller.Keeps and seller:IsEnabled() and seller:Keeps(itemID) then return true end
+        if seller.Keeps and seller:Keeps(itemID) then return true end
     end
     return false
 end

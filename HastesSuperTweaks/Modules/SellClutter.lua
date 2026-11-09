@@ -807,7 +807,9 @@ function S:ListCommand(list, text)
         self:AddToList(list, itemID)
         HST:Print(string.format("Put %s on your %s list.", link, LIST_NAMES[list]))
     end
-    if not self:IsEnabled() then HST:Print("Sell Clutter Automatically is off; your lists apply once you turn it on.") end
+    if list == "sell" and not self:IsEnabled() then
+        HST:Print("Sell Clutter Automatically is off; your Always sell list applies once you turn it on.")
+    end
     HST:RefreshSettings()
 end
 HST.commands.keep = function(text) S:ListCommand("keep", text) end
