@@ -111,7 +111,10 @@ function N.info.preview(frame)
         end
     end
     local p = N.db.profile
-    if v.quest then v.quest.quest:SetShown(p.quest) end
+    if v.quest then
+        v.quest.quest:SetShown(p.quest)
+        v.quest.quest:SetSize(p.size, p.size)
+    end
     W.Loop(frame, 4, function(t) v.line:SetAlpha(p.alert and W.Window(t, 0.6, 3.8, 0.3) or 0) end)
 end
 
