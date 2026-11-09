@@ -322,11 +322,16 @@ function F:Apply()
         if wanted then AddFilter(event, Filter) end
     end
     lastLine, lastHidden = nil, false
-    -- Members of guilds no longer muted are forgotten.
-    local global = self.db.global
+    -- Members of guilds no longer muted are forgotten. They're saved for every profile, so a guild another profile
+    -- mutes keeps its members while this one is chosen.
+    local global, kept = self.db.global, {}
+    for guild in pairs(muted) do kept[guild] = true end
+    for _, saved in pairs(self.db.sv.profiles or {}) do
+        for _, guild in ipairs(self.Words(saved.mutedGuilds)) do kept[guild] = true end
+    end
     for _, members in pairs({ global.guildMembers, global.guildNames }) do
         for who, guild in pairs(members) do
-            if not muted[guild] then members[who] = nil end
+            if not kept[guild] then members[who] = nil end
         end
     end
     for key, guid in pairs(global.guildGuids) do
