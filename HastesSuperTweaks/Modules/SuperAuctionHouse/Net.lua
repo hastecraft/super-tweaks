@@ -301,9 +301,10 @@ end
 
 -- Asks for a request through the queue, and remembers what it asked in case that's dropped. request.go is the queued
 -- part: by the game's turn the request may have been taken over or given up on.
-local function Ask(request, ask)
+local function Ask(request, ask, again)
     request.ask = ask
-    request.deadline = GetTime() + REQUEST_WAIT
+    -- Asking again for what the game dropped doesn't wait longer, or a busy auction house keeps a listing loading.
+    if not again then request.deadline = GetTime() + REQUEST_WAIT end
     N.Send(request.go)
 end
 
@@ -341,7 +342,7 @@ function N.Listings(itemKey, options, cb)
         return request
     end
     request.query = function()
-        request.sent = true
+        request.sent, request.sentAt = true, GetTime()
         if request.bySell then
             AH.SendSellSearchQuery(request.key, request.commodity and COMMODITY_SORTS or ITEM_SORTS, true)
         else
@@ -455,11 +456,33 @@ local function ItemResults(_, itemKey)
 end
 N.On("ITEM_SEARCH_RESULTS_UPDATED", ItemResults)
 N.On("ITEM_SEARCH_RESULTS_ADDED", ItemResults)
+-- An item with no auctions may get no results event: the game's reply alone says its search has loaded, empty. The
+-- reply that frees the queue for this query arrives in the same frame the query is sent, so only a later one counts,
+-- and results that come with the reply (a gear search answers under other item levels) get a moment to arrive first.
+local emptyFor
+local function AnswerEmpty()
+    local request = current
+    if request ~= emptyFor or request.state ~= "asking" then return end
+    local key = request.key
+    if not (AH.HasSearchResults(key) and AH.HasFullItemSearchResults(key) and AH.GetNumItemSearchResults(key) == 0) then return end
+    request.moreKey = key
+    Answered(request, ReadItems(key), true, key)
+end
+N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED", function()
+    local request = current
+    if not (request and request.state == "asking" and request.sent and request.commodity == false
+        and request.sentAt ~= GetTime()) then return end
+    local key = request.key
+    if not (AH.HasSearchResults and AH.HasSearchResults(key) and AH.HasFullItemSearchResults(key)
+        and AH.GetNumItemSearchResults(key) == 0) then return end
+    emptyFor = request
+    C_Timer.After(0.2, AnswerEmpty)
+end)
 
 -- The game dropped a message under load: ask again for what the live search last asked.
 N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED", function()
     local request = current
-    if request and request.ask then Ask(request, request.ask) end
+    if request and request.ask then Ask(request, request.ask, true) end
 end)
 
 ---------------------------------------------------------------------------
