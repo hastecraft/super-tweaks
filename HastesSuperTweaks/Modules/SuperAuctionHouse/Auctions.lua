@@ -94,8 +94,8 @@ function A.Fill()
     local shown = {}
     for _, e in ipairs(entries) do if Matches(e) then shown[#shown + 1] = e end end
     A.table:SetEntries(shown, true)
-    A.onSaleField.value:SetText(K.Money(A.onSale or 0))
-    A.pendingField.value:SetText(K.Money(A.pending or 0))
+    A.onSaleField:SetMoney(A.onSale or 0)
+    A.pendingField:SetMoney(A.pending or 0)
     A.UpdateNext()
 end
 
@@ -310,10 +310,8 @@ function A.Build(frame)
             { key = "name", title = "Name", fill = 1, icon = function(e) return e.icon end,
               text = function(e) return K.QualityCode(e.quality) .. (e.name or "") .. "|r" end },
             { key = "quantity", title = "Quantity", width = 62, justify = "RIGHT" },
-            { key = "buyout", title = "Price each", width = 140, justify = "RIGHT",
-              text = function(e) return e.buyout and K.Money(e.buyout) or "" end },
-            { key = "bid", title = "Bid", width = 110, justify = "RIGHT",
-              text = function(e) return e.bid and K.Money(e.bid) or "" end },
+            { key = "buyout", title = "Price each", width = 140, justify = "RIGHT", money = function(e) return e.buyout end },
+            { key = "bid", title = "Bid", width = 110, justify = "RIGHT", money = function(e) return e.bid end },
             { key = "bidder", title = "Bidder", width = 80, text = function(e) return e.bidder and "Yes" or "" end },
             { key = "seconds", title = "Time left", width = 70, justify = "RIGHT", sort = function(e) return e.seconds or e.band or 0 end,
               text = function(e)
@@ -327,7 +325,7 @@ function A.Build(frame)
               end,
               color = function(e) return e.undercut and P.warning or P.text end },
             { key = "undercutPrice", title = "Cheapest", width = 120, justify = "RIGHT",
-              text = function(e) return e.undercutPrice and K.Money(e.undercutPrice) or "" end },
+              money = function(e) return e.undercutPrice end },
             { key = "ahead", title = "Ahead", width = 54, justify = "RIGHT" },
         },
         dim = function(e) return e.sold or Cancelling(e.auctionID) end,

@@ -325,9 +325,8 @@ end
 function Scan.HistoryColumns()
     return {
         { key = "day", title = "Date", width = 90, text = function(e) return DayText(e.day) end },
-        { key = "low", title = "Lowest", fill = 1, justify = "RIGHT", text = function(e) return K.Money(e.low) end },
-        { key = "typical", title = "Typical", fill = 1, justify = "RIGHT",
-          text = function(e) return e.typical and K.Money(e.typical) or "" end },
+        { key = "low", title = "Lowest", fill = 1, justify = "RIGHT", money = function(e) return e.low end },
+        { key = "typical", title = "Typical", fill = 1, justify = "RIGHT", money = function(e) return e.typical end },
         { key = "available", title = "Available", width = 80, justify = "RIGHT",
           text = function(e) return FormatLargeNumber(e.available) end },
     }

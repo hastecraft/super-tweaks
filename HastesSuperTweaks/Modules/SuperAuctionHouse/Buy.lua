@@ -54,8 +54,8 @@ end
 local function FillQuote()
     local quantity = B.quantity:GetNumber()
     local total, lowest, highest, buyable = Quote(quantity)
-    B.total.value:SetText(K.Money(total))
-    B.unit.value:SetText(buyable > 0 and K.Money(math.floor(total / buyable)) or "")
+    B.total:SetMoney(total)
+    B.unit:SetMoney(buyable > 0 and math.floor(total / buyable) or nil)
     B.buyable.value:SetText(FormatLargeNumber(buyable))
     local wide = S.db.profile.buyWarn and lowest and highest and highest >= lowest * 1.5
     B.warning:SetShown(wide and true or false)
@@ -211,7 +211,7 @@ local function BuildCommodities(parent)
     B.commodities = K.Table(v, {
         id = "buyCommodities", rowHeight = 24, empty = "None listed.",
         columns = {
-            { key = "price", title = "Each", fill = 1.2, justify = "RIGHT", text = function(e) return K.Money(e.price) end },
+            { key = "price", title = "Each", fill = 1.2, justify = "RIGHT", money = function(e) return e.price end },
             { key = "quantity", title = "Available", width = 90, justify = "RIGHT",
               text = function(e) return FormatLargeNumber(e.quantity) end },
             { key = "owned", title = "Yours", width = 60, justify = "CENTER", sort = function(e) return e.owned and 1 or 0 end,
@@ -246,12 +246,9 @@ local function BuildItems(parent)
         id = "buyItems", rowHeight = 26, empty = "None listed.",
         columns = {
             { key = "price", title = "Buyout", fill = 1, justify = "RIGHT",
-              text = function(e) return (e.price and e.price > 0) and K.Money(e.price) or "None" end },
+              money = function(e) return (e.price and e.price > 0) and e.price or "None" end },
             { key = "bid", title = "Bid", fill = 1, justify = "RIGHT", sort = function(e) return e.bid or e.minBid or 0 end,
-              text = function(e)
-                  local value = e.bid or e.minBid
-                  return value and K.Money(value) or ""
-              end },
+              money = function(e) return e.bid or e.minBid end },
             { key = "quantity", title = "Quantity", width = 70, justify = "RIGHT" },
             { key = "level", title = "Item level", width = 70, justify = "RIGHT" },
             { key = "seconds", title = "Time left", width = 76, justify = "RIGHT", sort = function(e) return e.seconds or e.band or 0 end,

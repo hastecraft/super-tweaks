@@ -376,12 +376,14 @@ local function RowOf(record)
     return row
 end
 
-local function Signed(copper, height)
-    return (copper < 0 and "-" or "+") .. K.Money(abs(copper), height)
-end
-
 -- The day a time falls on, on this computer's clock.
 local function DayOf(when, offset) return floor((when + offset) / DAY) end
+
+-- A card's amount, with its sign and the gain or loss color.
+local function Signed(widget, amount, suffix)
+    widget:SetMoney(abs(amount), amount < 0 and "-" or "+", suffix)
+    widget:SetColor(amount > 0 and GAIN or amount < 0 and LOSS or P.bright)
+end
 
 local function ItemIcon(record)
     return record.i and C_Item.GetItemIconByID(record.i) or QUESTION_MARK
@@ -405,10 +407,9 @@ local function Columns()
           end },
         { key = "quantity", title = "Quantity", width = 62, justify = "RIGHT", sort = function(e) return e.record.q end,
           text = function(e) return e.record.q end },
-        { key = "each", title = "Each", width = 104, justify = "RIGHT",
-          text = function(e) return e.each and K.Money(e.each) or "" end },
-        { key = "change", title = "Gold", width = 118, justify = "RIGHT",
-          text = function(e) return e.change ~= 0 and Signed(e.change) or "" end,
+        { key = "each", title = "Each", width = 104, justify = "RIGHT", money = function(e) return e.each end },
+        { key = "change", title = "Gold", width = 118, justify = "RIGHT", signed = true,
+          money = function(e) return e.change ~= 0 and e.change or nil end,
           color = function(e)
               if e.change > 0 then return GAIN elseif e.change < 0 then return LOSS end
               return P.text
@@ -484,10 +485,6 @@ end
 ---------------------------------------------------------------------------
 -- Filling it in
 ---------------------------------------------------------------------------
-local function Paint(region, amount)
-    if amount > 0 then W.Paint(region, GAIN) elseif amount < 0 then W.Paint(region, LOSS) else W.Paint(region, P.bright) end
-end
-
 function H.Fill()
     if not H.table then return end
     local book = Book() or {}
@@ -565,15 +562,20 @@ function H.Fill()
 
     local profit = earned - spent - fees
     local days = from and (today - from + 1) or (first and DayOf(now, offset) - DayOf(first, offset) + 1 or 1)
-    H.profit.value:SetText(Signed(profit, 15))
-    Paint(H.profit.value, profit)
-    H.profit.note:SetText(Signed(floor(profit / days), 11) .. " a day")
-    H.earned.value:SetText(K.Money(earned, 15))
-    H.earned.note:SetText(FormatLargeNumber(sold) .. " sold, " .. K.Money(cut, 11) .. " cut")
-    H.spent.value:SetText(K.Money(spent, 15))
-    H.spent.note:SetText(FormatLargeNumber(bought) .. " bought")
-    H.fees.value:SetText(fees < 0 and Signed(-fees, 15) or K.Money(fees, 15))
-    H.fees.note:SetText(posted .. " posted, " .. expired .. " expired")
+    Signed(H.profit.value, profit)
+    local perDay = floor(profit / days)
+    H.profit.note:SetMoney(abs(perDay), perDay < 0 and "-" or "+", " a day")
+    H.earned.value:SetMoney(earned)
+    H.earned.note:SetMoney(cut, FormatLargeNumber(sold) .. " sold, ", " cut")
+    H.spent.value:SetMoney(spent)
+    H.spent.note:SetMoney(nil, nil, FormatLargeNumber(bought) .. " bought")
+    if fees < 0 then
+        Signed(H.fees.value, -fees)
+    else
+        H.fees.value:SetMoney(fees)
+        H.fees.value:SetColor(P.bright)
+    end
+    H.fees.note:SetMoney(nil, nil, posted .. " posted, " .. expired .. " expired")
 
     H.chartTitle:SetText(barDays == 1 and "Profit by day" or "Profit by week")
     DrawChart()
@@ -741,14 +743,10 @@ local function Card(parent, label)
     local name = K.Text(f, "GameFontHighlightSmall", P.muted)
     name:SetPoint("TOPLEFT", 12, -10)
     name:SetText(label)
-    f.value = K.Text(f, "GameFontNormalLarge", P.bright)
+    f.value = W.MoneyText(f, "GameFontNormalLarge", P.bright)
     f.value:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -5)
-    f.value:SetPoint("RIGHT", -8, 0)
-    f.value:SetWordWrap(false)
-    f.note = K.Text(f, "GameFontHighlightSmall", P.muted)
+    f.note = W.MoneyText(f, "GameFontHighlightSmall", P.muted)
     f.note:SetPoint("TOPLEFT", f.value, "BOTTOMLEFT", 0, -5)
-    f.note:SetPoint("RIGHT", -8, 0)
-    f.note:SetWordWrap(false)
     return f
 end
 
@@ -819,7 +817,7 @@ function H.Build(frame)
     H.best = K.Table(bestCard, { rowHeight = 20, noHeader = true, empty = NO_MATCH,
         columns = {
             { key = "name", title = "Item", fill = 1, icon = function(e) return ItemIcon(e.record) end },
-            { key = "gold", title = "Gold", width = 110, justify = "RIGHT", text = function(e) return K.Money(e.gold) end },
+            { key = "gold", title = "Gold", width = 110, justify = "RIGHT", money = function(e) return e.gold end },
         },
         onClick = function(e)
             searchText = e.name

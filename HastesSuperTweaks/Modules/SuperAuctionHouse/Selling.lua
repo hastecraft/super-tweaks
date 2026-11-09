@@ -411,8 +411,8 @@ local function FillSummary()
     local quantity = Se.quantity:GetNumber()
     local price = Se.price:GetValue()
     local deposit = Deposit()
-    Se.deposit.value:SetText(deposit and K.Money(deposit) or "")
-    Se.total.value:SetText((cur and price > 0 and quantity > 0) and K.Money(price * quantity) or "")
+    Se.deposit:SetMoney(deposit)
+    Se.total:SetMoney((cur and price > 0 and quantity > 0) and price * quantity or nil)
     Se.post:SetDisabled(not CanPost())
 end
 
@@ -522,8 +522,8 @@ local function ClearPanel()
     Se.quantities:SetMost(0)
     Se.price:SetValue(0)
     Se.bid:SetValue(0)
-    Se.deposit.value:SetText("")
-    Se.total.value:SetText("")
+    Se.deposit:SetMoney(nil)
+    Se.total:SetMoney(nil)
     Se.post:SetDisabled(true)
     Se.current:SetLoading(false)
     Se.current:SetEntries({})
@@ -895,14 +895,11 @@ end
 
 local function CurrentColumns()
     return {
-        { key = "price", title = "Price", fill = 1.2, justify = "RIGHT", text = function(e)
-            return (e.price and e.price > 0) and K.Money(e.price) or "None"
+        { key = "price", title = "Price", fill = 1.2, justify = "RIGHT", money = function(e)
+            return (e.price and e.price > 0) and e.price or "None"
         end },
         { key = "bid", title = "Bid", fill = 1, justify = "RIGHT", sort = function(e) return e.bid or e.minBid or 0 end,
-          text = function(e)
-              local value = e.bid or e.minBid
-              return value and K.Money(value) or ""
-          end },
+          money = function(e) return e.bid or e.minBid end },
         { key = "quantity", title = "Quantity", width = 70, justify = "RIGHT",
           text = function(e) return FormatLargeNumber(e.quantity or 0) end },
         { key = "level", title = "Item level", width = 66, justify = "RIGHT" },
@@ -916,7 +913,7 @@ end
 local function YoursColumns()
     return {
         { key = "time", title = "Date", width = 110, text = function(e) return date("%b %d %H:%M", e.time) end },
-        { key = "price", title = "Price", fill = 1, justify = "RIGHT", text = function(e) return K.Money(e.price) end },
+        { key = "price", title = "Price", fill = 1, justify = "RIGHT", money = function(e) return e.price end },
         { key = "quantity", title = "Quantity", width = 70, justify = "RIGHT" },
     }
 end

@@ -522,7 +522,7 @@ local function ShowSuggestions(text)
             row.label:SetText(item.label)
             row.icon:SetTexture(item.icon)
             row.icon:SetShown(item.icon ~= nil)
-            row.price:SetText(item.price and K.Money(item.price) or "")
+            row.price:SetMoney(item.price)
         end
     end
     PaintSuggestion()
@@ -564,7 +564,7 @@ local function BuildFlyout()
         row.icon:SetSize(18, 18)
         row.icon:SetPoint("LEFT", 5, 0)
         row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-        row.price = K.Text(row, "GameFontHighlightSmall", P.text, "RIGHT")
+        row.price = W.MoneyText(row, "GameFontHighlightSmall", P.text)
         row.price:SetPoint("RIGHT", -8, 0)
         row.label = K.Text(row, "GameFontHighlight", P.text)
         row.label:SetPoint("LEFT", 28, 0)
@@ -909,8 +909,7 @@ function Sh.Build(frame)
               text = function(e) return K.QualityCode(e.quality) .. (e.name or "") .. "|r" end },
             { key = "level", title = "Item level", width = 70, justify = "RIGHT",
               text = function(e) return (e.level and e.level > 0) and e.level or "" end },
-            { key = "price", title = "Price", width = 150, justify = "RIGHT",
-              text = function(e) return e.price and K.Money(e.price) or "" end },
+            { key = "price", title = "Price", width = 150, justify = "RIGHT", money = function(e) return e.price end },
             { key = "owned", title = "Yours", width = 50, justify = "CENTER", sort = function(e) return e.owned and 1 or 0 end,
               text = function(e) return e.owned and "Yes" or "" end, hide = function() return S.Window.mode == "saved" end },
             { key = "available", title = "Available", width = 80, justify = "RIGHT",

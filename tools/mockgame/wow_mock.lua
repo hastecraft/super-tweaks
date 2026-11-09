@@ -339,8 +339,9 @@ ui.IsEnabled = enabled
 function ui:Enable() self.enabled = true end
 function ui:Disable() self.enabled = false end
 function ui:GetNumLines() return self.numLines or 1 end
-function ui:GetStringWidth() return #(self.text or '') * 6 end
-function ui:GetStringHeight() local text = self.text or ''; local _, lines = text:gsub('\n', ''); return 14 * (lines + 1) end
+-- Text measures are base methods: money widgets lay out by string width outside the settings window too.
+function methods:GetStringWidth() return #tostring(self.text or '') * 6 end
+function methods:GetStringHeight() local text = tostring(self.text or ''); local _, lines = text:gsub('\n', ''); return 14 * (lines + 1) end
 function ui:HasFocus() return self.focus == true end
 function ui:SetFocus() self.focus = true; if self.scripts.OnEditFocusGained then CallIn(self.scripts.OnEditFocusGained, self) end end
 function ui:ClearFocus()

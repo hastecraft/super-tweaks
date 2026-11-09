@@ -76,7 +76,7 @@ local function Dress(f, clickable)
         slot.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         slot.count = slot:CreateFontString(nil, "OVERLAY")
         slot.count:SetPoint("BOTTOMRIGHT", -2, 2)
-        slot.price = slot:CreateFontString(nil, "OVERLAY")
+        slot.price = ns.Widgets.MoneyText(slot, "GameFontHighlightSmall")
         slot.price:SetPoint("TOP", slot, "BOTTOM", 0, -3)
         f.slots[i] = slot
     end
@@ -138,11 +138,11 @@ local function Layout(f, p)
     end
     for _, slot in ipairs(f.slots) do
         slot:SetSize(p.size, p.size)
-        for _, text in ipairs({ slot.count, slot.price }) do
-            ns.SetFont(text, font, p.fontSize, flags)
-            text:SetShadowOffset(shadow, -shadow)
-        end
-        slot.shownWorth = nil -- its coin is sized to the text
+        ns.SetFont(slot.count, font, p.fontSize, flags)
+        slot.count:SetShadowOffset(shadow, -shadow)
+        slot.price:SetFont(font, p.fontSize, flags)
+        slot.price:SetShadowOffset(shadow, -shadow)
+        slot.shownWorth = nil -- its coins are sized to the text
     end
     f:SetSize(f.width, f.height)
     f.shownFree = nil
@@ -173,7 +173,7 @@ local function ShowSlot(slot, p, icon, count, worth)
     end
     if slot.shownWorth ~= worth then
         slot.shownWorth = worth
-        slot.price:SetText(Money(worth, p.fontSize))
+        slot.price:SetMoney(worth)
     end
     if slot.shownPrices ~= p.prices then
         slot.shownPrices = p.prices

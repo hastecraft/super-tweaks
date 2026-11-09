@@ -6,7 +6,7 @@ local S = ns.SuperAuctionHouse
 local K = {}
 S.Kit = K
 
-local floor, max, min = math.floor, math.max, math.min
+local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 local W = ns.Widgets
 local P
 
@@ -512,6 +512,13 @@ function K.Field(parent, label, width)
     f.label:SetText(label)
     f.value = K.Text(f, "GameFontHighlightSmall", P.bright, "RIGHT")
     f.value:SetPoint("RIGHT")
+    -- A field of money draws coins; SetMoney(nil) clears it.
+    f.money = W.MoneyText(f, "GameFontHighlightSmall", P.bright)
+    f.money:SetPoint("RIGHT")
+    function f:SetMoney(copper)
+        self.value:SetText("")
+        self.money:SetMoney(copper)
+    end
     return f
 end
 
@@ -519,6 +526,8 @@ end
 -- Tables. spec: id (remembers hidden columns), rowHeight, columns, onClick(entry, button, row), onEnter(entry, row),
 -- onLeave(entry, row), isSelected(entry), dim(entry), empty (text with no rows).
 -- A column: key, title, width or fill, justify, text(entry) or field, sort(entry) or field, icon(entry), color(entry).
+-- A money column has money(entry) instead of text: copper draws with coins (signed = true puts a + before gains, a -
+-- before losses), a string shows as text ("None"), nil shows nothing.
 ---------------------------------------------------------------------------
 local HEADER_H = 22
 
@@ -718,21 +727,49 @@ function Table:FillRow(row, entry)
             cell.placedJustify = justify
             cell:SetJustifyH(justify)
         end
-        local text
-        if c.text then text = c.text(entry) else text = entry[c.field or c.key] end
+        local color = c.color and c.color(entry) or P.text
+        local text, money
+        if c.money then
+            money = c.money(entry)
+            if type(money) == "string" then text, money = money, nil end
+        elseif c.text then text = c.text(entry) else text = entry[c.field or c.key] end
         if text == nil then text = "" end
+        local coins = row.coins and row.coins[i]
+        if money then
+            if not coins then
+                row.coins = row.coins or {}
+                coins = W.MoneyText(row, "GameFontHighlight")
+                row.coins[i] = coins
+            end
+            local at = justify == "RIGHT" and right or justify == "CENTER" and floor((left + right) / 2) or left
+            if coins.placedAt ~= at or coins.placedJustify ~= justify then
+                coins.placedAt, coins.placedJustify = at, justify
+                coins:ClearAllPoints()
+                coins:SetPoint(justify, row, "LEFT", at, 0)
+            end
+            coins:SetMoney(abs(money), money < 0 and "-" or (c.signed and money > 0) and "+" or nil)
+            if coins.painted ~= color then
+                coins.painted = color
+                coins:SetColor(color)
+            end
+            coins:Show()
+        elseif coins then
+            coins:Hide()
+        end
         if cell.shownText ~= text then
             cell.shownText = text
             cell:SetText(text)
         end
-        local color = c.color and c.color(entry) or P.text
         if cell.painted ~= color then
             cell.painted = color
             W.Paint(cell, color)
         end
         cell:Show()
     end
-    for i = #self.visible + 1, #row.cells do row.cells[i]:Hide() end
+    for i = #self.visible + 1, #row.cells do
+        row.cells[i]:Hide()
+        if row.coins and row.coins[i] then row.coins[i]:Hide() end
+    end
     if rowIcon then
         if row.shownIcon ~= rowIcon then
             row.shownIcon = rowIcon
