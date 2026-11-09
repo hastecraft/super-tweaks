@@ -269,6 +269,7 @@ function HST:OnInitialize()
     self:ApplyAccent()
     ns.Widgets.SetSounds(self.db.global.sounds ~= false)
     ns.Widgets.SetAnimate(self.db.global.animate ~= false)
+    ns.Widgets.SetMoneyLetters(self.db.global.moneyLetters == true)
     for _, module in ipairs(self:Features()) do
         module:SetEnabledState(self.db.global.modules[module:GetName()] and not module.info.unavailable)
     end
@@ -426,6 +427,13 @@ function HST:GeneralOptions()
                     -- Saved only when off.
                     if on then self.db.global.animate = nil else self.db.global.animate = false end
                     ns.Widgets.SetAnimate(on)
+                end },
+            moneyLetters = { type = "toggle", order = 4, name = "Money as letters (1g 1s 1c)",
+                get = function() return self.db.global.moneyLetters == true end,
+                set = function(_, on)
+                    -- Saved only when on.
+                    self.db.global.moneyLetters = on or nil
+                    ns.Widgets.SetMoneyLetters(on)
                 end },
         } },
         window = { type = "group", inline = true, name = "Window", order = 2, args = {
@@ -750,10 +758,16 @@ function ns.FindTooltipLine(tip, text, exact)
 end
 
 -- Money with coin icons, as the game shows it; size sets the icons' height to match the text.
-function ns.Money(copper, size)
-    local coins = C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString or GetCoinTextureString
-    if coins then return coins(copper, size) end
-    return GetMoneyString and GetMoneyString(copper) or (copper .. "c")
+function ns.Money(copper, size, back) -- luacheck: ignore 212
+    copper = math.floor(copper or 0)
+    back = back or "|r" -- color codes don't nest: inside a colored text, pass its code to go back to it
+    local gold, silver = math.floor(copper / 10000), math.floor(copper / 100) % 100
+    copper = copper % 100
+    local text
+    if gold > 0 then text = gold .. "|cffffd700g" .. back end
+    if silver > 0 then text = (text and text .. " " or "") .. silver .. "|cffc7c7cfs" .. back end
+    if copper > 0 or not text then text = (text and text .. " " or "") .. copper .. "|cffeda55fc" .. back end
+    return text
 end
 
 -- 1.2m for millions, 12.3k from `from` (default 1000) up, and smaller values rounded. Values that would round up to

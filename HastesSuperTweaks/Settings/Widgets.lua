@@ -1839,6 +1839,154 @@ function W.Icon(parent, texture, size, layer)
     return icon
 end
 
+-- Money as digits with a coin texture after each: "47 [g] 21 [s] 14 [c]". Coins in text can't be sized or placed on
+-- WoW Forever (the client draws them at the font's height, below the digits' middle), so these are textures, as tall
+-- as the digits and centered on them. The frame is as wide as what it shows, so it anchors like a font string.
+-- Zero coins are left out ("1g 50c"); copper alone shows for nothing at all. SetMoney(copper, prefix, suffix) puts
+-- text before ("+", "Materials: ") and after (" a day"); SetMoney(nil) shows nothing. SetColor paints it all, and
+-- SetFont(path, height, flags) / SetShadowOffset follow the font string calls. W.SetMoneyLetters(true) draws every
+-- one as letters instead ("47g 21s 14c", as ns.Money writes it), the settings window's "Money as letters".
+local COINS = { "Interface\\MoneyFrame\\UI-GoldIcon", "Interface\\MoneyFrame\\UI-SilverIcon", "Interface\\MoneyFrame\\UI-CopperIcon" }
+local COIN_GAP, GROUP_GAP = 1, 4
+local moneyLetters = false
+local moneyTexts = setmetatable({}, { __mode = "k" })
+-- Digit widths by font, shared by every widget: "47" is as wide under one bag slot as under the next.
+local MONEY_WIDTHS = {}
+function W.SetMoneyLetters(on)
+    on = on == true
+    if moneyLetters == on then return end
+    moneyLetters = on
+    for f in pairs(moneyTexts) do
+        if f.copper ~= false then f:SetMoney(f.copper, f.shownPrefix, f.shownSuffix) end
+    end
+end
+function W.MoneyText(parent, font, color)
+    local f = CreateFrame("Frame", nil, parent)
+    moneyTexts[f] = true
+    local digits, coins, texts = {}, {}, {}
+    for i = 1, 5 do
+        local fs = f:CreateFontString(nil, "OVERLAY", font or "GameFontHighlight")
+        fs:SetJustifyH("RIGHT")
+        if color then W.Paint(fs, color) end
+        texts[i] = fs
+        if i <= 3 then
+            local coin = f:CreateTexture(nil, "ARTWORK")
+            coin:SetTexture(COINS[i])
+            digits[i], coins[i] = fs, coin
+        end
+    end
+    local before, after = texts[4], texts[5]
+    -- Every piece remembers what it shows and where, so a redraw only touches what changed: a price under a bag slot
+    -- changes with every bag event, and the texts' widths are measured once per text.
+    local amounts, shown, textAt, widthAt, visible, xAt = { 0, 0, 0 }, {}, {}, {}, {}, {}
+    local size, lift, widths
+    local function Fit()
+        local path, height, flags = digits[1]:GetFont()
+        height = height or 12
+        local key = (path or "") .. ":" .. height .. ":" .. (flags or "")
+        widths = MONEY_WIDTHS[key]
+        if not widths then widths = {}; MONEY_WIDTHS[key] = widths end
+        size, lift = math.floor(height * 0.9 + 0.5), math.floor(height * 0.1 + 0.5)
+        for i = 1, 3 do coins[i]:SetSize(size, size) end
+        f:SetHeight(height)
+        wipe(textAt) -- measured and placed again on the next SetMoney
+        wipe(xAt)
+        f.copper = false
+    end
+    Fit()
+    f:SetWidth(1)
+    local function Place(i, region, x, y)
+        if xAt[i] ~= x then
+            xAt[i] = x
+            region:SetPoint("RIGHT", f, "RIGHT", -x, y or 0)
+        end
+    end
+    local function Text(i, text)
+        if textAt[i] ~= text then
+            textAt[i] = text
+            texts[i]:SetText(text)
+            local width = widths[text]
+            if not width then
+                width = math.ceil(texts[i]:GetStringWidth())
+                -- Amounts under 1000 are few; prefixes, suffixes and big gold are measured each time they change.
+                if type(text) == "number" and text < 1000 then widths[text] = width end
+            end
+            widthAt[i] = width
+        end
+        return widthAt[i]
+    end
+    local function Shown(i, region, on)
+        if visible[i] ~= on then
+            visible[i] = on
+            region:SetShown(on)
+        end
+    end
+    function f:SetMoney(copper, prefix, suffix)
+        if copper ~= nil then copper = math.floor(copper) end
+        if prefix == "" then prefix = nil end
+        if suffix == "" then suffix = nil end
+        if self.copper == copper and self.shownPrefix == prefix and self.shownSuffix == suffix
+            and self.letters == moneyLetters then return end
+        self.copper, self.shownPrefix, self.shownSuffix, self.letters = copper, prefix, suffix, moneyLetters
+        local x = 0
+        if moneyLetters then
+            for i = 1, 3 do
+                Shown(i, digits[i], false)
+                Shown(i + 5, coins[i], false)
+            end
+            Shown(5, after, false)
+            Place(4, before, 0)
+            x = Text(4, (prefix or "") .. (copper and ns.Money(copper) or "") .. (suffix or ""))
+            Shown(4, before, true)
+        else
+            -- Laid out from the right edge, so a hidden coin leaves no gap.
+            Shown(5, after, suffix ~= nil)
+            if suffix then
+                Place(5, after, 0)
+                x = Text(5, suffix)
+            end
+            if copper then
+                amounts[1], amounts[2], amounts[3] = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+                shown[1], shown[2], shown[3] = amounts[1] > 0, amounts[2] > 0, amounts[3] > 0 or copper == 0
+            else
+                shown[1], shown[2], shown[3] = false, false, false
+            end
+            for i = 3, 1, -1 do
+                Shown(i, digits[i], shown[i])
+                Shown(i + 5, coins[i], shown[i])
+                if shown[i] then
+                    if x > 0 then x = x + GROUP_GAP end
+                    Place(i + 5, coins[i], x, lift)
+                    x = x + size + COIN_GAP
+                    Place(i, digits[i], x)
+                    x = x + Text(i, amounts[i])
+                end
+            end
+            Shown(4, before, prefix ~= nil)
+            if prefix then
+                Place(4, before, x)
+                x = x + Text(4, prefix)
+            end
+        end
+        x = math.max(1, x)
+        if self.shownWidth ~= x then
+            self.shownWidth = x
+            self:SetWidth(x)
+        end
+    end
+    function f:SetColor(paint)
+        for i = 1, 5 do W.Paint(texts[i], paint) end
+    end
+    function f:SetFont(path, height, flags)
+        for i = 1, 5 do ns.SetFont(texts[i], path, height, flags) end
+        Fit()
+    end
+    function f:SetShadowOffset(dx, dy)
+        for i = 1, 5 do texts[i]:SetShadowOffset(dx, dy) end
+    end
+    return f
+end
+
 -- The ready-check mark: a green check for accepted, a red cross for declined.
 function W.Mark(parent, accepted, size)
     return W.Icon(parent, accepted and "Interface\\RaidFrame\\ReadyCheck-Ready" or "Interface\\RaidFrame\\ReadyCheck-NotReady",

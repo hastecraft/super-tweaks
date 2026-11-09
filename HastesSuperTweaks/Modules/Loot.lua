@@ -617,7 +617,7 @@ local function FillRow(row, item, manual, p, font, flags, noticeMouse)
         text = code .. "+" .. quantity .. " |r" .. text
         -- What it sells for, after the name.
         local priced = p.vendorPrice == "ALL" or p.vendorPrice == "JUNK" and quality == 0
-        if priced and item.value and item.value > 0 then text = text .. "  " .. code .. Money(item.value, p.fontSize) .. "|r" end
+        if priced and item.value and item.value > 0 then text = text .. "  " .. code .. Money(item.value, p.fontSize, code) .. "|r" end
     end
     row.label:SetText(text)
     if item.locked then row.label:SetTextColor(unpack(C.disabled))
