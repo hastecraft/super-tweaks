@@ -716,7 +716,7 @@ function T:HookTooltip()
     if self.hooked then return end
     self.hooked = true
     local tip = GameTooltip
-    ns.HookUnitTooltip(function(tooltip, data, unit) self:OnUnitTooltip(tooltip, data, unit) end)
+    ns.HookUnitTooltip(self, function(tooltip, data, unit) self:OnUnitTooltip(tooltip, data, unit) end)
     if tip:HasScript("OnTooltipCleared") then tip:HookScript("OnTooltipCleared", function() self:Clear() end) end
     tip:HookScript("OnHide", function() self:Clear(); self:Watch(nil) end)
     -- Skins restyle the border when the tooltip shows, after the unit is set.

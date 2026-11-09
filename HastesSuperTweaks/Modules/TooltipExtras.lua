@@ -140,7 +140,7 @@ local function Hook()
     if hooked then return end
     hooked = true
     if GameTooltip_SetDefaultAnchor then hooksecurefunc("GameTooltip_SetDefaultAnchor", Anchor) end
-    ns.HookUnitTooltip(OnUnit)
+    ns.HookUnitTooltip(T, OnUnit)
     if T.db.profile.ids then HookIds() end
 end
 

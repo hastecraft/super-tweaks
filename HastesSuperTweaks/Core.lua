@@ -721,20 +721,29 @@ end
 -- Runs fn(tooltip, data, unit) after GameTooltip is filled in for a unit, unit being the token the tooltip gives when
 -- it names a unit that exists (else nil; data.guid may still say which). Both clients fill unit tooltips through the
 -- tooltip data processor, which fills a cleared tooltip before its hooks run and shows (and sizes) it after them, so
--- lines added here are neither there already nor need a Show of their own. Hooks can't be removed, so fn checks the
--- module state. Every fn runs from one hook, which asks the tooltip for its unit once (unit frames redraw their
--- tooltip five times a second); as with the game's own hooks, an error in one doesn't stop the others. Callers
--- register a frame after login, to run after other addons' login-time hooks.
-local unitTooltipHooks = {}
+-- lines added here are neither there already nor need a Show of their own. Hooks can't be removed, so fn runs only
+-- while module (its owner) is on. Every fn runs from one hook, which asks the tooltip for its unit once, and not at all
+-- with every owner off (unit frames redraw their tooltip five times a second); as with the game's own hooks, an error
+-- in one doesn't stop the others. Callers register a frame after login, to run after other addons' login-time hooks.
+local unitTooltipHooks, unitTooltipOwners = {}, {}
 local function OnUnitTooltip(tip, data)
     if tip ~= GameTooltip or (tip.IsForbidden and tip:IsForbidden()) then return end
-    local ok, _, unit = pcall(tip.GetUnit, tip)
-    if not ok or IsSecret(unit) or not unit or not UnitExists(unit) then unit = nil end
-    for i = 1, #unitTooltipHooks do securecallfunction(unitTooltipHooks[i], tip, data, unit) end
+    local asked, unit
+    for i = 1, #unitTooltipHooks do
+        if unitTooltipOwners[i]:IsEnabled() then
+            if not asked then
+                asked = true
+                local ok, _, token = pcall(tip.GetUnit, tip)
+                if ok and not IsSecret(token) and token and UnitExists(token) then unit = token end
+            end
+            securecallfunction(unitTooltipHooks[i], tip, data, unit)
+        end
+    end
 end
-function ns.HookUnitTooltip(fn)
-    unitTooltipHooks[#unitTooltipHooks + 1] = fn
-    if #unitTooltipHooks == 1 then TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnUnitTooltip) end
+function ns.HookUnitTooltip(module, fn)
+    local n = #unitTooltipHooks + 1
+    unitTooltipHooks[n], unitTooltipOwners[n] = fn, module
+    if n == 1 then TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnUnitTooltip) end
 end
 
 -- The first left-hand tooltip line after the title whose text contains `text` (with exact, is `text`), and that text.
