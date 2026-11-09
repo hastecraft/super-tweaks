@@ -2,6 +2,31 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.6.0 (2026-11-09)
+
+### Instance Tracker
+
+Records each dungeon and raid run: how long it took, the XP, gold, kills, deaths, reputation and loot it gave, and who came along. Its window shows your runs, totals per instance, a run's details and how many instances you've entered against the hourly and daily limits. /hit opens it.
+
+### Bank Helper
+
+At the bank, a list beside the bank window of what in your bags you could put away: crafting materials, gear and recipes you can't use, food and potions above your level, and items you already keep in the bank. Click one to bank it, or Bank all.
+
+### New Features
+
+- Settings window: "Money as letters (1g 1s 1c)" shows every price as letters instead of coin icons.
+
+### Changes
+
+- Money in chat, tooltips and dialogs is written as 47g 21s 14c.
+
+### Bug Fixes
+
+- Super Auction House: prices draw with real coin icons again, lined up with the amounts.
+- Super Auction House: posting no longer fails with "Internal auction error" on WoW Forever; prices post in whole silver.
+- Super Auction House: Current prices stops loading for an item with no auctions.
+- Bag Cleaner: prices under slots draw with real coin icons again.
+
 ## 3.5.2 (2026-11-08)
 
 ### Bug Fixes

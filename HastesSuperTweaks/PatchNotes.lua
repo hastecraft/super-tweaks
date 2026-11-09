@@ -16,6 +16,27 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.6.0", date = "2026-11-09",
+        highlights = {
+            { "Records each dungeon and raid run: how long it took, the XP, gold, kills, deaths, reputation and loot it gave, and who came along. Its window shows your runs, totals per instance, a run's details and how many instances you've entered against the hourly and daily limits. /hit opens it.",
+                title = "Instance Tracker", module = "InstanceTracker" },
+            { "At the bank, a list beside the bank window of what in your bags you could put away: crafting materials, gear and recipes you can't use, food and potions above your level, and items you already keep in the bank. Click one to bank it, or Bank all.",
+                title = "Bank Helper", module = "BankHelper" },
+        },
+        new = {
+            "Settings window: \"Money as letters (1g 1s 1c)\" shows every price as letters instead of coin icons.",
+        },
+        changed = {
+            "Money in chat, tooltips and dialogs is written as 47g 21s 14c.",
+        },
+        fixed = {
+            { "Super Auction House: prices draw with real coin icons again, lined up with the amounts.", module = "SuperAuctionHouse" },
+            { "Super Auction House: posting no longer fails with \"Internal auction error\" on WoW Forever; prices post in whole silver.", module = "SuperAuctionHouse" },
+            { "Super Auction House: Current prices stops loading for an item with no auctions.", module = "SuperAuctionHouse" },
+            { "Bag Cleaner: prices under slots draw with real coin icons again.", module = "BagCleaner" },
+        },
+    },
+    {
         version = "3.5.2", date = "2026-11-08",
         fixed = {
             { "Super Auction House: buying an item out works again.", module = "SuperAuctionHouse" },
