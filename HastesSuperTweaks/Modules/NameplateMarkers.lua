@@ -211,6 +211,16 @@ function N:QuestMark(unit, counts)
     return true
 end
 
+-- Whether a nameplate's game frame shows: nameplate addons hide it, or fade it out, to draw their own. When the game
+-- hides that from addons, it's taken to show.
+local function GameShows(game)
+    local shown = game:IsShown()
+    if IsSecret(shown) then return true end
+    if not shown then return false end
+    local alpha = game:GetAlpha()
+    return IsSecret(alpha) or alpha > 0
+end
+
 -- Shows or hides the marker on a unit's nameplate. Not on nameplates whose game frame another addon has hidden. The
 -- marker keeps its size, level and anchor between units, so those are set only when they change. The one showing for the
 -- unit is hidden unless it shows again.
@@ -219,11 +229,14 @@ function N:Place(unit)
     byUnit[unit] = nil
     local plate = questUnits[unit] == true and C_NamePlate.GetNamePlateForUnit(unit)
     local game = plate and plate.UnitFrame
-    if not (game and game:IsShown() and game:GetAlpha() > 0) then
+    if not (game and GameShows(game)) then
         if old then old:Hide() end
         return
     end
-    local anchor = game.name and game.name:IsShown() and game.name or game.healthBar
+    -- Beside the name while it shows; beside the health bar when it doesn't, or when the game hides whether it does.
+    local name = game.name
+    local named = name and name:IsShown()
+    local anchor = name and not IsSecret(named) and named and name or game.healthBar
     if not anchor then
         if old then old:Hide() end
         return
@@ -232,8 +245,12 @@ function N:Place(unit)
     if old and old ~= marker then old:Hide() end
     local size = self.db.profile.size
     if marker.size ~= size then marker.size = size; marker:SetSize(size, size) end
-    local level = game:GetFrameLevel() + 10
-    if marker.level ~= level then marker.level = level; marker:SetFrameLevel(level) end
+    -- A level the game hides from addons leaves the marker at the one it has.
+    local level = game:GetFrameLevel()
+    if not IsSecret(level) then
+        level = level + 10
+        if marker.level ~= level then marker.level = level; marker:SetFrameLevel(level) end
+    end
     if not marker.icon then
         marker.icon = marker:CreateTexture(nil, "OVERLAY")
         marker.icon:SetAllPoints()
