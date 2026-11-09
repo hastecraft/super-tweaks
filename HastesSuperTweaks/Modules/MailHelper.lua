@@ -164,10 +164,12 @@ function M:AddRecent(name)
     if not me or type(name) ~= "string" then return end
     name = name:match("^%s*(.-)%s*$")
     if name == "" then return end
-    for _, alt in ipairs(self:Alts()) do if alt.name:lower() == name:lower() then return end end
+    -- "First Surname" and "First-Surname" are the same character.
+    local key = ns.NameKey(name)
+    for _, alt in ipairs(self:Alts()) do if ns.NameKey(alt.name) == key then return end end
     local scope = Scope(me)
     local list = self.db.global.recent[scope] or {}
-    for i = #list, 1, -1 do if list[i]:lower() == name:lower() then table.remove(list, i) end end
+    for i = #list, 1, -1 do if ns.NameKey(list[i]) == key then table.remove(list, i) end end
     table.insert(list, 1, name)
     while #list > self.RECENT do table.remove(list) end
     self.db.global.recent[scope] = list
