@@ -265,7 +265,7 @@ function N:Alert(unit)
     self.alerted[guid] = true
     local name = UnitName(unit)
     HST:Print((not IsSecret(name) and name) and ("Rare nearby: " .. name .. ".") or "A rare is nearby.")
-    if p.sound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
+    if p.sound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING, "Master") end
 end
 
 -- Checks the quest marks of the nameplates showing again: every one's while the quest log answers or when all is set,

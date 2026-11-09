@@ -124,7 +124,7 @@ function B:Draw(timer, now)
     if not warning then timer.armed = true end
     if warning and timer.armed and not timer.warned then
         timer.warned = true
-        if p.warnSound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
+        if p.warnSound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING, "Master") end
     end
     local alpha = warning and p.warnPulse and 0.55 + 0.45 * abs(cos(now * 4)) or 1
     if bar.shownAlpha ~= alpha then bar.shownAlpha = alpha; bar:SetAlpha(alpha) end

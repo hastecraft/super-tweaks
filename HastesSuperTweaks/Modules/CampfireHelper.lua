@@ -865,7 +865,7 @@ ON_TIMER.buffsEnding = function()
     if not C.benefits.on then return end
     local p = C.db.profile
     if Says("ending") then Print(EndingText(C.benefits.ends - GetTime())) end
-    if p.sound and p.display and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
+    if p.sound and p.display and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING, "Master") end
     C:Refresh()
 end
 ON_TIMER.nearbyFirst = function()
@@ -972,7 +972,7 @@ function C:Check(quiet)
         if not quiet and wasEnding <= ON_TIME then
             self.ended = true
             if Says("ending") then Print(EndedText()) end
-            if p.sound and p.display and p.without ~= "none" and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
+            if p.sound and p.display and p.without ~= "none" and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING, "Master") end
         end
     end
     local w = self.welcome
