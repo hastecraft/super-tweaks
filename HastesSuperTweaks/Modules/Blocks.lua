@@ -325,7 +325,9 @@ local Q = Block("BlockSharedQuests", {
     pagePreview = false,
 }, { "QUEST_DETAIL" }, function(self)
     if not self:ShouldDecline() then return end
-    local name = UnitName("questnpc")
+    -- The whole name, as the other blocks print it ("First Surname" on WoW Forever).
+    local name, surname = UnitName("questnpc")
+    if not IsSecret(name) and name and not IsSecret(surname) then name = ns.FullName(name, surname) end
     DeclineQuest()
     HST:Print("Declined a quest shared by " .. Who(name) .. ".")
 end)
