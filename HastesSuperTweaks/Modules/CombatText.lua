@@ -118,13 +118,13 @@ function S.FontFlags(p)
 end
 
 -- An amount as the Numbers setting writes it: 12.3k from 10,000 up, 12,345 or 12345. An amount the game hides from
--- addons can't be rounded or compared; the game's own formatters write it. secret: whether it's hidden, when the
--- caller knows.
+-- addons can't be rounded or compared; the game's own formatters write it (see ns.ShortSecret). secret: whether it's
+-- hidden, when the caller knows.
 function S:Amount(amount, secret)
     local mode = self.db.profile.numbers
     if secret == nil then secret = IsSecret(amount) end
     if secret then
-        local format = mode == "SHORT" and AbbreviateNumbers or mode == "GROUPED" and BreakUpLargeNumbers
+        local format = mode == "SHORT" and AbbreviateNumbers and ns.ShortSecret or mode == "GROUPED" and BreakUpLargeNumbers
         if format then return format(amount) end
         return amount
     end

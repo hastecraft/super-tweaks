@@ -825,6 +825,30 @@ function ns.ShortNumber(value, from)
     return tostring(rounded)
 end
 
+-- A number the game hides from addons, written as ns.ShortNumber(value, 10000) writes the rest: by the game's formatter
+-- (the one thing that can write it) with breakpoints for that, once a few numbers show it writes them alike; with the
+-- game's own abbreviations where it doesn't.
+local shortSecret -- the breakpoints, false when the formatter doesn't write them alike; nil until first asked
+local SHORT_CHECKS = { 7, 999, 1234, 9999, 10000, 12345, 12399, 123456, 1234567 }
+function ns.ShortSecret(value)
+    if not AbbreviateNumbers then return value end
+    if shortSecret == nil then
+        shortSecret = false
+        local options = { breakpointData = {
+            { breakpoint = 1000000, abbreviation = "m", significandDivisor = 100000, fractionDivisor = 10, abbreviationIsGlobal = false },
+            { breakpoint = 10000, abbreviation = "k", significandDivisor = 100, fractionDivisor = 10, abbreviationIsGlobal = false },
+        } }
+        local alike = true
+        for _, n in ipairs(SHORT_CHECKS) do
+            local ok, text = pcall(AbbreviateNumbers, n, options)
+            if not ok or text ~= ns.ShortNumber(n, 10000) then alike = false; break end
+        end
+        if alike then shortSecret = options end
+    end
+    if shortSecret then return AbbreviateNumbers(value, shortSecret) end
+    return AbbreviateNumbers(value)
+end
+
 -- The "|cffrrggbb" code for a color table, { r, g, b } or { r = r, g = g, b = b }. Codes are kept per table: settings
 -- store a new table on every change, so a code never goes stale.
 local colorCodes = setmetatable({}, { __mode = "k" })
