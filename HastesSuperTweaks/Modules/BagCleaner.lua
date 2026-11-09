@@ -459,8 +459,10 @@ function B:Delete(slot, pick)
     local bag, itemSlot, itemID, worth, link = pick.bag, pick.slot, pick.itemID, pick.worth, pick.link
     local count = pick.count
     local info = C_Container.GetContainerItemInfo(bag, itemSlot)
+    -- As in B:Scan, nothing goes while what your quests need can't all be read.
+    local ctx = ns.SellClutter:Context(true)
     if not (info and info.itemID == itemID and (info.stackCount or 1) == count and info.hyperlink == link)
-        or not self:Worth(info, bag, itemSlot, ns.SellClutter:Context(true)) then
+        or not ctx.complete or ctx.hidden or not self:Worth(info, bag, itemSlot, ctx) then
         return self:Queue()
     end
     C_Container.PickupContainerItem(bag, itemSlot)
