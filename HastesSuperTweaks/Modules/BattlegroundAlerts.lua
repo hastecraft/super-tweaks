@@ -47,7 +47,8 @@ ns.Configure(A, { invite = true, gates = true, gatesWarning = false, sound = fal
     end
     return ns.OnePage(m.info.name, "alerts", "Alerts", {
         invite = toggle("invite", "Invite countdown", 1, "While a battleground invite is up, shows how long you have "
-            .. "left to enter, and flashes the taskbar at 20 and 10 seconds left."),
+            .. "left to enter, and flashes the taskbar at 20 and 10 seconds left. When the game doesn't say how long, "
+            .. "it shows the invite and flashes every 20 seconds."),
         gates = toggle("gates", "Gates opening", 2, "Flashes the taskbar as the gates open."),
         gatesWarning = toggle("gatesWarning", "10 seconds before too", 3, nil,
             { disabled = function() return not m.db.profile.gates end }),

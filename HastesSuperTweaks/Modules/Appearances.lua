@@ -283,6 +283,9 @@ local function OnTooltip(tip, data)
         link = not IsSecret(guid) and guid and GetLinkByGUID and GetLinkByGUID(guid) or id
     end
     local state = A:State(link)
+    -- Only the looks "Which looks" asks for, as with the marks (see A:Wanted).
+    local p = A.db.profile
+    if state == SOURCE and not p.sources or state == ALT and not p.alts then return end
     local line = A.LINES[state]
     if not line or (state ~= ALT and GameSaysSo(data)) then return end
     tip:AddLine(line[1], line[2], line[3], line[4], true)

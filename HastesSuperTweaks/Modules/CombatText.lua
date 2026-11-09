@@ -118,13 +118,13 @@ function S.FontFlags(p)
 end
 
 -- An amount as the Numbers setting writes it: 12.3k from 10,000 up, 12,345 or 12345. An amount the game hides from
--- addons can't be rounded or compared; the game's own formatters write it. secret: whether it's hidden, when the
--- caller knows.
+-- addons can't be rounded or compared; the game's own formatters write it (see ns.ShortSecret). secret: whether it's
+-- hidden, when the caller knows.
 function S:Amount(amount, secret)
     local mode = self.db.profile.numbers
     if secret == nil then secret = IsSecret(amount) end
     if secret then
-        local format = mode == "SHORT" and AbbreviateNumbers or mode == "GROUPED" and BreakUpLargeNumbers
+        local format = mode == "SHORT" and AbbreviateNumbers and ns.ShortSecret or mode == "GROUPED" and BreakUpLargeNumbers
         if format then return format(amount) end
         return amount
     end
@@ -201,9 +201,10 @@ local function HostPlate(now)
     hostFrame = now
     if host and now - hostChecked < S.HOST_EVERY and host:IsVisible() then return host end
     hostChecked, host = now, nil
-    if not (C_NamePlate and C_NamePlate.GetNamePlates) then return nil end
     local bestLevel, bestShown, bestIndex
-    for _, plate in ipairs(C_NamePlate.GetNamePlates()) do
+    -- Every nameplate shown since numbers went on nameplates has a watcher (see S:WatchPlates): asking the game for
+    -- them would make a table each time.
+    for plate in pairs(watchers) do
         if plate:IsVisible() then
             local level, shown, index = plate:GetFrameLevel(), shownOrder[plate] or 0, PlateIndex(plate)
             if not host or level < bestLevel or (level == bestLevel and (shown < bestShown
@@ -1549,7 +1550,7 @@ function S:SampleArea(key, n)
         local lane = self:Lane(key)
         local plate = p.enemyMode == "NAMEPLATE" and C_NamePlate and C_NamePlate.GetNamePlateForUnit("target")
         if plate then lane = self:PlateLane(plate) end
-        local color = n == 3 and p.enemyCritColor or n == 2 and SCHOOLS[16] or p.enemyColor
+        local color = n == 3 and p.enemyCritColor or n == 2 and p.schoolColors and SCHOOLS[16] or p.enemyColor
         return self:Show(lane, color, n == 3 and "crit" or nil, "%s", self:Amount(n == 3 and 2480 or n == 2 and 615 or 870))
     end
     local lane = self:Lane(key)

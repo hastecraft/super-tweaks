@@ -27,7 +27,7 @@ local SEARCH_WAIT = 0.25 -- seconds after the last key before the history is sea
 ---------------------------------------------------------------------------
 local function Keeping() return S.db.profile.keepHistory end
 
-local MergeTwice
+local MergeTwice, Rename
 
 local function Book()
     local realm = S.Prices.RealmName()
@@ -39,6 +39,7 @@ local function Book()
         ledger[realm] = book
     end
     MergeTwice(book, realm)
+    Rename(book, realm)
     return book
 end
 
@@ -59,8 +60,11 @@ local function IDByName(book)
     return idByName
 end
 
+-- Your character as records name it: "First Surname" on WoW Forever, where first names aren't unique.
+local function Me() return ns.PlayerName() or UnitName("player") end
+
 local function Add(book, record)
-    record.c = UnitName("player")
+    record.c = Me()
     book[#book + 1] = record
     LearnID(record)
 end
@@ -103,8 +107,20 @@ local listener, queued, again
 local visit = 0 -- which mailbox visit a queued read is for
 
 -- Not the other player: the game can name a sale's buyer only on a later look at its letter.
+-- Records saved before surnames were kept name a character by first name only, so letters (and imports) are matched by
+-- first name.
+local firstNames = {}
+local function FirstName(character)
+    if not character then return "" end
+    local first = firstNames[character]
+    if not first then
+        first = character:match("^[^%s%-]+") or character
+        firstNames[character] = first
+    end
+    return first
+end
 local function LetterKey(kind, name, gold, character)
-    return kind .. "|" .. name .. "|" .. gold .. "|" .. (character or "")
+    return kind .. "|" .. name .. "|" .. gold .. "|" .. FirstName(character)
 end
 
 -- A sale or purchase read before its letter named the other player was saved again once it did, as two. Each realm's
@@ -147,6 +163,26 @@ MergeTwice = function(book, realm)
     end
 end
 
+-- Records saved before surnames were kept name your character by first name. Once a session they're given its whole
+-- name, unless another character of yours shares that first name: then they can't be told apart, and keep it.
+local renamedThisSession = {}
+Rename = function(book, realm)
+    if renamedThisSession[realm] then return end
+    local me, mine = ns.PlayerName(), ns.HST.charKey
+    if not (me and mine) then return end
+    renamedThisSession[realm] = true
+    local first = UnitName("player")
+    if not first or me == first then return end
+    -- Other characters' keys are "First Surname"; "First - Realm" is the entry they all shared before.
+    local prefix = first .. " "
+    for key in pairs(ns.HST.db.sv.char or {}) do
+        if key ~= mine and key:sub(1, #prefix) == prefix and key:sub(#prefix + 1, #prefix + 1) ~= "-" then return end
+    end
+    for _, record in ipairs(book) do
+        if record.c == first then record.c = me end
+    end
+end
+
 -- The item named in a subject the game writes with this format, such as "Auction expired: %s".
 local patterns = {}
 local function SubjectName(format, subject)
@@ -179,7 +215,7 @@ local function ReadMail()
     local book = Book()
     if not book then return end
     local now = GetServerTime()
-    local character = UnitName("player")
+    local character = Me()
     local from = From()
     local used, added = {}, false
     for i = 1, GetInboxNumItems() do
@@ -677,7 +713,7 @@ local function ParseRow(line)
 end
 
 local function RowKey(record)
-    return record.k .. "|" .. record.n .. "|" .. (record.w or "") .. "|" .. record.g .. "|" .. (record.c or "")
+    return record.k .. "|" .. record.n .. "|" .. (record.w or "") .. "|" .. record.g .. "|" .. FirstName(record.c)
 end
 
 -- Adds a pasted export to this realm's history. What's already here stays one: the times in an export are to the

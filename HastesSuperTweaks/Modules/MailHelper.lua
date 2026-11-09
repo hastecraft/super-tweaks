@@ -341,5 +341,9 @@ ns.Listen(M, { "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "MAIL_SHOW", "MAIL_IN
             self.sending = nil
         end
     end)
-function M:OnListen() self:UpdateButton() end
-function M:OnUnlisten() self.sending = nil; self:UpdateButton() end
+-- Whether you're at a mailbox is read again, as MAIL_SHOW and MAIL_CLOSED went unheard while it was off.
+function M:OnListen()
+    self.atMailbox = MailFrame and MailFrame:IsShown() or false
+    self:UpdateButton()
+end
+function M:OnUnlisten() self.sending, self.atMailbox = nil, false; self:UpdateButton() end

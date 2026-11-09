@@ -288,7 +288,7 @@ end
 
 -- Counters as they stood when a run was continued, to split off what came after should the copy turn out reset.
 local snap = {}
--- Who stood in each group slot at the last roster look (I:Roster).
+-- Who stood in each group slot at the last roster look (I:Roster), by GUID.
 local rosterNames = {}
 
 -- The map you're on inside: wings of one instance (Scarlet Monastery's, Dire Maul's) share a name and an instance map
@@ -416,17 +416,17 @@ function I:SampleXP()
     if gain > 0 then run.xp = run.xp + gain end
 end
 
--- A party or raid member, added to the run's group the first time they're seen.
+-- A party or raid member, added to the run's group the first time they're seen. Returns whether their name was known.
 local function Member(run, unit, me)
     local name, surname = UnitName(unit)
     name = Text(name)
-    if not name or name == UNKNOWN_NAME then return end
+    if not name or name == UNKNOWN_NAME then return false end
     if IsSecret(surname) then surname = nil end
     name = ns.FullName(name, surname)
-    if name == me then return end
+    if name == me then return true end
     local grp = run.grp
     if grp then
-        for i = 1, #grp do if grp[i].n == name then return end end
+        for i = 1, #grp do if grp[i].n == name then return true end end
     else
         grp = {}
         run.grp = grp
@@ -434,15 +434,16 @@ local function Member(run, unit, me)
     local _, class = UnitClass(unit)
     if IsSecret(class) or type(class) ~= "string" then class = nil end
     grp[#grp + 1] = { n = name, c = class }
+    return true
 end
 
--- Who stood in each slot at the last look: a roster event with the same names costs nothing.
+-- Who stood in each slot at the last look, by GUID (two members can share a first name on WoW Forever): a roster
+-- event with the same members costs nothing. A member whose name hasn't arrived yet is looked at again next time.
 local function Slot(run, index, unit, me)
-    local first = UnitName(unit)
-    if IsSecret(first) then first = nil end
-    if rosterNames[index] == first then return end
-    rosterNames[index] = first
-    Member(run, unit, me)
+    local guid = UnitGUID(unit)
+    if IsSecret(guid) then guid = nil end
+    if rosterNames[index] == guid then return end
+    rosterNames[index] = Member(run, unit, me) and guid or nil
 end
 
 function I:Roster()
@@ -672,7 +673,7 @@ function I.info.preview(frame)
     v.line:SetPoint("BOTTOMLEFT", 12 + pips * (PIP + PIP_GAP) + 4, 9)
     local filled = min(3, pips)
     local chat = p.sayEnter and ("Entered Deadmines. " .. filled .. " of " .. limit .. " instances this hour.")
-        or p.sayLeave and "Deadmines: 42m, 12.3k XP (17.6k an hour), 2g 14s, 48 kills." or nil
+        or p.sayLeave and "Deadmines: 42m, 12.3k XP (17.6k an hour), " .. ns.Money(21400, 12) .. ", 48 kills." or nil
     v.chat:SetShown(chat ~= nil)
     if chat and v.chatText ~= chat then v.chatText = chat; v.chat:SetText(W.Chat(chat)) end
     v.line:SetText("next frees in 23m")

@@ -727,10 +727,11 @@ function C:ShowTooltip(owner)
     if state == "buffs" then
         GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
         self:BuffLines()
-        Line(Span(b.ends - now) .. " left", GREY)
+        -- The time on screen, as the countdown writes it.
+        Line(Countdown(b.ends - now) .. " left", GREY)
     elseif state == "sitting" then
         GameTooltip:SetText(SpellName(WELCOMING[2], "Welcoming Campfire"))
-        Line("Keep sitting: camp buffs in " .. Span(w.ends - now) .. ".", WHITE)
+        Line("Keep sitting: camp buffs in " .. Countdown(w.ends - now) .. ".", WHITE)
         Line("Stand up or walk away before then and you get none.", GREY)
     elseif state == "nearby" then
         GameTooltip:SetText(SpellName(NEARBY, "Campfire Nearby"))
@@ -769,6 +770,7 @@ function C:OnUnlisten()
     self.tickDue = nil
     if self.campfire then Shown(self.campfire.frame, false) end
     self:UpdateEditMode(false)
+    HST.LSM.UnregisterCallback(self, "LibSharedMedia_Registered")
 end
 
 -- The time left on the cooldown for lighting a campfire, in seconds (0 when you can).
@@ -864,7 +866,7 @@ ON_TIMER.buffsEnding = function()
     if not C.benefits.on then return end
     local p = C.db.profile
     if Says("ending") then Print(EndingText(C.benefits.ends - GetTime())) end
-    if p.sound and p.display and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
+    if p.sound and p.display and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING, "Master") end
     C:Refresh()
 end
 ON_TIMER.nearbyFirst = function()
@@ -971,7 +973,7 @@ function C:Check(quiet)
         if not quiet and wasEnding <= ON_TIME then
             self.ended = true
             if Says("ending") then Print(EndedText()) end
-            if p.sound and p.display and p.without ~= "none" and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
+            if p.sound and p.display and p.without ~= "none" and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING, "Master") end
         end
     end
     local w = self.welcome
@@ -1010,15 +1012,41 @@ function C:Unread()
     self:AfterCombat()
 end
 
--- Your auras changed. Only auras gained or lost matter (most changes are other auras' updates), and nothing is read in
--- combat.
+-- Whether auras gained or lost can change the camp auras: a camp aura gained, one you have lost, or one that can't be
+-- told apart.
+local CAMP_AURAS = { [CAMP_BENEFITS] = true, [WELCOMING[1]] = true, [WELCOMING[2]] = true, [BOOSTED_REST] = true,
+    [NEARBY] = true }
+function C:CampChange(added, removed)
+    if self.dirty then return true end
+    if added then
+        for i = 1, #added do
+            local aura = added[i]
+            if IsSecret(aura) or type(aura) ~= "table" then return true end
+            local id = aura.spellId
+            if IsSecret(id) or CAMP_AURAS[id] then return true end
+        end
+    end
+    if removed then
+        local b, w, r, n = self.benefits, self.welcome, self.boosted, self.near
+        for i = 1, #removed do
+            local id = removed[i]
+            if IsSecret(id) or b.on and b.id == id or w.on and w.id == id or r.on and r.id == id or n.on and n.id == id then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Your auras changed. Only camp auras gained or lost matter (most changes are other auras' updates), and nothing is read
+-- in combat.
 function C:OnAura(info)
     if InCombatLockdown() then return self:Unread() end
     if IsSecret(info) or type(info) ~= "table" then return self:Unread() end
     local full, added, removed = info.isFullUpdate, info.addedAuras, info.removedAuraInstanceIDs
     if IsSecret(full) or IsSecret(added) or IsSecret(removed) then return self:Unread() end
     if not (full or added or removed) then return end
-    self:Check()
+    if full or self:CampChange(added, removed) then self:Check() end
     if full then return self:CheckBuffs() end
     if removed and next(self.campBuffs) then
         for i = 1, #removed do
@@ -1053,6 +1081,11 @@ function C:OnListen()
     self.quietUntil = GetTime() + 5
     self:LearnKits()
     self:Apply()
+    -- A font or bar texture another addon registers later is used once it's there.
+    HST.LSM.RegisterCallback(self, "LibSharedMedia_Registered", function(_, kind, name)
+        local p = self.db.profile
+        if (kind == "statusbar" and name == p.texture) or (kind == "font" and name == p.font) then self:Apply() end
+    end)
     self:TimeFire()
     -- Turned on with Edit Mode open: selectable at once, as when Edit Mode opens.
     self:UpdateEditMode()

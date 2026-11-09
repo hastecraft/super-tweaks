@@ -167,6 +167,12 @@ function H:Scan()
     picked, self.loading = 0, nil
     wipe(bankedOf)
     local p, ctx = self.db.profile, ns.SellClutter:Context()
+    -- Until the game has said what your quests need, nothing is listed: it's asked for here, and tried again shortly.
+    if not ctx.complete then
+        ns.SellClutter:PrepareSale()
+        self.loading = true
+        return
+    end
     for bag = 0, NUM_BAG_SLOTS or 4 do
         local slots = C_Container.GetContainerNumSlots(bag)
         local _, family = C_Container.GetContainerNumFreeSlots(bag)

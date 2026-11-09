@@ -471,8 +471,9 @@ function T:UpdateHealth(recolor, guid)
     if text ~= self.shownText then self.shownText = text; bar.text:SetText(text) end
 end
 
--- Health text from hidden values, formatted by the game (as EllesmereUI's unit frames do). Hidden values can't be
--- tested, so what's shown depends only on what the game offers, never on the values.
+-- Health text from hidden values, formatted by the game (as EllesmereUI's unit frames do), as the open world's reads
+-- (see ns.ShortSecret). Hidden values can't be tested, so what's shown depends only on what the game offers, never on
+-- the values.
 function T:SecretHealthText(unit, current, maximum)
     local text, mode = self.bar.text, self.db.profile.barText
     local canPercent = UnitHealthPercent ~= nil and CurveConstants ~= nil and CurveConstants.ScaleTo100 ~= nil
@@ -485,9 +486,9 @@ function T:SecretHealthText(unit, current, maximum)
     elseif mode == "PERCENT" and canPercent then
         text:SetFormattedText("%d%%", percent)
     elseif mode == "BOTH" and canPercent then
-        text:SetFormattedText("%s / %s (%d%%)", AbbreviateNumbers(current), AbbreviateNumbers(maximum), percent)
+        text:SetFormattedText("%s / %s (%d%%)", ns.ShortSecret(current), ns.ShortSecret(maximum), percent)
     else
-        text:SetFormattedText("%s / %s", AbbreviateNumbers(current), AbbreviateNumbers(maximum))
+        text:SetFormattedText("%s / %s", ns.ShortSecret(current), ns.ShortSecret(maximum))
     end
 end
 
@@ -716,7 +717,7 @@ function T:HookTooltip()
     if self.hooked then return end
     self.hooked = true
     local tip = GameTooltip
-    ns.HookUnitTooltip(function(tooltip, data, unit) self:OnUnitTooltip(tooltip, data, unit) end)
+    ns.HookUnitTooltip(self, function(tooltip, data, unit) self:OnUnitTooltip(tooltip, data, unit) end)
     if tip:HasScript("OnTooltipCleared") then tip:HookScript("OnTooltipCleared", function() self:Clear() end) end
     tip:HookScript("OnHide", function() self:Clear(); self:Watch(nil) end)
     -- Skins restyle the border when the tooltip shows, after the unit is set.

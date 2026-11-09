@@ -44,9 +44,11 @@ function R.info.preview(frame)
         name:SetText("Jagged Arrow")
         v.count = W.Text(row, "GameFontHighlightSmall")
         v.count:SetPoint("BOTTOMLEFT", slot, "BOTTOMRIGHT", 8, 2)
-        v.line = W.ChatLine(frame, "Bought 1000 Jagged Arrow for " .. Money(2500) .. ".")
-        W.Column(frame, { row, 10, v.line })
+        v.line = W.ChatLine(frame, "")
     end
+    -- Written each time, in the money style of the moment, and laid out by its height.
+    v.line:SetText(W.Chat("Bought 1000 Jagged Arrow for " .. Money(2500) .. "."))
+    W.Column(frame, { row, 10, v.line })
     local shown
     W.Loop(frame, 4.5, function(t)
         local have = 200 + math.floor(W.Ease(t, 0.8, 1.8) * 5) * 200
@@ -267,6 +269,9 @@ local function AddPurchases(plan, planned, budget, index, itemID, want, recipes)
     end
     return budget - bundles * price
 end
+
+-- Whether an item is on your list while this is on: selling and deleting tweaks keep it, as it would be bought back.
+function R:Keeps(itemID) return self:IsEnabled() and self.db.profile.items[itemID] ~= nil end
 
 -- The purchases to make now: { index, itemID, quantity, cost, recipes }, the items on your list first, then what the
 -- tracked recipes need on top of them, each in the vendor's order. An item on both is bought up to the larger amount.

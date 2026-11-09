@@ -106,16 +106,17 @@ local function Paint(row, points, p)
 end
 
 -- A count the game hides from addons can't be compared, only handed to widgets that draw it: each pip is then a status
--- bar running from one point below it to its own, which the game fills once the count reaches it. Empty pips and the
--- color for all points need the count read, so they're left out until it can be.
+-- bar running from one point below it to its own, which the game fills once the count reaches it, over the pip itself
+-- as the empty point. The color for all points needs the count read, so it waits until it can be.
 local function PaintSecret(row, points, p)
     local count = row.count
+    local bars = row.bars
     if not row.secret then
         row.secret = true
-        local bars = row.bars or {}
+        bars = bars or {}
         row.bars = bars
         local size, gap = p.size, p.spacing
-        local texture, color = SHAPES[p.shape] or SHAPES.ROUND, p.color
+        local texture, color, empty = SHAPES[p.shape] or SHAPES.ROUND, p.color, p.emptyColor
         for i = 1, count do
             local bar = bars[i]
             if not bar then
@@ -129,11 +130,17 @@ local function PaintSecret(row, points, p)
             bar:ClearAllPoints()
             bar:SetPoint("LEFT", row, "LEFT", (i - 1) * (size + gap), 0)
             bar:Show()
-            row.pips[i]:Hide()
-            row.pips[i].shownOn = false
+            local pip = row.pips[i]
+            if p.empty then
+                pip:SetVertexColor(empty[1], empty[2], empty[3], empty[4] or 1)
+                pip:Show()
+                pip.shownOn, pip.shownColor = true, empty
+            else
+                pip:Hide()
+                pip.shownOn = false
+            end
         end
     end
-    local bars = row.bars
     for i = 1, count do bars[i]:SetValue(points) end
 end
 

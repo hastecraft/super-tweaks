@@ -506,14 +506,16 @@ function P:OnUnlisten() self.death = (self.death or 0) + 1 end
 local J = HST:NewFeature("SellJunk", {
     name = "Sell Junk Automatically", category = "loot", order = 3, enabledByDefault = false,
     summary = "Sells your grey items at vendors.", examples = { "summary", "keepGear" },
-    description = "Sells your grey items whenever you visit a vendor. Hold Shift to skip.",
+    description = "Sells your grey items whenever you visit a vendor. Those a quest needs or an equipment set holds "
+        .. "stay. Hold Shift to skip.",
 })
 ns.SellJunk = J
 Settings(J,{ summary = true, keepGear = false, skipConfirm = false }, function(m) return {
     summary = Toggle(m, "summary", "Say what was sold", 1),
     keepGear = Toggle(m, "keepGear", "Keep grey weapons and armor", 2),
     skipConfirm = Toggle(m, "skipConfirm", "Sell All Junk without asking", 3,
-        "The vendor's own Sell All Junk button sells right away, without asking you to confirm."),
+        "The vendor's own Sell All Junk button sells right away, without asking you to confirm. It still asks "
+            .. "when it would sell an item Sell Junk keeps."),
 } end)
 
 J.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
@@ -551,7 +553,7 @@ function J.info.preview(frame)
             total = total + item[2]
         end
     end
-    v.line:SetText(W.Chat(string.format("Sold %d junk items for %s.", #sold, Money(total))))
+    v.line:SetText(W.Chat(string.format("Sold %d junk %s for %s.", #sold, #sold == 1 and "item" or "items", Money(total))))
     W.Column(frame, { v.bag, 10, v.line })
     for _, icon in pairs(v.icons) do icon:SetAlpha(1) end
     local finish = 0.6 + #sold * 0.4
@@ -596,12 +598,14 @@ function Sale:Leads(seller)
     return false
 end
 
--- Whether a selling module that's on keeps this item from every seller.
+-- Whether a selling module keeps this item from every seller (a Never sell list holds whether its module is on or not),
+-- or Restock at Vendors would buy it back (see R:Keeps).
 function Sale:Kept(itemID)
     for _, seller in ipairs(self.sellers) do
-        if seller.Keeps and seller:IsEnabled() and seller:Keeps(itemID) then return true end
+        if seller.Keeps and seller:Keeps(itemID) then return true end
     end
-    return false
+    local restock = ns.Restock
+    return restock ~= nil and restock:Keeps(itemID)
 end
 
 -- Shared item-instance protections. Scans check bag exclusion once per bag; actions check it again below.
@@ -779,14 +783,28 @@ function Sale:Listen(seller)
     function seller:OnUnlisten() Sale:Left() end
 end
 
--- Grey items, keeping grey weapons and armor when asked (the sale has checked the slot: see Sale:SlotAllowed).
+-- Grey items, keeping grey weapons and armor when asked (the sale has checked the slot: see Sale:SlotAllowed), and
+-- what Sell Clutter keeps whether it's on or not: items in an equipment set, named by a quest in your log, or that a
+-- RestedXP guide needs. Its facts are read once a grey item would sell: fresh for each scan of the bags, or as Sell
+-- Clutter read them for that scan when it's on.
 local GetInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
 local IsEquippable = C_Item and C_Item.IsEquippableItem or IsEquippableItem
+function J:PrepareSale()
+    self.freshFacts = true
+    return true
+end
 function J:SalePrice(info)
     local itemID = info.itemID
     if info.quality ~= 0 or self.db.profile.keepGear and IsEquippable and IsEquippable(itemID) then return nil end
-    local price = select(11, GetInfo(itemID)) or 0
-    return price > 0 and price or nil
+    local name, _, _, _, _, _, _, _, _, _, price = GetInfo(itemID)
+    if not name or (price or 0) <= 0 then return nil end
+    local clutter = ns.SellClutter
+    if clutter then
+        local ctx = clutter:Context(self.freshFacts and not clutter:IsEnabled())
+        self.freshFacts = nil
+        if ctx.sets[itemID] or clutter:QuestNeeds(itemID, name, ctx) then return nil end
+    end
+    return price
 end
 function J:Sold(sold)
     if not self.db.profile.summary then return end
@@ -803,6 +821,19 @@ local function IsJunkConfirmation(dialog)
     return type(data) == "table" and (data.callback == MerchantFrame_OnSellAllJunkButtonConfirmed
         or (SELL_ALL_JUNK_ITEMS_POPUP ~= nil and data.text == SELL_ALL_JUNK_ITEMS_POPUP))
 end
+-- Whether the game's Sell All Junk would sell a grey item Sell Junk keeps (a Never sell item, grey gear when kept): its
+-- confirmation is then left up. Bags the game leaves out of junk sales don't count.
+local function KeepsJunk()
+    for bag = 0, Sale.LastBag() do
+        if not Sale.Excluded(bag) then
+            for slot = 1, C_Container.GetContainerNumSlots(bag) do
+                local info = C_Container.GetContainerItemInfo(bag, slot)
+                if info and info.quality == 0 and not info.hasNoValue and not Sale:Price(J, info, bag, slot) then return true end
+            end
+        end
+    end
+    return false
+end
 function J:OnListen()
     if self.sellAllHooked or not (MerchantFrame_OnSellAllJunkButtonClicked and StaticPopup_ForEachShownDialog
         and C_MerchantFrame and C_MerchantFrame.SellAllJunkItems) then return end
@@ -811,7 +842,7 @@ function J:OnListen()
         if not (J:IsEnabled() and J.db.profile.skipConfirm) then return end
         local shown
         StaticPopup_ForEachShownDialog(function(dialog) if IsJunkConfirmation(dialog) then shown = dialog end end)
-        if not shown then return end
+        if not shown or KeepsJunk() then return end
         StaticPopup_Hide("GENERIC_CONFIRMATION", shown.data)
         C_MerchantFrame.SellAllJunkItems()
     end)
@@ -858,9 +889,11 @@ function A.info.preview(frame)
             slot.bar:SetPoint("LEFT", track, "LEFT")
             v.slots[i] = slot
         end
-        v.line = W.ChatLine(frame, "Repaired for " .. Money(14250) .. ".")
-        W.Column(frame, { panel, 10, v.line })
+        v.line = W.ChatLine(frame, "")
     end
+    -- Written each time, in the money style of the moment, and laid out by its height.
+    v.line:SetText(W.Chat("Repaired for " .. Money(14250) .. "."))
+    W.Column(frame, { panel, 10, v.line })
     local summary = A.db.profile.summary
     local shownMended
     W.Loop(frame, 5, function(t)

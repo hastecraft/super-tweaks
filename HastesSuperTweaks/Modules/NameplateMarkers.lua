@@ -111,7 +111,10 @@ function N.info.preview(frame)
         end
     end
     local p = N.db.profile
-    if v.quest then v.quest.quest:SetShown(p.quest) end
+    if v.quest then
+        v.quest.quest:SetShown(p.quest)
+        v.quest.quest:SetSize(p.size, p.size)
+    end
     W.Loop(frame, 4, function(t) v.line:SetAlpha(p.alert and W.Window(t, 0.6, 3.8, 0.3) or 0) end)
 end
 
@@ -262,7 +265,7 @@ function N:Alert(unit)
     self.alerted[guid] = true
     local name = UnitName(unit)
     HST:Print((not IsSecret(name) and name) and ("Rare nearby: " .. name .. ".") or "A rare is nearby.")
-    if p.sound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
+    if p.sound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING, "Master") end
 end
 
 -- Checks the quest marks of the nameplates showing again: every one's while the quest log answers or when all is set,

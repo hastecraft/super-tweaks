@@ -120,7 +120,9 @@ function Q:OnTitleEnter(button)
     local cap = LevelXP()
     local xp, estimate = self:RewardXP(button.questID)
     if not (xp and cap) then return end
-    GameTooltip:AddLine(string.format("Reward: %s%d XP (%d%% of this level)", estimate and "about " or "", xp, floor(xp / cap * 100 + 0.5)), 0.56, 0.72, 1)
+    -- Written as the title writes it.
+    GameTooltip:AddLine(string.format("Reward: %s%s XP (%d%% of this level)", estimate and "about " or "", ns.ShortNumber(xp, 10000),
+        floor(xp / cap * 100 + 0.5)), 0.56, 0.72, 1)
     GameTooltip:Show()
 end
 

@@ -41,7 +41,7 @@ ns.Configure(B, {
                 reset = { type = "execute", name = "Reset position", order = 4, desc = "Puts the bags back where the game opens them.",
                     func = function() local p = m.db.profile; p.x, p.y = false, false; m:Apply() end },
                 note = { type = "description", order = 5, name = "Turn on Use Combined Inventory Bags in the game's "
-                    .. "Options > Controls to use the combined bags." },
+                    .. "options to use the combined bags." },
             }, { disabled = noCombined }),
             slots = ns.Section("Free slots", 2, {
                 freeSlots = option("toggle", "freeSlots", "Count only usable slots", 1,

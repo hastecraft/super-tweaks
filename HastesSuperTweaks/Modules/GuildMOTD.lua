@@ -93,7 +93,7 @@ function M:Show(motd)
     f.elapsed, f.shownAlpha = 0, 0
     f:SetAlpha(0)
     f:Show()
-    if p.sound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
+    if p.sound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING, "Master") end
 end
 
 -- motd is the current message; login marks the first check after logging in. A message the game hides from addons

@@ -269,7 +269,7 @@ function HST:OnInitialize()
     self:ApplyAccent()
     ns.Widgets.SetSounds(self.db.global.sounds ~= false)
     ns.Widgets.SetAnimate(self.db.global.animate ~= false)
-    ns.Widgets.SetMoneyLetters(self.db.global.moneyLetters == true)
+    ns.SetMoneyLetters(self.db.global.moneyLetters == true)
     for _, module in ipairs(self:Features()) do
         module:SetEnabledState(self.db.global.modules[module:GetName()] and not module.info.unavailable)
     end
@@ -433,7 +433,7 @@ function HST:GeneralOptions()
                 set = function(_, on)
                     -- Saved only when on.
                     self.db.global.moneyLetters = on or nil
-                    ns.Widgets.SetMoneyLetters(on)
+                    ns.SetMoneyLetters(on)
                 end },
         } },
         window = { type = "group", inline = true, name = "Window", order = 2, args = {
@@ -497,7 +497,11 @@ end
 
 function HST:OnEnable()
     -- Runs before the modules' OnEnable, so they read per-character data under the right key.
-    self:FixCharacterKey()
+    -- An error still shows, and doesn't leave the profile handlers skipped.
+    self.loginSwitch = true
+    local ok, err = pcall(self.FixCharacterKey, self)
+    self.loginSwitch = nil
+    if not ok then error(err, 0) end
     -- The class may not be known yet while addons load.
     self:ApplyAccent()
     ns.RegisterMedia()
@@ -717,20 +721,29 @@ end
 -- Runs fn(tooltip, data, unit) after GameTooltip is filled in for a unit, unit being the token the tooltip gives when
 -- it names a unit that exists (else nil; data.guid may still say which). Both clients fill unit tooltips through the
 -- tooltip data processor, which fills a cleared tooltip before its hooks run and shows (and sizes) it after them, so
--- lines added here are neither there already nor need a Show of their own. Hooks can't be removed, so fn checks the
--- module state. Every fn runs from one hook, which asks the tooltip for its unit once (unit frames redraw their
--- tooltip five times a second); as with the game's own hooks, an error in one doesn't stop the others. Callers
--- register a frame after login, to run after other addons' login-time hooks.
-local unitTooltipHooks = {}
+-- lines added here are neither there already nor need a Show of their own. Hooks can't be removed, so fn runs only
+-- while module (its owner) is on. Every fn runs from one hook, which asks the tooltip for its unit once, and not at all
+-- with every owner off (unit frames redraw their tooltip five times a second); as with the game's own hooks, an error
+-- in one doesn't stop the others. Callers register a frame after login, to run after other addons' login-time hooks.
+local unitTooltipHooks, unitTooltipOwners = {}, {}
 local function OnUnitTooltip(tip, data)
     if tip ~= GameTooltip or (tip.IsForbidden and tip:IsForbidden()) then return end
-    local ok, _, unit = pcall(tip.GetUnit, tip)
-    if not ok or IsSecret(unit) or not unit or not UnitExists(unit) then unit = nil end
-    for i = 1, #unitTooltipHooks do securecallfunction(unitTooltipHooks[i], tip, data, unit) end
+    local asked, unit
+    for i = 1, #unitTooltipHooks do
+        if unitTooltipOwners[i]:IsEnabled() then
+            if not asked then
+                asked = true
+                local ok, _, token = pcall(tip.GetUnit, tip)
+                if ok and not IsSecret(token) and token and UnitExists(token) then unit = token end
+            end
+            securecallfunction(unitTooltipHooks[i], tip, data, unit)
+        end
+    end
 end
-function ns.HookUnitTooltip(fn)
-    unitTooltipHooks[#unitTooltipHooks + 1] = fn
-    if #unitTooltipHooks == 1 then TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnUnitTooltip) end
+function ns.HookUnitTooltip(module, fn)
+    local n = #unitTooltipHooks + 1
+    unitTooltipHooks[n], unitTooltipOwners[n] = fn, module
+    if n == 1 then TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnUnitTooltip) end
 end
 
 -- The first left-hand tooltip line after the title whose text contains `text` (with exact, is `text`), and that text.
@@ -757,18 +770,51 @@ function ns.FindTooltipLine(tip, text, exact)
     end
 end
 
--- Money with coin icons, as the game shows it; size sets the icons' height to match the text.
-function ns.Money(copper, size, back) -- luacheck: ignore 212
+-- Money in text, as the settings window's "Money as letters" says: "47g 21s 14c", or digits with coin icons as the game
+-- writes them. size: the icons' height, to match the text (0 or nil: the text's own; WoW Forever always uses that).
+-- back: inside a colored text, its color code, for a colored letter to go back to (color codes don't nest).
+local moneyLetters, moneyListeners, coinIcons = false, {}, {}
+local function CoinIcons(size)
+    local icons = coinIcons[size]
+    if not icons then
+        icons = {}
+        for i, coin in ipairs({ "Gold", "Silver", "Copper" }) do
+            icons[i] = string.format("|TInterface\\MoneyFrame\\UI-%sIcon:%d:%d:2:0|t", coin, size, size)
+        end
+        coinIcons[size] = icons
+    end
+    return icons
+end
+function ns.Money(copper, size, back)
     copper = math.floor(copper or 0)
-    back = back or "|r" -- color codes don't nest: inside a colored text, pass its code to go back to it
     local gold, silver = math.floor(copper / 10000), math.floor(copper / 100) % 100
     copper = copper % 100
+    local g, s, c
+    if moneyLetters then
+        back = back or "|r"
+        g, s, c = "|cffffd700g" .. back, "|cffc7c7cfs" .. back, "|cffeda55fc" .. back
+    else
+        local icons = CoinIcons(math.floor(size or 0))
+        g, s, c = icons[1], icons[2], icons[3]
+    end
     local text
-    if gold > 0 then text = gold .. "|cffffd700g" .. back end
-    if silver > 0 then text = (text and text .. " " or "") .. silver .. "|cffc7c7cfs" .. back end
-    if copper > 0 or not text then text = (text and text .. " " or "") .. copper .. "|cffeda55fc" .. back end
+    if gold > 0 then text = gold .. g end
+    if silver > 0 then text = (text and text .. " " or "") .. silver .. s end
+    if copper > 0 or not text then text = (text and text .. " " or "") .. copper .. c end
     return text
 end
+
+-- Switches all money between letters and coins: the coin widgets redraw, and so does anything that ns.OnMoneyStyle(fn)
+-- asked for (text kept as written, such as built tooltip lines).
+function ns.SetMoneyLetters(on)
+    on = on == true
+    if moneyLetters == on then return end
+    moneyLetters = on
+    ns.Widgets.SetMoneyLetters(on)
+    for i = 1, #moneyListeners do securecallfunction(moneyListeners[i]) end
+end
+function ns.MoneyLetters() return moneyLetters end
+function ns.OnMoneyStyle(fn) moneyListeners[#moneyListeners + 1] = fn end
 
 -- 1.2m for millions, 12.3k from `from` (default 1000) up, and smaller values rounded. Values that would round up to
 -- the next unit (999,960 to "1000.0k") take that unit.
@@ -777,6 +823,30 @@ function ns.ShortNumber(value, from)
     local rounded = math.floor(value + 0.5)
     if rounded >= (from or 1000) then return string.format("%.1fk", value / 1000) end
     return tostring(rounded)
+end
+
+-- A number the game hides from addons, written as ns.ShortNumber(value, 10000) writes the rest: by the game's formatter
+-- (the one thing that can write it) with breakpoints for that, once a few numbers show it writes them alike; with the
+-- game's own abbreviations where it doesn't.
+local shortSecret -- the breakpoints, false when the formatter doesn't write them alike; nil until first asked
+local SHORT_CHECKS = { 7, 999, 1234, 9999, 10000, 12345, 12399, 123456, 1234567 }
+function ns.ShortSecret(value)
+    if not AbbreviateNumbers then return value end
+    if shortSecret == nil then
+        shortSecret = false
+        local options = { breakpointData = {
+            { breakpoint = 1000000, abbreviation = "m", significandDivisor = 100000, fractionDivisor = 10, abbreviationIsGlobal = false },
+            { breakpoint = 10000, abbreviation = "k", significandDivisor = 100, fractionDivisor = 10, abbreviationIsGlobal = false },
+        } }
+        local alike = true
+        for _, n in ipairs(SHORT_CHECKS) do
+            local ok, text = pcall(AbbreviateNumbers, n, options)
+            if not ok or text ~= ns.ShortNumber(n, 10000) then alike = false; break end
+        end
+        if alike then shortSecret = options end
+    end
+    if shortSecret then return AbbreviateNumbers(value, shortSecret) end
+    return AbbreviateNumbers(value)
 end
 
 -- The "|cffrrggbb" code for a color table, { r, g, b } or { r = r, g = g, b = b }. Codes are kept per table: settings
@@ -1033,9 +1103,15 @@ function ns.OnePage(name, sectionKey, sectionName, args)
     } }
 end
 
--- Calls handler(module) after every profile switch, copy and reset; handler may be a method name.
+-- Calls handler(module) after every profile switch, copy and reset; handler may be a method name. A switch to the
+-- character's own profile in HST:OnEnable comes before the modules' OnEnable, which applies the profile anyway: a
+-- module that's on skips it, since its handler may need what OnEnable sets up.
 function ns.OnProfile(module, handler)
-    local run = type(handler) == "string" and function() module[handler](module) end or function() handler(module) end
+    local apply = type(handler) == "string" and function() module[handler](module) end or function() handler(module) end
+    local function run()
+        if HST.loginSwitch and module:IsEnabled() then return end
+        apply()
+    end
     for _, event in ipairs({ "OnProfileChanged", "OnProfileCopied", "OnProfileReset" }) do
         module.db.RegisterCallback(module, event, run)
     end

@@ -402,7 +402,8 @@ local function CanPost()
     local price = Se.price:GetValue()
     local bid = (Se.bid:IsShown() and Se.bid:GetValue()) or 0
     if price <= 0 and bid <= 0 then return false end
-    if bid > 0 and price > 0 and bid > price then return false end
+    -- As in the game's own window, a buyout has to be more than the starting bid.
+    if bid > 0 and price > 0 and bid >= price then return false end
     local deposit = Deposit()
     return not (deposit and deposit > GetMoney())
 end
@@ -619,8 +620,8 @@ local function SayPosted(job)
     if not Profile().postChat then return end
     local text = "Posted " .. (job.link or "") .. " x" .. job.quantity
     if job.price > 0 then
-        text = text .. ": " .. K.Money(job.price)
-        if job.quantity > 1 then text = text .. " each, " .. K.Money(job.price * job.quantity) .. " in all" end
+        text = text .. ": " .. ns.Money(job.price)
+        if job.quantity > 1 then text = text .. " each, " .. ns.Money(job.price * job.quantity) .. " in all" end
     end
     HST:Print(text)
 end
@@ -742,6 +743,8 @@ local function Post()
         local bid = Se.bid:GetValue()
         if bid > 0 and bid ~= RoundForGame(bid) then Se.bid:SetValue(RoundForGame(bid)) end
     end
+    -- Rounding can make a bid and buyout that differed only in copper the same.
+    if not CanPost() then return FillSummary() end
     local reason = LowPriceReason(price, quantity)
     if reason then
         K.Dialog({ title = "Post at " .. K.Money(price) .. "?", text = reason, confirm = "Post", onConfirm = DoPost })
@@ -798,12 +801,20 @@ end
 ---------------------------------------------------------------------------
 -- Rows in Current Prices: clicks price from them, and shortcuts cancel or buy
 ---------------------------------------------------------------------------
+-- Asked as Shopping asks: with what the price went up by, and the quantity typed when "Type the quantity to confirm
+-- buying materials" is on.
 local function BuyPrice(job, unit, total)
     if job.total == total then return end
     -- A price that moves while the question is up changes the question: confirming buys at the newest price.
     job.total = total
-    K.Dialog({ title = "Buy " .. job.quantity .. " for " .. K.Money(total) .. "?", text = K.Money(unit) .. " each", confirm = "Buy",
-        replaces = job.asked,
+    local text = K.Money(unit) .. " each"
+    if job.expected and total > job.expected then
+        text = text .. "\nThe price went up by " .. K.Money(total - job.expected) .. "."
+    end
+    local must = Profile().confirmQuantity
+    K.Dialog({ title = "Buy " .. job.quantity .. " for " .. K.Money(total) .. "?", text = text, confirm = "Buy",
+        confirmDisabled = must, input = must and true or nil, inputNumeric = must, replaces = job.asked,
+        onInput = must and function(value, dialog) dialog.ok:SetDisabled(tonumber(value) ~= job.quantity) end or nil,
         onConfirm = function() N.ConfirmPurchase(job) end,
         onCancel = function() N.CancelPurchase(job) end })
     job.asked = true
@@ -816,7 +827,8 @@ end
 local function BuyRow(e)
     if e.isCommodity then
         -- One at a time: the game's answer doesn't say which quantity it prices.
-        N.StartPurchase(e.itemID, e.quantity, BuyPrice, BuyGone)
+        local job = N.StartPurchase(e.itemID, e.quantity, BuyPrice, BuyGone)
+        if job then job.expected = e.price and e.price * e.quantity or nil end
         return
     end
     if not e.price or e.price <= 0 then return end
@@ -853,7 +865,7 @@ end
 ---------------------------------------------------------------------------
 -- Keys
 ---------------------------------------------------------------------------
-local function CanBind() return not InCombatLockdown() and Se.frame and Se.frame:IsShown() end
+local function CanBind() return not InCombatLockdown() and Se.frame and Se.frame:IsVisible() end
 
 function Se.BindKeys()
     if not Se.keyOwner or InCombatLockdown() then return end
@@ -962,6 +974,8 @@ function Se.Apply()
         Se.bidLabel:SetShown(BidShown())
     end
     Se.BindKeys()
+    -- The list again from the bags last read: "Show favorites you have none of" may have changed.
+    if Se.items then Se.sections = BuildSections(Se.items) end
     Se.Layout()
 end
 
@@ -1114,7 +1128,8 @@ function Se.Build(frame)
         empty = "No auctions.", isSelected = nil,
         onClick = CurrentClick,
         onEnter = function(e, row)
-            if e.link then K.ItemTip(row, e.link) elseif cur then K.ItemTip(row, cur.link) end
+            local link = e.link or cur and cur.link
+            if link then K.ItemTip(row, link, nil, true) end
         end,
     })
     Se.current:SortBy("price")
@@ -1158,7 +1173,7 @@ function Se.Build(frame)
         PostLanded(true)
     end)
     N.On("BAG_UPDATE_DELAYED", function()
-        if frame:IsShown() and not (post and post.state ~= "awaitingGamePopup") then Se.Refresh() end
+        if frame:IsVisible() and not (post and post.state ~= "awaitingGamePopup") then Se.Refresh() end
     end)
     N.On("PLAYER_REGEN_DISABLED", UnbindKeys)
     N.On("PLAYER_REGEN_ENABLED", function() Se.BindKeys() end)
@@ -1174,7 +1189,7 @@ function Se.Build(frame)
     end
     N.On("AUCTION_HOUSE_POST_ERROR", failed)
     N.On("AUCTION_HOUSE_SHOW_ERROR", failed)
-    local function reloadListing() if frame:IsShown() and cur then QueryListing() end end
+    local function reloadListing() if frame:IsVisible() and cur then QueryListing() end end
     N.On("AUCTION_CANCELED", reloadListing)
     N.On("ITEM_PURCHASED", reloadListing)
     N.On("COMMODITY_PURCHASE_SUCCEEDED", reloadListing)

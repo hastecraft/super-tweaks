@@ -667,6 +667,9 @@ local function PaintLive()
     SetText(Win.live, run and (run.n .. ", " .. Duration(seconds)) or "")
 end
 
+-- Gold is written in the money style, which the settings window can switch while this is open.
+ns.OnMoneyStyle(function() if Win.frame and Win.frame:IsShown() then Win.Refresh() end end)
+
 function Win.Refresh()
     local p = I.db.profile
     PaintBar()

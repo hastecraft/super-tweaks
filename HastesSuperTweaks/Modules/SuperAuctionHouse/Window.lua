@@ -216,6 +216,15 @@ local function ShowGame()
     Win.back:Show()
 end
 
+-- True while the window shows on its way to Win.Select, which shows the tab: the window's OnShow leaves it to that.
+-- Selecting(fn, ...) runs fn so; an error still shows, and doesn't leave it true.
+local selecting = false
+local function Selecting(fn, ...)
+    selecting = true
+    local ok, err = pcall(fn, ...)
+    selecting = false
+    if not ok then error(err, 0) end
+end
 local function TakeOver()
     Win.frame:Show()
     Win.back:Hide()
@@ -428,7 +437,7 @@ local function Build()
         K.CloseDialog()
     end)
     f:SetScript("OnShow", function()
-        local module = Modules()[Win.current]
+        local module = not selecting and Modules()[Win.current]
         if module and module.OnShow then module.OnShow() end
         UpdateMoney()
         Win.UpdateScanLine()
@@ -474,7 +483,9 @@ function Win.Select(key)
         if leaving.frame then leaving.frame:Hide() end
         if leaving.OnHide then leaving.OnHide() end
     end
-    if Win.mode == "liveGame" then ShowOurs() end
+    if Win.mode == "liveGame" then
+        Selecting(ShowOurs)
+    end
     Win.current = key
     S.db.profile.lastTab = key
     local module = modules[key]
@@ -503,7 +514,7 @@ function Win.ToggleSaved()
         if leaving.frame then leaving.frame:Hide() end
         Win.current = nil
     end
-    f:Show()
+    Selecting(f.Show, f)
     Win.Select(Win.current or "shopping")
     S.Prices.FillNames()
 end
@@ -524,7 +535,7 @@ function Win.Open()
         return
     end
     if openOn == "last" then openOn = S.db.profile.lastTab end
-    TakeOver()
+    Selecting(TakeOver)
     Win.Select(openOn)
     UpdateMoney()
     Win.UpdateScanLine()
@@ -553,4 +564,5 @@ function Win.Apply()
     PaintAutoScan()
     if S.Selling.frame then S.Selling.Apply() end
     if S.Shopping.frame then S.Shopping.Apply() end
+    if S.Auctions.frame then S.Auctions.Apply() end
 end

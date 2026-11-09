@@ -108,6 +108,8 @@ function S:BuildOptions()
                     desc = "Size of misses, dodges, parries and full blocks, absorbs and resists, compared with damage." }),
             }),
             crits = Section("Critical hits", 3, {
+                help = { type = "description", order = 0,
+                    name = "Spell alerts, Low Health, Low Mana and full combo points are drawn as critical hits too, as the game draws them." },
                 critScale = option("range", "critScale", "Size", 1, { min = 1, max = 3, step = 0.05, isPercent = true,
                     desc = "How much larger critical hits and crushing blows are than other texts." }),
                 critPop = toggle("critPop", "Pop", 2, "Critical hits start twice as large and shrink into place."),

@@ -220,5 +220,5 @@ function K:OnListen()
     self.noXP = ns.AtMaxLevel()
     if self.hooked then return end
     self.hooked = true
-    C_Timer.After(0, function() ns.HookUnitTooltip(function(tip, data, unit) self:OnTooltip(tip, data, unit) end) end)
+    C_Timer.After(0, function() ns.HookUnitTooltip(self, function(tip, data, unit) self:OnTooltip(tip, data, unit) end) end)
 end

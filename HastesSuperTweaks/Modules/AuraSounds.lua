@@ -225,11 +225,12 @@ local function SoundChoices(off)
     return menu.values, menu.order
 end
 
--- Plays a sound to try it, stopping the one before; aura sounds stop after five seconds, and so does this.
-function A:Preview(name)
+-- Plays a sound to try it, stopping the one before; aura sounds stop after five seconds, and so does this. fallback: the
+-- sound played in its place when it's from an addon that's no longer loaded, as A:Hand does.
+function A:Preview(name, fallback)
     if self.playing and StopSound then StopSound(self.playing) end
     self.playing = nil
-    local file = File(name)
+    local file = File(name) or File(fallback)
     if not file then return end
     local willPlay, handle = PlaySoundFile(file, self.db.profile.channel)
     if not (willPlay and handle) then return end
@@ -553,9 +554,9 @@ ns.Configure(A, defaults, function(m)
                 function() Committed(key) end),
             [key .. "Sound"] = ns.Option(profile, "select", key .. "Sound", "Sound", 2,
                 { values = values, sorting = sorting },
-                function() m:Preview(m.db.profile[key .. "Sound"]); m:Sync() end),
+                function() m:Preview(m.db.profile[key .. "Sound"], trigger.sound); m:Sync() end),
             [key .. "Play"] = { type = "execute", name = "Play", order = 3,
-                func = function() m:Preview(m.db.profile[key .. "Sound"]) end },
+                func = function() m:Preview(m.db.profile[key .. "Sound"], trigger.sound) end },
         })
     end
 
