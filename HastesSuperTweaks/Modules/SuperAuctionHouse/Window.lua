@@ -564,4 +564,5 @@ function Win.Apply()
     PaintAutoScan()
     if S.Selling.frame then S.Selling.Apply() end
     if S.Shopping.frame then S.Shopping.Apply() end
+    if S.Auctions.frame then S.Auctions.Apply() end
 end

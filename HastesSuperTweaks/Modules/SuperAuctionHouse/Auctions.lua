@@ -272,6 +272,9 @@ local function UnbindKey()
     if A.frame and not InCombatLockdown() then ClearOverrideBindings(A.frame) end
 end
 
+-- Settings changed: a new key takes over at once.
+function A.Apply() BindKey() end
+
 ---------------------------------------------------------------------------
 -- The tab
 ---------------------------------------------------------------------------
