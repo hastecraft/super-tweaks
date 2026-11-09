@@ -1387,6 +1387,60 @@ Section('Bag Cleaner (64 slots, 20 quests)', function()
 end)
 '''
 
+BANK_HELPER_MOCKS = BAG_CLEANER_MOCKS + r'''
+PERMISSIVE_FRAMES = true -- the list uses the widget library's buttons
+C_Container.GetContainerItemID = function(bag, slot) local info = bag == 0 and BAGS[slot]; return info and info.itemID or nil end
+-- The bank: the Classic Era layout (bag -1 with 24 slots), and the counts of items kept in it.
+BANK_FREE = 24
+local freeSlots = C_Container.GetContainerNumFreeSlots
+C_Container.GetContainerNumFreeSlots = function(bag) if bag == -1 then return BANK_FREE, 0 end; return freeSlots(bag) end
+BANKED = {}
+C_Item.GetItemCount = function(id, bank) return (ITEM_COUNTS[id] or 0) + (bank and BANKED[id] or 0) end
+C_Container.UseContainerItem = function(bag, slot) BAGS[slot] = nil end
+BankFrame = CreateFrame('Frame', 'BankFrame', UIParent)
+BankFrame:Hide()
+function IsModifiedClick() return false end
+function HandleModifiedItemClick() end
+'''
+
+BANK_HELPER = r'''
+local H = HST:GetModule('BankHelper')
+Only({ 'BankHelper' })
+state.class, state.level = 'WARRIOR', 30
+ITEMS[101] = { name = 'Stringy Wolf Meat', class = 7, sub = 8, price = 4 }
+ITEMS[103] = { name = 'Linen Cloth', class = 7, sub = 5, price = 13 }
+ITEMS[110] = { name = 'Tough Jerky', class = 0, sub = 5, price = 1, level = 1 }
+ITEMS[120] = { name = 'Greater Healing Potion', class = 0, sub = 1, price = 50, level = 35 }
+ITEMS[125] = { name = 'Ornate Mithril Breastplate', class = 4, sub = 4, price = 100, level = 36, equipLoc = 'INVTYPE_CHEST', quality = 2 }
+ITEMS[127] = { name = 'Lesser Magic Wand', class = 2, sub = 19, price = 60, level = 5, equipLoc = 'INVTYPE_RANGEDRIGHT', quality = 2 }
+ITEMS[130] = { name = 'Hearthstone', class = 15, sub = 0, price = 0 }
+ITEMS[140] = { name = 'Pattern: Red Linen Robe', class = 9, sub = 2, price = 20 }
+BANKED[103] = 60
+local kinds = { 101, 103, 110, 120, 125, 127, 130, 140 }
+BAG_SIZE = 64
+local function fill() for slot = 1, 64 do BAGS[slot] = BAGS[slot] or Slot(kinds[slot % #kinds + 1], slot % 7 + 1) end end
+fill()
+state.quests = {}
+for i = 1, 20 do state.quests[i] = { questID = 900 + i }; OBJECTIVES[900 + i] = { { type = 'item', text = 'Quest Thing ' .. i .. ': 1/8' } } end
+local function bagEvent() Send('BankHelper', 'BAG_UPDATE_DELAYED'); AdvanceTime(H.DELAY) end
+Section('Bank Helper (64 slots, 20 quests)', function()
+    Send('BankHelper', 'BANKFRAME_OPENED')
+    assert(H.frame and H.frame:IsShown() and #H.frame.rows > 0, 'the list is up')
+    Measure('Bank helper: bag event at the bank, items unchanged', 100, bagEvent)
+    Measure('Bank helper: one stack banked by a click, and the bag event after', 20, function()
+        Script(H.frame.rows[1], 'OnClick', 'LeftButton')
+        bagEvent()
+        fill(); bagEvent()
+    end)
+    Measure('Bank helper: bank closed and opened', 20, function()
+        Send('BankHelper', 'BANKFRAME_CLOSED')
+        Send('BankHelper', 'BANKFRAME_OPENED')
+    end)
+    Send('BankHelper', 'BANKFRAME_CLOSED')
+    Measure('Bank helper: bag event away from the bank', 100, function() Send('BankHelper', 'BAG_UPDATE_DELAYED') end)
+end)
+'''
+
 BREATH = r'''
 Only({ 'BreathMeter' })
 local B = HST:GetModule('BreathMeter')
@@ -1558,6 +1612,7 @@ def main():
     runtime(full, STARTUP_SETTINGS, start=False, measure_load=True)
     runtime(mock('bags_mocks.lua'), BAGS)
     runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + BAG_CLEANER_MOCKS, BAG_CLEANER)
+    runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + BANK_HELPER_MOCKS, BANK_HELPER)
     runtime(BREATH_MOCKS, BREATH)
     runtime(SWING_MOCKS, SWING)
     runtime(DRUID_MOCKS, DRUID)

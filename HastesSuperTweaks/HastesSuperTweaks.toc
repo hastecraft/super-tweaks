@@ -59,6 +59,7 @@ Modules\MailHelper.lua
 Modules\MailGuard.lua
 Modules\BagTweaks.lua
 Modules\BagCleaner.lua
+Modules\BankHelper.lua
 Modules\SuperAuctionHouse\Feature.lua
 Modules\SuperAuctionHouse\Prices.lua
 Modules\SuperAuctionHouse\Tooltip.lua
