@@ -513,7 +513,8 @@ Settings(J,{ summary = true, keepGear = false, skipConfirm = false }, function(m
     summary = Toggle(m, "summary", "Say what was sold", 1),
     keepGear = Toggle(m, "keepGear", "Keep grey weapons and armor", 2),
     skipConfirm = Toggle(m, "skipConfirm", "Sell All Junk without asking", 3,
-        "The vendor's own Sell All Junk button sells right away, without asking you to confirm."),
+        "The vendor's own Sell All Junk button sells right away, without asking you to confirm. It still asks "
+            .. "when it would sell an item Sell Junk keeps."),
 } end)
 
 J.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
@@ -803,6 +804,19 @@ local function IsJunkConfirmation(dialog)
     return type(data) == "table" and (data.callback == MerchantFrame_OnSellAllJunkButtonConfirmed
         or (SELL_ALL_JUNK_ITEMS_POPUP ~= nil and data.text == SELL_ALL_JUNK_ITEMS_POPUP))
 end
+-- Whether the game's Sell All Junk would sell a grey item Sell Junk keeps (a Never sell item, grey gear when kept): its
+-- confirmation is then left up. Bags the game leaves out of junk sales don't count.
+local function KeepsJunk()
+    for bag = 0, Sale.LastBag() do
+        if not Sale.Excluded(bag) then
+            for slot = 1, C_Container.GetContainerNumSlots(bag) do
+                local info = C_Container.GetContainerItemInfo(bag, slot)
+                if info and info.quality == 0 and not info.hasNoValue and not Sale:Price(J, info, bag, slot) then return true end
+            end
+        end
+    end
+    return false
+end
 function J:OnListen()
     if self.sellAllHooked or not (MerchantFrame_OnSellAllJunkButtonClicked and StaticPopup_ForEachShownDialog
         and C_MerchantFrame and C_MerchantFrame.SellAllJunkItems) then return end
@@ -811,7 +825,7 @@ function J:OnListen()
         if not (J:IsEnabled() and J.db.profile.skipConfirm) then return end
         local shown
         StaticPopup_ForEachShownDialog(function(dialog) if IsJunkConfirmation(dialog) then shown = dialog end end)
-        if not shown then return end
+        if not shown or KeepsJunk() then return end
         StaticPopup_Hide("GENERIC_CONFIRMATION", shown.data)
         C_MerchantFrame.SellAllJunkItems()
     end)
