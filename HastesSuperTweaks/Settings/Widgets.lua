@@ -446,8 +446,12 @@ end
 
 -- A pixel-exact icon from `path` (an Art file with a <path>Sizes atlas beside it: Chevron, GitHub, Heart, Logo).
 -- Not for icons other addons may crop with SetTexCoord (minimap buttons): they would show a strip of the atlas.
+-- The white full-size art of an icon whose own file is colored: the logo's is the addon list's icon, in gold, and a
+-- tint over gold comes out as neither color.
+local BIG = { [ART .. "Logo"] = ART .. "LogoTint" }
+
 function W.PixelIcon(parent, path, size, color, layer, sublevel)
-    local t = Icon(parent, path .. "Sizes", path, size, color, layer, sublevel)
+    local t = Icon(parent, path .. "Sizes", BIG[path] or path, size, color, layer, sublevel)
     t:Fit()
     return t
 end
