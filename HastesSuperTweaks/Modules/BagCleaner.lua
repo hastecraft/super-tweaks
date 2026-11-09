@@ -259,6 +259,11 @@ function B:Worth(info, bag, slot, ctx)
     if quest and (quest.isQuestItem or quest.questID) then return nil, "Quest item" end
     local why = ns.SellClutter:MustKeep(itemID, name, ctx)
     if why then return nil, why end
+    -- Gear Sell Clutter keeps for its look ("Keep new appearances") isn't deleted either.
+    local look = ns.SellClutter:KeepsLook(itemID, info.hyperlink)
+    if look then
+        return nil, look == "alt" and "A look another of your characters can learn" or "A look you haven't collected"
+    end
     return price * (info.stackCount or 1)
 end
 
