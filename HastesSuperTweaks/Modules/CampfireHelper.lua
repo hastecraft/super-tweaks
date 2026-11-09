@@ -727,10 +727,11 @@ function C:ShowTooltip(owner)
     if state == "buffs" then
         GameTooltip:SetText(SpellName(CAMP_BENEFITS, "Camp Benefits"))
         self:BuffLines()
-        Line(Span(b.ends - now) .. " left", GREY)
+        -- The time on screen, as the countdown writes it.
+        Line(Countdown(b.ends - now) .. " left", GREY)
     elseif state == "sitting" then
         GameTooltip:SetText(SpellName(WELCOMING[2], "Welcoming Campfire"))
-        Line("Keep sitting: camp buffs in " .. Span(w.ends - now) .. ".", WHITE)
+        Line("Keep sitting: camp buffs in " .. Countdown(w.ends - now) .. ".", WHITE)
         Line("Stand up or walk away before then and you get none.", GREY)
     elseif state == "nearby" then
         GameTooltip:SetText(SpellName(NEARBY, "Campfire Nearby"))
