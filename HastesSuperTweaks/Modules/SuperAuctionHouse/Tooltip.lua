@@ -223,7 +223,12 @@ local function Hook(tooltip, data)
     local info = tooltip.info
     local getter = info and info.getterName
     if getter == "GetMerchantItem" and not p.tipMerchant then return end
-    if getter == "GetItemKey" and not p.tipListings then return end
+    if not p.tipListings then
+        -- The game's auction rows, and those in this tweak's window.
+        if getter == "GetItemKey" then return end
+        local owner = tooltip:GetOwner()
+        if owner and owner.hstListing then return end
+    end
     local count = 1
     if getter then
         local read = COUNT[getter]

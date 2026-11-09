@@ -1117,7 +1117,8 @@ function Se.Build(frame)
         empty = "No auctions.", isSelected = nil,
         onClick = CurrentClick,
         onEnter = function(e, row)
-            if e.link then K.ItemTip(row, e.link) elseif cur then K.ItemTip(row, cur.link) end
+            local link = e.link or cur and cur.link
+            if link then K.ItemTip(row, link, nil, true) end
         end,
     })
     Se.current:SortBy("price")

@@ -233,7 +233,7 @@ local function BuildCommodities(parent)
             FillQuote()
         end,
         onEnter = function(_, row)
-            K.ItemTip(row, entry.link, entry.itemKey)
+            K.ItemTip(row, entry.link, entry.itemKey, true)
         end,
     })
     B.commodities:SetPoint("TOPLEFT")
@@ -265,7 +265,7 @@ local function BuildItems(parent)
             if e.link and IsModifiedClick() and HandleModifiedItemClick(e.link) then return end
             if button == "LeftButton" or e.owned then AskBuyItem(e) end
         end,
-        onEnter = function(e, row) K.ItemTip(row, e.link, e.itemKey) end,
+        onEnter = function(e, row) K.ItemTip(row, e.link, e.itemKey, true) end,
     })
     B.items:SetAllPoints()
     return v

@@ -126,8 +126,10 @@ function K.Loader(parent)
     return f
 end
 
--- Shows an item in the game's tooltip beside a frame.
-function K.ItemTip(owner, link, itemKey)
+-- Shows an item in the game's tooltip beside a frame. listing: the row is an auction, so "Auction listings" decides
+-- whether it gets price lines, as on the game's own auction rows.
+function K.ItemTip(owner, link, itemKey, listing)
+    owner.hstListing = listing or nil
     if link and link:find("battlepet:", 1, true) and BattlePetToolTip_ShowLink then
         BattlePetToolTip_ShowLink(link)
         return

@@ -338,7 +338,7 @@ function A.Build(frame)
                 AskCancel(e, true)
             end
         end,
-        onEnter = function(e, row) K.ItemTip(row, e.link, e.itemKey) end,
+        onEnter = function(e, row) K.ItemTip(row, e.link, e.itemKey, true) end,
     })
     A.table:SetPoint("TOPLEFT", 10, -44)
     A.table:SetPoint("BOTTOMRIGHT", -10, 10)

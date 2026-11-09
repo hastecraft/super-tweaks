@@ -925,7 +925,7 @@ function Sh.Build(frame)
         onClick = ResultClick,
         onEnter = function(e, row)
             if e.missing or (e.saved and not e.link) then return end
-            K.ItemTip(row, e.link, e.itemKey)
+            K.ItemTip(row, e.link, e.itemKey, true)
         end,
     })
     Sh.results:SetPoint("TOPLEFT", 6, -4)
