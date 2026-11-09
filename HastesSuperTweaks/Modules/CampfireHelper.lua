@@ -1010,15 +1010,41 @@ function C:Unread()
     self:AfterCombat()
 end
 
--- Your auras changed. Only auras gained or lost matter (most changes are other auras' updates), and nothing is read in
--- combat.
+-- Whether auras gained or lost can change the camp auras: a camp aura gained, one you have lost, or one that can't be
+-- told apart.
+local CAMP_AURAS = { [CAMP_BENEFITS] = true, [WELCOMING[1]] = true, [WELCOMING[2]] = true, [BOOSTED_REST] = true,
+    [NEARBY] = true }
+function C:CampChange(added, removed)
+    if self.dirty then return true end
+    if added then
+        for i = 1, #added do
+            local aura = added[i]
+            if IsSecret(aura) or type(aura) ~= "table" then return true end
+            local id = aura.spellId
+            if IsSecret(id) or CAMP_AURAS[id] then return true end
+        end
+    end
+    if removed then
+        local b, w, r, n = self.benefits, self.welcome, self.boosted, self.near
+        for i = 1, #removed do
+            local id = removed[i]
+            if IsSecret(id) or b.on and b.id == id or w.on and w.id == id or r.on and r.id == id or n.on and n.id == id then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Your auras changed. Only camp auras gained or lost matter (most changes are other auras' updates), and nothing is read
+-- in combat.
 function C:OnAura(info)
     if InCombatLockdown() then return self:Unread() end
     if IsSecret(info) or type(info) ~= "table" then return self:Unread() end
     local full, added, removed = info.isFullUpdate, info.addedAuras, info.removedAuraInstanceIDs
     if IsSecret(full) or IsSecret(added) or IsSecret(removed) then return self:Unread() end
     if not (full or added or removed) then return end
-    self:Check()
+    if full or self:CampChange(added, removed) then self:Check() end
     if full then return self:CheckBuffs() end
     if removed and next(self.campBuffs) then
         for i = 1, #removed do

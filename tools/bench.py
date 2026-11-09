@@ -656,8 +656,11 @@ end)
 Section('Campfire Helper', function()
     -- On a whole second, so its once-a-second countdown ticks land the same way whatever ran before.
     AdvanceTime(math.ceil(GetTime()) - GetTime())
-    local UPDATED, ADDED, REMOVED = { updatedAuraInstanceIDs = { 7 } }, { addedAuras = { {} } }, { removedAuraInstanceIDs = { 8 } }
+    local UPDATED, ADDED = { updatedAuraInstanceIDs = { 7 } }, { addedAuras = { { auraInstanceID = 7, spellId = 774 } } }
     local LOST = { removedAuraInstanceIDs = { 103 } }
+    -- A camp aura gained or lost, as the game names it.
+    local function Gained(aura) Send('CampfireHelper', 'UNIT_AURA', 'player', { addedAuras = { aura } }) end
+    local function Lost(...) Send('CampfireHelper', 'UNIT_AURA', 'player', { removedAuraInstanceIDs = { ... } }) end
     Measure('Campfire Helper: aura refreshed, none gained or lost', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', UPDATED) end)
     Measure('Campfire Helper: aura gained, not a camp one', 300, function() Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED) end)
     Measure('Campfire Helper: a spell cast, not a campfire', 300, function()
@@ -675,11 +678,11 @@ Section('Campfire Helper', function()
         benefits.expirationTime = ends
         PLAYER_AURAS[1229741], PLAYER_BUFFS[1] = benefits, benefits
         for i = 1, 3 do buffs[i].expirationTime = ends; PLAYER_BUFFS[i + 1] = buffs[i] end
-        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); AdvanceTime(1)
+        Gained(benefits); AdvanceTime(1)
         PLAYER_BUFFS[4] = nil
         Send('CampfireHelper', 'UNIT_AURA', 'player', LOST)
         PLAYER_AURAS[1229741] = nil; wipe(PLAYER_BUFFS)
-        Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
+        Lost(benefits.auraInstanceID, 101, 102)
         benefits.auraInstanceID = benefits.auraInstanceID + 10
     end)
     -- Near a campfire, sitting the minute out (the campfire's text changes every second), then walking away.
@@ -687,12 +690,12 @@ Section('Campfire Helper', function()
     local welcome = { auraInstanceID = 300, spellId = 1289723, name = 'Welcoming Campfire', duration = 60 }
     Measure('Campfire Helper: near a fire, sit a minute (+60 s), walk away', 10, function()
         PLAYER_AURAS[1283391] = nearby
-        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED)
+        Gained(nearby)
         welcome.expirationTime = GetTime() + 60
         PLAYER_AURAS[1289723] = welcome
-        Send('CampfireHelper', 'UNIT_AURA', 'player', ADDED); AdvanceTime(60)
+        Gained(welcome); AdvanceTime(60)
         PLAYER_AURAS[1289723], PLAYER_AURAS[1283391] = nil, nil
-        Send('CampfireHelper', 'UNIT_AURA', 'player', REMOVED)
+        Lost(welcome.auraInstanceID, nearby.auraInstanceID)
         nearby.auraInstanceID, welcome.auraInstanceID = nearby.auraInstanceID + 1, welcome.auraInstanceID + 1
     end)
     Measure('Campfire Helper: campfire lit (+0.2 s)', 20, function()
