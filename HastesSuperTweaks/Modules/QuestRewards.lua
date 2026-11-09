@@ -65,8 +65,11 @@ local function Mark(button)
     return mark
 end
 
-local function HideMarks()
-    for _, mark in pairs(marks) do mark:Hide() end
+-- The marks on one rewards frame's buttons (the quest frame's and the quest log's are drawn apart), or on all.
+local function HideMarks(rewards)
+    for button, mark in pairs(marks) do
+        if not rewards or button:GetParent() == rewards then mark:Hide() end
+    end
 end
 
 -- The choice that sells for the most (its index and price), or nil. Waiting is true while an item's details haven't
@@ -88,13 +91,48 @@ local function Best()
     return best, bestValue, waiting
 end
 
+-- The same for the quest selected in the quest log, which reads its choices with calls of its own. Currencies are left
+-- out: the game numbers the log's item choices apart from them, and so does the best one's index here. Also returns
+-- how many item choices there are.
+local function BestInLog()
+    local questID = C_QuestLog.GetSelectedQuest()
+    local best, bestValue, waiting, items = nil, 0, false, 0
+    for i = 1, questID and GetNumQuestLogChoices(questID, true) or 0 do
+        if not GetQuestLogChoiceInfoLootType or GetQuestLogChoiceInfoLootType(i) == 0 then
+            items = items + 1
+            local link = GetQuestLogItemLink("choice", items)
+            if link then
+                local _, _, count = GetQuestLogChoiceInfo(i)
+                local price = select(11, ItemInfo(link))
+                if price == nil then
+                    waiting = true
+                elseif price * math.max(1, count or 1) > bestValue then
+                    best, bestValue = items, price * math.max(1, count or 1)
+                end
+            end
+        end
+    end
+    return best, bestValue, waiting, items
+end
+
 function Q:Update()
-    local frame, rewards = QuestInfoFrame, QuestInfoRewardsFrame
-    -- The quest log draws its own rewards elsewhere; the quest frame's are left as they are then.
-    if not (frame and rewards) or frame.questLog then return end
-    HideMarks()
-    if not (self:IsEnabled() and rewards:IsShown()) or (GetNumQuestChoices() or 0) < 2 then return end
-    local best, value, waiting = Best()
+    local frame = QuestInfoFrame
+    -- The quest frame's rewards, or the quest log's (shown in a frame of their own).
+    local rewards = frame and (frame.rewardsFrame or QuestInfoRewardsFrame)
+    if not rewards then return end
+    HideMarks(rewards)
+    if not (self:IsEnabled() and rewards:IsShown()) then return end
+    local best, value, waiting
+    if frame.questLog then
+        if not (C_QuestLog and C_QuestLog.GetSelectedQuest and GetNumQuestLogChoices and GetQuestLogChoiceInfo
+            and GetQuestLogItemLink) then return end
+        local choices
+        best, value, waiting, choices = BestInLog()
+        if choices < 2 then return end
+    else
+        if (GetNumQuestChoices() or 0) < 2 then return end
+        best, value, waiting = Best()
+    end
     -- Item details still loading: drawn again when they arrive.
     if waiting then self.events:RegisterEvent("GET_ITEM_INFO_RECEIVED") end
     if not best then return end
@@ -107,8 +145,8 @@ function Q:Update()
     end
 end
 
--- Hooks can't be removed; each checks the module state. The quest frame draws its rewards through QuestInfo_Display,
--- and draws them again through QuestInfo_ShowRewards as item details arrive.
+-- Hooks can't be removed; each checks the module state. The quest frame and the quest log draw their rewards through
+-- QuestInfo_Display, and draw them again through QuestInfo_ShowRewards as item details arrive.
 function Q:Hook()
     if self.hooked or not (QuestInfo_Display and QuestInfo_ShowRewards) then return end
     self.hooked = true
@@ -128,7 +166,7 @@ ns.Listen(Q, { "QUEST_FINISHED" }, function(self, event)
         end
     else
         self.events:UnregisterEvent("GET_ITEM_INFO_RECEIVED")
-        HideMarks()
+        HideMarks(QuestInfoRewardsFrame)
     end
 end)
 function Q:OnListen() self:Hook(); self:Update() end
