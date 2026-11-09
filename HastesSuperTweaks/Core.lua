@@ -497,7 +497,11 @@ end
 
 function HST:OnEnable()
     -- Runs before the modules' OnEnable, so they read per-character data under the right key.
-    self:FixCharacterKey()
+    -- An error still shows, and doesn't leave the profile handlers skipped.
+    self.loginSwitch = true
+    local ok, err = pcall(self.FixCharacterKey, self)
+    self.loginSwitch = nil
+    if not ok then error(err, 0) end
     -- The class may not be known yet while addons load.
     self:ApplyAccent()
     ns.RegisterMedia()
@@ -1033,9 +1037,15 @@ function ns.OnePage(name, sectionKey, sectionName, args)
     } }
 end
 
--- Calls handler(module) after every profile switch, copy and reset; handler may be a method name.
+-- Calls handler(module) after every profile switch, copy and reset; handler may be a method name. A switch to the
+-- character's own profile in HST:OnEnable comes before the modules' OnEnable, which applies the profile anyway: a
+-- module that's on skips it, since its handler may need what OnEnable sets up.
 function ns.OnProfile(module, handler)
-    local run = type(handler) == "string" and function() module[handler](module) end or function() handler(module) end
+    local apply = type(handler) == "string" and function() module[handler](module) end or function() handler(module) end
+    local function run()
+        if HST.loginSwitch and module:IsEnabled() then return end
+        apply()
+    end
     for _, event in ipairs({ "OnProfileChanged", "OnProfileCopied", "OnProfileReset" }) do
         module.db.RegisterCallback(module, event, run)
     end
