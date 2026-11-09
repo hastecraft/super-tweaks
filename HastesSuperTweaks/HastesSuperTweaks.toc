@@ -78,6 +78,8 @@ Modules\Appearances.lua
 Modules\Restock.lua
 Modules\Trainer.lua
 Modules\LegacyTracker.lua
+Modules\InstanceTracker.lua
+Modules\InstanceTrackerWindow.lua
 Modules\QuestRewards.lua
 Modules\QuestTracker.lua
 Modules\QuestItemButton.lua

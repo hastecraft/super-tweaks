@@ -26,5 +26,6 @@ globals = {
     "Auctionator",                               -- Super Auction House answers the price API other addons read
     "HastesSuperTweaks_OpenSuperAuctionHouse",   -- Super Auction House's key binding (Bindings.xml)
     "SLASH_HSTSUPERAH1",                         -- Super Auction House's /ah
-    "SlashCmdList",                              -- where the game looks for /ah's function
+    "SLASH_HSTINSTANCES1",                       -- Instance Tracker's /hit
+    "SlashCmdList",                              -- where the game looks for /ah's and /hit's functions
 }

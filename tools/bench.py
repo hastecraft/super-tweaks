@@ -160,6 +160,36 @@ end)
 -- The XP bar's ticker would run in every later scenario that lets time pass; those measure other tweaks.
 HST:SetFeatureEnabled('XPTracker', false)
 
+Section('Instance Tracker', function()
+    state.money, state.groupSize = 50000, 5
+    Measure('Instance Tracker: XP gain outside an instance', 100, function()
+        state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
+    end)
+    state.instanceType, state.instanceName, state.instanceID = 'party', 'The Deadmines', 36
+    Send('InstanceTracker', 'PLAYER_ENTERING_WORLD', false, false)
+    Measure('Instance Tracker: XP gain inside an instance', 100, function()
+        state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
+    end)
+    Measure('Instance Tracker: a kill message', 100, function()
+        Send('InstanceTracker', 'CHAT_MSG_COMBAT_XP_GAIN', Chat('Defias Pillager dies, you gain 120 experience.'))
+    end)
+    Measure('Instance Tracker: a loot message', 100, function()
+        Send('InstanceTracker', 'CHAT_MSG_LOOT', Chat('You receive loot: |cff1eff00|Hitem:2169::::::::30:::::|h[Buzzer Blade]|h|r.'))
+    end)
+    Measure('Instance Tracker: a reputation message', 100, function()
+        Send('InstanceTracker', 'CHAT_MSG_COMBAT_FACTION_CHANGE', Chat('Reputation with Stormwind increased by 15.'))
+    end)
+    Measure('Instance Tracker: money changed', 100, function()
+        state.money = state.money + 50; Send('InstanceTracker', 'PLAYER_MONEY')
+    end)
+    Measure('Instance Tracker: group roster update (5 players)', 100, function() Send('InstanceTracker', 'GROUP_ROSTER_UPDATE') end)
+    Measure('Instance Tracker: target changed, instance ID unknown', 100, function() Send('InstanceTracker', 'PLAYER_TARGET_CHANGED') end)
+    state.instanceType, state.instanceName, state.instanceID = 'none', nil, nil
+    Send('InstanceTracker', 'PLAYER_ENTERING_WORLD', false, false)
+    Measure('Instance Tracker: zone change outside an instance', 100, function() Send('InstanceTracker', 'ZONE_CHANGED_NEW_AREA') end)
+    state.groupSize = 0
+end)
+
 local tip = GameTooltip
 -- The game redrawing its tooltip for a unit: cleared, filled in (the post-call hooks), shown.
 local function hover(unit, lines)

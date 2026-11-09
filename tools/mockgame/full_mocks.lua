@@ -177,7 +177,10 @@ C_SummonInfo = { GetSummonConfirmTimeLeft = function() return 0 end }
 C_DeathInfo = { GetSelfResurrectOptions = function() return {} end }
 C_GameRules = { IsHardcoreActive = function() return false end }
 C_ChatInfo = { InChatMessagingLockdown = function() return false end }
-function GetInstanceInfo() return 'Elwynn Forest', 'none', 0, '', 0, 0, false, 0 end
+function GetInstanceInfo()
+    return state.instanceName or 'Elwynn Forest', state.instanceType or 'none', 0, state.difficultyName or '', 0, 0, false,
+        state.instanceID or 0
+end
 function ResurrectGetOfferer() return nil end
 function PlayerCanTeleport() return true end
 function GetCorpseRecoveryDelay() return 0 end
