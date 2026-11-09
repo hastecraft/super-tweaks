@@ -965,6 +965,8 @@ function Se.Apply()
         Se.bidLabel:SetShown(BidShown())
     end
     Se.BindKeys()
+    -- The list again from the bags last read: "Show favorites you have none of" may have changed.
+    if Se.items then Se.sections = BuildSections(Se.items) end
     Se.Layout()
 end
 
