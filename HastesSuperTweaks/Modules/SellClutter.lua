@@ -1016,12 +1016,13 @@ S.info.pagePreview = false -- its preview shows in the tweak list, not on its se
 
 ---------------------------------------------------------------------------
 -- Settings preview: a backpack whose clutter sells (per the settings), then the chat summary.
--- Items: icon, category, sell price.
+-- Items: icon, category, sell price, and a name for the list of items sold.
 ---------------------------------------------------------------------------
 local BACKPACK = {
-    { "INV_Misc_Food_14", "cooking", 24 }, { "INV_Chest_Plate01", "gear", 410 }, { "INV_Fabric_Linen_01", "cloth", 13 },
-    { "INV_Misc_Food_11", "food", 6 }, { "INV_Misc_MonsterClaw_04", "parts", 45 }, { "INV_Potion_51", "potions", 5 },
-    { "INV_Misc_Food_14", "cooking", 18 }, { "INV_Drink_07" }, { "INV_Misc_Flower_02", "herbs", 10 },
+    { "INV_Misc_Food_14", "cooking", 24, "Stringy Wolf Meat" }, { "INV_Chest_Plate01", "gear", 410 },
+    { "INV_Fabric_Linen_01", "cloth", 13, "Linen Cloth" }, { "INV_Misc_Food_11", "food", 6 },
+    { "INV_Misc_MonsterClaw_04", "parts", 45 }, { "INV_Potion_51", "potions", 5 },
+    { "INV_Misc_Food_14", "cooking", 18 }, { "INV_Drink_07" }, { "INV_Misc_Flower_02", "herbs", 10, "Peacebloom" },
     { "INV_Chest_Cloth_07", "lighter", 95 }, {}, {},
 }
 function S.info.preview(frame)
@@ -1041,13 +1042,15 @@ function S.info.preview(frame)
             v.icons[i] = slot.icon
         end
         v.line = W.ChatLine(frame, "")
+        v.items = W.ChatLine(frame, "")
     end
-    local p, sold, total, counts = S.db.profile, {}, 0, {}
+    local p, sold, total, counts, links = S.db.profile, {}, 0, {}, {}
     for i, item in ipairs(BACKPACK) do
         if item[2] and p[item[2]] then
             sold[#sold + 1] = v.icons[i]
             total = total + item[3]
             counts[item[2]] = (counts[item[2]] or 0) + 1
+            if item[4] and #links < 3 then links[#links + 1] = "|cffffffff[" .. item[4] .. "]|r" end
         end
     end
     -- The first two kinds sold, to keep the line short.
@@ -1060,12 +1063,17 @@ function S.info.preview(frame)
     end
     v.line:SetText(W.Chat(#sold == 0 and "Nothing to sell." or string.format("Sold %d %s you won't use for %s: %s%s.",
         #sold, #sold == 1 and "item" or "items", Money(total), table.concat(parts, ", "), kinds > 2 and ", ..." or "")))
-    W.Column(frame, { v.bag, 8, v.line })
+    -- "List every item sold": the links follow.
+    local itemized = p.itemized and #links > 0
+    if itemized then v.items:SetText(W.Chat("Sold " .. table.concat(links, " ") .. (#sold > #links and " ..." or ""))) end
+    W.Column(frame, itemized and { v.bag, 8, v.line, 2, v.items } or { v.bag, 8, v.line })
+    v.items:SetShown(false)
     for _, icon in pairs(v.icons) do icon:SetAlpha(1) end
     local finish = 0.6 + #sold * 0.35
     W.Loop(frame, finish + 2.5, function(t)
         for i, icon in ipairs(sold) do icon:SetAlpha(math.max(0, math.min(1, (0.6 + i * 0.35 - t) / 0.2))) end
         v.line:SetShown(p.summary and t > finish + 0.2)
+        v.items:SetShown(itemized and p.summary and t > finish + 0.2)
     end, finish + 1)
 end
 
