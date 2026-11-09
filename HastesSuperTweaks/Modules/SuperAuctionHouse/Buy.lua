@@ -74,7 +74,7 @@ local function FinishPurchase(job, unit, total)
     if raised then text = text .. "\nThe price went up by " .. K.Money(total - job.expected) .. "." end
     local must = S.db.profile.confirmQuantity
     K.Dialog({
-        title = entry and entry.name or "", text = text, confirm = "Buy", confirmDisabled = must,
+        title = job.name, text = text, confirm = "Buy", confirmDisabled = must,
         input = must and true or nil, inputNumeric = must, replaces = job.asked,
         onInput = must and function(value, dialog) dialog.ok:SetDisabled(tonumber(value) ~= job.quantity) end or nil,
         onConfirm = function()
@@ -99,7 +99,7 @@ local function StartPurchase()
     -- One at a time: the game's answer doesn't say which quantity it prices.
     local job = N.StartPurchase(entry.itemKey.itemID, quantity, FinishPurchase, PurchaseGone)
     if not job then return end
-    job.expected = Quote(quantity)
+    job.expected, job.name, B.job = Quote(quantity), entry.name or "", job
     Status("Checking the price.")
 end
 
@@ -153,18 +153,20 @@ local function AskBuyItem(e)
                 end
             end })
     end
+    -- An auction with neither a buyout nor a bid the game names can't be bought here.
+    local amount = (buyout and buyout > 0) and buyout or bid or 0
     K.Dialog({
         title = e.quantity > 1 and (name .. " x" .. e.quantity) or name,
         text = (buyout and buyout > 0) and ("Buy it for " .. K.Money(buyout) .. "?") or ("Bid " .. K.Money(bid or 0) .. "?"),
         confirm = (buyout and buyout > 0) and "Buy" or "Bid",
-        confirmDisabled = ((buyout and buyout > 0) and buyout or bid or 0) > GetMoney(),
+        confirmDisabled = amount <= 0 or amount > GetMoney(),
         extra = (buyout and buyout > 0 and bid and bid > 0) and ("Bid " .. K.Money(bid)) or nil,
         onExtra = function(dialog)
             N.PlaceBid(e.auctionID, bid)
             dialog:Close()
         end,
         onConfirm = function()
-            N.PlaceBid(e.auctionID, (buyout and buyout > 0) and buyout or bid)
+            if amount > 0 then N.PlaceBid(e.auctionID, amount) end
         end,
     })
 end
@@ -315,8 +317,15 @@ function B.Build(frame)
     frame:Hide()
 end
 
+-- A price still being checked is for the item being left: it's dropped (see N.CancelPurchase).
+local function DropPurchase()
+    N.CancelPurchase(B.job)
+    B.job = nil
+end
+
 -- Opens the screen on a search result. back runs when the player leaves it.
 function B.Open(result, back)
+    DropPurchase()
     entry, onBack = result, back
     listing = {}
     B.quantity:SetText(result.purchase or 1)
@@ -329,6 +338,7 @@ function B.Open(result, back)
 end
 
 function B.Close()
+    DropPurchase()
     N.CancelListings(request)
     request = nil
     entry = nil
@@ -340,6 +350,7 @@ function B.IsOpen() return B.frame ~= nil and B.frame:IsShown() end
 
 -- The auction house closed: the next visit starts on the Shopping tab's results, not this item.
 function B.OnClosed()
+    DropPurchase()
     N.CancelListings(request)
     request = nil
     entry, listing = nil, {}
