@@ -620,8 +620,8 @@ local function SayPosted(job)
     if not Profile().postChat then return end
     local text = "Posted " .. (job.link or "") .. " x" .. job.quantity
     if job.price > 0 then
-        text = text .. ": " .. K.Money(job.price)
-        if job.quantity > 1 then text = text .. " each, " .. K.Money(job.price * job.quantity) .. " in all" end
+        text = text .. ": " .. ns.Money(job.price)
+        if job.quantity > 1 then text = text .. " each, " .. ns.Money(job.price * job.quantity) .. " in all" end
     end
     HST:Print(text)
 end
