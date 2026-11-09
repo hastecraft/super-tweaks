@@ -402,7 +402,8 @@ local function CanPost()
     local price = Se.price:GetValue()
     local bid = (Se.bid:IsShown() and Se.bid:GetValue()) or 0
     if price <= 0 and bid <= 0 then return false end
-    if bid > 0 and price > 0 and bid > price then return false end
+    -- As in the game's own window, a buyout has to be more than the starting bid.
+    if bid > 0 and price > 0 and bid >= price then return false end
     local deposit = Deposit()
     return not (deposit and deposit > GetMoney())
 end
@@ -742,6 +743,8 @@ local function Post()
         local bid = Se.bid:GetValue()
         if bid > 0 and bid ~= RoundForGame(bid) then Se.bid:SetValue(RoundForGame(bid)) end
     end
+    -- Rounding can make a bid and buyout that differed only in copper the same.
+    if not CanPost() then return FillSummary() end
     local reason = LowPriceReason(price, quantity)
     if reason then
         K.Dialog({ title = "Post at " .. K.Money(price) .. "?", text = reason, confirm = "Post", onConfirm = DoPost })
