@@ -201,9 +201,10 @@ local function HostPlate(now)
     hostFrame = now
     if host and now - hostChecked < S.HOST_EVERY and host:IsVisible() then return host end
     hostChecked, host = now, nil
-    if not (C_NamePlate and C_NamePlate.GetNamePlates) then return nil end
     local bestLevel, bestShown, bestIndex
-    for _, plate in ipairs(C_NamePlate.GetNamePlates()) do
+    -- Every nameplate shown since numbers went on nameplates has a watcher (see S:WatchPlates): asking the game for
+    -- them would make a table each time.
+    for plate in pairs(watchers) do
         if plate:IsVisible() then
             local level, shown, index = plate:GetFrameLevel(), shownOrder[plate] or 0, PlateIndex(plate)
             if not host or level < bestLevel or (level == bestLevel and (shown < bestShown
