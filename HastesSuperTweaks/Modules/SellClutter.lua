@@ -577,6 +577,7 @@ end
 -- with this tweak off too.
 function S:MustKeep(itemID, name, ctx)
     if self.db.profile.keep[itemID] then return "On your Never sell list" end
+    if ns.Restock and ns.Restock:Keeps(itemID) then return "On your Restock list" end
     if Listed(itemID) == "never" then return "Tools and valuable materials" end
     if ctx.sets[itemID] then return "In an equipment set" end
     if Needed(ctx, itemID, name) then return "A quest needs it" end
@@ -1000,8 +1001,9 @@ ns.Configure(S, S.DEFAULTS, function(m)
         lists = { type = "group", name = "Your lists", order = 2, args = {
             lists = ns.Section("Never sell and Always sell", 1, {
                 help = { type = "description", order = 1, name = "Never sell items are always kept, by Sell Junk too. "
-                    .. "Always sell items go at every vendor visit unless a quest needs them. Drop an item on a list to "
-                    .. "add it, or right-click it to remove it. /hst keep and /hst sell work too." },
+                    .. "Always sell items go at every vendor visit unless a quest needs them or they're on your Restock "
+                    .. "list. Drop an item on a list to add it, or right-click it to remove it. /hst keep and /hst sell "
+                    .. "work too." },
                 keep = items("keep", "Never sell", 2),
                 sell = items("sell", "Always sell", 3),
             }),

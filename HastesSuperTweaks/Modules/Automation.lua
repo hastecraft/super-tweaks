@@ -597,12 +597,14 @@ function Sale:Leads(seller)
     return false
 end
 
--- Whether a selling module keeps this item from every seller (a Never sell list holds whether its module is on or not).
+-- Whether a selling module keeps this item from every seller (a Never sell list holds whether its module is on or not),
+-- or Restock at Vendors would buy it back (see R:Keeps).
 function Sale:Kept(itemID)
     for _, seller in ipairs(self.sellers) do
         if seller.Keeps and seller:Keeps(itemID) then return true end
     end
-    return false
+    local restock = ns.Restock
+    return restock ~= nil and restock:Keeps(itemID)
 end
 
 -- Shared item-instance protections. Scans check bag exclusion once per bag; actions check it again below.

@@ -270,6 +270,9 @@ local function AddPurchases(plan, planned, budget, index, itemID, want, recipes)
     return budget - bundles * price
 end
 
+-- Whether an item is on your list while this is on: selling and deleting tweaks keep it, as it would be bought back.
+function R:Keeps(itemID) return self:IsEnabled() and self.db.profile.items[itemID] ~= nil end
+
 -- The purchases to make now: { index, itemID, quantity, cost, recipes }, the items on your list first, then what the
 -- tracked recipes need on top of them, each in the vendor's order. An item on both is bought up to the larger amount.
 function R:Plan()
