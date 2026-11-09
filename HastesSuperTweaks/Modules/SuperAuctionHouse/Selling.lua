@@ -365,9 +365,9 @@ local function Lock()
     end
 end
 
+-- The auction house takes prices in whole silver: one with copper in it is refused ("Internal auction error"), though
+-- the client says it supports copper.
 local function RoundForGame(copper)
-    copper = math.floor(copper)
-    if AH.SupportsCopperValues and AH.SupportsCopperValues() then return math.max(1, copper) end
     return math.max(100, math.floor(copper / 100) * 100)
 end
 
@@ -736,6 +736,12 @@ end
 local function Post()
     if not CanPost() then return end
     local quantity, price = Se.quantity:GetNumber(), Se.price:GetValue()
+    -- Typed copper goes, and the boxes show what's posted.
+    if price > 0 and price ~= RoundForGame(price) then price = RoundForGame(price); Se.price:SetValue(price) end
+    if Se.bid:IsShown() then
+        local bid = Se.bid:GetValue()
+        if bid > 0 and bid ~= RoundForGame(bid) then Se.bid:SetValue(RoundForGame(bid)) end
+    end
     local reason = LowPriceReason(price, quantity)
     if reason then
         K.Dialog({ title = "Post at " .. K.Money(price) .. "?", text = reason, confirm = "Post", onConfirm = DoPost })
@@ -1162,7 +1168,9 @@ function Se.Build(frame)
         [E.DoubleBid or -1] = true, [E.ItemHasQuote or -1] = true } or {}
     local function failed(event, err)
         if event == "AUCTION_HOUSE_SHOW_ERROR" and err ~= nil and notPost[err] then return end
-        if post then EndPost(post, true) end
+        if not post then return end
+        EndPost(post, true)
+        Status("The auction house refused the post.")
     end
     N.On("AUCTION_HOUSE_POST_ERROR", failed)
     N.On("AUCTION_HOUSE_SHOW_ERROR", failed)
