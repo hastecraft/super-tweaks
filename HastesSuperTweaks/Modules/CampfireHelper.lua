@@ -770,6 +770,7 @@ function C:OnUnlisten()
     self.tickDue = nil
     if self.campfire then Shown(self.campfire.frame, false) end
     self:UpdateEditMode(false)
+    HST.LSM.UnregisterCallback(self, "LibSharedMedia_Registered")
 end
 
 -- The time left on the cooldown for lighting a campfire, in seconds (0 when you can).
@@ -1080,6 +1081,11 @@ function C:OnListen()
     self.quietUntil = GetTime() + 5
     self:LearnKits()
     self:Apply()
+    -- A font or bar texture another addon registers later is used once it's there.
+    HST.LSM.RegisterCallback(self, "LibSharedMedia_Registered", function(_, kind, name)
+        local p = self.db.profile
+        if (kind == "statusbar" and name == p.texture) or (kind == "font" and name == p.font) then self:Apply() end
+    end)
     self:TimeFire()
     -- Turned on with Edit Mode open: selectable at once, as when Edit Mode opens.
     self:UpdateEditMode()
