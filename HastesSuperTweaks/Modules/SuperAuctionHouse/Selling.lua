@@ -853,7 +853,7 @@ end
 ---------------------------------------------------------------------------
 -- Keys
 ---------------------------------------------------------------------------
-local function CanBind() return not InCombatLockdown() and Se.frame and Se.frame:IsShown() end
+local function CanBind() return not InCombatLockdown() and Se.frame and Se.frame:IsVisible() end
 
 function Se.BindKeys()
     if not Se.keyOwner or InCombatLockdown() then return end
@@ -1158,7 +1158,7 @@ function Se.Build(frame)
         PostLanded(true)
     end)
     N.On("BAG_UPDATE_DELAYED", function()
-        if frame:IsShown() and not (post and post.state ~= "awaitingGamePopup") then Se.Refresh() end
+        if frame:IsVisible() and not (post and post.state ~= "awaitingGamePopup") then Se.Refresh() end
     end)
     N.On("PLAYER_REGEN_DISABLED", UnbindKeys)
     N.On("PLAYER_REGEN_ENABLED", function() Se.BindKeys() end)
@@ -1174,7 +1174,7 @@ function Se.Build(frame)
     end
     N.On("AUCTION_HOUSE_POST_ERROR", failed)
     N.On("AUCTION_HOUSE_SHOW_ERROR", failed)
-    local function reloadListing() if frame:IsShown() and cur then QueryListing() end end
+    local function reloadListing() if frame:IsVisible() and cur then QueryListing() end end
     N.On("AUCTION_CANCELED", reloadListing)
     N.On("ITEM_PURCHASED", reloadListing)
     N.On("COMMODITY_PURCHASE_SUCCEEDED", reloadListing)

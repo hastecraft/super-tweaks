@@ -36,7 +36,7 @@ end
 
 -- For when the game has an item's details: one function, so an item waits once however many fills ask for it.
 local function FillNamed()
-    if A.frame and A.frame:IsShown() then A.Fill() end
+    if A.frame and A.frame:IsVisible() then A.Fill() end
 end
 
 local function Read()
@@ -208,7 +208,7 @@ local function CancelsExpired()
     for auctionID, at in pairs(cancelling) do
         if now - at >= CANCEL_WAIT then cancelling[auctionID] = nil end
     end
-    if A.frame and A.frame:IsShown() then
+    if A.frame and A.frame:IsVisible() then
         A.table:Redraw()
         A.UpdateNext()
     end
@@ -262,7 +262,7 @@ local function BindKey()
     if not A.frame or InCombatLockdown() then return end
     ClearOverrideBindings(A.frame)
     local key = S.db.profile.keyCancel
-    if key and key ~= "" and A.frame:IsShown() then
+    if key and key ~= "" and A.frame:IsVisible() then
         SetOverrideBinding(A.frame, true, key, "CLICK HSTSuperAHCancelNext:LeftButton")
     end
 end
@@ -344,14 +344,14 @@ function A.Build(frame)
     A.table:SortBy("name")
 
     N.On("OWNED_AUCTIONS_UPDATED", function()
-        if frame:IsShown() then A.Fill() end
+        if frame:IsVisible() then A.Fill() end
     end)
     N.On("AUCTION_CANCELED", function(_, auctionID)
         if auctionID then cancelling[auctionID] = nil end
-        if frame:IsShown() then Query() end
+        if frame:IsVisible() then Query() end
     end)
     N.On("AUCTION_HOUSE_AUCTION_CREATED", function()
-        if frame:IsShown() then Query() end
+        if frame:IsVisible() then Query() end
     end)
     N.On("PLAYER_REGEN_DISABLED", UnbindKey)
     N.On("PLAYER_REGEN_ENABLED", BindKey)
