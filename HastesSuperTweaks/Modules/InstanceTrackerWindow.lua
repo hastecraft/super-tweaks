@@ -303,6 +303,12 @@ end
 ---------------------------------------------------------------------------
 local instanceValues, instanceOrder = { [""] = "All instances" }, { "" }
 
+-- "All instances" first, then by name.
+local function ByName(a, b)
+    if a == "" or b == "" then return a == "" end
+    return a < b
+end
+
 -- The instances among the scoped runs, for the filter menu.
 local function InstanceEntries()
     for key in pairs(instanceValues) do if key ~= "" then instanceValues[key] = nil end end
@@ -319,10 +325,7 @@ local function InstanceEntries()
             end
         end
     end
-    table.sort(instanceOrder, function(a, b)
-        if a == "" or b == "" then return a == "" end
-        return a < b
-    end)
+    table.sort(instanceOrder, ByName)
     return instanceValues, instanceOrder
 end
 
@@ -356,8 +359,14 @@ local function PaintBar()
     Win.views:Choose(p.view)
     Win.scopes:Choose(p.scope)
     Win.periodSelect:Refresh()
-    Win.instanceSelect:Refresh()
-    Win.instanceSelect:SetShown(p.view == "runs")
+    -- Only the runs have the instance filter: its menu is read through then, and an instance whose runs are all gone
+    -- (deleted, or the history cleared) is no longer filtered by.
+    local runs = p.view == "runs"
+    if runs then
+        if Win.instance ~= "" and not InstanceEntries()[Win.instance] then Win.instance = "" end
+        Win.instanceSelect:Refresh()
+    end
+    Win.instanceSelect:SetShown(runs)
 end
 
 ---------------------------------------------------------------------------
