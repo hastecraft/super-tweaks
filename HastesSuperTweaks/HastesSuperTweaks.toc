@@ -67,6 +67,7 @@ Modules\SuperAuctionHouse\Net.lua
 Modules\SuperAuctionHouse\Search.lua
 Modules\SuperAuctionHouse\Kit.lua
 Modules\SuperAuctionHouse\Scan.lua
+Modules\SuperAuctionHouse\Share.lua
 Modules\SuperAuctionHouse\Buy.lua
 Modules\SuperAuctionHouse\Shopping.lua
 Modules\SuperAuctionHouse\Selling.lua

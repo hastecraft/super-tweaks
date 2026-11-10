@@ -208,12 +208,19 @@ function P.LastScan() local r = P.Activate(); return r and r.lastScan or 0 end
 function P.LastReplicate() local r = P.Activate(); return r and r.lastReplicate or 0 end
 -- How many items the last full scan found, for judging how far along the next one is.
 function P.LastScanSize() local r = P.Activate(); return r and r.lastScanSize or 0 end
-function P.SetLastScan(replicate, size)
+-- Share.lua's, while prices are shared with your other game accounts: what takes a price saved here, and a finished
+-- scan's size.
+local share, shareScan
+function P.ShareWith(price, scan) share, shareScan = price, scan end
+
+-- shared: the scan was another of your accounts' (Share.lua), so it isn't sent on.
+function P.SetLastScan(replicate, size, shared)
     local r = P.Activate()
     if not r then return end
     r.lastScan = time()
     r.lastScanSize = size
     if replicate then r.lastReplicate = r.lastScan end
+    if shareScan and not shared then shareScan(size) end
 end
 function P.MarkReplicate()
     local r = P.Activate()
@@ -319,12 +326,14 @@ function P.Middle(list, n)
 end
 
 -- Saves a price for a key, and the middle price of its auctions when they were all seen. Writes wait for the next frame
--- and take a moment of each, so a whole scan's worth doesn't hitch.
-function P.Record(key, price, available, typical)
+-- and take a moment of each, so a whole scan's worth doesn't hitch. shared: the price came from another of your
+-- accounts (P.RecordShared), so it isn't sent on.
+function P.Record(key, price, available, typical, shared)
     if not S.db.profile.record or not key or not price or price <= 0 then return end
     pending[pendingEnd + 1], pending[pendingEnd + 2], pending[pendingEnd + 3] = key, price, available or 0
     pending[pendingEnd + 4] = typical or 0
     pendingEnd = pendingEnd + 4
+    if share and not shared then share(key, price, available or 0, typical or 0) end
     if not running then
         running = true
         C_Timer.After(0, Flush)
@@ -364,6 +373,18 @@ function P.RecordItemKey(itemKey, price, available, typical)
         typical = nil
     end
     P.Record(itemKey.itemID, price, available, typical)
+end
+
+-- A price another of your game accounts saved (Share.lua): saved as one seen here.
+function P.RecordShared(key, price, available, typical)
+    if type(key) == "string" then
+        local itemID = tonumber(match(key, "^g:(%d+):"))
+        if itemID then
+            local r = P.Activate()
+            if r then r.g[itemID] = true end
+        end
+    end
+    P.Record(key, price, available, typical, true)
 end
 
 -- Your own new lowest price counts at once.
