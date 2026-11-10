@@ -31,6 +31,7 @@ local QUALITY_NAMES = { grey = "Grey", white = "White", green = "Green" }
 local QUALITY_ORDER = { "grey", "white", "green" }
 -- Item classes that aren't clutter however cheap: bags, ammo, quivers, quest items and keys.
 local NEVER_CLASS = { [1] = true, [6] = true, [11] = true, [12] = true, [13] = true }
+local TRADE_GOODS = 7
 -- Bag changes come in bursts; the window updates once, this long after the first.
 B.DELAY = 0.1
 -- After a delete the next item moves under the mouse, and a double-click's second click would delete that too.
@@ -246,7 +247,7 @@ function B:Worth(info, bag, slot, ctx)
     if not info.quality then return nil, "Still loading" end
     if info.quality > QUALITY[p.quality] then return nil, "Above your Highest quality" end
     if p.keep[itemID] then return nil, "On your Never delete list" end
-    local name, _, _, _, _, _, _, _, _, _, price, classID = ItemInfo(itemID)
+    local name, _, _, _, _, _, _, _, equipLoc, _, price, classID, subclassID = ItemInfo(itemID)
     if not name then
         self.loading = true
         if C_Item and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(itemID) end
@@ -258,6 +259,11 @@ function B:Worth(info, bag, slot, ctx)
     if quest and (quest.isQuestItem or quest.questID) then return nil, "Quest item" end
     local why = ns.SellClutter:MustKeep(itemID, name, ctx)
     if why then return nil, why end
+    -- Materials Sell Clutter doesn't know as clutter (enchanting materials, elementals, gems; on Classic Era, any it
+    -- doesn't know by ID) are never sold, and which professions use them can't be told: they aren't deleted either.
+    if classID == TRADE_GOODS and ns.SellClutter:KindOf(itemID, classID, subclassID, equipLoc) == false then
+        return nil, "A material Sell Clutter never sells"
+    end
     -- Gear Sell Clutter keeps for its look ("Keep new appearances") isn't deleted either.
     local look = ns.SellClutter:KeepsLook(itemID, info.hyperlink)
     if look then
