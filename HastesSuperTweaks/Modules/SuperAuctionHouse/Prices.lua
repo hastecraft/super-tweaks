@@ -333,11 +333,11 @@ function P.Record(key, price, available, typical, shared)
     pending[pendingEnd + 1], pending[pendingEnd + 2], pending[pendingEnd + 3] = key, price, available or 0
     pending[pendingEnd + 4] = typical or 0
     pendingEnd = pendingEnd + 4
-    if share and not shared then share(key, price, available or 0, typical or 0) end
     if not running then
         running = true
         C_Timer.After(0, Flush)
     end
+    if share and not shared then share(key, price, available or 0, typical or 0) end
 end
 
 -- The lowest of an item's levels seen since the auction house opened or a scan began, for its plain key.

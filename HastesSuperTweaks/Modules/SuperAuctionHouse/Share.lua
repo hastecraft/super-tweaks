@@ -22,7 +22,7 @@ local BURST = 10 -- messages tried a second; the game says when that's too many
 local ANSWER_WAIT = 5 -- seconds a character asked has to answer
 local ASK_EVERY = 60 -- seconds before asking again when nobody answered
 local FRESH = 120 -- seconds an answer counts for when a new batch begins
-local LINGER = 3 -- seconds the "No player named" line is watched for after the last message
+local LINGER = 10 -- seconds the "No player named" line is watched for after the last message
 local QUEUE_MOST = 40000 -- prices waiting at most; a scan is a few thousand
 local NUMBER_MOST = 2147483647 -- what a message's hexadecimal numbers hold
 
@@ -44,9 +44,13 @@ local asking, askedAt, nextAsk, lastSent = false, 0, 0, 0
 ---------------------------------------------------------------------------
 -- Who
 ---------------------------------------------------------------------------
+-- Your own name's key; it doesn't change, so it's worked out once the game knows the name.
+local mineKey
 local function Mine()
+    if mineKey then return mineKey end
     local me = ns.PlayerName()
-    return me and ns.NameKey(me) or nil
+    mineKey = me and ns.NameKey(me) or nil
+    return mineKey
 end
 
 local function ByKey(key)
@@ -55,12 +59,9 @@ local function ByKey(key)
     end
 end
 
--- The character named in the setting that a name from the game is: as it stands, or with this realm after it.
+-- A name's key without this realm after it ("Name-Realm"): the game writes some names that way, and so may you.
 local realmKeys
-local function PeerOf(name)
-    local key = ns.NameKey(name)
-    local peer = ByKey(key)
-    if peer then return peer end
+local function Bare(key)
     if not realmKeys then
         realmKeys = {}
         local short, long = GetNormalizedRealmName and GetNormalizedRealmName(), GetRealmName and GetRealmName()
@@ -69,20 +70,33 @@ local function PeerOf(name)
     end
     for i = 1, #realmKeys do
         local realm = realmKeys[i]
-        if #key > #realm and sub(key, -#realm) == realm then
-            peer = ByKey(sub(key, 1, #key - #realm))
-            if peer then return peer end
-        end
+        if #key > #realm and sub(key, -#realm) == realm then return sub(key, 1, #key - #realm) end
     end
+    return key
 end
 
--- Reads the setting. A character named before keeps what's known of them. Returns how many are named.
+-- The character named in the setting that a name from the game is, or nil. The last name asked about is remembered:
+-- a scan's messages all come from one character.
+local heardName, heardPeer
+local function PeerOf(name)
+    if name == heardName then return heardPeer end
+    local key = ns.NameKey(name)
+    local peer = ByKey(key) or ByKey(Bare(key))
+    heardName, heardPeer = name, peer
+    return peer
+end
+
+-- Reads the setting, when it changed. A character named before keeps what's known of them. Returns how many are named.
+local readFrom
 local function ReadNames()
+    local text = S.db.profile.shareWith or ""
+    if text == readFrom then return #peers end
+    readFrom, heardName, heardPeer = text, nil, nil
     local old = peers
     peers = {}
-    for name in (S.db.profile.shareWith or ""):gmatch("[^,\n]+") do
+    for name in text:gmatch("[^,\n]+") do
         name = ns.Trim(name)
-        local key = name ~= "" and ns.NameKey(name)
+        local key = name ~= "" and Bare(ns.NameKey(name))
         if key and not ByKey(key) then
             local peer
             for i = 1, #old do
@@ -128,31 +142,39 @@ local function Send(peer, text)
     return nil
 end
 
--- To everyone who's online: true, false when the game wants it later, nil when nobody's left.
+-- To everyone who's online: true, false when the game wants it later, nil when nobody's left. Whoever has a
+-- message already (sent) isn't sent it again when it's tried once more for the others.
 local function SendAll(text)
     local went
     for i = 1, #peers do
         local peer = peers[i]
         if peer.online then
-            local result = Send(peer, text)
-            if result == false then return false end
-            if result then went = true else peer.online = false end
+            if peer.sent then
+                went = true
+            else
+                local result = Send(peer, text)
+                if result == false then return false end
+                if result then peer.sent, went = true, true else peer.online = false end
+            end
         end
     end
+    for i = 1, #peers do peers[i].sent = nil end
     return went
 end
 
 local function Drop()
     wipe(out)
     first, last = 1, 0
+    for i = 1, #peers do peers[i].sent = nil end
 end
 
 -- The game's "No player named ..." line for a character named here: they've gone.
-local NOT_FOUND = ERR_CHAT_PLAYER_NOT_FOUND_S
-    and ("^" .. ERR_CHAT_PLAYER_NOT_FOUND_S:gsub("[%%%(%)%.%+%-%*%?%[%]%^%$]", "%%%0"):gsub("%%%%s", "(.+)") .. "$")
+local notFound
 local function Gone(message)
-    if not NOT_FOUND or IsSecret(message) or type(message) ~= "string" then return nil end
-    local name = match(message, NOT_FOUND)
+    if IsSecret(message) or type(message) ~= "string" or not ERR_CHAT_PLAYER_NOT_FOUND_S then return nil end
+    notFound = notFound
+        or ("^" .. ERR_CHAT_PLAYER_NOT_FOUND_S:gsub("[%%%(%)%.%+%-%*%?%[%]%^%$]", "%%%0"):gsub("%%%%s", "(.+)") .. "$")
+    local name = match(message, notFound)
     return name and PeerOf(name) or nil
 end
 -- Nothing you'd see was whispered, so the line isn't shown.
@@ -188,9 +210,10 @@ local function Ask(now)
 end
 
 -- Whether something to send may be queued: a batch is under way, someone was heard a moment ago, or everyone was just
--- asked. With nobody there it's asked again only every so often, and nothing is kept meanwhile.
-local function Open()
-    if first <= last or asking then return last - first < QUEUE_MOST end
+-- asked. With nobody there it's asked again only every so often, and nothing is kept meanwhile. `always`: there's
+-- room however much is waiting (a scan's end, which mustn't be lost behind its prices).
+local function Open(always)
+    if first <= last or asking then return always or last - first < QUEUE_MOST end
     local now = GetTime()
     if AnyFresh(now) then return true end
     if now < nextAsk then return false end
@@ -268,7 +291,7 @@ end
 
 -- A full scan this character finished (S.Prices.SetLastScan), after its prices.
 local function Scanned(size)
-    if not Open() then return end
+    if not Open(true) then return end
     last = last + 1
     out[last] = format("!S%x", math.min(size or 0, NUMBER_MOST))
     Wake()
@@ -277,16 +300,21 @@ end
 ---------------------------------------------------------------------------
 -- In
 ---------------------------------------------------------------------------
-local function ReadKey(text)
-    if not find(text, ":", 1, true) then
-        local id = #text <= 8 and tonumber(text, 16)
-        return id and id > 0 and id or nil
-    end
-    if match(text, "^g:%d+:%d+$") or match(text, "^s:%d+:%-?%d+$") or match(text, "^p:%d+$") then return text end
+-- A number as messages write them: hexadecimal digits and nothing else, no larger than a sender writes.
+local function ReadNumber(text)
+    if #text > 8 or not match(text, "^%x+$") then return nil end
+    local value = tonumber(text, 16)
+    return value and value <= NUMBER_MOST and value or nil
 end
 
-local function ReadNumber(text)
-    return #text <= 8 and tonumber(text, 16) or nil
+-- A price's key: an item ID, or one of the price database's text keys with numbers of a sensible length.
+local function ReadKey(text)
+    if not find(text, ":", 1, true) then
+        local id = ReadNumber(text)
+        return id and id > 0 and id or nil
+    end
+    if #text > 24 or find(text, "%d%d%d%d%d%d%d%d%d%d") then return nil end
+    if match(text, "^g:%d+:%d+$") or match(text, "^s:%d+:%-?%d+$") or match(text, "^p:%d+$") then return text end
 end
 
 local function Receive(peer, text)
@@ -323,6 +351,8 @@ local function OnAddon(text, channel, sender)
     if channel ~= "WHISPER" or type(text) ~= "string" or type(sender) ~= "string" then return end
     local peer = PeerOf(sender)
     if not peer or peer.key == Mine() then return end
+    -- With "Save prices" off nothing would be kept, so nothing is answered: they stop sending.
+    if not S.db.profile.record then return end
     -- Answers go to the name the game gave them.
     peer.name, peer.online, peer.heard = sender, true, GetTime()
     local kind = byte(text)
