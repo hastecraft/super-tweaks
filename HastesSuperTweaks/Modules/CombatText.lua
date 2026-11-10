@@ -984,6 +984,28 @@ end
 -- a target under 20%, say). Whether it is is asked a moment later, once the game has caught up. When one of the
 -- abilities above is used and no alert is known to be its own, the oldest alert whose ability couldn't be told goes.
 S.USED_CHECK, S.VANISH = 0.2, 0.15
+-- The spells cast and not yet asked about, in the order cast: one timer callback serves every cast.
+local castNames, castFirst, castLast = {}, 1, 0
+local function CastCheck()
+    local name = castNames[castFirst]
+    if not name then return end
+    castNames[castFirst] = nil
+    if castFirst == castLast then castFirst, castLast = 1, 0 else castFirst = castFirst + 1 end
+    local isReactive = Reactive()[name] == true
+    if isReactive then wasLit[name] = Usable(name) == true end
+    if not Used(name) then return end
+    local now, own, unmatched = GetTime(), false, nil
+    for _, f in ipairs(live) do
+        if not f.vanishAt then
+            if f.spell == name then
+                f.vanishAt, own = now + S.VANISH, true
+            elseif f.unmatched and not unmatched then
+                unmatched = f
+            end
+        end
+    end
+    if isReactive and not own and unmatched then unmatched.vanishAt = now + S.VANISH end
+end
 function S:OnCast(spellID)
     if IsSecret(spellID) then return end
     local alert
@@ -994,22 +1016,9 @@ function S:OnCast(spellID)
     if not alert then return self.events:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED") end
     local name = SpellName(spellID)
     if not name then return end
-    C_Timer.After(self.USED_CHECK, function()
-        local isReactive = Reactive()[name] == true
-        if isReactive then wasLit[name] = Usable(name) == true end
-        if not Used(name) then return end
-        local now, own, unmatched = GetTime(), false, nil
-        for _, f in ipairs(live) do
-            if not f.vanishAt then
-                if f.spell == name then
-                    f.vanishAt, own = now + self.VANISH, true
-                elseif f.unmatched and not unmatched then
-                    unmatched = f
-                end
-            end
-        end
-        if isReactive and not own and unmatched then unmatched.vanishAt = now + self.VANISH end
-    end)
+    castLast = castLast + 1
+    castNames[castLast] = name
+    C_Timer.After(self.USED_CHECK, CastCheck)
 end
 
 function S:OnGameCombatText(kind)
