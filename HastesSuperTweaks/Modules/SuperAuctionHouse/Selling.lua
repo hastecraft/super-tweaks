@@ -372,10 +372,15 @@ local function RoundForGame(copper)
     return math.max(100, math.floor(copper / 100) * 100)
 end
 
--- What undercutting a price comes to.
+-- What undercutting a price comes to. A set amount that would take half the price or more (1s off a 60c herb) is
+-- meant for dearer things: the price is undercut by the least the game takes instead, 1c for materials and 1s for gear.
 local function Undercut(price)
     local p = Profile()
-    if p.undercutMode == "static" then return RoundForGame(price - p.undercutStatic * 100) end
+    if p.undercutMode == "static" then
+        local cut = p.undercutStatic * 100
+        if cut > 0 and cut * 2 >= price then cut = cur and cur.commodity and 1 or 100 end
+        return RoundForGame(price - cut)
+    end
     return RoundForGame(price * (100 - p.undercutPercent) / 100)
 end
 Se.Undercut = Undercut
