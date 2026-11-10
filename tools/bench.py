@@ -818,6 +818,14 @@ Section('Faction Tracker', function()
     Measure('Faction Tracker: mouseover of a player counted today', 300, function()
         Send('FactionTracker', 'UPDATE_MOUSEOVER_UNIT')
     end)
+    -- A mob whose target is a player: the player counts as seen.
+    UNITS.nameplate3 = { guid = 'Creature-0-4372-0-12-40-00002A2', player = false }
+    UNITS.nameplate3target = UNITS.nameplate2
+    Measure('Faction Tracker: nameplate of a mob fighting a player counted today', 300, function() show('nameplate3') end)
+    Measure('Faction Tracker: a mob turned to a player counted today', 300, function()
+        Send('FactionTracker', 'UNIT_TARGET', 'nameplate3')
+    end)
+    UNITS.nameplate3, UNITS.nameplate3target = nil, nil
     Measure('Faction Tracker: a new area of the same zone', 100, function() Send('FactionTracker', 'ZONE_CHANGED_NEW_AREA') end)
     P:Reset()
     Enable({ 'FactionTracker' }, false)

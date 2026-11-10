@@ -1,12 +1,14 @@
 -- Faction Tracker: counts the Alliance and Horde players you come across in each zone. A player counts once per zone,
--- when their nameplate shows or you target or mouse over them, and is forgotten once not seen there for a number of
--- days, so a zone's count says who is around these days. Counts are kept per realm, for all your characters. The
+-- when their nameplate shows, you target or mouse over them, or a unit in sight (a nameplate's, your target, someone
+-- in your group) targets them, and is forgotten once not seen there for a number of days, so a zone's count says who
+-- is around these days. Counts are kept per realm, for all your characters. The
 -- count of the zone you're in shows on screen, as text you place in Edit Mode; a right-click on it, out of combat,
 -- starts that zone's count over. Where you rest (cities and inns) the text can hide. On a flight path nothing is
 -- counted, said or shown: the zones below aren't where you are.
--- Out in the world this costs the nameplate, target and mouseover events: one game call for a mob, two for a player
--- already counted today, and the text set again for a player who's new. In instances, where players' GUIDs are hidden
--- and there is no zone to count for, only the two zone events are listened to.
+-- Out in the world this costs the nameplate, target, mouseover and target-change events: for a nameplate, one game
+-- call for a mob and two for a player already counted today, and as much again for who it targets; the text is set
+-- again for a player who's new. In instances, where players' GUIDs are hidden and there is no zone to count for, only
+-- the zone and flight events are listened to.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -18,7 +20,8 @@ local P = HST:NewFeature("FactionTracker", {
     summary = "Counts the Alliance and Horde players you come across in each zone.",
     examples = { "show", "sayEnter" },
     description = "Counts the Alliance and Horde players you come across in each zone: players whose nameplate shows, "
-        .. "and players you target or mouse over. Each counts once per zone. The count for the zone you're in shows "
+        .. "players you target or mouse over, and players the mobs and enemies near you are fighting. Each counts once "
+        .. "per zone. The count for the zone you're in shows "
         .. "on screen; move it in Edit Mode, and right-click it out of combat to reset that zone's count. /hst factions "
         .. "shows every zone's count.",
 })
@@ -43,8 +46,16 @@ local SIDES = { Alliance = 0, Horde = 1 }
 local ALLIANCE, HORDE = FACTION_ALLIANCE or "Alliance", FACTION_HORDE or "Horde"
 local BLUE, RED = "|cff4a9eff", "|cffe5483a"
 -- Watched out in the world only; the target and the mouseover are always the same two units.
-local WATCHED = { "NAME_PLATE_UNIT_ADDED", "UPDATE_MOUSEOVER_UNIT", "PLAYER_TARGET_CHANGED" }
+local WATCHED = { "NAME_PLATE_UNIT_ADDED", "UPDATE_MOUSEOVER_UNIT", "PLAYER_TARGET_CHANGED", "UNIT_TARGET" }
 local SIGHT = { UPDATE_MOUSEOVER_UNIT = "mouseover", PLAYER_TARGET_CHANGED = "target" }
+-- Who a unit in sight targets is in sight too: the players the mobs and enemies near you are fighting, your own
+-- faction's among them, whose nameplates most players keep off. TARGET_OF[unit] is the token of a unit's target, for
+-- the units worth asking (nameplates, your target, your group), and false for the rest.
+local TARGET_OF = setmetatable({ target = "targettarget" }, { __index = function(t, unit)
+    local token = (unit:find("^nameplate%d") or unit:find("^party%d") or unit:find("^raid%d")) and unit .. "target" or false
+    t[unit] = token
+    return token
+end })
 
 local function Today() return floor(time() / 86400) end
 
@@ -197,10 +208,15 @@ function P:ResetZone()
         for _, plate in ipairs(C_NamePlate.GetNamePlates()) do
             -- The game's nameplate code keeps each one's unit on it (by another name on Classic Era).
             local unit = plate.unitToken or plate.namePlateUnitToken
-            if type(unit) == "string" then See(self, unit) end
+            if type(unit) == "string" then
+                See(self, unit)
+                local target = TARGET_OF[unit]
+                if target then See(self, target, true) end
+            end
         end
     end
     See(self, "target", true)
+    See(self, "targettarget", true)
     See(self, "mouseover", true)
     if self.shows then self:Paint() end
 end
@@ -222,9 +238,18 @@ end
 
 ns.Listen(P, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "PLAYER_CONTROL_LOST", "PLAYER_CONTROL_GAINED" },
     function(self, event, unit)
-        if event == "NAME_PLATE_UNIT_ADDED" then return See(self, unit) end
+        if event == "NAME_PLATE_UNIT_ADDED" or event == "UNIT_TARGET" then
+            if event == "NAME_PLATE_UNIT_ADDED" then See(self, unit) end
+            local target = TARGET_OF[unit]
+            if target then See(self, target, true) end
+            return
+        end
         local framed = SIGHT[event]
-        if framed then return See(self, framed, true) end
+        if framed then
+            See(self, framed, true)
+            if framed == "target" then See(self, "targettarget", true) end
+            return
+        end
         if event == "PLAYER_REGEN_DISABLED" then return self:Mouse(true) end
         if event == "PLAYER_REGEN_ENABLED" then return self:Mouse(false) end
         if event == "PLAYER_UPDATE_RESTING" then return self:Rest(true) end
