@@ -364,9 +364,11 @@ local function Lock()
     end
 end
 
--- The auction house takes prices in whole silver: one with copper in it is refused ("Internal auction error"), though
--- the client says it supports copper.
+-- A price the auction house takes for the item being posted. Materials and other goods sold by the unit (commodities)
+-- go for any whole number of copper. Gear and other single items go in whole silver: with copper in the price the post
+-- is refused ("Internal auction error"), though the client says it supports copper.
 local function RoundForGame(copper)
+    if cur and cur.commodity then return math.max(1, math.floor(copper)) end
     return math.max(100, math.floor(copper / 100) * 100)
 end
 
@@ -737,7 +739,7 @@ end
 local function Post()
     if not CanPost() then return end
     local quantity, price = Se.quantity:GetNumber(), Se.price:GetValue()
-    -- Typed copper goes, and the boxes show what's posted.
+    -- Copper typed for gear goes, and the boxes show what's posted.
     if price > 0 and price ~= RoundForGame(price) then price = RoundForGame(price); Se.price:SetValue(price) end
     if Se.bid:IsShown() then
         local bid = Se.bid:GetValue()
