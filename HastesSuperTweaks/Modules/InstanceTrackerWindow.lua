@@ -69,9 +69,11 @@ local function ShortRate(run)
     return rate and rate > 0 and ns.ShortNumber(rate) or ""
 end
 local function Count(n) return n > 0 and tostring(n) or "" end
--- A row's gold: as coins where the table draws them, else as text.
-local function Gold(e) return e.g > 0 and e.g or nil end
-local function GoldText(e) return e.g > 0 and K.Money(e.g, 11) or "" end
+-- A row's gold: as coins where the table draws them, else as text. The column is narrow: from a hundred gold up, the
+-- copper goes.
+local function Rounded(copper) return copper >= 1000000 and floor(copper / 100 + 0.5) * 100 or copper end
+local function Gold(e) return e.g > 0 and Rounded(e.g) or nil end
+local function GoldText(e) return e.g > 0 and K.Money(Rounded(e.g), 11) or "" end
 
 local function ClassColor(class)
     local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
@@ -399,12 +401,12 @@ local RUN_COLUMNS = {
     { key = "char", title = "Character", width = 110, hide = function() return I.db.profile.scope ~= "all" end,
         text = function(r) local c = owner[r]; return c and (ClassColor(c.class) .. CharacterName(keyOf[c]) .. "|r") or "" end,
         sort = function(r) local c = owner[r]; return c and keyOf[c] or "" end },
-    { key = "lv", title = "Level", width = 56, justify = "CENTER", text = function(r) return r.lv2 and (r.lv .. " > " .. r.lv2) or tostring(r.lv) end,
+    { key = "lv", title = "Level", width = 72, justify = "CENTER", text = function(r) return r.lv2 and (r.lv .. " > " .. r.lv2) or tostring(r.lv) end,
         sort = function(r) return r.lv end },
     { key = "d", title = "Time", width = 68, justify = "RIGHT", text = function(r) return Duration(Seconds(r)) end, sort = Seconds },
     { key = "xp", title = "XP", width = 66, justify = "RIGHT", text = function(r) return ShortXP(r.xp) end, sort = function(r) return r.xp end },
     { key = "rate", title = "XP an hour", width = 78, justify = "RIGHT", text = ShortRate, sort = function(r) return Rate(r.xp, Seconds(r)) or 0 end },
-    { key = "g", title = "Gold", width = 92, justify = "RIGHT", money = Gold, text = GoldText, sort = function(r) return r.g end },
+    { key = "g", title = "Gold", width = 100, justify = "RIGHT", money = Gold, text = GoldText, sort = function(r) return r.g end },
     { key = "k", title = "Kills", width = 50, justify = "RIGHT", text = function(r) return Count(r.k) end, sort = function(r) return r.k end },
     { key = "dt", title = "Deaths", width = 58, justify = "RIGHT", text = function(r) return Count(r.dt) end, sort = function(r) return r.dt end },
     { key = "grp", title = "Group", width = 52, justify = "RIGHT", text = function(r) return r.grp and tostring(#r.grp + 1) or "" end,
@@ -427,7 +429,7 @@ local INSTANCE_COLUMNS = {
     { key = "xp", title = "XP", width = 72, justify = "RIGHT", text = function(e) return ShortXP(e.xp) end, sort = function(e) return e.xp end },
     { key = "rate", title = "XP an hour", width = 82, justify = "RIGHT", text = function(e) local r = Rate(e.xp, e.d); return r and r > 0 and ns.ShortNumber(r) or "" end,
         sort = function(e) return Rate(e.xp, e.d) or 0 end },
-    { key = "g", title = "Gold", width = 96, justify = "RIGHT", money = Gold, text = GoldText, sort = function(e) return e.g end },
+    { key = "g", title = "Gold", width = 100, justify = "RIGHT", money = Gold, text = GoldText, sort = function(e) return e.g end },
     { key = "k", title = "Kills", width = 56, justify = "RIGHT", text = function(e) return Count(e.k) end, sort = function(e) return e.k end },
     { key = "dt", title = "Deaths", width = 60, justify = "RIGHT", text = function(e) return Count(e.dt) end, sort = function(e) return e.dt end },
     { key = "last", title = "Last run", width = 118, justify = "RIGHT", text = function(e) return When(e.last) end, sort = function(e) return e.last end },
