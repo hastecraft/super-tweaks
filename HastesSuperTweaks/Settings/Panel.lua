@@ -854,7 +854,13 @@ function Build.items(parent, o, chain, info, gate)
         box:SetAlpha(self.off and 0.5 or 1)
         local list, columns = self.list, self.columns
         wipe(list)
-        for itemID in pairs(o.get(info) or {}) do list[#list + 1] = itemID end
+        -- An imported profile can hold any key: only item IDs are items (and numbers sort together).
+        local items = o.get(info)
+        if items then
+            for itemID in pairs(items) do
+                if type(itemID) == "number" then list[#list + 1] = itemID end
+            end
+        end
         table.sort(list)
         self.offset = math.min(self.offset, math.max(0, math.ceil((#list + 1) / columns) - rows))
         -- The + slot leads the first row; the items follow it.
