@@ -83,8 +83,7 @@ function B.info.preview(frame)
             local slot = W.Slot(v.bags, nil, 20)
             slot:SetPoint("TOPLEFT", 9 + (i - 1) % 5 * 27, -22 - math.floor((i - 1) / 5) * 26)
             slot.icon = slot:CreateTexture(nil, "ARTWORK")
-            slot.icon:SetPoint("TOPLEFT", 1, -1)
-            slot.icon:SetPoint("BOTTOMRIGHT", -1, 1)
+            W.Inside(slot.icon, slot)
             slot.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
             v.slots[i] = slot.icon
         end

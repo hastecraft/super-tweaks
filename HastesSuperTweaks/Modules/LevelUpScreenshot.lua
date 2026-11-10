@@ -91,7 +91,7 @@ function S.info.preview(frame)
             down:SetSize(2, 10); down:SetPoint(corner[1], x, y)
         end
         v.flash = W.Fill(v.lens, { 1, 1, 1, 1 }, "OVERLAY")
-        v.flash:SetPoint("TOPLEFT", 1, -1); v.flash:SetPoint("BOTTOMRIGHT", -1, 1)
+        W.Inside(v.flash, v.screen)
         -- Below it: the saved shot and the caption.
         v.row = CreateFrame("Frame", nil, frame)
         local scale = THUMB_W / SHOT_W
