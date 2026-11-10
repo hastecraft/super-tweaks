@@ -544,7 +544,9 @@ local function Tradeable(bag, slot)
         tradeText = before and (#before >= #after and before or after) or false
     end
     if not tradeText or tradeText == "" then return false end
-    for _, line in ipairs(ns.BagItemTooltipLines(bag, slot) or {}) do
+    local lines = ns.BagItemTooltipLines(bag, slot)
+    if not lines then return true end -- not loaded yet: kept until it can be read
+    for _, line in ipairs(lines) do
         if line:find(tradeText, 1, true) then return true end -- tooltip lines are never secret (see Core.lua)
     end
     return false
