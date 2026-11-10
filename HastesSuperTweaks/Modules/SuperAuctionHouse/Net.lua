@@ -408,7 +408,8 @@ local function Answered(request, entries, full, itemKey)
         request.state = "paging"
         Ask(request, request.more)
     end
-    request.cb(entries, request.commodity and true or false, full)
+    -- An error in the part that asked shows, and the searches waiting still get their turn.
+    securecallfunction(request.cb, entries, request.commodity and true or false, full)
     if full then NextInLine() end
 end
 
@@ -420,7 +421,7 @@ Check = function()
         local request = requests[i]
         if request and request.state ~= "queued" and now >= request.deadline then
             Over(request, "done")
-            request.cb(request.entries or {}, request.commodity and true or false, true, true)
+            securecallfunction(request.cb, request.entries or {}, request.commodity and true or false, true, true)
         end
     end
     NextInLine()
