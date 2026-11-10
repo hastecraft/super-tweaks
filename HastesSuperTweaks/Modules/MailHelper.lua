@@ -162,7 +162,7 @@ local function Scope(me) return me.realm .. "|" .. (me.faction or "") end
 function M:AddRecent(name)
     local me = self:Me()
     if not me or type(name) ~= "string" then return end
-    name = name:match("^%s*(.-)%s*$")
+    name = ns.Trim(name)
     if name == "" then return end
     -- "First Surname" and "First-Surname" are the same character.
     local key = ns.NameKey(name)

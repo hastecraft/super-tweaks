@@ -285,13 +285,14 @@ end
 
 -- AceDB takes profile names of 1 to 50 characters (newer copies loaded by other addons raise an error otherwise).
 HST.PROFILE_NAME_MAX = 50
--- A name without the spaces around it. An imported name can be any text, and "^%s*(.-)%s*$" takes minutes on one with
--- a long run of spaces inside it.
-local function TrimName(name)
-    return name:find("%S") and name:match("^%s*(.*%S)") or ""
+-- Text without the spaces around it. What a profile holds can be any text (an imported one), and "^%s*(.-)%s*$"
+-- takes minutes on text with a long run of spaces inside it.
+local function Trim(text)
+    return text:find("%S") and text:match("^%s*(.*%S)") or ""
 end
+ns.Trim = Trim
 function HST:ValidProfileName(name)
-    name = type(name) == "string" and TrimName(name) or ""
+    name = type(name) == "string" and Trim(name) or ""
     if name == "" then return false, "Enter a profile name." end
     if Utf8Length(name) > self.PROFILE_NAME_MAX then
         return false, "Profile names can be at most " .. self.PROFILE_NAME_MAX .. " characters long."
@@ -892,7 +893,7 @@ ns.WHITE, ns.FALLBACK_FONT = "Interface\\Buttons\\WHITE8X8", STANDARD_TEXT_FONT 
 -- A LibSharedMedia file by name, or `path` when one is set and the game knows that file.
 function ns.Media(kind, name, path)
     if path and path:match("%S") then
-        path = path:match("^%s*(.-)%s*$"):gsub("/", "\\")
+        path = path:match("^%s*(.*%S)"):gsub("/", "\\")
         if not C_UIFileAsset or not C_UIFileAsset.IsKnownFile or C_UIFileAsset.IsKnownFile(path) then return path end
     end
     return HST.LSM:Fetch(kind, name, true) or (kind == "font" and ns.FALLBACK_FONT or ns.WHITE)

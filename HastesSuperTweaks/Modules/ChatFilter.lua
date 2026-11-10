@@ -83,7 +83,7 @@ local muted, mutedNames, mutedTags, muting = {}, {}, {}, false
 function F.Words(text)
     local words = {}
     for word in (text or ""):gmatch("[^,\n]+") do
-        word = lower(word:match("^%s*(.-)%s*$"))
+        word = lower(ns.Trim(word))
         if word ~= "" then words[#words + 1] = word end
     end
     return words

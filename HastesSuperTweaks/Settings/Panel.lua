@@ -3596,7 +3596,7 @@ end
 
 -- Runs a search. again: the same search laid out anew (the window was resized).
 function P:Search(text, again)
-    local query = (text or ""):lower():match("^%s*(.-)%s*$")
+    local query = ns.Trim((text or ""):lower())
     if query == "" then
         if self.mode == "search" then self:Return() end
         return
