@@ -97,19 +97,20 @@ local function See(self, unit, framed)
         local visible = UnitIsVisible(unit)
         if IsSecret(visible) or not visible then return end
     end
-    local zone = self.zone or self:Open()
-    if not zone then return end
-    local seen, day = zone.seen, self.today * 2
-    local stamp = seen[guid]
+    local zone, day = self.zone, self.today * 2
+    local stamp = zone and zone.seen[guid]
     if stamp then
-        if stamp < day then seen[guid] = day + stamp % 2 end
+        if stamp < day then zone.seen[guid] = day + stamp % 2 end
         return
     end
     local faction = UnitFactionGroup(unit)
     if IsSecret(faction) then return end
     local side = SIDES[faction]
     if not side then return end
-    seen[guid] = day + side
+    -- The zone's record is made for the first player counted: one whose faction isn't known leaves no empty zone.
+    zone = zone or self:Open()
+    if not zone then return end
+    zone.seen[guid] = day + side
     if side == 0 then zone.a = zone.a + 1 else zone.h = zone.h + 1 end
     if self.shows then self:Paint() end
 end
