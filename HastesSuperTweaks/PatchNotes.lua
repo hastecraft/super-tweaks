@@ -16,6 +16,17 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.9.0", date = "2026-11-10",
+        new = {
+            { "Name a character from each of your game accounts in \"Share prices with these characters\", on both accounts. While both are online, the prices one of them saves are saved by the other too, a full scan included.",
+                title = "Super Auction House: Shared Prices", module = "SuperAuctionHouse", path = { "general" }, setting = "shareWith" },
+            { "Right-click the count on screen, out of combat, to start that zone's count over.",
+                title = "Faction Tracker: Right-Click Reset", module = "FactionTracker", path = { "general" }, setting = "rightReset" },
+            { "The count on screen hides in cities and inns. Turn off \"Hide in cities and inns\" to keep it.",
+                title = "Faction Tracker: Hide in Cities and Inns", module = "FactionTracker", path = { "general" }, setting = "hideResting" },
+        },
+    },
+    {
         version = "3.8.0", date = "2026-11-09",
         highlights = {
             { "Counts the Alliance and Horde players you come across in each zone. The count for the zone you're in shows on screen, and chat can say it when you enter. /hst factions lists every zone. It starts off: turn it on under Group & PvP.",
