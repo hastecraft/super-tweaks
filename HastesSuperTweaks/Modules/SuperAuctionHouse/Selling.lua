@@ -28,6 +28,17 @@ local order = {}
 local post
 local popupWatched
 local buttons, headers = {}, {}
+-- An item the game hasn't loaded yet reads as not sellable, so bags you haven't opened since logging in could leave
+-- the list empty. Those items are asked for, and the list is read again as they arrive (ITEM_DATA_LOAD_RESULT, heard
+-- only meanwhile, and for LOAD_WAIT at most). awaited: their item IDs; gaveUp: the ones that didn't come this visit.
+local IsCached = C_Item and C_Item.RequestLoadItemData and C_Item.IsItemDataCached
+local RequestLoad = C_Item and C_Item.RequestLoadItemData
+local LOAD_WAIT = 5 -- seconds
+local REREAD = 0.1 -- seconds from an item arriving to the next reading, so a burst of them is one reading
+local EMPTY_TRIES, EMPTY_WAIT = 3, 0.5 -- readings more, and the seconds between, when bags with items had none to sell
+local awaited, gaveUp, awaiting = {}, {}, 0
+local held = 0 -- bag slots with an item at the last reading
+local hearing, rereading, waitToken, emptyTries = false, false, 0, 0
 
 local function Global() return S.db.global end
 local function Profile() return S.db.profile end
@@ -49,8 +60,17 @@ end
 -- One entry per kind of item you could post.
 local function ScanBags()
     local items, byKey = {}, {}
+    wipe(awaited)
+    awaiting, held = 0, 0
     ForEachBagSlot(function(bag, slot, info)
         local location = ItemLocation:CreateFromBagAndSlot(bag, slot)
+        held = held + 1
+        local id = info.itemID
+        if IsCached and id and not awaited[id] and not gaveUp[id] and location:IsValid() and not IsCached(location) then
+            awaited[id] = true
+            awaiting = awaiting + 1
+            RequestLoad(location)
+        end
         -- The item being posted is locked, which can read as not sellable.
         local isCurrent = cur ~= nil and cur.bag == bag and cur.slot == slot
         if location:IsValid() and (isCurrent or AH.IsSellItemValid(location, false)) then
@@ -335,6 +355,54 @@ function Se.Layout()
     for i = usedButtons + 1, #buttons do buttons[i].item = nil; buttons[i]:Hide() end
     for i = usedHeaders + 1, #headers do headers[i]:Hide() end
     area:SetContentHeight(y)
+    -- An empty list with more on its way shows the loader.
+    local loading = usedHeaders == 0 and (awaiting > 0 or rereading)
+    if loading and not Se.loader then
+        Se.loader = K.Loader(Se.listPanel)
+        Se.loader:SetPoint("CENTER")
+    end
+    if Se.loader then Se.loader:SetShown(loading) end
+end
+
+-- Reads the bags again, unless the tab's hidden or a post is on its way (which reads them when it lands).
+local function Reread()
+    rereading = false
+    if Se.frame and Se.frame:IsVisible() and not (post and post.state ~= "awaitingGamePopup") then Se.Refresh() end
+end
+
+local function RereadSoon(after)
+    if rereading then return end
+    rereading = true
+    C_Timer.After(after, Reread)
+end
+
+local function StopHearing()
+    if not hearing then return end
+    hearing = false
+    Se.listPanel:UnregisterEvent("ITEM_DATA_LOAD_RESULT")
+end
+
+-- Listens for the awaited items while there are any and the tab shows.
+local function Hear()
+    if not (awaiting > 0 and Se.frame:IsVisible()) then return StopHearing() end
+    if hearing then return end
+    hearing = true
+    Se.listPanel:RegisterEvent("ITEM_DATA_LOAD_RESULT")
+    waitToken = waitToken + 1
+    local token = waitToken
+    C_Timer.After(LOAD_WAIT, function()
+        if token ~= waitToken or not hearing then return end
+        for id in pairs(awaited) do gaveUp[id] = true end
+        Reread()
+    end)
+end
+
+local function ItemArrived(_, _, itemID, success)
+    if not awaited[itemID] then return end
+    awaited[itemID] = nil
+    awaiting = awaiting - 1
+    if not success then gaveUp[itemID] = true end
+    RereadSoon(REREAD)
 end
 
 function Se.Refresh()
@@ -342,6 +410,12 @@ function Se.Refresh()
     local items, byKey = ScanBags()
     Se.items, Se.byKey = items, byKey
     Se.sections = BuildSections(items)
+    Hear()
+    -- Bags with items in them and nothing to sell: read a few times more, should the game not be ready to say.
+    if #items == 0 and held > 0 and awaiting == 0 and emptyTries < EMPTY_TRIES and Se.frame:IsVisible() then
+        emptyTries = emptyTries + 1
+        RereadSoon(EMPTY_WAIT)
+    end
     Se.Layout()
 end
 
@@ -1001,6 +1075,7 @@ function Se.Build(frame)
     list:SetWidth(LIST_WIDTH)
     K.Box(list, P.card, P.border)
     Se.listPanel = list
+    list:SetScript("OnEvent", ItemArrived)
     Se.listArea = W.ScrollArea(list)
     Se.listArea:SetPoint("TOPLEFT", 8, -8)
     Se.listArea:SetPoint("BOTTOMRIGHT", -14, 8)
@@ -1208,12 +1283,14 @@ end
 
 function Se.OnShow()
     if not Se.frame then return end
+    emptyTries = 0
     Se.Refresh()
     Se.BindKeys()
 end
 
 function Se.OnHide()
     UnbindKeys()
+    StopHearing()
 end
 
 function Se.OnClosed()
@@ -1226,4 +1303,6 @@ function Se.OnClosed()
     request = nil
     cur, listing = nil, nil
     if Se.quantity then ClearPanel() end
+    StopHearing()
+    wipe(gaveUp)
 end
