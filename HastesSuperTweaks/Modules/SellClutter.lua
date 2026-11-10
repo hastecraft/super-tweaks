@@ -350,23 +350,33 @@ end
 
 -- The text of every item objective in your quest log, finished or not: an item named in one is kept until the quest
 -- is turned in. Missing data is tracked separately from an empty, loaded objective list. Classic Era leaves the quests
--- under a collapsed header out of the log's entries (its count of quests has them all): hidden says some are.
+-- under a collapsed header out of the log's entries (its count of quests has them all): hidden says some are. On WoW
+-- Forever a collapsed header with no quest listed after it says the same.
 local function Objectives()
     local texts, missing, complete, seen = {}, {}, true, 0
     local Q = C_QuestLog or {}
     local count = Q.GetNumQuestLogEntries or GetNumQuestLogEntries
     local entries, quests = 0, 0
     if count then entries, quests = count() end
+    -- folded: the header before is collapsed and no quest has followed it yet.
+    local folded, unlisted = false, false
     for i = 1, entries or 0 do
         local questID, header
         if Q.GetInfo then
             local info = Q.GetInfo(i)
-            if info then questID, header = info.questID, info.isHeader end
+            if info then
+                questID, header = info.questID, info.isHeader
+                if header then
+                    if folded then unlisted = true end
+                    folded = info.isCollapsed == true
+                end
+            end
         elseif GetQuestLogTitle then
             local _, _, _, isHeader, _, _, _, id = GetQuestLogTitle(i)
             questID, header = id, isHeader
         end
         if not header then
+            folded = false
             seen = seen + 1
             if Q.GetQuestObjectives and questID and questID > 0 then
                 local objectives = Q.GetQuestObjectives(questID)
@@ -389,7 +399,8 @@ local function Objectives()
             else complete = false end
         end
     end
-    return texts, complete, missing, not Q.GetInfo and (quests or 0) > seen
+    if folded then unlisted = true end
+    return texts, complete, missing, unlisted or (not Q.GetInfo and (quests or 0) > seen)
 end
 
 -- Items in your equipment sets (item ID -> true), on clients with the equipment manager.
