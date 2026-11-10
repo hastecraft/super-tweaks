@@ -125,6 +125,8 @@ state.roster[100] = { name = 'Thrall-TestRealm', rank = 'Officer', note = 'Main 
 state.quests = {}
 for i = 1, 20 do state.quests[i] = { questID = 700 + i, title = 'Quest ' .. i, reward = 500 + 10 * i } end
 Enable({ 'FastLoot', 'LootWindow', 'ConsumableMacros', 'SpellRanks' }, true)
+-- On in its own section only: it answers the target and mouseover events other sections send to every frame.
+Enable({ 'FactionTracker' }, false)
 Dispatch('PLAYER_ENTERING_WORLD', true, false)
 AdvanceTime(10)
 local X, T, K = mod('XPTracker'), mod('Tooltip'), mod('KillsToLevel')
@@ -794,6 +796,32 @@ Section('Quest Marks & Rare Alerts', function()
     N.questSource = 'game'
     for i = 1, 8 do gone('nameplate' .. i); PLATES['nameplate' .. i], UNITS['nameplate' .. i] = nil, nil end
     C_NamePlate.GetNamePlates = listPlates
+end)
+
+-- Faction Tracker out in the world: nameplates showing, the mouseover, and a zone change.
+Section('Faction Tracker', function()
+    local P = mod('FactionTracker')
+    Enable({ 'FactionTracker' }, true)
+    local guid = 'Player-4372-00ABCDEF'
+    UNITS.nameplate1 = { guid = 'Creature-0-4372-0-12-40-00002A1', player = false }
+    UNITS.nameplate2 = { guid = guid, player = true, class = 'ROGUE' }
+    local function show(unit) Send('FactionTracker', 'NAME_PLATE_UNIT_ADDED', unit) end
+    show('nameplate2')
+    local zone = P.zone
+    Measure('Faction Tracker: nameplate of a mob', 300, function() show('nameplate1') end)
+    Measure('Faction Tracker: nameplate of a player counted today', 300, function() show('nameplate2') end)
+    -- Forgotten before each run, so each raises the count and the text on screen is set again.
+    Measure('Faction Tracker: nameplate of a new player', 300, function()
+        zone.seen[guid] = nil
+        show('nameplate2')
+    end)
+    Measure('Faction Tracker: mouseover of a player counted today', 300, function()
+        Send('FactionTracker', 'UPDATE_MOUSEOVER_UNIT')
+    end)
+    Measure('Faction Tracker: a new area of the same zone', 100, function() Send('FactionTracker', 'ZONE_CHANGED_NEW_AREA') end)
+    P:Reset()
+    Enable({ 'FactionTracker' }, false)
+    UNITS.nameplate1, UNITS.nameplate2 = nil, nil
 end)
 
 -- Better World Refresh with a refresh waiting ten minutes: its one-second tick reads the time left and, refreshing by

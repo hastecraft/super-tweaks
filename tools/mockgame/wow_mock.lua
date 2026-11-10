@@ -38,6 +38,10 @@ function GetMaxPlayerLevel() return 60 end
 function UnitIsAFK() return state.afk end
 function InCombatLockdown() return state.combat end
 function IsInInstance() return state.instanceType ~= "none", state.instanceType end
+function GetRealZoneText() return "Elwynn Forest" end
+function UnitIsVisible() return true end
+function UnitGUID(unit) if unit == "player" then return "Player-0" end end
+function time() return 1000000 end
 function IsInRaid() return state.raidGroup end
 function IsInGroup() return state.raidGroup end
 function IsShiftKeyDown() return state.shift == true end
