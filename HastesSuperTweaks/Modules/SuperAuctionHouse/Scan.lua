@@ -405,8 +405,13 @@ function Scan.Fill()
     local running = phase ~= "idle"
     Scan.button:SetDisabled(running or S.Window.mode == "saved")
     Scan.progress:SetText(running and Scan.ProgressText() or "")
-    local _, count = S.Prices.Summary()
-    Scan.count.value:SetText(FormatLargeNumber(count))
+    -- Counting walks every saved price, and a running scan fills this several times a second.
+    local now = GetTime()
+    if not running or now - (Scan.countedAt or 0) >= 2 then
+        Scan.countedAt = now
+        local _, count = S.Prices.Summary()
+        Scan.count.value:SetText(FormatLargeNumber(count))
+    end
     local last = S.Prices.LastScan()
     Scan.last.value:SetText(last > 0 and date("%b %d %H:%M", last) or "Never")
     if Scan.CanReplicate() then
