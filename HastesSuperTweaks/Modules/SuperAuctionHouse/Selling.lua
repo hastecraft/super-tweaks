@@ -472,7 +472,11 @@ local function Deposit()
     local quantity = Se.quantity:GetNumber()
     if quantity <= 0 then return nil end
     if cur.commodity then return AH.CalculateCommodityDeposit(cur.itemID, duration, quantity) end
-    return AH.CalculateItemDeposit(cur.location, duration, quantity)
+    -- The slot can have emptied since the item was picked (its last one posted, or moved): the game takes only an
+    -- item that's there, and a listing still arriving asks again.
+    local location = cur.location
+    if not (location and location:IsValid() and C_Item.DoesItemExist(location)) then return nil end
+    return AH.CalculateItemDeposit(location, duration, quantity)
 end
 
 local function CanPost()
@@ -606,6 +610,7 @@ local function ClearPanel()
     Se.deposit:SetMoney(nil)
     Se.total:SetMoney(nil)
     Se.post:SetDisabled(true)
+    Se.progress:SetProgress(nil)
     Se.current:SetLoading(false)
     Se.current:SetEntries({})
     Se.history:SetEntries({})
