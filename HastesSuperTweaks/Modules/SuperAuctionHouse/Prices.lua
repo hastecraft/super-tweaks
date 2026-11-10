@@ -234,6 +234,9 @@ function P.ResetRealm()
     wipe(plainSeen)
     realm = NewRealm()
     S.db.global.realms[realmName] = realm
+    -- The copy kept of prices that couldn't be read (see P.Activate) is this realm's too.
+    local unread = S.db.global.unreadRealms
+    if unread then unread[realmName] = nil end
     S.Tooltip.Forget()
     P.Fire()
 end
