@@ -311,8 +311,12 @@ Settings(S, { delay = 5, anyone = true, friends = false, guild = false, communit
     }
 end)
 
--- Whether to accept a summon from this player.
+-- Whether to accept a summon from this player. One the game warns about with a dialog of its own (out of the starting
+-- area, into a scenario) is left for you to answer.
 function S:Accepts(who)
+    local info = C_SummonInfo
+    if info.IsSummonSkippingStartExperience and info.IsSummonSkippingStartExperience() then return false end
+    if info.GetSummonReason and Enum.SummonReason and info.GetSummonReason() == Enum.SummonReason.Scenario then return false end
     local p = self.db.profile
     return p.anyone or ns.IsFrom(who, nil, p.friends, p.guild, p.communities)
 end
