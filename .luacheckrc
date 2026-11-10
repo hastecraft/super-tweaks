@@ -4,7 +4,7 @@
 std = "lua51"
 max_line_length = false
 codes = true
-exclude_files = { "HastesSuperTweaks/Libs/", "tools/", ".release/" }
+exclude_files = { "HastesSuperTweaks/Libs/", "tools/", ".release/", ".claude/", "reviews/" }
 
 -- Also left alone, as this code's style uses them on purpose: unused arguments of callbacks with fixed signatures (212),
 -- the addon name from `local ADDON, ns = ...` (211/ADDON), shadowed names such as self in nested callbacks (43x),

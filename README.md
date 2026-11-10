@@ -108,6 +108,7 @@ Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBU
 - `python tools/install.py` installs the addon into the game. Set `HST_WOW_DIR` to your game folder (the one holding `Interface`). `--dry-run` shows what it would do.
 - `python tools/bench.py` counts the work done on the addon's hot paths in a mocked game runtime (`tools/mockgame`). CI compares it on every pull request.
 - `python tools/check.py` runs the consistency checks CI runs.
+- `python tools/verify.py` runs what CI runs on a pull request: luacheck (when it's installed), the consistency checks and the bench compared with `origin/master`.
 - `python tools/make_art.py` redraws the icons in `HastesSuperTweaks/Art`.
 
 ## License
