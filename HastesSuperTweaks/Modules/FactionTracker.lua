@@ -1,4 +1,4 @@
--- Player Tracker: counts the Alliance and Horde players you come across in each zone. A player counts once per zone,
+-- Faction Tracker: counts the Alliance and Horde players you come across in each zone. A player counts once per zone,
 -- when their nameplate shows or you target or mouse over them, and is forgotten once not seen there for a number of
 -- days, so a zone's count says who is around these days. Counts are kept per realm, for all your characters. The
 -- count of the zone you're in shows on screen, as text you place in Edit Mode.
@@ -11,15 +11,15 @@ local HST = ns.HST
 local IsSecret = ns.IsSecret
 local floor = math.floor
 
-local P = HST:NewFeature("PlayerTracker", {
-    name = "Player Tracker", category = "group", order = 0.7, command = "players",
+local P = HST:NewFeature("FactionTracker", {
+    name = "Faction Tracker", category = "group", order = 0.7, command = "factions", enabledByDefault = false,
     summary = "Counts the Alliance and Horde players you come across in each zone.",
     examples = { "show", "sayEnter" },
     description = "Counts the Alliance and Horde players you come across in each zone: players whose nameplate shows, "
         .. "and players you target or mouse over. Each counts once per zone. The count for the zone you're in shows "
-        .. "on screen; move it in Edit Mode. /hst players shows every zone's count.",
+        .. "on screen; move it in Edit Mode. /hst factions shows every zone's count.",
 })
-ns.PlayerTracker = P
+ns.FactionTracker = P
 
 -- realm.zones[name] = { a = Alliance players, h = Horde players, seen = { [guid] = stamp } }. A stamp is the day the
 -- player was last seen there (days since 1970) times two, plus one for the Horde.
@@ -205,7 +205,7 @@ end
 function P:Readout()
     local f = self.readout
     if f then return f end
-    f = CreateFrame("Frame", "HastesSuperTweaksPlayerTracker", UIParent)
+    f = CreateFrame("Frame", "HastesSuperTweaksFactionTracker", UIParent)
     f.text = f:CreateFontString(nil, "OVERLAY")
     f.text:SetPoint("CENTER")
     f:Hide()
@@ -305,10 +305,10 @@ local SAMPLES = { { "Elwynn Forest", 34, 3 }, { "Stranglethorn Vale", 18, 27 }, 
 local PANEL_W, ROW, BAR = 200, 24, 3
 function P.info.preview(frame)
     local W = ns.Widgets
-    local v = frame.hstPlayers
+    local v = frame.hstFactions
     if not v then
         v = {}
-        frame.hstPlayers = v
+        frame.hstFactions = v
         v.panel = W.Panel(frame, PANEL_W, 8 + #SAMPLES * ROW)
         for i, sample in ipairs(SAMPLES) do
             local name, alliance, horde = sample[1], sample[2], sample[3]
