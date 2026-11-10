@@ -2,7 +2,7 @@
 -- when their nameplate shows or you target or mouse over them, and is forgotten once not seen there for a number of
 -- days, so a zone's count says who is around these days. Counts are kept per realm, for all your characters. The
 -- count of the zone you're in shows on screen, as text you place in Edit Mode; a right-click on it, out of combat,
--- starts that zone's count over.
+-- starts that zone's count over. Where you rest (cities and inns) the text can hide.
 -- Out in the world this costs the nameplate, target and mouseover events: one game call for a mob, two for a player
 -- already counted today, and the text set again for a player who's new. In instances, where players' GUIDs are hidden
 -- and there is no zone to count for, only the two zone events are listened to.
@@ -30,7 +30,7 @@ P.defaults = { profile = {
     sayEnter = true, days = 30,
     -- On screen
     show = true, x = P.DEFAULT_X, y = P.DEFAULT_Y, font = "Inter Semi Bold", fontSize = 12, outline = "OUTLINE",
-    rightReset = true,
+    rightReset = true, hideResting = true,
 }, realm = { zones = {} } }
 
 function P:OnInitialize()
@@ -195,6 +195,7 @@ ns.Listen(P, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
     if framed then return See(self, framed, true) end
     if event == "PLAYER_REGEN_DISABLED" then return self:Mouse(true) end
     if event == "PLAYER_REGEN_ENABLED" then return self:Mouse(false) end
+    if event == "PLAYER_UPDATE_RESTING" then return self:Rest(true) end
     self:Arrive(event == "ZONE_CHANGED_NEW_AREA")
 end)
 
@@ -209,7 +210,7 @@ end
 
 -- Turned off, its events are gone (ns.Listen); the next time on starts over.
 function P:OnUnlisten()
-    self.watching, self.clickable, self.zoneName, self.zone = false, false, nil, nil
+    self.watching, self.clickable, self.restful, self.zoneName, self.zone = false, false, false, nil, nil
     self:Apply()
 end
 
@@ -280,11 +281,29 @@ function P:Readout()
     return f
 end
 
--- Shows the zone's count, and hides the text in a zone with none (and in instances).
+-- Whether the text hides for now: where you rest (a city, an inn), when that's chosen. The game is listened to for
+-- it only then. `heard`: the game just said resting began or ended, so the text follows at once.
+function P:Rest(heard)
+    local wanted = self.shows and self.db.profile.hideResting or false
+    local events = self.events -- made when this is first turned on
+    if events and wanted ~= (self.restful or false) then
+        self.restful = wanted
+        if wanted then events:RegisterEvent("PLAYER_UPDATE_RESTING") else events:UnregisterEvent("PLAYER_UPDATE_RESTING") end
+    end
+    local resting = wanted and IsResting()
+    if IsSecret(resting) then resting = false end
+    resting = resting and true or false
+    if resting == (self.away or false) then return end
+    self.away = resting
+    if heard then self:Paint() end
+end
+
+-- Shows the zone's count, and hides the text in a zone with none (and in instances), and where you rest when that's
+-- chosen. In Edit Mode it shows wherever you are, to be moved.
 function P:Paint()
     local zone, a, h = self.zone, nil, nil
     if self.shows then
-        if zone and zone.a + zone.h > 0 then
+        if zone and zone.a + zone.h > 0 and (not self.away or self.editMode) then
             a, h = zone.a, zone.h
         elseif self.editMode then
             a, h = 12, 3
@@ -307,6 +326,7 @@ end
 function P:Apply()
     self.shows = self.db.profile.show and self:IsEnabled() or false
     self:Mouse()
+    self:Rest()
     if self.shows and not self.UpdateEditMode then ns.EditMode.Add(self) end
     if self.readout then Style(self, self.readout) end
     -- Turned on with Edit Mode open: movable at once, as when Edit Mode opens.
@@ -340,6 +360,7 @@ ns.LazyOptions(P, function(m)
                 show = option("toggle", "show", "Show the zone's count", 1),
                 rightReset = option("toggle", "rightReset", "Right-click to reset the zone's count (out of combat)", 1.5,
                     { disabled = hidden }),
+                hideResting = option("toggle", "hideResting", "Hide in cities and inns", 1.7, { disabled = hidden }),
                 font = ns.MediaOption(profile, "font", "font", "Font", 2, { disabled = hidden }, apply),
                 fontSize = option("range", "fontSize", "Size", 3, { min = 6, max = 32, step = 1, disabled = hidden }),
                 outline = option("select", "outline", "Outline", 4, ns.With({ desc = ns.OutlineDesc(), disabled = hidden },
