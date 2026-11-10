@@ -1,7 +1,8 @@
 -- Faction Tracker: counts the Alliance and Horde players you come across in each zone. A player counts once per zone,
 -- when their nameplate shows or you target or mouse over them, and is forgotten once not seen there for a number of
 -- days, so a zone's count says who is around these days. Counts are kept per realm, for all your characters. The
--- count of the zone you're in shows on screen, as text you place in Edit Mode.
+-- count of the zone you're in shows on screen, as text you place in Edit Mode; a right-click on it, out of combat,
+-- starts that zone's count over.
 -- Out in the world this costs the nameplate, target and mouseover events: one game call for a mob, two for a player
 -- already counted today, and the text set again for a player who's new. In instances, where players' GUIDs are hidden
 -- and there is no zone to count for, only the two zone events are listened to.
@@ -17,7 +18,8 @@ local P = HST:NewFeature("FactionTracker", {
     examples = { "show", "sayEnter" },
     description = "Counts the Alliance and Horde players you come across in each zone: players whose nameplate shows, "
         .. "and players you target or mouse over. Each counts once per zone. The count for the zone you're in shows "
-        .. "on screen; move it in Edit Mode. /hst factions shows every zone's count.",
+        .. "on screen; move it in Edit Mode, and right-click it out of combat to reset that zone's count. /hst factions "
+        .. "shows every zone's count.",
 })
 ns.FactionTracker = P
 
@@ -28,6 +30,7 @@ P.defaults = { profile = {
     sayEnter = true, days = 30,
     -- On screen
     show = true, x = P.DEFAULT_X, y = P.DEFAULT_Y, font = "Inter Semi Bold", fontSize = 12, outline = "OUTLINE",
+    rightReset = true,
 }, realm = { zones = {} } }
 
 function P:OnInitialize()
@@ -152,6 +155,25 @@ function P:Reset()
     if self.shows then self:Paint() end
 end
 
+-- Starts the count of the zone you're in over: its players are forgotten, and those in sight now (the nameplates
+-- showing, your target, the mouseover) are counted again.
+function P:ResetZone()
+    local name = self.zoneName
+    if not name then return end
+    self.db.realm.zones[name] = nil
+    self.zone = nil
+    if C_NamePlate and C_NamePlate.GetNamePlates then
+        for _, plate in ipairs(C_NamePlate.GetNamePlates()) do
+            -- The game's nameplate code keeps each one's unit on it (by another name on Classic Era).
+            local unit = plate.unitToken or plate.namePlateUnitToken
+            if type(unit) == "string" then See(self, unit) end
+        end
+    end
+    See(self, "target", true)
+    See(self, "mouseover", true)
+    if self.shows then self:Paint() end
+end
+
 -- Every zone's count, a line each, the zones with the most players first.
 function P:List()
     local zones, lines = self.db.realm.zones, {}
@@ -171,6 +193,8 @@ ns.Listen(P, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
     if event == "NAME_PLATE_UNIT_ADDED" then return See(self, unit) end
     local framed = SIGHT[event]
     if framed then return See(self, framed, true) end
+    if event == "PLAYER_REGEN_DISABLED" then return self:Mouse(true) end
+    if event == "PLAYER_REGEN_ENABLED" then return self:Mouse(false) end
     self:Arrive(event == "ZONE_CHANGED_NEW_AREA")
 end)
 
@@ -185,7 +209,7 @@ end
 
 -- Turned off, its events are gone (ns.Listen); the next time on starts over.
 function P:OnUnlisten()
-    self.watching, self.zoneName, self.zone = false, nil, nil
+    self.watching, self.clickable, self.zoneName, self.zone = false, false, nil, nil
     self:Apply()
 end
 
@@ -207,6 +231,42 @@ local function Style(self, f)
     f:SetPoint("CENTER", UIParent, "CENTER", p.x, p.y)
 end
 
+-- A right-click on the text starts the zone's count over. In Edit Mode the selection over it takes the click.
+local function OnMouseUp(_, button)
+    if button == "RightButton" and not InCombatLockdown() and not P.editMode then P:ResetZone() end
+end
+
+-- The text takes right-clicks while that's chosen and you're out of combat; the rest of the time, and for every other
+-- button, clicks reach the world behind it. Combat is listened for only while it's chosen. `combat`: entering (true)
+-- or leaving (false) a fight, when an event says so (the game locks down only after it says a fight began).
+function P:Mouse(combat)
+    local wanted = self.shows and self.db.profile.rightReset or false
+    local events = self.events -- made when this is first turned on
+    if events and wanted ~= (self.clickable or false) then
+        self.clickable = wanted
+        if wanted then
+            events:RegisterEvent("PLAYER_REGEN_DISABLED")
+            events:RegisterEvent("PLAYER_REGEN_ENABLED")
+        else
+            events:UnregisterEvent("PLAYER_REGEN_DISABLED")
+            events:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        end
+    end
+    local f = self.readout
+    if not f then return end
+    if combat == nil then combat = InCombatLockdown() end
+    local clicks = wanted and not combat or false
+    if clicks == (f.clicks or false) then return end
+    f.clicks = clicks
+    if clicks and not f.clicked then
+        f.clicked = true
+        f:SetScript("OnMouseUp", OnMouseUp)
+        -- The game lets this be set out of combat only, which is the only time the text takes clicks.
+        if f.SetPassThroughButtons then f:SetPassThroughButtons("LeftButton", "MiddleButton", "Button4", "Button5") end
+    end
+    f:SetMouseClickEnabled(clicks)
+end
+
 function P:Readout()
     local f = self.readout
     if f then return f end
@@ -216,6 +276,7 @@ function P:Readout()
     f:Hide()
     self.readout = f
     Style(self, f)
+    self:Mouse()
     return f
 end
 
@@ -245,6 +306,7 @@ end
 -- Settings changed, the profile did, or this was turned on or off. Edit Mode is followed only while the text is on.
 function P:Apply()
     self.shows = self.db.profile.show and self:IsEnabled() or false
+    self:Mouse()
     if self.shows and not self.UpdateEditMode then ns.EditMode.Add(self) end
     if self.readout then Style(self, self.readout) end
     -- Turned on with Edit Mode open: movable at once, as when Edit Mode opens.
@@ -276,6 +338,8 @@ ns.LazyOptions(P, function(m)
         general = { type = "group", name = "General", order = 1, args = {
             screen = ns.Section("On screen", 1, {
                 show = option("toggle", "show", "Show the zone's count", 1),
+                rightReset = option("toggle", "rightReset", "Right-click to reset the zone's count (out of combat)", 1.5,
+                    { disabled = hidden }),
                 font = ns.MediaOption(profile, "font", "font", "Font", 2, { disabled = hidden }, apply),
                 fontSize = option("range", "fontSize", "Size", 3, { min = 6, max = 32, step = 1, disabled = hidden }),
                 outline = option("select", "outline", "Outline", 4, ns.With({ desc = ns.OutlineDesc(), disabled = hidden },
