@@ -229,11 +229,10 @@ local function NewItemButton(parent)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b.back = W.Fill(b, P.well, "BACKGROUND")
     b.back:SetAllPoints()
-    b.icon = b:CreateTexture(nil, "ARTWORK")
-    b.icon:SetPoint("TOPLEFT", 1, -1)
-    b.icon:SetPoint("BOTTOMRIGHT", -1, 1)
-    b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     b.rim = W.Border(b, P.border, "OVERLAY")
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    W.Inside(b.icon, b)
+    b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     b.count = K.Text(b, "NumberFontNormalSmall", nil, "RIGHT")
     b.count:SetPoint("BOTTOMRIGHT", -2, 2)
     b:SetScript("OnClick", function(self, button)
@@ -365,9 +364,11 @@ local function Lock()
     end
 end
 
--- The auction house takes prices in whole silver: one with copper in it is refused ("Internal auction error"), though
--- the client says it supports copper.
+-- A price the auction house takes for the item being posted. Materials and other goods sold by the unit (commodities)
+-- go for any whole number of copper. Gear and other single items go in whole silver: with copper in the price the post
+-- is refused ("Internal auction error"), though the client says it supports copper.
 local function RoundForGame(copper)
+    if cur and cur.commodity then return math.max(1, math.floor(copper)) end
     return math.max(100, math.floor(copper / 100) * 100)
 end
 
@@ -561,6 +562,7 @@ function Se.Select(item)
     -- A post still on its way stays: its answer records it.
     cur = item
     priceTouched = false
+    thresholdUnit = nil -- the last item's, until this one's listing arrives (see FindThreshold)
     cur.priceKey = PriceKey(item)
     local status = AH.GetItemCommodityStatus(item.location)
     local commodity = Enum.ItemCommodityStatus and Enum.ItemCommodityStatus.Commodity or 2
@@ -737,7 +739,7 @@ end
 local function Post()
     if not CanPost() then return end
     local quantity, price = Se.quantity:GetNumber(), Se.price:GetValue()
-    -- Typed copper goes, and the boxes show what's posted.
+    -- Copper typed for gear goes, and the boxes show what's posted.
     if price > 0 and price ~= RoundForGame(price) then price = RoundForGame(price); Se.price:SetValue(price) end
     if Se.bid:IsShown() then
         local bid = Se.bid:GetValue()
@@ -747,7 +749,12 @@ local function Post()
     if not CanPost() then return FillSummary() end
     local reason = LowPriceReason(price, quantity)
     if reason then
-        K.Dialog({ title = "Post at " .. K.Money(price) .. "?", text = reason, confirm = "Post", onConfirm = DoPost })
+        -- The keys still pick another item while the question is up, and a box may still take typing: yes posts only
+        -- what was asked about.
+        local key = cur.key
+        K.Dialog({ title = "Post at " .. K.Money(price) .. "?", text = reason, confirm = "Post", onConfirm = function()
+            if cur and cur.key == key and Se.price:GetValue() == price and Se.quantity:GetNumber() == quantity then DoPost() end
+        end })
     else
         DoPost()
     end
@@ -1019,8 +1026,7 @@ function Se.Build(frame)
     W.Fill(slotFrame, P.well, "BACKGROUND"):SetAllPoints()
     W.Border(slotFrame, P.line, "OVERLAY")
     Se.slot = slotFrame:CreateTexture(nil, "ARTWORK")
-    Se.slot:SetPoint("TOPLEFT", 1, -1)
-    Se.slot:SetPoint("BOTTOMRIGHT", -1, 1)
+    W.Inside(Se.slot, slotFrame)
     Se.slot:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     local function dropped()
         local location = C_Cursor and C_Cursor.GetCursorItem and C_Cursor.GetCursorItem()

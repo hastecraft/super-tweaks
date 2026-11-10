@@ -60,12 +60,11 @@ local RANGE_DOT = "\226\151\143" -- what action buttons show without a key, when
 -- Dresses a frame as the button: the button itself, its Edit Mode stand-in (the icon only) and the settings preview.
 local function Dress(f, full)
     local edges = ns.CreateEdges(f, "BORDER")
+    f.icon = f:CreateTexture(nil, "BORDER")
+    edges.inside = f.icon
     edges:Layout(f, 1)
     edges:SetColor(0, 0, 0, 1)
     edges:SetShown(true)
-    f.icon = f:CreateTexture(nil, "BORDER")
-    f.icon:SetPoint("TOPLEFT", 1, -1)
-    f.icon:SetPoint("BOTTOMRIGHT", -1, 1)
     f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     if not full then return f end
     local level = f:GetFrameLevel()

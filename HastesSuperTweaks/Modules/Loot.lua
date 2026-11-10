@@ -106,6 +106,7 @@ function F.info.preview(frame)
     -- Most of its size, smaller to fit above the caption.
     local room = W.PREVIEW_HEIGHT - (text and caption:GetStringHeight() + 6 or 0) - 8
     f:SetScale(math.min(0.8, room / f:GetHeight(), (W.PREVIEW_WIDTH - 8) / f:GetWidth()))
+    L:FitLines(f)
     L:SnapEdges(f, look)
     W.Column(frame, text and { f, 6, caption } or { f })
     -- The list opens and every item lands in it at once, a beat apart (newest at the edge it grows toward), the money
@@ -531,8 +532,7 @@ local function CreateRow(window)
     W.Fill(row.slot, C.field):SetAllPoints()
     row.edge = W.Border(row.slot, C.border)
     row.icon = row.slot:CreateTexture(nil, "ARTWORK")
-    row.icon:SetPoint("TOPLEFT", 1, -1)
-    row.icon:SetPoint("BOTTOMRIGHT", -1, 1)
+    W.Inside(row.icon, row.slot)
     row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     row.quest = row.slot:CreateTexture(nil, "OVERLAY")
     row.quest:SetAllPoints(row.icon)
@@ -819,13 +819,13 @@ function L:Layout(f, items, manual, p, money, note, placed)
     -- Each is laid out and colored only while it shows (every layout that shows it does both first).
     local border = p.border and (manual or p.noticeAlpha > 0)
     if border then
-        f.edges:Layout(f, ns.Pixels(f, p.borderSize), false)
+        f.edges:Layout(f, p.borderSize, false)
         if lit then f.edges:SetColor(r, g, b, 1) else f.edges:SetColor(unpack(p.borderColor)) end
     end
     f.edges:SetShown(border)
     local glow = border and lit and p.glow
     if glow then
-        f.glow:Layout(f, ns.Pixels(f, 2), true)
+        f.glow:Layout(f, 2, true)
         f.glow:SetColor(r, g, b, 0.35)
     end
     f.glow:SetShown(glow)
@@ -833,8 +833,19 @@ end
 
 -- Lays the border and its glow out again on whole pixels, for a preview window scaled after L:Layout.
 function L:SnapEdges(f, p)
-    f.edges:Layout(f, ns.Pixels(f, p.borderSize), false)
-    f.glow:Layout(f, ns.Pixels(f, 2), true)
+    f.edges:Layout(f, p.borderSize, false)
+    f.glow:Layout(f, 2, true)
+end
+
+-- Fits the window's rules, close icon and slot borders to whole pixels at the scale it was just given, if that changed.
+function L:FitLines(f)
+    local scale = f:GetEffectiveScale()
+    if scale == f.fittedScale then return end
+    f.fittedScale = scale
+    local FitBorder = ns.Widgets.FitBorder
+    f.close.icon:Fit(); f.rule:Fit(); f.footer.rule:Fit()
+    FitBorder(f.takeAll.key)
+    for i = 1, #f.rows do FitBorder(f.rows[i].slot) end
 end
 
 -- Sets the window's opacity unless it has it already: the notices' animation sets it every frame while they fade.
@@ -922,7 +933,7 @@ function L:Place(atMouse)
     local f, p = self.window, self.db.profile
     local scale = p.scale
     f:SetScale(scale)
-    f.close.icon:Fit()
+    self:FitLines(f)
     f:ClearAllPoints()
     if atMouse then
         local x, y = GetCursorPosition()
@@ -1310,7 +1321,7 @@ function L:Refresh()
     end
     if LOOTING[self.mode] then
         f:SetScale(self.db.profile.scale)
-        f.close.icon:Fit()
+        self:FitLines(f)
         local items, money = self:Remaining()
         self:Layout(f, items, true, self.db.profile, money, self.mode == "leftovers" and self:LeftNote(items) or nil)
         self:UpdateHotkey()
@@ -1555,6 +1566,7 @@ function L.info.preview(frame)
     if not frame.hstWindow then
         frame.hstWindow = L:BuildWindow(frame)
         frame.hstWindow:SetScale(0.7)
+        L:FitLines(frame.hstWindow)
         frame.hstWindow:SetPoint("CENTER")
     end
     L:Layout(frame.hstWindow, L.samples.preview, true, L:Look({ ownedCount = false }), { amount = L.samples.money })
@@ -1628,8 +1640,9 @@ L.info.livePreview = function(frame, width, height)
     local scale = math.max(0.3, math.min(p.scale, fit))
     v.fit:SetShown(fit < p.scale)
     v.take:SetScale(scale)
-    v.take.close.icon:Fit()
     v.list:SetScale(scale)
+    L:FitLines(v.take)
+    L:FitLines(v.list)
     -- Borders land on whole pixels at the scale just set.
     L:SnapEdges(v.take, p)
     L:SnapEdges(v.list, p)

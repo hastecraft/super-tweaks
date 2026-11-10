@@ -722,15 +722,14 @@ local function Build()
     table.insert(UISpecialFrames, "HSTInstanceTracker")
 
     local head = CreateFrame("Frame", nil, f)
-    head:SetPoint("TOPLEFT", 1, -1)
-    head:SetPoint("TOPRIGHT", -1, -1)
+    W.Inside(head, f, "TOPLEFT", "TOPRIGHT")
     head:SetHeight(HEAD)
     Draggable(head)
     W.Fill(head, P.titlebar, "BACKGROUND", 1):SetAllPoints()
     local rule = W.Fill(head, P.border, "ARTWORK")
     rule:SetPoint("BOTTOMLEFT")
     rule:SetPoint("BOTTOMRIGHT")
-    rule:SetHeight(1)
+    W.Line(rule)
     local logo = W.PixelIcon(head, W.ART .. "Logo", 18, P.logo)
     logo:SetPoint("LEFT", 14, 0)
     local title = K.Text(head, "GameFontNormal", P.title)
@@ -747,15 +746,14 @@ local function Build()
     settings:SetScript("OnClick", function() HST:OpenSettings("InstanceTracker") end)
 
     local foot = CreateFrame("Frame", nil, f)
-    foot:SetPoint("BOTTOMLEFT", 1, 1)
-    foot:SetPoint("BOTTOMRIGHT", -1, 1)
+    W.Inside(foot, f, "BOTTOMLEFT", "BOTTOMRIGHT")
     foot:SetHeight(FOOT)
     Draggable(foot)
     W.Fill(foot, P.titlebar, "BACKGROUND", 1):SetAllPoints()
     local footRule = W.Fill(foot, P.border, "ARTWORK")
     footRule:SetPoint("TOPLEFT")
     footRule:SetPoint("TOPRIGHT")
-    footRule:SetHeight(1)
+    W.Line(footRule)
     Win.status = K.Text(foot, "GameFontHighlightSmall", P.muted)
     Win.status:SetPoint("LEFT", 12, 0)
     Win.status:SetPoint("RIGHT", -140, 0)
@@ -777,8 +775,8 @@ local function Build()
     end)
 
     local body = CreateFrame("Frame", nil, f)
-    body:SetPoint("TOPLEFT", 1, -HEAD - 1)
-    body:SetPoint("BOTTOMRIGHT", -1, FOOT + 1)
+    body:SetPoint("TOPLEFT", head, "BOTTOMLEFT")
+    body:SetPoint("BOTTOMRIGHT", foot, "TOPRIGHT")
     Win.body = body
 
     local band = CreateFrame("Frame", nil, body)
@@ -845,6 +843,7 @@ local function Build()
         if Win.confirm then Win.confirm.veil:Hide(); Win.confirm.onYes = nil end
     end)
     FitToScreen()
+    W.FitIcons() -- the rules were drawn before the window took its scale
 end
 
 function Win.Toggle()
@@ -861,5 +860,6 @@ end
 -- Settings changed while the window exists.
 function Win.Apply()
     FitToScreen()
+    W.FitIcons()
     if Win.frame:IsShown() then Win.Refresh() end
 end

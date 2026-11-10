@@ -365,7 +365,8 @@ function X:Apply()
     self.background:SetAllPoints(f)
     self.background:SetTexture(ns.Media("statusbar", p.backgroundTexture, p.backgroundPath))
     self.background:SetVertexColor(unpack(p.backgroundColor))
-    local inset = min(p.padding + p.border, min(p.width, p.height) / 2 - 1)
+    -- In whole screen pixels, as the border is drawn, so the fill sits the same distance from every side.
+    local inset = min(ns.Pixels(f, p.padding) + ns.Border(f, p.border), min(p.width, p.height) / 2 - 1)
     local barTexture = ns.Media("statusbar", p.texture, p.texturePath)
     for key, bar in pairs(self.bars) do
         bar:ClearAllPoints()
@@ -388,6 +389,7 @@ function X:Apply()
         fontString:SetShown(t.enabled)
     end
     local width, height = p.width - inset * 2, p.height - inset * 2
+    local thin = ns.Pixels(f, 1) -- a tick's thickness: a unit, in whole screen pixels
     for i = 1, 39 do
         local tick = self.ticks[i]
         if i < p.ticks then
@@ -396,9 +398,9 @@ function X:Apply()
             tick:SetVertexColor(unpack(p.tickColor))
             tick:ClearAllPoints()
             if p.orientation == "HORIZONTAL" then
-                tick:SetSize(1, height); tick:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", inset + width * i / p.ticks, inset)
+                tick:SetSize(thin, height); tick:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", inset + width * i / p.ticks, inset)
             else
-                tick:SetSize(width, 1); tick:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", inset, inset + height * i / p.ticks)
+                tick:SetSize(width, thin); tick:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", inset, inset + height * i / p.ticks)
             end
             tick:Show()
         elseif tick then tick:Hide() end
@@ -408,6 +410,8 @@ function X:Apply()
     self:RedrawBars()
     self:Render()
 end
+-- The padding and ticks go back on whole screen pixels when a pixel becomes another size.
+ns.OnPixels(function() X:Apply() end)
 
 -- Fill color for "xp", "rested" or "quest", honoring class color for XP.
 function X:BarColor(key)

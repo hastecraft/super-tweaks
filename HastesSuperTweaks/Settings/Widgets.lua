@@ -282,23 +282,6 @@ function W.Fill(parent, color, layer, sublevel)
     return t
 end
 
--- One-unit border inside the frame's edges; returns a setter for its color, and its edges.
-function W.Border(frame, color, layer)
-    local edges = {}
-    local function edge(a, b, horizontal)
-        local t = frame:CreateTexture(nil, layer or "BORDER")
-        t.hstFlat = true
-        t:SetPoint(a); t:SetPoint(b)
-        if horizontal then t:SetHeight(1) else t:SetWidth(1) end
-        edges[#edges + 1] = t
-    end
-    edge("TOPLEFT", "TOPRIGHT", true); edge("BOTTOMLEFT", "BOTTOMRIGHT", true)
-    edge("TOPLEFT", "BOTTOMLEFT"); edge("TOPRIGHT", "BOTTOMRIGHT")
-    local function set(c) for _, t in ipairs(edges) do W.Paint(t, c) end end
-    set(color or C.border)
-    return set, edges
-end
-
 function W.Text(parent, font, color, justify)
     local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlight")
     if color then W.Paint(fs, color) end
@@ -310,7 +293,7 @@ end
 function W.FadeLine(parent, color, alpha)
     local line = parent:CreateTexture(nil, "ARTWORK")
     line:SetColorTexture(1, 1, 1, 1)
-    line:SetHeight(1)
+    W.Line(line)
     line.hstFade = alpha or 0.8
     W.Paint(line, color or C.line)
     return line
@@ -359,8 +342,19 @@ local TURNS = {
     UP = function(l, r, t, b) return r, t, l, t, r, b, l, b end,
 }
 
+-- The screen's height in pixels, read once and again after the interface's scale or the display changes: that also
+-- fits everything again (W.FitIcons), listened to once anything is fitted.
+local screenHeight, refit
 local function ScreenHeight()
+    if screenHeight then return screenHeight end
+    if not refit then
+        refit = CreateFrame("Frame")
+        refit:RegisterEvent("UI_SCALE_CHANGED")
+        refit:RegisterEvent("DISPLAY_SIZE_CHANGED")
+        refit:SetScript("OnEvent", function() screenHeight = nil; W.FitIcons() end)
+    end
     local _, height = GetPhysicalScreenSize()
+    if height and height > 0 then screenHeight = height end
     return height
 end
 
@@ -391,9 +385,6 @@ function W.FitIcons()
     local screen = ScreenHeight()
     for t in pairs(icons) do t:Fit(screen) end
 end
--- Fitted again when the interface's scale or the display changes, listened to once there's anything to fit.
-local refit
-
 -- A pixel-exact texture, fitted again when its parent shows (one OnShow hook per parent) and, with `sized`, when its
 -- parent changes size. Set its fields (hstParent, the frame it was made on: these are never moved to another), then
 -- Fit it.
@@ -408,15 +399,11 @@ local function FitSized(parent)
     local shapes, screen, width, height = parent.hstShapes, ScreenHeight(), parent:GetWidth(), parent:GetHeight()
     for i = 1, #shapes do shapes[i]:Fit(screen, width, height) end
 end
+-- Has W.FitIcons fit a texture again.
+local function Listed(t) icons[t] = true end
 local function Track(t, sized)
     local parent = t.hstParent
-    if not refit then
-        refit = CreateFrame("Frame")
-        refit:RegisterEvent("UI_SCALE_CHANGED")
-        refit:RegisterEvent("DISPLAY_SIZE_CHANGED")
-        refit:SetScript("OnEvent", W.FitIcons)
-    end
-    icons[t] = true
+    Listed(t)
     local list = parent.hstIcons
     if not list then
         list = {}
@@ -436,6 +423,99 @@ local function Track(t, sized)
     return t
 end
 
+-- A unit in whole screen pixels (at least one) at a region's scale, as a ring's stroke is; nil when the region is
+-- fitted to this scale already. Asked for one region (after its window took another scale), only the scale is checked:
+-- the display changing fits every region, with the screen's height (W.FitIcons).
+local function Hairline(t, screen)
+    local scale = t:GetEffectiveScale()
+    if scale == t.fitScale and (not screen or screen == t.fitScreen) then return end
+    screen = screen or ScreenHeight()
+    t.fitScale, t.fitScreen = scale, screen
+    local px = 768 / screen / scale -- units per screen pixel here
+    return math.max(1, math.floor(1 / px + 0.5)) * px
+end
+
+local function FitLine(t, screen)
+    local thick = Hairline(t, screen)
+    if not thick then return end
+    if t.vertical then t:SetWidth(thick) else t:SetHeight(thick) end
+end
+
+-- Makes a texture a hairline: a unit high, or with `vertical` a unit wide, drawn a whole number of screen pixels thick
+-- at any UI scale, so every rule in a window comes out the same. Its points are the caller's. Fitted here and by
+-- W.FitIcons, not each time its frame shows: windows shown in play have rules, and showing one costs nothing more.
+function W.Line(t, vertical)
+    t.vertical, t.Fit = vertical, FitLine
+    Listed(t)
+    t:Fit()
+    return t
+end
+
+local function FitBorder(top, screen)
+    local thick = Hairline(top, screen)
+    if not thick then return end
+    local edges = top.hstEdges
+    top:SetHeight(thick); edges[2]:SetHeight(thick)
+    edges[3]:SetWidth(thick); edges[4]:SetWidth(thick)
+end
+
+-- A border a unit wide inside the frame's edges, in whole screen pixels as a line is (W.Line); returns a setter for
+-- its color, and its edges (top, bottom, left, right). The sides run between the top and bottom edges, so their inner
+-- corners are the corners of the space inside: W.Inside puts a region there.
+function W.Border(frame, color, layer)
+    layer = layer or "BORDER"
+    local top, bottom = frame:CreateTexture(nil, layer), frame:CreateTexture(nil, layer)
+    local left, right = frame:CreateTexture(nil, layer), frame:CreateTexture(nil, layer)
+    top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT")
+    bottom:SetPoint("BOTTOMLEFT"); bottom:SetPoint("BOTTOMRIGHT")
+    left:SetPoint("TOPLEFT", top, "BOTTOMLEFT"); left:SetPoint("BOTTOMLEFT", bottom, "TOPLEFT")
+    right:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT"); right:SetPoint("BOTTOMRIGHT", bottom, "TOPRIGHT")
+    local edges = { top, bottom, left, right }
+    for i = 1, 4 do edges[i].hstFlat = true end
+    local function set(c) for i = 1, 4 do W.Paint(edges[i], c) end end
+    set(color or C.border)
+    frame.hstBorder = edges
+    top.hstEdges, top.Fit = edges, FitBorder
+    Listed(top)
+    top:Fit()
+    return set, edges
+end
+
+-- Fits a frame's border again, after the frame took another scale.
+function W.FitBorder(frame) frame.hstBorder[1]:Fit() end
+
+local function FitInside(region, screen)
+    local thick = Hairline(region, screen)
+    if not thick then return end
+    local frame = region.hstInside
+    region:SetPoint("TOPLEFT", frame, "TOPLEFT", thick, -thick)
+    region:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -thick, thick)
+end
+
+-- Pins a region's corners to the inside of a frame's border, so the two meet at any UI scale: W.Inside(icon, slot)
+-- fills the inside, W.Inside(head, window, "TOPLEFT", "TOPRIGHT") runs along its top. A frame with a box for a border
+-- (W.Box: no edges to pin to until it shows, and a ring in a round theme) can only be filled: the region is kept a
+-- border's width in from its sides.
+local INSIDE = {
+    TOPLEFT = { 3, "TOPRIGHT" }, BOTTOMLEFT = { 3, "BOTTOMRIGHT" },
+    TOPRIGHT = { 4, "TOPLEFT" }, BOTTOMRIGHT = { 4, "BOTTOMLEFT" },
+}
+function W.Inside(region, frame, a, b)
+    local edges = frame.hstBorder
+    if not edges then
+        region.hstInside, region.Fit = frame, FitInside
+        Listed(region)
+        return region:Fit()
+    end
+    if not a then a, b = "TOPLEFT", "BOTTOMRIGHT" end
+    local to = INSIDE[a]
+    region:SetPoint(a, edges[to[1]], to[2])
+    if b then
+        to = INSIDE[b]
+        region:SetPoint(b, edges[to[1]], to[2])
+    end
+end
+
 local function Icon(parent, atlas, big, size, color, layer, sublevel)
     local t = parent:CreateTexture(nil, layer or "ARTWORK", nil, sublevel)
     t:SetSnapToPixelGrid(true)
@@ -446,8 +526,12 @@ end
 
 -- A pixel-exact icon from `path` (an Art file with a <path>Sizes atlas beside it: Chevron, GitHub, Heart, Logo).
 -- Not for icons other addons may crop with SetTexCoord (minimap buttons): they would show a strip of the atlas.
+-- The white full-size art of an icon whose own file is colored: the logo's is the addon list's icon, in gold, and a
+-- tint over gold comes out as neither color.
+local BIG = { [ART .. "Logo"] = ART .. "LogoTint" }
+
 function W.PixelIcon(parent, path, size, color, layer, sublevel)
-    local t = Icon(parent, path .. "Sizes", path, size, color, layer, sublevel)
+    local t = Icon(parent, path .. "Sizes", BIG[path] or path, size, color, layer, sublevel)
     t:Fit()
     return t
 end
@@ -870,7 +954,7 @@ local function NewRow(parent, kind)
     c.divider = W.Fill(c, C.divider, "BORDER")
     c.divider:SetPoint("TOPLEFT", 0, 0)
     c.divider:SetPoint("TOPRIGHT", 0, 0)
-    c.divider:SetHeight(1)
+    W.Line(c.divider)
     return c
 end
 
@@ -2001,8 +2085,7 @@ function W.Slot(parent, texture, size)
     W.Border(slot, { 0.28, 0.28, 0.28, 1 })
     if texture then
         slot.icon = slot:CreateTexture(nil, "ARTWORK")
-        slot.icon:SetPoint("TOPLEFT", 1, -1)
-        slot.icon:SetPoint("BOTTOMRIGHT", -1, 1)
+        W.Inside(slot.icon, slot)
         slot.icon:SetTexture(texture)
         slot.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     end

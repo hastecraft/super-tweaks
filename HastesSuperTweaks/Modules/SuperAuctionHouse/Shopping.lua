@@ -125,13 +125,14 @@ local function Finished(run)
     Sh.progress:SetProgress(nil)
     Sh.results:SetLoading(false)
     Sh.entries = run.results
+    -- Counted before the rows for what wasn't found join them.
+    local count = #run.results
     if S.db.profile.missingTerms then
         for _, text in ipairs(run.missing) do
             Sh.entries[#Sh.entries + 1] = { name = T.Pretty(text), missing = true, term = text, keyString = "?" .. text }
         end
     end
     ResultsChanged()
-    local count = #run.results
     Status(count .. K.Plural(count, " result", " results"))
 end
 
@@ -975,6 +976,9 @@ function Sh.Apply() end
 -- A search asked for from elsewhere (reagents, other addons), as a temporary list.
 function Sh.External(name, terms)
     S.Window.Select("shopping")
+    -- A list of your own with that name keeps its searches: these run without a list.
+    local own = FindList(name)
+    if own and not own.temporary then return Sh.Run(terms) end
     local list = CreateList(name, terms, true)
     S.db.profile.shoppingView = "lists"
     Sh.view:Choose("lists")

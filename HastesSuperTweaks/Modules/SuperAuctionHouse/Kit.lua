@@ -901,7 +901,7 @@ function K.Table(parent, spec)
         local divider = W.Fill(t, P.divider, "ARTWORK")
         divider:SetPoint("TOPLEFT", 0, -HEADER_H)
         divider:SetPoint("TOPRIGHT", -10, -HEADER_H)
-        divider:SetHeight(1)
+        W.Line(divider)
     end
     t.area = W.ScrollArea(t)
     t.area:SetPoint("TOPLEFT", 0, t.noHeader and 0 or -(HEADER_H + 1))

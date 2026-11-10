@@ -873,7 +873,7 @@ function H.Build(frame)
     H.plot:SetPoint("TOPLEFT", 12, -28)
     H.plot:SetPoint("BOTTOMRIGHT", -12, 10)
     H.baseline = W.Fill(H.plot, P.divider, "BACKGROUND")
-    H.baseline:SetHeight(1)
+    W.Line(H.baseline)
     H.bars = {}
     for i = 1, MOST_BARS do H.bars[i] = NewBar(H.plot) end
     H.plot:SetScript("OnSizeChanged", DrawChart)

@@ -1185,6 +1185,8 @@ function S:UpdateEvents()
         Register(general, "COMBO_TARGET_CHANGED") -- WoW Forever only; Register skips events a client doesn't have
         self:ReadComboPoints()
     end
+    -- Your target's scroll area starts over with each target (see S:OnEnemy).
+    if p.enemyMode == "AREA" then Register(general, "PLAYER_TARGET_CHANGED") end
     if p.skills then Register(general, "CHAT_MSG_SKILL") end
     -- Spell alerts still up go once their spell is used, as when they showed (see S:Alert).
     if p.reactiveHide then
@@ -1227,7 +1229,13 @@ function S:OnEvent(event, ...)
     if event == "NAME_PLATE_UNIT_REMOVED" then return self:OnPlateRemoved(...) end
     if event == "UNIT_HEALTH" then return self:CheckLowHealth() end
     if event == "UNIT_POWER_UPDATE" then return self:OnPower(select(2, ...)) end
-    if event == "PLAYER_TARGET_CHANGED" or event == "COMBO_TARGET_CHANGED" then return self:ReadComboPoints() end
+    if event == "PLAYER_TARGET_CHANGED" or event == "COMBO_TARGET_CHANGED" then
+        -- Another target: whether its hits count in the scroll area is asked again (see S:OnEnemy).
+        local lane = event == "PLAYER_TARGET_CHANGED" and self.lanes.outgoing
+        if lane then lane.hostile = nil end
+        if self.db.profile.comboPoints then self:ReadComboPoints() end
+        return
+    end
     if event == "CHAT_MSG_SKILL" then return self:OnSkill(...) end
     if event == "UNIT_SPELLCAST_SUCCEEDED" then return self:OnCast(select(3, ...)) end
     if event == "PLAYER_REGEN_DISABLED" then
@@ -1700,8 +1708,7 @@ function S.info.preview(frame)
         v.plate = W.Panel(frame, 64, 8)
         v.plate:SetPoint("CENTER", 62, -18)
         v.fill = W.Fill(v.plate, { 0.8, 0.15, 0.1, 1 })
-        v.fill:SetPoint("TOPLEFT", 1, -1)
-        v.fill:SetPoint("BOTTOMLEFT", 1, 1)
+        W.Inside(v.fill, v.plate, "TOPLEFT", "BOTTOMLEFT")
         v.fill:SetWidth(44)
         for i in ipairs(PREVIEW) do
             v.texts[i] = frame:CreateFontString(nil, "OVERLAY")
@@ -1992,8 +1999,7 @@ function S:DrawLivePreview(stage, w, h, focus)
         stage.hstCombatLive = v
         v.plate = W.Panel(stage, 64, 8)
         local fill = W.Fill(v.plate, { 0.8, 0.15, 0.1, 1 })
-        fill:SetPoint("TOPLEFT", 1, -1)
-        fill:SetPoint("BOTTOMLEFT", 1, 1)
+        W.Inside(fill, v.plate, "TOPLEFT", "BOTTOMLEFT")
         fill:SetWidth(44)
         v.caption = W.Caption(stage, "")
         v.caption:SetWidth(160)

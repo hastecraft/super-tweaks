@@ -285,8 +285,13 @@ end
 
 -- AceDB takes profile names of 1 to 50 characters (newer copies loaded by other addons raise an error otherwise).
 HST.PROFILE_NAME_MAX = 50
+-- A name without the spaces around it. An imported name can be any text, and "^%s*(.-)%s*$" takes minutes on one with
+-- a long run of spaces inside it.
+local function TrimName(name)
+    return name:find("%S") and name:match("^%s*(.*%S)") or ""
+end
 function HST:ValidProfileName(name)
-    name = type(name) == "string" and name:match("^%s*(.-)%s*$") or ""
+    name = type(name) == "string" and TrimName(name) or ""
     if name == "" then return false, "Enter a profile name." end
     if Utf8Length(name) > self.PROFILE_NAME_MAX then
         return false, "Profile names can be at most " .. self.PROFILE_NAME_MAX .. " characters long."
@@ -893,15 +898,67 @@ function ns.Media(kind, name, path)
     return HST.LSM:Fetch(kind, name, true) or (kind == "font" and ns.FALLBACK_FONT or ns.WHITE)
 end
 
--- A size in UI units that lands on whole screen pixels at the frame's scale.
-function ns.Pixels(frame, n)
-    if PixelUtil and PixelUtil.GetNearestPixelSize then return PixelUtil.GetNearestPixelSize(n, frame:GetEffectiveScale(), n) end
-    return n
+-- Whole screen pixels. The screen's height is read once and again after the display changes; every frame's edges
+-- (ns.CreateEdges) are laid out again, and ns.OnPixels' functions run, when the UI scale or the resolution changes
+-- what a pixel is. Listened to from the first size asked for, so nothing listens while no tweak draws any.
+local screenHeight, pixelWatch
+local edgeSets, onPixels = {}, {}
+local function PixelsChanged()
+    screenHeight = nil
+    for i = 1, #edgeSets do
+        local edges = edgeSets[i]
+        if edges.anchor then edges:Layout(edges.anchor, edges.size, edges.outside) end
+    end
+    for i = 1, #onPixels do onPixels[i]() end
 end
 
--- Four edge textures of any thickness; outside draws them around the anchor instead of inside it. Laying them out,
--- coloring or showing them again the same way is skipped (tooltips redo it several times a second), so only these
--- functions may change the textures.
+-- One screen pixel in the frame's units, or nil while the game can't say.
+local function Pixel(frame)
+    if not pixelWatch then
+        pixelWatch = CreateFrame("Frame")
+        pixelWatch:RegisterEvent("UI_SCALE_CHANGED")
+        pixelWatch:RegisterEvent("DISPLAY_SIZE_CHANGED")
+        pixelWatch:SetScript("OnEvent", PixelsChanged)
+    end
+    if not screenHeight then
+        local _, height = GetPhysicalScreenSize()
+        -- The game can report no size while the display mode changes: the size is left as it is and asked for again.
+        if not height or height <= 0 then return nil end
+        screenHeight = height
+    end
+    local scale = frame:GetEffectiveScale()
+    if scale <= 0 then return nil end
+    return 768 / screenHeight / scale
+end
+
+-- A size in UI units that lands on whole screen pixels at the frame's scale: the nearest number of them, and at least
+-- `n` (as PixelUtil.GetNearestPixelSize(n, scale, n) gives, without asking the game for the screen's size each time).
+function ns.Pixels(frame, n)
+    if n == 0 then return 0 end
+    local unit = Pixel(frame)
+    if not unit then return n end
+    local count = math.floor(n / unit + 0.5)
+    return (count < n and n or count) * unit
+end
+
+-- How thick a border of a size setting is drawn. With EllesmereUI loaded the size counts screen pixels, as EllesmereUI's
+-- own border sizes do, so a border of 2 is as thick here as there at any UI scale. Without it the size is in UI units,
+-- in whole pixels (ns.Pixels).
+function ns.Border(frame, n)
+    if n == 0 then return 0 end
+    if not EllesmereUI then return ns.Pixels(frame, n) end
+    local unit = Pixel(frame)
+    return unit and n * unit or n
+end
+
+-- Runs `run` after the UI scale or the resolution changes what a whole screen pixel is, for what was laid out with
+-- ns.Pixels.
+function ns.OnPixels(run) onPixels[#onPixels + 1] = run end
+
+-- Four edge textures for a border of `size`, drawn a whole number of screen pixels thick at the frame's scale
+-- (ns.Border), so every side comes out the same; outside draws them around the anchor instead of inside it. A region in
+-- edges.inside is kept to their inner sides. Laying them out, coloring or showing them again the same way is skipped
+-- (tooltips redo it several times a second), so only these functions may change the textures.
 function ns.CreateEdges(frame, layer)
     local edges = {}
     for i = 1, 4 do
@@ -910,15 +967,22 @@ function ns.CreateEdges(frame, layer)
     end
     function edges:Layout(anchor, size, outside)
         outside = outside and true or false
-        if self.anchor == anchor and self.size == size and self.outside == outside then return end
-        self.anchor, self.size, self.outside = anchor, size, outside
-        local o = outside and size or 0
+        local px = ns.Border(frame, size)
+        if self.anchor == anchor and self.px == px and self.outside == outside then return end
+        self.anchor, self.size, self.px, self.outside = anchor, size, px, outside
+        local o = outside and px or 0
         local top, bottom, left, right = self[1], self[2], self[3], self[4]
         for i = 1, 4 do self[i]:ClearAllPoints() end
-        top:SetPoint("TOPLEFT", anchor, "TOPLEFT", -o, o); top:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", o, o); top:SetHeight(size)
-        bottom:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", -o, -o); bottom:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", o, -o); bottom:SetHeight(size)
-        left:SetPoint("TOPLEFT", anchor, "TOPLEFT", -o, o); left:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", -o, -o); left:SetWidth(size)
-        right:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", o, o); right:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", o, -o); right:SetWidth(size)
+        top:SetPoint("TOPLEFT", anchor, "TOPLEFT", -o, o); top:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", o, o); top:SetHeight(px)
+        bottom:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", -o, -o); bottom:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", o, -o); bottom:SetHeight(px)
+        left:SetPoint("TOPLEFT", anchor, "TOPLEFT", -o, o); left:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", -o, -o); left:SetWidth(px)
+        right:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", o, o); right:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", o, -o); right:SetWidth(px)
+        local inside = self.inside
+        if inside then
+            local i = px - o
+            inside:SetPoint("TOPLEFT", anchor, "TOPLEFT", i, -i)
+            inside:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", -i, i)
+        end
     end
     function edges:SetColor(r, g, b, a)
         a = a or 1
@@ -932,6 +996,7 @@ function ns.CreateEdges(frame, layer)
         self.shown = shown
         for i = 1, 4 do self[i]:SetShown(shown) end
     end
+    edgeSets[#edgeSets + 1] = edges
     return edges
 end
 

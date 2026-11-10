@@ -45,7 +45,7 @@ function T:OnInitialize()
 end
 
 local IsSecret, Hex = ns.IsSecret, ns.ColorCode
-local Pixels, CreateEdges = ns.Pixels, ns.CreateEdges
+local Border, CreateEdges = ns.Border, ns.CreateEdges
 -- The health bar follows its unit by the game's health events when the tooltip names it by a token they come with (see
 -- HANDOFF). Otherwise (the mouseover) it reads the unit's health every POLL seconds while it shows, and what colors it
 -- (whether a mob is tapped, its reaction) every RECOLOR_EVERY readings. Guild notes are read from the roster at most
@@ -214,7 +214,7 @@ function T:Apply()
     self:Migrate() -- a profile switched to may be from before the Color choice or the faction logo
     if not (self.bar and self:IsEnabled()) then return end
     local p, bar, tip = self.db.profile, self.bar, GameTooltip
-    local px = Pixels(bar, p.barBorderSize)
+    local px = Border(bar, p.barBorderSize)
     bar:ClearAllPoints()
     -- Inset by the border so the bar's outer edge lines up with the tooltip's.
     bar:SetPoint("TOPLEFT", tip, "BOTTOMLEFT", px, -(p.barGap + px))
@@ -226,7 +226,7 @@ function T:Apply()
     wipe(self.shownColor)
     self.shownCurrent, self.shownText = nil, nil
     bar.background:SetVertexColor(unpack(p.backgroundColor))
-    bar.edges:Layout(bar, px, true)
+    bar.edges:Layout(bar, p.barBorderSize, true)
     bar.edges:SetColor(unpack(p.barBorderColor))
     bar.edges:SetShown(p.barBorderSize > 0)
     ns.SetFont(bar.text, ns.Media("font", p.font), p.fontSize, ns.OutlineFlags(p.outline))
@@ -246,7 +246,7 @@ function T:UpdateScreenClamp()
         if not self.clamp then self.clamp = { tip:GetClampRectInsets() } end
         local p = self.db.profile
         local left, right, top, bottom = unpack(self.clamp)
-        tip:SetClampRectInsets(left, right, top, min(bottom, 0) - (p.barGap + p.barHeight + 2 * Pixels(self.bar, p.barBorderSize)))
+        tip:SetClampRectInsets(left, right, top, min(bottom, 0) - (p.barGap + p.barHeight + 2 * Border(self.bar, p.barBorderSize)))
     elseif self.clamp then
         tip:SetClampRectInsets(unpack(self.clamp))
         self.clamp = nil
@@ -309,7 +309,7 @@ function T:UpdateBorder()
             self.overlay = overlay
         end
         overlay:SetFrameLevel(tip:GetFrameLevel() + 10)
-        overlay.edges:Layout(overlay, Pixels(overlay, p.borderSize), false)
+        overlay.edges:Layout(overlay, p.borderSize, false)
         overlay.edges:SetColor(r, g, b, 1)
         overlay.edges:SetShown(true)
     elseif overlay then
@@ -1022,7 +1022,7 @@ function T:DrawPreview(frame)
     local bar = v.bar
     bar:SetShown(p.healthBar)
     if not p.healthBar then return end
-    local edge = p.barBorderSize
+    local edge = Border(bar, p.barBorderSize) -- as thick as the border is drawn
     bar:ClearAllPoints()
     bar:SetPoint("TOPLEFT", v.box, "BOTTOMLEFT", edge, -(p.barGap + edge))
     bar:SetPoint("TOPRIGHT", v.box, "BOTTOMRIGHT", -edge, -(p.barGap + edge))
@@ -1036,7 +1036,7 @@ function T:DrawPreview(frame)
         bar:SetStatusBarColor(unpack(p.healthColor))
     end
     bar.background:SetColorTexture(unpack(p.backgroundColor))
-    bar.edges:Layout(bar, edge, true)
+    bar.edges:Layout(bar, p.barBorderSize, true)
     bar.edges:SetColor(unpack(p.barBorderColor))
     bar.edges:SetShown(edge > 0)
     ns.SetFont(bar.text, ns.Media("font", p.font), p.fontSize, ns.OutlineFlags(p.outline))
