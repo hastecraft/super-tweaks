@@ -127,12 +127,15 @@ end
 function T:WatchCombat()
     local watch = self:IsEnabled() and self.db.profile.combat
     if watch then
+        -- Combat that started or ended while nothing listened went unheard.
+        if not self.watching then self.fighting = InCombatLockdown() end
         self.events:RegisterEvent("PLAYER_REGEN_DISABLED")
         self.events:RegisterEvent("PLAYER_REGEN_ENABLED")
     else
         self.events:UnregisterEvent("PLAYER_REGEN_DISABLED")
         if not self.waiting then self.events:UnregisterEvent("PLAYER_REGEN_ENABLED") end
     end
+    self.watching = watch and true or nil
 end
 
 ns.Listen(T, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self, event)
