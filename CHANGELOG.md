@@ -2,6 +2,39 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.8.0 (2026-11-09)
+
+### Faction Tracker
+
+Counts the Alliance and Horde players you come across in each zone. The count for the zone you're in shows on screen, and chat can say it when you enter. /hst factions lists every zone. It starts off: turn it on under Group & PvP.
+
+### Changes
+
+- Borders and dividers are a whole number of screen pixels thick at any UI scale: XP Tracker, Better Breath Meter, Druid Mana in Forms, Campfire Helper, Better World Refresh, Quest Item Button, Sell Clutter's bag marks, the Loot Window, Guild Message Popup, Bank Helper, Instance Tracker, Super Auction House and the settings window.
+- Border size settings count screen pixels when EllesmereUI is loaded, as its own borders do.
+- Super Auction House: materials keep the copper in their prices. Only gear posts in whole silver.
+- Super Auction House: a set undercut of half an item's price or more undercuts by 1 copper instead (1 silver for gear).
+- Instance Tracker: deleting runs or clearing the history no longer lowers the hour's and day's counts.
+- Instance Tracker: its open window repaints once a second during a run, not on every kill, loot and coin.
+- Sell Junk Automatically: right after you log in, waits for your quests to load before selling grey items.
+- Bag Cleaner: no longer offers materials Sell Clutter never sells.
+
+### Bug Fixes
+
+- Settings window: the logo keeps the theme's color at large sizes.
+- Settings window: a profile with a long run of spaces in its name, a file path or a word list no longer freezes the game.
+- Settings window: an item list holding something that isn't an item no longer breaks its page.
+- Super Auction House: confirming "Post at X?" posts only the item, price and quantity it asked about.
+- Super Auction House: a shopping list's result count leaves out the rows for what wasn't found.
+- Super Auction House: another addon's search no longer replaces your shopping list of the same name.
+- Super Auction House: deleting a realm's prices no longer leaves a copy of them behind.
+- Instance Tracker: a reset instance is told apart once you target or mouse over a mob in it, and going back into the same one later isn't another entry.
+- Better Scrolling Combat Text: the death of a friendly target no longer shows a damage number.
+- Better Tooltips: item and spell IDs show as soon as you choose a profile with them on.
+- Quest Marks & Rare Alerts: no more Lua error when the game hides a nameplate's state from addons.
+- Chat Spam Filter: choosing a profile with no muted guilds no longer forgets the members of guilds your other profiles mute.
+- Mail Expiry & Alt List: recognizes your characters typed as First-Surname on WoW Forever.
+
 ## 3.7.0 (2026-11-09)
 
 ### New Features
