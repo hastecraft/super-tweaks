@@ -132,9 +132,10 @@ end
 ---------------------------------------------------------------------------
 -- Saved runs
 -- A run: t entered, e left (nil while inside), s last seen, d seconds inside, n name, map instance map ID, ty "party"
--- or "raid", df difficulty (when the game names one), id the copy's instance ID once a mob told it, re times
--- re-entered, lv level entered, lv2 level left (when it changed), xp, k kills, dt deaths, g gold gained, sp gold spent
--- (copper), rep { faction = change }, items { { id, count } }, grp { { n = name, c = class } }.
+-- or "raid", df difficulty (when the game names one), cp the copy of the instance once a mob told it, same when an
+-- earlier run was in that copy (so it isn't another entry), re times re-entered, lv level entered, lv2 level left (when
+-- it changed), xp, k kills, dt deaths, g gold gained, sp gold spent (copper), rep { faction = change },
+-- items { { id, count } }, grp { { n = name, c = class } }.
 ---------------------------------------------------------------------------
 -- This character's entry in the saved data (made at first use), and its key; nil while the game doesn't know the name.
 function I:Character()
@@ -187,7 +188,8 @@ function I:ClearHistory(all)
 end
 
 -- How many instances were entered on this realm, by every character here, in the last `seconds`, filling `out` (when
--- given) with when, oldest first. Continuing a run after a trip out isn't an entry; a reset instance is.
+-- given) with when, oldest first. Continuing a run after a trip out isn't an entry, nor is a run in a copy an earlier
+-- run was in; a reset instance is.
 function I:Entries(seconds, out)
     if out then wipe(out) end
     local cutoff, realm, count = time() - seconds, HST.db.keys.realm, 0
@@ -195,10 +197,13 @@ function I:Entries(seconds, out)
         if char.realm == realm then
             local runs = char.runs
             for i = #runs, 1, -1 do
-                local t = runs[i].t
+                local run = runs[i]
+                local t = run.t
                 if t < cutoff then break end
-                count = count + 1
-                if out then out[count] = t end
+                if not run.same then
+                    count = count + 1
+                    if out then out[count] = t end
+                end
             end
         end
     end
@@ -368,7 +373,7 @@ function I:Enter(name, kind, difficulty, mapID, login)
     local events = self.events
     events:RegisterUnitEvent("PLAYER_XP_UPDATE", "player")
     for _, event in ipairs(LIVE_EVENTS) do pcall(events.RegisterEvent, events, event) end
-    if not run.id or self.resumeAt then
+    if not run.cp or self.resumeAt then
         for _, event in ipairs(ID_EVENTS) do pcall(events.RegisterEvent, events, event) end
     end
     self:Roster()
@@ -459,28 +464,52 @@ function I:Roster()
     end
 end
 
--- A mob's GUID names the copy of the instance you're in (Creature-0-server-instance-zone-npc-spawn). Once known,
--- the target and mouseover aren't watched; a copy other than the one a continued run was in splits the run.
+-- Whether one of the day's earlier runs in this instance was in this copy of it.
+local function SameCopy(runs, run, copy)
+    local cutoff = run.t - 86400
+    for i = #runs, 1, -1 do
+        local earlier = runs[i]
+        if earlier.t < cutoff then return false end
+        if earlier ~= run and earlier.map == run.map and earlier.cp == copy then return true end
+    end
+    return false
+end
+
+-- A mob's GUID names the copy of the instance you're in (Creature-0-server-map-copy-npc-spawn: the map is the same
+-- for every copy). Once known, the target and mouseover aren't watched. A copy other than the one a continued run
+-- was in splits the run; a new run in a copy an earlier run was in (back after the time a run continues within)
+-- isn't another entry. Where the game hides GUIDs from addons inside, there's nothing to watch for.
 function I:LearnID(unit)
     local run = self.run
     if not run or not UnitGUID then return end
     local guid = UnitGUID(unit)
-    if IsSecret(guid) or type(guid) ~= "string" then return end
-    local id = tonumber(guid:match("^Creature%-%d+%-%d+%-(%d+)%-"))
-    if not id then return end
-    if run.id and run.id ~= id and self.resumeAt then self:Split(id) elseif not run.id then run.id = id end
-    self.resumeAt = nil
+    if not IsSecret(guid) then
+        if type(guid) ~= "string" then return end
+        local copy = tonumber(guid:match("^Creature%-%d+%-%d+%-%d+%-(%d+)%-"))
+        if not copy then return end
+        if run.cp and run.cp ~= copy and self.resumeAt then
+            self:Split(copy)
+        elseif not run.cp then
+            run.cp = copy
+            local char = not self.resumeAt and self:Character()
+            if char and SameCopy(char.runs, run, copy) then
+                run.same = true
+                self:Refresh()
+            end
+        end
+        self.resumeAt = nil
+    end
     for _, event in ipairs(ID_EVENTS) do self.events:UnregisterEvent(event) end
 end
 
 -- The continued run was a reset instance: what came since the re-entry becomes a run of its own (reputation, loot and
 -- group stay with the first).
-function I:Split(id)
+function I:Split(copy)
     local old = self.run
     local char = self:Character()
     if not char then return end
     self:Touch()
-    local new = { t = self.resumeAt, s = old.s, d = old.d - snap.d, n = old.n, map = old.map, ty = old.ty, df = old.df, id = id,
+    local new = { t = self.resumeAt, s = old.s, d = old.d - snap.d, n = old.n, map = old.map, ty = old.ty, df = old.df, cp = copy,
         lv = snap.lv, xp = old.xp - snap.xp, k = old.k - snap.k, dt = old.dt - snap.dt, g = old.g - snap.g, sp = old.sp - snap.sp }
     if old.lv2 and old.lv2 ~= snap.lv then new.lv2 = old.lv2 end
     SeeMap(new, MapHere())
