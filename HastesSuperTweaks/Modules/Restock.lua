@@ -37,6 +37,7 @@ function R.info.preview(frame)
         v = {}
         frame.hstRestock = v
         local row = W.Panel(frame, 180, 40)
+        v.row = row
         local slot = W.Slot(row, "Interface\\Icons\\INV_Ammo_Arrow_02", 28)
         slot:SetPoint("LEFT", 8, 0)
         local name = W.Text(row, "GameFontNormalSmall")
@@ -48,7 +49,7 @@ function R.info.preview(frame)
     end
     -- Written each time, in the money style of the moment, and laid out by its height.
     v.line:SetText(W.Chat("Bought 1000 Jagged Arrow for " .. Money(2500) .. "."))
-    W.Column(frame, { row, 10, v.line })
+    W.Column(frame, { v.row, 10, v.line })
     local shown
     W.Loop(frame, 4.5, function(t)
         local have = 200 + math.floor(W.Ease(t, 0.8, 1.8) * 5) * 200

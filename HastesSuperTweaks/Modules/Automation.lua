@@ -892,6 +892,7 @@ function A.info.preview(frame)
         v = { slots = {} }
         frame.hstGear = v
         local panel = W.Panel(frame, 150, 50)
+        v.panel = panel
         for i, item in ipairs(WORN) do
             local slot = W.Slot(panel, "Interface\\Icons\\" .. item[1], 26)
             slot:SetPoint("TOPLEFT", 11 + (i - 1) * 34, -8)
@@ -907,7 +908,7 @@ function A.info.preview(frame)
     end
     -- Written each time, in the money style of the moment, and laid out by its height.
     v.line:SetText(W.Chat("Repaired for " .. Money(14250) .. "."))
-    W.Column(frame, { panel, 10, v.line })
+    W.Column(frame, { v.panel, 10, v.line })
     local summary = A.db.profile.summary
     local shownMended
     W.Loop(frame, 5, function(t)
