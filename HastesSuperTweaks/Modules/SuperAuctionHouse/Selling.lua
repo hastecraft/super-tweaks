@@ -769,6 +769,9 @@ local function DoPost()
     local bid = Se.bid:IsShown() and Se.bid:GetValue() or 0
     local location = cur.location
     if not (location:IsValid() and C_Item.DoesItemExist(location)) then return Se.Refresh() end
+    -- Bags can have changed since the item was picked: another item in its slot isn't posted at this one's price.
+    local held = AH.GetItemKeyFromItem(location)
+    if not held or N.KeyString(held) ~= cur.key then return Se.Refresh() end
     local deposit = Deposit()
     Unlock()
     local game = AuctionHouseFrame
