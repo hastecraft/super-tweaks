@@ -768,7 +768,7 @@ local function Build()
             if all or key == HST.charKey then count = count + #char.runs end
         end
         Confirm("Delete the " .. I.Plural(count, "run", "runs") .. " saved for " .. (all and "all characters" or "this character")
-            .. "? A run you're still inside stays.", function()
+            .. "? A run you're still inside stays. The last day's still count toward the limits.", function()
             Win.Select(nil)
             I:ClearHistory(all)
         end)

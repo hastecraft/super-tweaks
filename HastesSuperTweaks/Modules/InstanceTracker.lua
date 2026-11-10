@@ -136,7 +136,10 @@ end
 -- earlier run was in that copy (so it isn't another entry), re times re-entered, lv level entered, lv2 level left (when
 -- it changed), xp, k kills, dt deaths, g gold gained, sp gold spent (copper), rep { faction = change },
 -- items { { id, count } }, grp { { n = name, c = class } }.
+-- A character: runs, oldest first, and cleared, when the deleted runs of the last day were entered (in no order): the
+-- game still counts those against its limits.
 ---------------------------------------------------------------------------
+local DAY = 86400
 -- This character's entry in the saved data (made at first use), and its key; nil while the game doesn't know the name.
 function I:Character()
     HST:EnsureCharacterKey()
@@ -165,11 +168,35 @@ function I:Prune(char)
     end
 end
 
+-- Forgets the deleted runs entered more than a day ago: no limit counts them any more.
+local function ExpireCleared(char, now)
+    local cleared = char.cleared
+    if not cleared then return end
+    for i = #cleared, 1, -1 do
+        if cleared[i] < now - DAY then table.remove(cleared, i) end
+    end
+    if #cleared == 0 then char.cleared = nil end
+end
+
+-- A run about to be deleted that the limits still count stays counted.
+local function KeepCounted(char, run, now)
+    if run.same or run.t < now - DAY then return end
+    local cleared = char.cleared
+    if not cleared then cleared = {}; char.cleared = cleared end
+    cleared[#cleared + 1] = run.t
+end
+
 -- Deletes a run; the one you're inside can't go.
 function I:DeleteRun(char, run)
     if run == self.run then return false end
     for i, r in ipairs(char.runs) do
-        if r == run then table.remove(char.runs, i); break end
+        if r == run then
+            local now = time()
+            ExpireCleared(char, now)
+            KeepCounted(char, run, now)
+            table.remove(char.runs, i)
+            break
+        end
     end
     self:Refresh()
     return true
@@ -177,11 +204,16 @@ end
 
 -- Deletes this character's runs (all is every character's); a run still inside is kept.
 function I:ClearHistory(all)
+    local now = time()
     for key, char in pairs(self.db.global.chars) do
         if all or key == HST.charKey then
-            local live = self.run
+            local live = key == HST.charKey and self.run or nil
+            ExpireCleared(char, now)
+            for _, run in ipairs(char.runs) do
+                if run ~= live then KeepCounted(char, run, now) end
+            end
             wipe(char.runs)
-            if live and key == HST.charKey then char.runs[1] = live end
+            if live then char.runs[1] = live end
         end
     end
     self:Refresh()
@@ -203,6 +235,16 @@ function I:Entries(seconds, out)
                 if not run.same then
                     count = count + 1
                     if out then out[count] = t end
+                end
+            end
+            local cleared = char.cleared
+            if cleared then
+                for i = 1, #cleared do
+                    local t = cleared[i]
+                    if t >= cutoff then
+                        count = count + 1
+                        if out then out[count] = t end
+                    end
                 end
             end
         end
