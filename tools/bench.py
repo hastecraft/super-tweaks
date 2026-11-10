@@ -810,8 +810,9 @@ Section('Player Tracker', function()
     local zone = P.zone
     Measure('Player Tracker: nameplate of a mob', 300, function() show('nameplate1') end)
     Measure('Player Tracker: nameplate of a player counted today', 300, function() show('nameplate2') end)
+    -- Forgotten before each run, so each raises the count and the text on screen is set again.
     Measure('Player Tracker: nameplate of a new player', 300, function()
-        zone.seen[guid], zone.a = nil, zone.a - 1
+        zone.seen[guid] = nil
         show('nameplate2')
     end)
     Measure('Player Tracker: mouseover of a player counted today', 300, function()
