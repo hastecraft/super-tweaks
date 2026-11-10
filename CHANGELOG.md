@@ -2,6 +2,14 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.9.0 (2026-11-10)
+
+### New Features
+
+- Super Auction House: Shared Prices. Name a character from each of your game accounts in "Share prices with these characters", on both accounts. While both are online, the prices one of them saves are saved by the other too, a full scan included.
+- Faction Tracker: Right-Click Reset. Right-click the count on screen, out of combat, to start that zone's count over.
+- Faction Tracker: Hide in Cities and Inns. The count on screen hides in cities and inns. Turn off "Hide in cities and inns" to keep it.
+
 ## 3.8.0 (2026-11-09)
 
 ### Faction Tracker
