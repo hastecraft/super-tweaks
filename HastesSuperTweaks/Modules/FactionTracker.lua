@@ -196,6 +196,8 @@ ns.Listen(P, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
     if event == "PLAYER_REGEN_DISABLED" then return self:Mouse(true) end
     if event == "PLAYER_REGEN_ENABLED" then return self:Mouse(false) end
     if event == "PLAYER_UPDATE_RESTING" then return self:Rest(true) end
+    -- Past a loading screen (a login, a hearthstone, a portal) resting may have changed with nothing said.
+    if event == "PLAYER_ENTERING_WORLD" and self.restful then self:Rest(true) end
     self:Arrive(event == "ZONE_CHANGED_NEW_AREA")
 end)
 
