@@ -730,7 +730,7 @@ local function Build()
     local rule = W.Fill(head, P.border, "ARTWORK")
     rule:SetPoint("BOTTOMLEFT")
     rule:SetPoint("BOTTOMRIGHT")
-    rule:SetHeight(1)
+    W.Line(rule)
     local logo = W.PixelIcon(head, W.ART .. "Logo", 18, P.logo)
     logo:SetPoint("LEFT", 14, 0)
     local title = K.Text(head, "GameFontNormal", P.title)
@@ -755,7 +755,7 @@ local function Build()
     local footRule = W.Fill(foot, P.border, "ARTWORK")
     footRule:SetPoint("TOPLEFT")
     footRule:SetPoint("TOPRIGHT")
-    footRule:SetHeight(1)
+    W.Line(footRule)
     Win.status = K.Text(foot, "GameFontHighlightSmall", P.muted)
     Win.status:SetPoint("LEFT", 12, 0)
     Win.status:SetPoint("RIGHT", -140, 0)
@@ -845,6 +845,7 @@ local function Build()
         if Win.confirm then Win.confirm.veil:Hide(); Win.confirm.onYes = nil end
     end)
     FitToScreen()
+    W.FitIcons() -- the rules were drawn before the window took its scale
 end
 
 function Win.Toggle()
@@ -861,5 +862,6 @@ end
 -- Settings changed while the window exists.
 function Win.Apply()
     FitToScreen()
+    W.FitIcons()
     if Win.frame:IsShown() then Win.Refresh() end
 end

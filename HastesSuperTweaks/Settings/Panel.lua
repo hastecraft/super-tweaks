@@ -504,7 +504,7 @@ local function NoteCard(parent, note)
     card.SetBorderColor = function(color) box:SetRim(color) end
     -- The rule runs between a round box's corners.
     local rule = W.Fill(card, C.accent, "ARTWORK")
-    rule:SetHeight(1)
+    W.Line(rule)
     local function placeRule()
         local x = W.theme.round and INNER.radius or 1
         rule:SetPoint("TOPLEFT", x, -1)
@@ -596,7 +596,7 @@ function Build.release(parent, o)
     c.rule = W.Fill(c, C.divider, "BORDER")
     c.rule:SetPoint("TOPLEFT", left, -RELEASE_HEAD)
     c.rule:SetPoint("TOPRIGHT", -CARD_PAD, -RELEASE_HEAD)
-    c.rule:SetHeight(1)
+    W.Line(c.rule)
     local head = CreateFrame("Button", nil, c)
     head:SetPoint("TOPLEFT")
     head:SetPoint("TOPRIGHT")
@@ -664,7 +664,7 @@ function Build.release(parent, o)
                 local section = { head = W.Text(body, "GameFontNormalSmall", C.header), lines = {} }
                 section.head:SetText(kind.name:upper())
                 section.rule = W.Fill(body, C.divider, "BORDER")
-                section.rule:SetHeight(1)
+                W.Line(section.rule)
                 for i, note in ipairs(list) do section.lines[i] = NoteLine(body, note) end
                 body.sections[#body.sections + 1] = section
             end
@@ -1042,7 +1042,7 @@ local function ButtonBar(parent)
     local bar = CreateFrame("Frame", nil, parent)
     bar.buttons = {}
     bar.divider = W.Fill(bar, C.divider, "BORDER")
-    bar.divider:SetPoint("TOPLEFT"); bar.divider:SetPoint("TOPRIGHT"); bar.divider:SetHeight(1)
+    bar.divider:SetPoint("TOPLEFT"); bar.divider:SetPoint("TOPRIGHT"); W.Line(bar.divider)
     function bar:Layout(width)
         local x, y = 0, 8
         for _, b in ipairs(self.buttons) do
@@ -1538,7 +1538,7 @@ function P:CreateTitleBar(f)
     bar:SetHeight(TITLE)
     W.Fill(bar, C.titlebar):SetAllPoints()
     local rule = W.Fill(bar, C.border, "BORDER")
-    rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); rule:SetHeight(1)
+    rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); W.Line(rule)
     bar:EnableMouse(true)
     bar:RegisterForDrag("LeftButton")
     bar:SetScript("OnDragStart", function() f:StartMoving() end)
@@ -1658,7 +1658,7 @@ function P:CreateSidebar(f)
     sidebar:SetWidth(SIDEBAR)
     W.Fill(sidebar, C.sidebar):SetAllPoints()
     local edge = W.Fill(sidebar, C.border, "BORDER")
-    edge:SetPoint("TOPRIGHT"); edge:SetPoint("BOTTOMRIGHT"); edge:SetWidth(1)
+    edge:SetPoint("TOPRIGHT"); edge:SetPoint("BOTTOMRIGHT"); W.Line(edge, true)
     self:CreateSearch(sidebar)
     -- Profiles and About as small chips, pinned to the bottom.
     local bottom = CreateFrame("Frame", nil, sidebar)
@@ -1791,7 +1791,7 @@ function P:CreateCpuGraph(bottom)
     graph:SetPoint("TOPRIGHT", 0, -(CPU_HEAD + CPU_GAP))
     graph:SetHeight(CPU_GRAPH)
     local floor = W.Fill(graph, C.divider, "BORDER")
-    floor:SetPoint("BOTTOMLEFT"); floor:SetPoint("BOTTOMRIGHT"); floor:SetHeight(1)
+    floor:SetPoint("BOTTOMLEFT"); floor:SetPoint("BOTTOMRIGHT"); W.Line(floor)
     cpu.bars, cpu.samples, cpu.head, cpu.ms = {}, {}, 1, 0
     for i = 1, CPU_BARS do
         local bar = W.Fill(graph, C.accent, "ARTWORK")
@@ -2806,7 +2806,7 @@ function P:CreatePageView(main)
     header.notesDot:Hide()
     -- Tabs for the pages, chips for a page's sub-pages, and the preview's show/hide.
     header.rule = W.Fill(view, C.border, "BORDER")
-    header.rule:SetHeight(1)
+    W.Line(header.rule)
     header.previewToggle = TextButton(view, "Hide preview", "GameFontNormalSmall")
     header.previewToggle:SetScript("OnClick", function()
         local state = State()

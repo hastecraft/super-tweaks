@@ -922,7 +922,7 @@ function L:Place(atMouse)
     local f, p = self.window, self.db.profile
     local scale = p.scale
     f:SetScale(scale)
-    f.close.icon:Fit()
+    f.close.icon:Fit(); f.rule:Fit(); f.footer.rule:Fit()
     f:ClearAllPoints()
     if atMouse then
         local x, y = GetCursorPosition()
@@ -1310,7 +1310,7 @@ function L:Refresh()
     end
     if LOOTING[self.mode] then
         f:SetScale(self.db.profile.scale)
-        f.close.icon:Fit()
+        f.close.icon:Fit(); f.rule:Fit(); f.footer.rule:Fit()
         local items, money = self:Remaining()
         self:Layout(f, items, true, self.db.profile, money, self.mode == "leftovers" and self:LeftNote(items) or nil)
         self:UpdateHotkey()

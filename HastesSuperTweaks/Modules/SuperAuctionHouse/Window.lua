@@ -346,7 +346,7 @@ local function Build()
     local rule = W.Fill(head, P.border, "ARTWORK")
     rule:SetPoint("BOTTOMLEFT")
     rule:SetPoint("BOTTOMRIGHT")
-    rule:SetHeight(1)
+    W.Line(rule)
     BuildTabs(head)
 
     local close = K.HeadClose(head)
@@ -385,7 +385,7 @@ local function Build()
     local footRule = W.Fill(foot, P.border, "ARTWORK")
     footRule:SetPoint("TOPLEFT")
     footRule:SetPoint("TOPRIGHT")
-    footRule:SetHeight(1)
+    W.Line(footRule)
     Win.status = K.Text(foot, "GameFontHighlightSmall", P.text)
     Win.status:SetPoint("LEFT", 12, 0)
     Win.status:SetPoint("RIGHT", -360, 0)
@@ -415,6 +415,7 @@ local function Build()
     Win.body:SetPoint("BOTTOMRIGHT", -1, FOOT + 1)
 
     FitToScreen()
+    W.FitIcons() -- the rules were drawn before the window took its scale
     N.On("PLAYER_MONEY", UpdateMoney)
     -- Shift-clicking an item with no chat line open searches for it.
     local function linked(text)
@@ -560,6 +561,7 @@ end
 -- Settings changed while the window exists.
 function Win.Apply()
     FitToScreen()
+    W.FitIcons()
     PaintLock()
     PaintAutoScan()
     if S.Selling.frame then S.Selling.Apply() end

@@ -310,7 +310,7 @@ end
 function W.FadeLine(parent, color, alpha)
     local line = parent:CreateTexture(nil, "ARTWORK")
     line:SetColorTexture(1, 1, 1, 1)
-    line:SetHeight(1)
+    W.Line(line)
     line.hstFade = alpha or 0.8
     W.Paint(line, color or C.line)
     return line
@@ -408,8 +408,8 @@ local function FitSized(parent)
     local shapes, screen, width, height = parent.hstShapes, ScreenHeight(), parent:GetWidth(), parent:GetHeight()
     for i = 1, #shapes do shapes[i]:Fit(screen, width, height) end
 end
-local function Track(t, sized)
-    local parent = t.hstParent
+-- Has W.FitIcons fit a texture again.
+local function Listed(t)
     if not refit then
         refit = CreateFrame("Frame")
         refit:RegisterEvent("UI_SCALE_CHANGED")
@@ -417,6 +417,10 @@ local function Track(t, sized)
         refit:SetScript("OnEvent", W.FitIcons)
     end
     icons[t] = true
+end
+local function Track(t, sized)
+    local parent = t.hstParent
+    Listed(t)
     local list = parent.hstIcons
     if not list then
         list = {}
@@ -433,6 +437,29 @@ local function Track(t, sized)
         end
         shapes[#shapes + 1] = t
     end
+    return t
+end
+
+-- A line a unit thick, in whole screen pixels (at least one), as a ring's stroke is.
+local function FitLine(t, screen)
+    local scale = t:GetEffectiveScale()
+    -- Asked for one line (after its window took another scale), only the scale is checked: the display changing fits
+    -- every line, with the screen's height (W.FitIcons).
+    if scale == t.fitScale and (not screen or screen == t.fitScreen) then return end
+    screen = screen or ScreenHeight()
+    t.fitScale, t.fitScreen = scale, screen
+    local px = 768 / screen / scale -- units per screen pixel here
+    local thick = math.max(1, math.floor(1 / px + 0.5)) * px
+    if t.vertical then t:SetWidth(thick) else t:SetHeight(thick) end
+end
+
+-- Makes a texture a hairline: a unit high, or with `vertical` a unit wide, drawn a whole number of screen pixels thick
+-- at any UI scale, so every rule in a window comes out the same. Its points are the caller's. Fitted here and by
+-- W.FitIcons, not each time its frame shows: windows shown in play have rules, and showing one costs nothing more.
+function W.Line(t, vertical)
+    t.vertical, t.Fit = vertical, FitLine
+    Listed(t)
+    t:Fit()
     return t
 end
 
@@ -874,7 +901,7 @@ local function NewRow(parent, kind)
     c.divider = W.Fill(c, C.divider, "BORDER")
     c.divider:SetPoint("TOPLEFT", 0, 0)
     c.divider:SetPoint("TOPRIGHT", 0, 0)
-    c.divider:SetHeight(1)
+    W.Line(c.divider)
     return c
 end
 
