@@ -536,7 +536,7 @@ function I:LearnID(unit)
             local char = not self.resumeAt and self:Character()
             if char and SameCopy(char.runs, run, copy) then
                 run.same = true
-                self:Refresh()
+                self:Refresh(true)
             end
         end
         self.resumeAt = nil
@@ -620,12 +620,12 @@ ns.Listen(I, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
     elseif event == "PLAYER_XP_UPDATE" or event == "PLAYER_LEVEL_UP" then
         self:Touch()
         self:SampleXP()
-        self:Refresh()
+        self:Refresh(true)
     elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
         if not IsSecret(a) and type(a) == "string" and a:match(KILL) then
             self:Touch()
             run.k = run.k + 1
-            self:Refresh()
+            self:Refresh(true)
         end
     elseif event == "PLAYER_MONEY" then
         local money = GetMoney() or 0
@@ -633,25 +633,25 @@ ns.Listen(I, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
         self.money = money
         if change > 0 then run.g = run.g + change elseif change < 0 then run.sp = run.sp - change end
         self:Touch()
-        self:Refresh()
+        self:Refresh(true)
     elseif event == "CHAT_MSG_LOOT" then
         if IsSecret(a) or type(a) ~= "string" then return end
         for i = 1, #LOOT_PREFIXES do
             if a:find(LOOT_PREFIXES[i], 1, true) == 1 then
                 self:Loot(a)
-                self:Refresh()
+                self:Refresh(true)
                 return
             end
         end
     elseif event == "CHAT_MSG_COMBAT_FACTION_CHANGE" then
-        if not IsSecret(a) and type(a) == "string" then self:Reputation(a); self:Refresh() end
+        if not IsSecret(a) and type(a) == "string" then self:Reputation(a); self:Refresh(true) end
     elseif event == "PLAYER_DEAD" then
         self:Touch()
         run.dt = run.dt + 1
-        self:Refresh()
+        self:Refresh(true)
     elseif event == "GROUP_ROSTER_UPDATE" then
         self:Roster()
-        self:Refresh()
+        self:Refresh(true)
     elseif ID_UNITS[event] then
         self:LearnID(ID_UNITS[event])
     end
@@ -687,9 +687,12 @@ function I:Apply()
     if self.Window and self.Window.frame then self.Window.Apply() end
 end
 
--- Something a shown window reads changed.
-function I:Refresh()
-    if self.Window and self.Window.frame and self.Window.frame:IsShown() then self.Window.Refresh() end
+-- Something a shown window reads changed. A run's own events (`live`) come several to a kill: the window notes them
+-- and repaints once, at its next look (it looks every second).
+function I:Refresh(live)
+    local window = self.Window
+    if not (window and window.frame and window.frame:IsShown()) then return end
+    if live then window.dirty = true else window.Refresh() end
 end
 
 -- /hit and /hst instances open or close the window; with "settings", the settings.

@@ -672,6 +672,7 @@ ns.OnMoneyStyle(function() if Win.frame and Win.frame:IsShown() then Win.Refresh
 
 function Win.Refresh()
     local p = I.db.profile
+    Win.dirty = nil
     PaintBar()
     Collect()
     PaintTotals()
@@ -694,9 +695,11 @@ function Win.Refresh()
     PaintDetail()
 end
 
--- Once a second while shown: the live run's time, and when the next place frees.
+-- Once a second while shown: the live run's time, and when the next place frees; all of it when the run's events
+-- changed what's shown (I:Refresh).
 local function Tick()
     if not Win.frame:IsShown() then return end
+    if Win.dirty then return Win.Refresh() end
     PaintLive()
     if I.run then
         PaintTotals()
