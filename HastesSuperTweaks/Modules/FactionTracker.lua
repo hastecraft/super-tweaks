@@ -2,7 +2,8 @@
 -- when their nameplate shows or you target or mouse over them, and is forgotten once not seen there for a number of
 -- days, so a zone's count says who is around these days. Counts are kept per realm, for all your characters. The
 -- count of the zone you're in shows on screen, as text you place in Edit Mode; a right-click on it, out of combat,
--- starts that zone's count over. Where you rest (cities and inns) the text can hide.
+-- starts that zone's count over. Where you rest (cities and inns) the text can hide. On a flight path nothing is
+-- counted, said or shown: the zones below aren't where you are.
 -- Out in the world this costs the nameplate, target and mouseover events: one game call for a mob, two for a player
 -- already counted today, and the text set again for a player who's new. In instances, where players' GUIDs are hidden
 -- and there is no zone to count for, only the two zone events are listened to.
@@ -102,11 +103,18 @@ local function See(self, unit, framed)
     if self.shows then self:Paint() end
 end
 
--- Entering the world or another zone. Players are watched for out in the world only; with `announce`, a zone that
--- has a count says it.
+-- Whether you're on a flight path.
+local function OnTaxi()
+    local flying = UnitOnTaxi("player")
+    if IsSecret(flying) then return false end
+    return flying and true or false
+end
+
+-- Entering the world or another zone. Players are watched for out in the world only, and not from a flight path;
+-- with `announce`, a zone that has a count says it.
 function P:Arrive(announce)
     local inside = IsInInstance()
-    local watch = not (IsSecret(inside) or inside)
+    local watch = not (IsSecret(inside) or inside or self.flying)
     if watch ~= self.watching then
         self.watching = watch
         local events = self.events
@@ -114,6 +122,8 @@ function P:Arrive(announce)
             if watch then events:RegisterEvent(WATCHED[i]) else events:UnregisterEvent(WATCHED[i]) end
         end
     end
+    -- Flying over a zone isn't entering it: the zone you left stays the one you're in until you land.
+    if self.flying then return end
     -- Past midnight in one session: players are forgotten as at a login.
     local today = Today()
     if today ~= self.today then
@@ -126,6 +136,27 @@ function P:Arrive(announce)
     self.zoneName, self.zone = name, zone
     if self.shows then self:Paint() end
     if zone and announce and self.db.profile.sayEnter then HST:Print(Line(name, zone)) end
+end
+
+-- A flight path began or ended. The game says when you lose and regain control of your character, which a flight
+-- does (and so does a stun or a fear, which change nothing here). Landing in another zone is entering it.
+local function LookAgain()
+    P.looking = false
+    if P:IsEnabled() then P:Fly() end
+end
+function P:Fly(again)
+    local flying = OnTaxi()
+    if flying == (self.flying or false) then
+        -- Control can change a moment before the game says a flight began or ended: `again` looks once more.
+        if again and not self.looking then
+            self.looking = true
+            C_Timer.After(1, LookAgain)
+        end
+        return
+    end
+    self.flying = flying
+    self:Arrive(not flying)
+    if self.shows then self:Paint() end
 end
 
 -- Forgets players not seen for the days set, once a day (or now, with `now`: the setting changed). A zone left with
@@ -189,22 +220,29 @@ function P:List()
     return table.concat(lines, "\n")
 end
 
-ns.Listen(P, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self, event, unit)
-    if event == "NAME_PLATE_UNIT_ADDED" then return See(self, unit) end
-    local framed = SIGHT[event]
-    if framed then return See(self, framed, true) end
-    if event == "PLAYER_REGEN_DISABLED" then return self:Mouse(true) end
-    if event == "PLAYER_REGEN_ENABLED" then return self:Mouse(false) end
-    if event == "PLAYER_UPDATE_RESTING" then return self:Rest(true) end
-    -- Past a loading screen (a login, a hearthstone, a portal) resting may have changed with nothing said.
-    if event == "PLAYER_ENTERING_WORLD" and self.restful then self:Rest(true) end
-    self:Arrive(event == "ZONE_CHANGED_NEW_AREA")
-end)
+ns.Listen(P, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "PLAYER_CONTROL_LOST", "PLAYER_CONTROL_GAINED" },
+    function(self, event, unit)
+        if event == "NAME_PLATE_UNIT_ADDED" then return See(self, unit) end
+        local framed = SIGHT[event]
+        if framed then return See(self, framed, true) end
+        if event == "PLAYER_REGEN_DISABLED" then return self:Mouse(true) end
+        if event == "PLAYER_REGEN_ENABLED" then return self:Mouse(false) end
+        if event == "PLAYER_UPDATE_RESTING" then return self:Rest(true) end
+        if event == "PLAYER_CONTROL_LOST" or event == "PLAYER_CONTROL_GAINED" then return self:Fly(true) end
+        if event == "PLAYER_ENTERING_WORLD" then
+            -- Past a loading screen (a login, a hearthstone, a portal) resting may have changed with nothing said, and
+            -- a login can be in the middle of a flight.
+            if self.restful then self:Rest(true) end
+            self:Fly()
+        end
+        self:Arrive(event == "ZONE_CHANGED_NEW_AREA")
+    end)
 
 function P:OnListen()
     local guid = UnitGUID("player")
     self.me = not IsSecret(guid) and guid or nil
     self.today = Today()
+    self.flying = OnTaxi()
     self:Forget()
     self:Arrive(false)
     self:Apply()
@@ -212,7 +250,8 @@ end
 
 -- Turned off, its events are gone (ns.Listen); the next time on starts over.
 function P:OnUnlisten()
-    self.watching, self.clickable, self.restful, self.zoneName, self.zone = false, false, false, nil, nil
+    self.watching, self.clickable, self.restful, self.flying = false, false, false, false
+    self.zoneName, self.zone = nil, nil
     self:Apply()
 end
 
@@ -300,12 +339,12 @@ function P:Rest(heard)
     if heard then self:Paint() end
 end
 
--- Shows the zone's count, and hides the text in a zone with none (and in instances), and where you rest when that's
--- chosen. In Edit Mode it shows wherever you are, to be moved.
+-- Shows the zone's count, and hides the text in a zone with none (and in instances), on a flight path, and where you
+-- rest when that's chosen. In Edit Mode it shows wherever you are, to be moved.
 function P:Paint()
     local zone, a, h = self.zone, nil, nil
     if self.shows then
-        if zone and zone.a + zone.h > 0 and (not self.away or self.editMode) then
+        if zone and zone.a + zone.h > 0 and (not (self.away or self.flying) or self.editMode) then
             a, h = zone.a, zone.h
         elseif self.editMode then
             a, h = 12, 3
