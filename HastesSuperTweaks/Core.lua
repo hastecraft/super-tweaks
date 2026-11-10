@@ -912,10 +912,8 @@ local function PixelsChanged()
     for i = 1, #onPixels do onPixels[i]() end
 end
 
--- A size in UI units that lands on whole screen pixels at the frame's scale: the nearest number of them, and at least
--- `n` (as PixelUtil.GetNearestPixelSize(n, scale, n) gives, without asking the game for the screen's size each time).
-function ns.Pixels(frame, n)
-    if n == 0 then return 0 end
+-- One screen pixel in the frame's units, or nil while the game can't say.
+local function Pixel(frame)
     if not pixelWatch then
         pixelWatch = CreateFrame("Frame")
         pixelWatch:RegisterEvent("UI_SCALE_CHANGED")
@@ -925,22 +923,40 @@ function ns.Pixels(frame, n)
     if not screenHeight then
         local _, height = GetPhysicalScreenSize()
         -- The game can report no size while the display mode changes: the size is left as it is and asked for again.
-        if not height or height <= 0 then return n end
+        if not height or height <= 0 then return nil end
         screenHeight = height
     end
     local scale = frame:GetEffectiveScale()
-    if scale <= 0 then return n end
-    local unit = 768 / screenHeight / scale -- one screen pixel, in the frame's units
+    if scale <= 0 then return nil end
+    return 768 / screenHeight / scale
+end
+
+-- A size in UI units that lands on whole screen pixels at the frame's scale: the nearest number of them, and at least
+-- `n` (as PixelUtil.GetNearestPixelSize(n, scale, n) gives, without asking the game for the screen's size each time).
+function ns.Pixels(frame, n)
+    if n == 0 then return 0 end
+    local unit = Pixel(frame)
+    if not unit then return n end
     local count = math.floor(n / unit + 0.5)
     return (count < n and n or count) * unit
+end
+
+-- How thick a border of a size setting is drawn. With EllesmereUI loaded the size counts screen pixels, as EllesmereUI's
+-- own border sizes do, so a border of 2 is as thick here as there at any UI scale. Without it the size is in UI units,
+-- in whole pixels (ns.Pixels).
+function ns.Border(frame, n)
+    if n == 0 then return 0 end
+    if not EllesmereUI then return ns.Pixels(frame, n) end
+    local unit = Pixel(frame)
+    return unit and n * unit or n
 end
 
 -- Runs `run` after the UI scale or the resolution changes what a whole screen pixel is, for what was laid out with
 -- ns.Pixels.
 function ns.OnPixels(run) onPixels[#onPixels + 1] = run end
 
--- Four edge textures `size` units thick, drawn a whole number of screen pixels thick at the frame's scale (ns.Pixels),
--- so every side comes out the same; outside draws them around the anchor instead of inside it. A region in
+-- Four edge textures for a border of `size`, drawn a whole number of screen pixels thick at the frame's scale
+-- (ns.Border), so every side comes out the same; outside draws them around the anchor instead of inside it. A region in
 -- edges.inside is kept to their inner sides. Laying them out, coloring or showing them again the same way is skipped
 -- (tooltips redo it several times a second), so only these functions may change the textures.
 function ns.CreateEdges(frame, layer)
@@ -951,7 +967,7 @@ function ns.CreateEdges(frame, layer)
     end
     function edges:Layout(anchor, size, outside)
         outside = outside and true or false
-        local px = ns.Pixels(frame, size)
+        local px = ns.Border(frame, size)
         if self.anchor == anchor and self.px == px and self.outside == outside then return end
         self.anchor, self.size, self.px, self.outside = anchor, size, px, outside
         local o = outside and px or 0

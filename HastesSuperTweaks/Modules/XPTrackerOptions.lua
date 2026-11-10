@@ -277,7 +277,7 @@ function X:DrawPreview(frame)
     local length = horizontal and min((available and available > 100 and available or 256) - 32, 200) or 96
     local thickness = max(8, min(horizontal and p.height or p.width, 22))
     -- In whole screen pixels, as on the bar.
-    local inset = min(ns.Pixels(v.bar, p.padding) + ns.Pixels(v.bar, p.border), thickness / 2 - 1)
+    local inset = min(ns.Pixels(v.bar, p.padding) + ns.Border(v.bar, p.border), thickness / 2 - 1)
     local thin = ns.Pixels(v.bar, 1)
     local width, height = horizontal and length or thickness, horizontal and thickness or length
     v.bar:SetSize(width, height)
@@ -415,7 +415,7 @@ function X:DrawLivePreview(frame, width, height, path)
     v.background:SetTexture(ns.Media("statusbar", p.backgroundTexture, p.backgroundPath))
     v.background:SetVertexColor(unpack(p.backgroundColor))
     -- Fills side by side, as on the bar: XP, rested after it, then completed quests.
-    local inset = min(ns.Pixels(v.box, p.padding) + ns.Pixels(v.box, p.border), min(bw, bh) / 2 - 1)
+    local inset = min(ns.Pixels(v.box, p.padding) + ns.Border(v.box, p.border), min(bw, bh) / 2 - 1)
     local thin = ns.Pixels(v.box, 1)
     local iw, ih = bw - inset * 2, bh - inset * 2
     local horizontal = p.orientation == "HORIZONTAL"

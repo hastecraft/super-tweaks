@@ -366,7 +366,7 @@ function X:Apply()
     self.background:SetTexture(ns.Media("statusbar", p.backgroundTexture, p.backgroundPath))
     self.background:SetVertexColor(unpack(p.backgroundColor))
     -- In whole screen pixels, as the border is drawn, so the fill sits the same distance from every side.
-    local inset = min(ns.Pixels(f, p.padding) + ns.Pixels(f, p.border), min(p.width, p.height) / 2 - 1)
+    local inset = min(ns.Pixels(f, p.padding) + ns.Border(f, p.border), min(p.width, p.height) / 2 - 1)
     local barTexture = ns.Media("statusbar", p.texture, p.texturePath)
     for key, bar in pairs(self.bars) do
         bar:ClearAllPoints()
