@@ -132,10 +132,14 @@ end
 ---------------------------------------------------------------------------
 -- Saved runs
 -- A run: t entered, e left (nil while inside), s last seen, d seconds inside, n name, map instance map ID, ty "party"
--- or "raid", df difficulty (when the game names one), id the copy's instance ID once a mob told it, re times
--- re-entered, lv level entered, lv2 level left (when it changed), xp, k kills, dt deaths, g gold gained, sp gold spent
--- (copper), rep { faction = change }, items { { id, count } }, grp { { n = name, c = class } }.
+-- or "raid", df difficulty (when the game names one), cp the copy of the instance once a mob told it, same when an
+-- earlier run was in that copy (so it isn't another entry), re times re-entered, lv level entered, lv2 level left (when
+-- it changed), xp, k kills, dt deaths, g gold gained, sp gold spent (copper), rep { faction = change },
+-- items { { id, count } }, grp { { n = name, c = class } }.
+-- A character: runs, oldest first, and cleared, when the deleted runs of the last day were entered (in no order): the
+-- game still counts those against its limits.
 ---------------------------------------------------------------------------
+local DAY = 86400
 -- This character's entry in the saved data (made at first use), and its key; nil while the game doesn't know the name.
 function I:Character()
     HST:EnsureCharacterKey()
@@ -164,11 +168,35 @@ function I:Prune(char)
     end
 end
 
+-- Forgets the deleted runs entered more than a day ago: no limit counts them any more.
+local function ExpireCleared(char, now)
+    local cleared = char.cleared
+    if not cleared then return end
+    for i = #cleared, 1, -1 do
+        if cleared[i] < now - DAY then table.remove(cleared, i) end
+    end
+    if #cleared == 0 then char.cleared = nil end
+end
+
+-- A run about to be deleted that the limits still count stays counted.
+local function KeepCounted(char, run, now)
+    if run.same or run.t < now - DAY then return end
+    local cleared = char.cleared
+    if not cleared then cleared = {}; char.cleared = cleared end
+    cleared[#cleared + 1] = run.t
+end
+
 -- Deletes a run; the one you're inside can't go.
 function I:DeleteRun(char, run)
     if run == self.run then return false end
     for i, r in ipairs(char.runs) do
-        if r == run then table.remove(char.runs, i); break end
+        if r == run then
+            local now = time()
+            ExpireCleared(char, now)
+            KeepCounted(char, run, now)
+            table.remove(char.runs, i)
+            break
+        end
     end
     self:Refresh()
     return true
@@ -176,18 +204,24 @@ end
 
 -- Deletes this character's runs (all is every character's); a run still inside is kept.
 function I:ClearHistory(all)
+    local now = time()
     for key, char in pairs(self.db.global.chars) do
         if all or key == HST.charKey then
-            local live = self.run
+            local live = key == HST.charKey and self.run or nil
+            ExpireCleared(char, now)
+            for _, run in ipairs(char.runs) do
+                if run ~= live then KeepCounted(char, run, now) end
+            end
             wipe(char.runs)
-            if live and key == HST.charKey then char.runs[1] = live end
+            if live then char.runs[1] = live end
         end
     end
     self:Refresh()
 end
 
 -- How many instances were entered on this realm, by every character here, in the last `seconds`, filling `out` (when
--- given) with when, oldest first. Continuing a run after a trip out isn't an entry; a reset instance is.
+-- given) with when, oldest first. Continuing a run after a trip out isn't an entry, nor is a run in a copy an earlier
+-- run was in; a reset instance is.
 function I:Entries(seconds, out)
     if out then wipe(out) end
     local cutoff, realm, count = time() - seconds, HST.db.keys.realm, 0
@@ -195,10 +229,23 @@ function I:Entries(seconds, out)
         if char.realm == realm then
             local runs = char.runs
             for i = #runs, 1, -1 do
-                local t = runs[i].t
+                local run = runs[i]
+                local t = run.t
                 if t < cutoff then break end
-                count = count + 1
-                if out then out[count] = t end
+                if not run.same then
+                    count = count + 1
+                    if out then out[count] = t end
+                end
+            end
+            local cleared = char.cleared
+            if cleared then
+                for i = 1, #cleared do
+                    local t = cleared[i]
+                    if t >= cutoff then
+                        count = count + 1
+                        if out then out[count] = t end
+                    end
+                end
             end
         end
     end
@@ -368,7 +415,7 @@ function I:Enter(name, kind, difficulty, mapID, login)
     local events = self.events
     events:RegisterUnitEvent("PLAYER_XP_UPDATE", "player")
     for _, event in ipairs(LIVE_EVENTS) do pcall(events.RegisterEvent, events, event) end
-    if not run.id or self.resumeAt then
+    if not run.cp or self.resumeAt then
         for _, event in ipairs(ID_EVENTS) do pcall(events.RegisterEvent, events, event) end
     end
     self:Roster()
@@ -459,28 +506,52 @@ function I:Roster()
     end
 end
 
--- A mob's GUID names the copy of the instance you're in (Creature-0-server-instance-zone-npc-spawn). Once known,
--- the target and mouseover aren't watched; a copy other than the one a continued run was in splits the run.
+-- Whether one of the day's earlier runs in this instance was in this copy of it.
+local function SameCopy(runs, run, copy)
+    local cutoff = run.t - 86400
+    for i = #runs, 1, -1 do
+        local earlier = runs[i]
+        if earlier.t < cutoff then return false end
+        if earlier ~= run and earlier.map == run.map and earlier.cp == copy then return true end
+    end
+    return false
+end
+
+-- A mob's GUID names the copy of the instance you're in (Creature-0-server-map-copy-npc-spawn: the map is the same
+-- for every copy). Once known, the target and mouseover aren't watched. A copy other than the one a continued run
+-- was in splits the run; a new run in a copy an earlier run was in (back after the time a run continues within)
+-- isn't another entry. Where the game hides GUIDs from addons inside, there's nothing to watch for.
 function I:LearnID(unit)
     local run = self.run
     if not run or not UnitGUID then return end
     local guid = UnitGUID(unit)
-    if IsSecret(guid) or type(guid) ~= "string" then return end
-    local id = tonumber(guid:match("^Creature%-%d+%-%d+%-(%d+)%-"))
-    if not id then return end
-    if run.id and run.id ~= id and self.resumeAt then self:Split(id) elseif not run.id then run.id = id end
-    self.resumeAt = nil
+    if not IsSecret(guid) then
+        if type(guid) ~= "string" then return end
+        local copy = tonumber(guid:match("^Creature%-%d+%-%d+%-%d+%-(%d+)%-"))
+        if not copy then return end
+        if run.cp and run.cp ~= copy and self.resumeAt then
+            self:Split(copy)
+        elseif not run.cp then
+            run.cp = copy
+            local char = not self.resumeAt and self:Character()
+            if char and SameCopy(char.runs, run, copy) then
+                run.same = true
+                self:Refresh(true)
+            end
+        end
+        self.resumeAt = nil
+    end
     for _, event in ipairs(ID_EVENTS) do self.events:UnregisterEvent(event) end
 end
 
 -- The continued run was a reset instance: what came since the re-entry becomes a run of its own (reputation, loot and
 -- group stay with the first).
-function I:Split(id)
+function I:Split(copy)
     local old = self.run
     local char = self:Character()
     if not char then return end
     self:Touch()
-    local new = { t = self.resumeAt, s = old.s, d = old.d - snap.d, n = old.n, map = old.map, ty = old.ty, df = old.df, id = id,
+    local new = { t = self.resumeAt, s = old.s, d = old.d - snap.d, n = old.n, map = old.map, ty = old.ty, df = old.df, cp = copy,
         lv = snap.lv, xp = old.xp - snap.xp, k = old.k - snap.k, dt = old.dt - snap.dt, g = old.g - snap.g, sp = old.sp - snap.sp }
     if old.lv2 and old.lv2 ~= snap.lv then new.lv2 = old.lv2 end
     SeeMap(new, MapHere())
@@ -549,12 +620,12 @@ ns.Listen(I, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
     elseif event == "PLAYER_XP_UPDATE" or event == "PLAYER_LEVEL_UP" then
         self:Touch()
         self:SampleXP()
-        self:Refresh()
+        self:Refresh(true)
     elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
         if not IsSecret(a) and type(a) == "string" and a:match(KILL) then
             self:Touch()
             run.k = run.k + 1
-            self:Refresh()
+            self:Refresh(true)
         end
     elseif event == "PLAYER_MONEY" then
         local money = GetMoney() or 0
@@ -562,25 +633,25 @@ ns.Listen(I, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
         self.money = money
         if change > 0 then run.g = run.g + change elseif change < 0 then run.sp = run.sp - change end
         self:Touch()
-        self:Refresh()
+        self:Refresh(true)
     elseif event == "CHAT_MSG_LOOT" then
         if IsSecret(a) or type(a) ~= "string" then return end
         for i = 1, #LOOT_PREFIXES do
             if a:find(LOOT_PREFIXES[i], 1, true) == 1 then
                 self:Loot(a)
-                self:Refresh()
+                self:Refresh(true)
                 return
             end
         end
     elseif event == "CHAT_MSG_COMBAT_FACTION_CHANGE" then
-        if not IsSecret(a) and type(a) == "string" then self:Reputation(a); self:Refresh() end
+        if not IsSecret(a) and type(a) == "string" then self:Reputation(a); self:Refresh(true) end
     elseif event == "PLAYER_DEAD" then
         self:Touch()
         run.dt = run.dt + 1
-        self:Refresh()
+        self:Refresh(true)
     elseif event == "GROUP_ROSTER_UPDATE" then
         self:Roster()
-        self:Refresh()
+        self:Refresh(true)
     elseif ID_UNITS[event] then
         self:LearnID(ID_UNITS[event])
     end
@@ -616,9 +687,12 @@ function I:Apply()
     if self.Window and self.Window.frame then self.Window.Apply() end
 end
 
--- Something a shown window reads changed.
-function I:Refresh()
-    if self.Window and self.Window.frame and self.Window.frame:IsShown() then self.Window.Refresh() end
+-- Something a shown window reads changed. A run's own events (`live`) come several to a kill: the window notes them
+-- and repaints once, at its next look (it looks every second).
+function I:Refresh(live)
+    local window = self.Window
+    if not (window and window.frame and window.frame:IsShown()) then return end
+    if live then window.dirty = true else window.Refresh() end
 end
 
 -- /hit and /hst instances open or close the window; with "settings", the settings.

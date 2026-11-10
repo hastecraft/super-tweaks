@@ -42,7 +42,7 @@ sys.path.insert(0, str(PROJECT / 'tools' / 'mockgame'))
 from harness import ADDON, toc_files  # noqa: E402
 from lupa.lua51 import LuaRuntime  # noqa: E402
 
-WOW = Path(os.environ.get('HST_WOW_DIR', r'G:\World of Warcraft\_classic_beta_'))  # the game folder holding Interface
+WOW = Path(os.environ.get('HST_WOW_DIR', r'G:\World of Warcraft\_forever_'))  # the game folder holding Interface
 ADDONS = WOW / 'Interface' / 'AddOns'
 TARGET = ADDONS / 'HastesSuperTweaks'
 REPLACED = ['HastesSimpleTweaks']  # the addon's former folder

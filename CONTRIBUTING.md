@@ -20,7 +20,7 @@ By contributing, you agree that your work is licensed under the [MPL-2.0](LICENS
 3. Point the installer at your game folder, the one holding `Interface`. On Windows, in PowerShell:
 
    ```powershell
-   $env:HST_WOW_DIR = "C:\Program Files (x86)\World of Warcraft\_classic_"
+   $env:HST_WOW_DIR = "C:\Program Files (x86)\World of Warcraft\_forever_"
    ```
 
 4. Run `python tools/install.py`. It copies the addon into your game's `Interface\AddOns\HastesSuperTweaks` and backs up what it replaces. Run it after every change, then `/reload` in game. New files in the TOC and new art need a full game restart.
@@ -79,9 +79,11 @@ Every pull request runs:
 | --- | --- |
 | PR title | The title follows [Conventional Commits](#commit-messages-and-pull-request-titles). |
 | Lint | [luacheck](https://github.com/lunarmodules/luacheck) with `.luacheckrc`: accidental globals, unused variables, syntax errors. |
-| Checks | `tools/check.py`: the TOC's files exist, and the patch notes and version are untouched (the maintainer's `patch-notes-fix` label allows correcting shipped patch notes). |
+| Checks | `tools/check.py`: the TOC's files exist, every Lua file is in the TOC, and the patch notes and version are untouched (the maintainer's `patch-notes-fix` label allows correcting shipped patch notes). |
 | Performance | The bench comparison described above. |
 | Package | Builds the addon ZIP. Download it from the run's artifacts to try the pull request in game. |
+
+`python tools/verify.py` runs Checks and Performance on your machine before you push, and Lint when luacheck is installed.
 
 ## Reporting bugs and security problems
 

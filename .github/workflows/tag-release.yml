@@ -28,6 +28,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - run: pip install -r tools/requirements.txt
       - name: Tag the version in the TOC
         env:
           GH_TOKEN: ${{ github.token }}
@@ -42,6 +46,9 @@ jobs:
             echo "::error::$tag already exists. Raise the version in the release pull request."
             exit 1
           fi
+          # The Release workflow checks this again on the tag. Checked here first, so a release whose version and
+          # notes disagree leaves no tag behind.
+          python tools/check.py --tag "$tag"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$tag" -m "Release $version" "$GITHUB_SHA"

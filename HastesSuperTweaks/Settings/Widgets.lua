@@ -354,8 +354,11 @@ local function ScreenHeight()
         refit:SetScript("OnEvent", function() screenHeight = nil; W.FitIcons() end)
     end
     local _, height = GetPhysicalScreenSize()
-    if height and height > 0 then screenHeight = height end
-    return height
+    if height and height > 0 then
+        screenHeight = height
+        return height
+    end
+    return 768 -- not known yet (the game is still starting): a unit is a pixel until it is, and that fits again
 end
 
 -- screen: the screen's height, when the caller read it for a pass over many textures.

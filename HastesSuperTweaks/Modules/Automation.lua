@@ -573,7 +573,8 @@ end
 -- total, count, link, reason }). Optional: PrepareSale(), run once before a scan, for work every slot shares: it
 -- answers whether the seller is ready (false waits a little for data still loading) and a context, which the scan
 -- hands SalePrice as a fourth argument; Keeps(itemID), true for items no seller may sell; Limit(), the most items it
--- sells in one visit.
+-- sells in one visit. A SalePrice that keeps an item because its data is still loading sets saleWaiting, which waits
+-- the same way.
 ---------------------------------------------------------------------------
 local Sale = { sellers = {}, step = 0.1 }
 ns.VendorSale = Sale
@@ -648,6 +649,10 @@ function Sale:Find()
                 end
             end
         end
+    end
+    -- A seller that reads its facts for the first item that needs them (Sell Junk) only then learns they're loading.
+    for _, seller in ipairs(active) do
+        if seller.saleWaiting then waiting, seller.saleWaiting = true, nil end
     end
     local eligible = {}
     for _, seller in ipairs(active) do
@@ -785,11 +790,12 @@ end
 -- Grey items, keeping grey weapons and armor when asked (the sale has checked the slot: see Sale:SlotAllowed), and
 -- what Sell Clutter keeps whether it's on or not: items in an equipment set, named by a quest in your log, or that a
 -- RestedXP guide needs. Its facts are read once a grey item would sell: fresh for each scan of the bags, or as Sell
--- Clutter read them for that scan when it's on.
+-- Clutter read them for that scan when it's on. While your quests are still loading (right after logging in), what
+-- they need can't be told: grey items stay, and the scan waits for the quests as Sell Clutter's does.
 local GetInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
 local IsEquippable = C_Item and C_Item.IsEquippableItem or IsEquippableItem
 function J:PrepareSale()
-    self.freshFacts = true
+    self.freshFacts, self.saleWaiting = true, nil
     return true
 end
 function J:SalePrice(info)
@@ -799,8 +805,17 @@ function J:SalePrice(info)
     if not name or (price or 0) <= 0 then return nil end
     local clutter = ns.SellClutter
     if clutter then
-        local ctx = clutter:Context(self.freshFacts and not clutter:IsEnabled())
+        local ctx
+        if self.freshFacts and not clutter:IsEnabled() then
+            ctx = select(2, clutter:PrepareSale()) -- fresh facts, and the quests the game hasn't loaded asked for
+        else
+            ctx = clutter:Context()
+        end
         self.freshFacts = nil
+        if not ctx.complete then
+            self.saleWaiting = true
+            return nil
+        end
         if ctx.sets[itemID] or clutter:QuestNeeds(itemID, name, ctx) then return nil end
     end
     return price

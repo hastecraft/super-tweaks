@@ -111,7 +111,12 @@ function P:Arrive(announce)
             if watch then events:RegisterEvent(WATCHED[i]) else events:UnregisterEvent(WATCHED[i]) end
         end
     end
-    self.today = Today()
+    -- Past midnight in one session: players are forgotten as at a login.
+    local today = Today()
+    if today ~= self.today then
+        self.today = today
+        self:Forget()
+    end
     local name = watch and ZoneName() or nil
     if name == self.zoneName then return end
     local zone = name and self.db.realm.zones[name] or nil

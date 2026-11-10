@@ -1,6 +1,7 @@
 """Consistency checks CI runs on every pull request, push and release tag:
 
 - every file the TOC loads exists (following XML includes);
+- every Lua file in the addon folder (outside Libs) is in the TOC, and tools/install.py installs every file there;
 - the patch notes load, each entry has a version (x.y.z) and a date (YYYY-MM-DD), newest first, no repeats;
 - the TOC's ## Version is the newest patch notes entry's version (a prerelease such as 1.2.0-beta.1 matches 1.2.0);
 - CHANGELOG.md is up to date with the patch notes;
@@ -23,6 +24,7 @@ PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT / 'tools'))
 sys.path.insert(0, str(PROJECT / 'tools' / 'mockgame'))
 import changelog  # noqa: E402
+import install  # noqa: E402
 from harness import toc_files  # noqa: E402
 
 ADDON = PROJECT / 'HastesSuperTweaks'
@@ -49,9 +51,21 @@ def toc_version(text):
 
 def main():
     try:
-        toc_files(ADDON)
+        loaded = set(toc_files(ADDON))
     except AssertionError as missing:
+        loaded = None
         error(str(missing), 'HastesSuperTweaks/HastesSuperTweaks.toc')
+    if loaded is not None:
+        # The packager ships the whole folder: a Lua file the TOC leaves out is in every release and never loads, and
+        # a file the installer leaves out is in releases but missing from local installs.
+        installed = set(install.required_files(ADDON))
+        for path in sorted(p for p in ADDON.rglob('*') if p.is_file()):
+            inside = path.relative_to(ADDON)
+            name = path.relative_to(PROJECT).as_posix()
+            if path.suffix.lower() == '.lua' and inside.parts[0] != 'Libs' and path not in loaded:
+                error(f'{name} is not in the TOC, so the game never loads it', name)
+            elif inside not in installed:
+                error(f'tools/install.py does not install {name}: add it to required_files', name)
 
     notes = changelog.load_notes()
     seen = set()

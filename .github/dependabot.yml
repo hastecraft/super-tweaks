@@ -1,4 +1,4 @@
-# Keeps the pinned GitHub Actions current (pull requests, weekly).
+# Keeps the pinned GitHub Actions and the tools' Python packages current (pull requests, weekly).
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -7,4 +7,11 @@ updates:
       interval: weekly
     groups:
       actions:
+        patterns: ['*']
+  - package-ecosystem: pip
+    directory: /tools
+    schedule:
+      interval: weekly
+    groups:
+      tools:
         patterns: ['*']

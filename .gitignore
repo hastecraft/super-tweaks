@@ -6,6 +6,9 @@
 # Point-in-time review artifacts (source snapshots and a copy of Blizzard's UI source); git history replaces them.
 /reviews/
 
+# Worktrees of agent sessions.
+/.claude/worktrees/
+
 __pycache__/
 *.pyc
 *.tmp
