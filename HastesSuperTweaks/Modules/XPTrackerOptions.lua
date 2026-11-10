@@ -276,7 +276,9 @@ function X:DrawPreview(frame)
     local available = frame:GetWidth()
     local length = horizontal and min((available and available > 100 and available or 256) - 32, 200) or 96
     local thickness = max(8, min(horizontal and p.height or p.width, 22))
-    local inset = min(p.padding + p.border, thickness / 2 - 1)
+    -- In whole screen pixels, as on the bar.
+    local inset = min(ns.Pixels(v.bar, p.padding) + ns.Pixels(v.bar, p.border), thickness / 2 - 1)
+    local thin = ns.Pixels(v.bar, 1)
     local width, height = horizontal and length or thickness, horizontal and thickness or length
     v.bar:SetSize(width, height)
     v.border:Layout(v.bar, p.border, false)
@@ -328,10 +330,10 @@ function X:DrawPreview(frame)
             tick:SetColorTexture(unpack(p.tickColor))
             tick:ClearAllPoints()
             if horizontal then
-                tick:SetSize(1, across)
+                tick:SetSize(thin, across)
                 tick:SetPoint("BOTTOMLEFT", inset + inner * i / p.ticks, inset)
             else
-                tick:SetSize(across, 1)
+                tick:SetSize(across, thin)
                 tick:SetPoint("BOTTOMLEFT", inset, inset + inner * i / p.ticks)
             end
             tick:Show()
@@ -413,7 +415,8 @@ function X:DrawLivePreview(frame, width, height, path)
     v.background:SetTexture(ns.Media("statusbar", p.backgroundTexture, p.backgroundPath))
     v.background:SetVertexColor(unpack(p.backgroundColor))
     -- Fills side by side, as on the bar: XP, rested after it, then completed quests.
-    local inset = min(p.padding + p.border, min(bw, bh) / 2 - 1)
+    local inset = min(ns.Pixels(v.box, p.padding) + ns.Pixels(v.box, p.border), min(bw, bh) / 2 - 1)
+    local thin = ns.Pixels(v.box, 1)
     local iw, ih = bw - inset * 2, bh - inset * 2
     local horizontal = p.orientation == "HORIZONTAL"
     local s = SAMPLE
@@ -466,9 +469,9 @@ function X:DrawLivePreview(frame, width, height, path)
             tick:SetVertexColor(unpack(p.tickColor))
             tick:ClearAllPoints()
             if horizontal then
-                tick:SetSize(1, ih); tick:SetPoint("BOTTOMLEFT", v.box, "BOTTOMLEFT", inset + iw * i / p.ticks, inset)
+                tick:SetSize(thin, ih); tick:SetPoint("BOTTOMLEFT", v.box, "BOTTOMLEFT", inset + iw * i / p.ticks, inset)
             else
-                tick:SetSize(iw, 1); tick:SetPoint("BOTTOMLEFT", v.box, "BOTTOMLEFT", inset, inset + ih * i / p.ticks)
+                tick:SetSize(iw, thin); tick:SetPoint("BOTTOMLEFT", v.box, "BOTTOMLEFT", inset, inset + ih * i / p.ticks)
             end
             tick:Show()
         elseif tick then tick:Hide() end

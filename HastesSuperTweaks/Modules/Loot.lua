@@ -819,13 +819,13 @@ function L:Layout(f, items, manual, p, money, note, placed)
     -- Each is laid out and colored only while it shows (every layout that shows it does both first).
     local border = p.border and (manual or p.noticeAlpha > 0)
     if border then
-        f.edges:Layout(f, ns.Pixels(f, p.borderSize), false)
+        f.edges:Layout(f, p.borderSize, false)
         if lit then f.edges:SetColor(r, g, b, 1) else f.edges:SetColor(unpack(p.borderColor)) end
     end
     f.edges:SetShown(border)
     local glow = border and lit and p.glow
     if glow then
-        f.glow:Layout(f, ns.Pixels(f, 2), true)
+        f.glow:Layout(f, 2, true)
         f.glow:SetColor(r, g, b, 0.35)
     end
     f.glow:SetShown(glow)
@@ -833,8 +833,8 @@ end
 
 -- Lays the border and its glow out again on whole pixels, for a preview window scaled after L:Layout.
 function L:SnapEdges(f, p)
-    f.edges:Layout(f, ns.Pixels(f, p.borderSize), false)
-    f.glow:Layout(f, ns.Pixels(f, 2), true)
+    f.edges:Layout(f, p.borderSize, false)
+    f.glow:Layout(f, 2, true)
 end
 
 -- Sets the window's opacity unless it has it already: the notices' animation sets it every frame while they fade.
