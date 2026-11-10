@@ -834,12 +834,15 @@ local function Post()
     end
     -- Rounding can make a bid and buyout that differed only in copper the same.
     if not CanPost() then return FillSummary() end
-    local reason = LowPriceReason(price, quantity)
+    -- With no buyout, the starting bid is what's asked.
+    local asked = price
+    if asked <= 0 and Se.bid:IsShown() then asked = Se.bid:GetValue() end
+    local reason = LowPriceReason(asked, quantity)
     if reason then
         -- The keys still pick another item while the question is up, and a box may still take typing: yes posts only
         -- what was asked about.
         local key = cur.key
-        K.Dialog({ title = "Post at " .. K.Money(price) .. "?", text = reason, confirm = "Post", onConfirm = function()
+        K.Dialog({ title = "Post at " .. K.Money(asked) .. "?", text = reason, confirm = "Post", onConfirm = function()
             if cur and cur.key == key and Se.price:GetValue() == price and Se.quantity:GetNumber() == quantity then DoPost() end
         end })
     else
