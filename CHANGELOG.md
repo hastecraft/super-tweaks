@@ -2,6 +2,33 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.10.0 (2026-11-11)
+
+### New Features
+
+- Faction Tracker: Players in Nearby Fights. Players that the mobs and enemies near you are fighting are counted too, without their nameplate showing.
+
+### Changes
+
+- Faction Tracker: nothing is counted or shown while you're on a flight path.
+- Instance Tracker: on WoW Forever, going back into an instance alive starts a new run, so a reset instance or another wing isn't added to the run before it. A corpse run back continues the run.
+- Auto Accept Summons: summons the game asks you to confirm with a warning are left to you.
+- Sell Clutter Automatically: on WoW Forever, clutter is kept while a quest header in your quest log is collapsed, as on Classic Era.
+
+### Bug Fixes
+
+- Settings window: the previews of Train All, Repair Automatically and Restock at Vendors no longer raise an error.
+- Settings window: the search leaves out settings of a hidden section.
+- Super Auction House: the Selling list fills in by itself when the game is slow to load your bag items.
+- Super Auction House: no more error after posting the last of an item.
+- Super Auction House: "Ask before posting at a low price" also asks about auctions with only a starting bid.
+- Super Auction House: a material several tracked recipes need is searched for with the full amount.
+- Sell Clutter Automatically: a bound item the game hasn't loaded yet is kept.
+- Game Settings: a backup keeps your own value of a setting this tweak is holding.
+- Hide Quest Tracker: turning on "In combat" during a fight no longer leaves the tracker in the wrong state.
+- Instance Tracker: a level-up no longer counts XP twice, and group members aren't left out of a run.
+- Instance Tracker: a level-up and large amounts of gold fit in their columns, and the instance filter resets when its instance has no runs left.
+
 ## 3.9.0 (2026-11-10)
 
 ### New Features
