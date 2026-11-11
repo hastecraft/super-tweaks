@@ -114,14 +114,21 @@ end
 
 local function RunSearch(name, ids)
     NamesThen(ids, NAME_RETRIES, function()
-        local terms, seen = {}, {}
+        -- One term for each name, with what every recipe needs of it added up.
+        local terms, names, amounts = {}, {}, {}
         for _, entry in ipairs(ids) do
             local itemName = C_Item.GetItemNameByID(entry.id)
-            if itemName and not seen[itemName] then
-                seen[itemName] = true
-                terms[#terms + 1] = S.Terms.Compose({ query = itemName, exact = true,
-                    quantity = entry.quantity > 0 and entry.quantity or nil })
+            if itemName then
+                if not amounts[itemName] then
+                    names[#names + 1] = itemName
+                    amounts[itemName] = 0
+                end
+                amounts[itemName] = amounts[itemName] + entry.quantity
             end
+        end
+        for i, itemName in ipairs(names) do
+            local quantity = amounts[itemName]
+            terms[i] = S.Terms.Compose({ query = itemName, exact = true, quantity = quantity > 0 and quantity or nil })
         end
         if #terms > 0 and S.Window.IsLive() then S.Shopping.External(name, terms) end
     end)
