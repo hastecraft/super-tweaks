@@ -842,8 +842,10 @@ local function Post()
         -- The keys still pick another item while the question is up, and a box may still take typing: yes posts only
         -- what was asked about.
         local key = cur.key
+        local bid = Se.bid:IsShown() and Se.bid:GetValue() or 0
         K.Dialog({ title = "Post at " .. K.Money(asked) .. "?", text = reason, confirm = "Post", onConfirm = function()
-            if cur and cur.key == key and Se.price:GetValue() == price and Se.quantity:GetNumber() == quantity then DoPost() end
+            if cur and cur.key == key and Se.price:GetValue() == price and Se.quantity:GetNumber() == quantity
+                and (Se.bid:IsShown() and Se.bid:GetValue() or 0) == bid then DoPost() end
         end })
     else
         DoPost()
