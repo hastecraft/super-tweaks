@@ -24,10 +24,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install luacheck
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq lua-check
+      # luacheck 1.2.0 from its own container image, pinned by digest, so nothing is installed from a package server:
+      # an outage of Ubuntu's stopped this job on every pull request for hours (2026-11-11).
       - name: luacheck
-        run: luacheck . --formatter plain
+        uses: docker://ghcr.io/lunarmodules/luacheck@sha256:46601a794d24e86dda2a94d957cfba6a451db7c0f4f61f8abe04c4fcd5184e0f # v1.2.0
+        with:
+          args: . --formatter plain
 
   checks:
     name: Checks
