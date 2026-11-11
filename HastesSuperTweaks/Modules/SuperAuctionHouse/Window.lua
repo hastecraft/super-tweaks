@@ -1,7 +1,8 @@
 -- The window, which stands on its own: it can open anywhere on saved prices. At an auction house the game's frame has
--- to stay shown (hiding it closes the auction house), so while this window is up the game's panes are hidden through
--- the frame's display mode, and the rest of that frame is invisible and takes no clicks. A tab's parts are built the
--- first time it's picked.
+-- to stay shown (hiding it closes the auction house), so while this window is up the game's panes are hidden one by
+-- one, and the rest of that frame is invisible and takes no clicks. The frame's display mode stays the game's own: a
+-- right-click on an item in your bags reads it, and with a value written by an addon there the game blocks using the
+-- item. A tab's parts are built the first time it's picked.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local S = ns.SuperAuctionHouse
@@ -26,7 +27,6 @@ local HEAD = 42
 local FOOT = 36
 local BAR_SPEED = 5
 local BAR_HOLD = 0.6
-local NO_PANES = {}
 -- Tabs that need an auction house.
 local LIVE_ONLY = { selling = true, auctions = true }
 local SAVED_STATUS = "Saved prices from your last scan."
@@ -35,10 +35,33 @@ local function Modules()
     return { shopping = S.Shopping, selling = S.Selling, auctions = S.Auctions, history = S.History, prices = S.Scan }
 end
 
+-- Hides the panes of every display mode the game's frame has. Not through the game's SetDisplayMode, which run from
+-- here would write the display mode.
+local panesHidden = false
 local function HideGamePanes()
+    local game, modes = AuctionHouseFrame, AuctionHouseFrameDisplayMode
+    if not (game and modes) then return end
+    for _, panes in pairs(modes) do
+        for i = 1, #panes do
+            local pane = game[panes[i]]
+            if pane and pane:IsShown() then
+                pane:Hide()
+                panesHidden = true
+            end
+        end
+    end
+end
+
+-- Shows the panes of the display mode the game is in, which it takes to be showing: it doesn't show them itself when
+-- it opens in the mode it was left in.
+local function ShowGamePanes()
+    panesHidden = false
     local game = AuctionHouseFrame
-    if game and game.SetDisplayMode then
-        game:SetDisplayMode(NO_PANES)
+    local panes = game and game.displayMode
+    if type(panes) ~= "table" then return end
+    for i = 1, #panes do
+        local pane = game[panes[i]]
+        if pane and not pane:IsShown() then pane:Show() end
     end
 end
 
@@ -199,12 +222,10 @@ local function ShowGameFrame()
     game:EnableMouse(true)
 end
 
--- The game's window back as it was, in a real display mode: this window left it with none.
+-- The game's window back as it was, on the panes of the display mode the game is in.
 local function RestoreGame()
     ShowGameFrame()
-    if AuctionHouseFrame and AuctionHouseFrameDisplayMode then
-        AuctionHouseFrame:SetDisplayMode(AuctionHouseFrameDisplayMode.Buy)
-    end
+    ShowGamePanes()
 end
 
 -- liveOurs to liveGame.
@@ -462,11 +483,19 @@ local function HookGame()
     Win.back = back
     -- The game sets its panes as its frame shows, which can come after this tweak's handler for the same event.
     game:HookScript("OnShow", function() if Win.mode == "liveOurs" then HideGameFrame() end end)
-    -- A right-click on an item in your bags goes to the game's frame: bring it to the Selling tab instead.
-    hooksecurefunc(game, "SetPostItem", function(self, location)
+    -- The auction house closed: the panes go back to shown for the next visit. With the frame hidden, that runs none
+    -- of their handlers.
+    game:HookScript("OnHide", function() if panesHidden then ShowGamePanes() end end)
+    -- A right-click on an item in your bags goes to the game's frame, which puts it on its own sell pane: bring it
+    -- to the Selling tab instead. From then on the game is listing, and sends every right-click here, also on items
+    -- that can't be auctioned, which it turns down itself. The game's ClearPostItem isn't called: run from here it
+    -- would leave the sell panes' state, and the display mode the game sets next, written by an addon.
+    hooksecurefunc(game, "SetPostItem", function(_, location)
         if Win.mode ~= "liveOurs" then return end
-        self:ClearPostItem()
+        if not (location and location:IsValid() and C_AuctionHouse.IsSellItemValid(location, false)) then return end
         HideGamePanes()
+        -- The game's sell pane locked the item as it took it.
+        if C_Item.DoesItemExist(location) and C_Item.IsLocked(location) then C_Item.UnlockItem(location) end
         Win.Select("selling")
         S.Selling.SelectLocation(location)
     end)
