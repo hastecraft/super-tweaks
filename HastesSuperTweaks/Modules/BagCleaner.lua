@@ -546,8 +546,9 @@ ns.Listen(B, { "BAG_UPDATE_DELAYED", "PLAYER_ENTERING_WORLD" }, function(self, e
     if event == "PLAYER_ENTERING_WORLD" then self.inWorld = true end
     if event == "QUEST_LOG_UPDATE" or event == "QUEST_DATA_LOAD_RESULT" then
         self.fresh, self.questsPending = true, nil
+    else
+        self.loadTries = 0 -- your bags changed: an item that hadn't loaded is asked for again
     end
-    self.loadTries = 0
     self:Queue()
 end)
 
@@ -567,7 +568,7 @@ function B:OnListen()
 end
 
 function B:OnUnlisten()
-    self.watching, self.queued, self.fresh = nil, nil, nil
+    self.watching, self.queued, self.fresh, self.loadTries = nil, nil, nil, nil
     self:UpdateEditMode(false)
     picked = 0
     if self.frame then
