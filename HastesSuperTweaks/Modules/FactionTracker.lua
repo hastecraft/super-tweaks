@@ -1,11 +1,14 @@
 -- Faction Tracker: counts the Alliance and Horde players you come across in each zone. A player counts once per zone,
--- when their nameplate shows or you target or mouse over them, and is forgotten once not seen there for a number of
--- days, so a zone's count says who is around these days. Counts are kept per realm, for all your characters. The
+-- when their nameplate shows, you target or mouse over them, or a unit in sight (a nameplate's, your target, someone
+-- in your group) targets them, and is forgotten once not seen there for a number of days, so a zone's count says who
+-- is around these days. Counts are kept per realm, for all your characters. The
 -- count of the zone you're in shows on screen, as text you place in Edit Mode; a right-click on it, out of combat,
--- starts that zone's count over. Where you rest (cities and inns) the text can hide.
--- Out in the world this costs the nameplate, target and mouseover events: one game call for a mob, two for a player
--- already counted today, and the text set again for a player who's new. In instances, where players' GUIDs are hidden
--- and there is no zone to count for, only the two zone events are listened to.
+-- starts that zone's count over. Where you rest (cities and inns) the text can hide. On a flight path nothing is
+-- counted, said or shown: the zones below aren't where you are.
+-- Out in the world this costs the nameplate, target, mouseover and target-change events: for a nameplate, one game
+-- call for a mob and two for a player already counted today, and as much again for who it targets; the text is set
+-- again for a player who's new. In instances, where players' GUIDs are hidden and there is no zone to count for, only
+-- the zone and flight events are listened to.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -17,7 +20,8 @@ local P = HST:NewFeature("FactionTracker", {
     summary = "Counts the Alliance and Horde players you come across in each zone.",
     examples = { "show", "sayEnter" },
     description = "Counts the Alliance and Horde players you come across in each zone: players whose nameplate shows, "
-        .. "and players you target or mouse over. Each counts once per zone. The count for the zone you're in shows "
+        .. "players you target or mouse over, and players the mobs and enemies near you are fighting. Each counts once "
+        .. "per zone. The count for the zone you're in shows "
         .. "on screen; move it in Edit Mode, and right-click it out of combat to reset that zone's count. /hst factions "
         .. "shows every zone's count.",
 })
@@ -42,8 +46,16 @@ local SIDES = { Alliance = 0, Horde = 1 }
 local ALLIANCE, HORDE = FACTION_ALLIANCE or "Alliance", FACTION_HORDE or "Horde"
 local BLUE, RED = "|cff4a9eff", "|cffe5483a"
 -- Watched out in the world only; the target and the mouseover are always the same two units.
-local WATCHED = { "NAME_PLATE_UNIT_ADDED", "UPDATE_MOUSEOVER_UNIT", "PLAYER_TARGET_CHANGED" }
+local WATCHED = { "NAME_PLATE_UNIT_ADDED", "UPDATE_MOUSEOVER_UNIT", "PLAYER_TARGET_CHANGED", "UNIT_TARGET" }
 local SIGHT = { UPDATE_MOUSEOVER_UNIT = "mouseover", PLAYER_TARGET_CHANGED = "target" }
+-- Who a unit in sight targets is in sight too: the players the mobs and enemies near you are fighting, your own
+-- faction's among them, whose nameplates most players keep off. TARGET_OF[unit] is the token of a unit's target, for
+-- the units worth asking (nameplates, your target, your group), and false for the rest.
+local TARGET_OF = setmetatable({ target = "targettarget" }, { __index = function(t, unit)
+    local token = (unit:find("^nameplate%d") or unit:find("^party%d") or unit:find("^raid%d")) and unit .. "target" or false
+    t[unit] = token
+    return token
+end })
 
 local function Today() return floor(time() / 86400) end
 
@@ -85,28 +97,36 @@ local function See(self, unit, framed)
         local visible = UnitIsVisible(unit)
         if IsSecret(visible) or not visible then return end
     end
-    local zone = self.zone or self:Open()
-    if not zone then return end
-    local seen, day = zone.seen, self.today * 2
-    local stamp = seen[guid]
+    local zone, day = self.zone, self.today * 2
+    local stamp = zone and zone.seen[guid]
     if stamp then
-        if stamp < day then seen[guid] = day + stamp % 2 end
+        if stamp < day then zone.seen[guid] = day + stamp % 2 end
         return
     end
     local faction = UnitFactionGroup(unit)
     if IsSecret(faction) then return end
     local side = SIDES[faction]
     if not side then return end
-    seen[guid] = day + side
+    -- The zone's record is made for the first player counted: one whose faction isn't known leaves no empty zone.
+    zone = zone or self:Open()
+    if not zone then return end
+    zone.seen[guid] = day + side
     if side == 0 then zone.a = zone.a + 1 else zone.h = zone.h + 1 end
     if self.shows then self:Paint() end
 end
 
--- Entering the world or another zone. Players are watched for out in the world only; with `announce`, a zone that
--- has a count says it.
+-- Whether you're on a flight path.
+local function OnTaxi()
+    local flying = UnitOnTaxi("player")
+    if IsSecret(flying) then return false end
+    return flying and true or false
+end
+
+-- Entering the world or another zone. Players are watched for out in the world only, and not from a flight path;
+-- with `announce`, a zone that has a count says it.
 function P:Arrive(announce)
     local inside = IsInInstance()
-    local watch = not (IsSecret(inside) or inside)
+    local watch = not (IsSecret(inside) or inside or self.flying)
     if watch ~= self.watching then
         self.watching = watch
         local events = self.events
@@ -114,6 +134,8 @@ function P:Arrive(announce)
             if watch then events:RegisterEvent(WATCHED[i]) else events:UnregisterEvent(WATCHED[i]) end
         end
     end
+    -- Flying over a zone isn't entering it: the zone you left stays the one you're in until you land.
+    if self.flying then return end
     -- Past midnight in one session: players are forgotten as at a login.
     local today = Today()
     if today ~= self.today then
@@ -126,6 +148,27 @@ function P:Arrive(announce)
     self.zoneName, self.zone = name, zone
     if self.shows then self:Paint() end
     if zone and announce and self.db.profile.sayEnter then HST:Print(Line(name, zone)) end
+end
+
+-- A flight path began or ended. The game says when you lose and regain control of your character, which a flight
+-- does (and so does a stun or a fear, which change nothing here). Landing in another zone is entering it.
+local function LookAgain()
+    P.looking = false
+    if P:IsEnabled() then P:Fly() end
+end
+function P:Fly(again)
+    local flying = OnTaxi()
+    if flying == (self.flying or false) then
+        -- Control can change a moment before the game says a flight began or ended: `again` looks once more.
+        if again and not self.looking then
+            self.looking = true
+            C_Timer.After(1, LookAgain)
+        end
+        return
+    end
+    self.flying = flying
+    self:Arrive(not flying)
+    if self.shows then self:Paint() end
 end
 
 -- Forgets players not seen for the days set, once a day (or now, with `now`: the setting changed). A zone left with
@@ -166,10 +209,15 @@ function P:ResetZone()
         for _, plate in ipairs(C_NamePlate.GetNamePlates()) do
             -- The game's nameplate code keeps each one's unit on it (by another name on Classic Era).
             local unit = plate.unitToken or plate.namePlateUnitToken
-            if type(unit) == "string" then See(self, unit) end
+            if type(unit) == "string" then
+                See(self, unit)
+                local target = TARGET_OF[unit]
+                if target then See(self, target, true) end
+            end
         end
     end
     See(self, "target", true)
+    See(self, "targettarget", true)
     See(self, "mouseover", true)
     if self.shows then self:Paint() end
 end
@@ -189,22 +237,42 @@ function P:List()
     return table.concat(lines, "\n")
 end
 
-ns.Listen(P, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self, event, unit)
-    if event == "NAME_PLATE_UNIT_ADDED" then return See(self, unit) end
-    local framed = SIGHT[event]
-    if framed then return See(self, framed, true) end
-    if event == "PLAYER_REGEN_DISABLED" then return self:Mouse(true) end
-    if event == "PLAYER_REGEN_ENABLED" then return self:Mouse(false) end
-    if event == "PLAYER_UPDATE_RESTING" then return self:Rest(true) end
-    -- Past a loading screen (a login, a hearthstone, a portal) resting may have changed with nothing said.
-    if event == "PLAYER_ENTERING_WORLD" and self.restful then self:Rest(true) end
-    self:Arrive(event == "ZONE_CHANGED_NEW_AREA")
-end)
+ns.Listen(P, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "PLAYER_CONTROL_LOST", "PLAYER_CONTROL_GAINED" },
+    function(self, event, unit)
+        if event == "NAME_PLATE_UNIT_ADDED" or event == "UNIT_TARGET" then
+            if event == "NAME_PLATE_UNIT_ADDED" then See(self, unit) end
+            local target = TARGET_OF[unit]
+            if target then See(self, target, true) end
+            return
+        end
+        local framed = SIGHT[event]
+        if framed then
+            See(self, framed, true)
+            if framed == "target" then See(self, "targettarget", true) end
+            return
+        end
+        if event == "PLAYER_REGEN_DISABLED" then return self:Mouse(true) end
+        if event == "PLAYER_REGEN_ENABLED" then return self:Mouse(false) end
+        if event == "PLAYER_UPDATE_RESTING" then return self:Rest(true) end
+        if event == "PLAYER_CONTROL_LOST" or event == "PLAYER_CONTROL_GAINED" then
+            -- Nothing flies inside an instance, where a stun or a fear says this often.
+            if self.watching or self.flying then self:Fly(true) end
+            return
+        end
+        if event == "PLAYER_ENTERING_WORLD" then
+            -- Past a loading screen (a login, a hearthstone, a portal) resting may have changed with nothing said, and
+            -- a login can be in the middle of a flight, which the game may say a moment later.
+            if self.restful then self:Rest(true) end
+            self:Fly(true)
+        end
+        self:Arrive(event == "ZONE_CHANGED_NEW_AREA")
+    end)
 
 function P:OnListen()
     local guid = UnitGUID("player")
     self.me = not IsSecret(guid) and guid or nil
     self.today = Today()
+    self.flying = OnTaxi()
     self:Forget()
     self:Arrive(false)
     self:Apply()
@@ -212,7 +280,8 @@ end
 
 -- Turned off, its events are gone (ns.Listen); the next time on starts over.
 function P:OnUnlisten()
-    self.watching, self.clickable, self.restful, self.zoneName, self.zone = false, false, false, nil, nil
+    self.watching, self.clickable, self.restful, self.flying = false, false, false, false
+    self.zoneName, self.zone = nil, nil
     self:Apply()
 end
 
@@ -300,12 +369,12 @@ function P:Rest(heard)
     if heard then self:Paint() end
 end
 
--- Shows the zone's count, and hides the text in a zone with none (and in instances), and where you rest when that's
--- chosen. In Edit Mode it shows wherever you are, to be moved.
+-- Shows the zone's count, and hides the text in a zone with none (and in instances), on a flight path, and where you
+-- rest when that's chosen. In Edit Mode it shows wherever you are, to be moved.
 function P:Paint()
     local zone, a, h = self.zone, nil, nil
     if self.shows then
-        if zone and zone.a + zone.h > 0 and (not self.away or self.editMode) then
+        if zone and zone.a + zone.h > 0 and (not (self.away or self.flying) or self.editMode) then
             a, h = zone.a, zone.h
         elseif self.editMode then
             a, h = 12, 3
