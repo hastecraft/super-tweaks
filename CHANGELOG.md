@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.10.1 (2026-11-11)
+
+### Bug Fixes
+
+- Super Auction House: with the window open, your Hearthstone and other items that can't be auctioned can be used from your bags.
+
 ## 3.10.0 (2026-11-11)
 
 ### New Features

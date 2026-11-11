@@ -16,6 +16,12 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.10.1", date = "2026-11-11",
+        fixed = {
+            { "Super Auction House: with the window open, your Hearthstone and other items that can't be auctioned can be used from your bags.", module = "SuperAuctionHouse" },
+        },
+    },
+    {
         version = "3.10.0", date = "2026-11-11",
         new = {
             { "Players that the mobs and enemies near you are fighting are counted too, without their nameplate showing.",
