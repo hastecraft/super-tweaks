@@ -39,6 +39,7 @@ function T.info.preview(frame)
         v = { rows = {} }
         frame.hstTrain = v
         local panel = W.Panel(frame, 190, #SPELLS * 20 + 30)
+        v.panel = panel
         for i, spell in ipairs(SPELLS) do
             local y = -6 - (i - 1) * 20
             local icon = W.Icon(panel, "Interface\\Icons\\" .. spell[1], 16)
@@ -56,7 +57,7 @@ function T.info.preview(frame)
     end
     -- Written each time, in the money style of the moment, and laid out by its height.
     v.line:SetText(W.Chat("Learned 3 spells for " .. Money(10500) .. "."))
-    W.Column(frame, { panel, 8, v.line })
+    W.Column(frame, { v.panel, 8, v.line })
     W.Loop(frame, 4.5, function(t)
         v.button:SetLit(t > 0.8 and t < 1.1)
         for i, mark in ipairs(v.rows) do mark:SetShown(t > 1.1 + i * 0.35) end

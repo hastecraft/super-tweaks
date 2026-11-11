@@ -80,6 +80,15 @@ local function Hidden(chain, info)
     end
 end
 
+-- Whether a setting, a section it's in or its page is hidden: a hidden section hides its settings on the page whatever
+-- they say themselves, and the search goes by the same.
+local function HiddenAnywhere(chain, info)
+    for i = #chain, 1, -1 do
+        if Resolve(chain[i].hidden, info) then return true end
+    end
+    return false
+end
+
 -- Whether a setting's `hidden` (its own, or a section's it's in) is decided as settings change, by a function, rather
 -- than fixed: such a setting is built anyway, and shown or hidden as its page is refreshed.
 local function HidesLater(chain)
@@ -3624,8 +3633,7 @@ function P:Search(text, again)
     -- Settings hidden for now, or on a page that is, aren't offered.
     local ranked = {}
     for i, entry in ipairs(self:SettingsIndex()) do
-        if All(entry.all, words)
-            and not Resolve(Inherited(entry.chain, "hidden"), entry) then
+        if All(entry.all, words) and not HiddenAnywhere(entry.chain, entry) then
             local rank = All(entry.lname, words) and 1 or All(entry.near, words) and 2 or 3
             ranked[#ranked + 1] = { entry = entry, rank = rank, order = i }
         end
@@ -3645,7 +3653,7 @@ function P:Search(text, again)
     local count = #modules + #ranked
     view.title:SetText("Search")
     self:ListTop(true)
-    view.sub:SetText(count .. (count == 1 and " match for \"" or " matches for \"") .. query .. "\"")
+    view.sub:SetText(count .. (count == 1 and " match for \"" or " matches for \"") .. (query:gsub("|", "||")) .. "\"")
     self.detail:SetShown(count > 0)
     if count == 0 then
         -- A fixed title: one with the query in it would grow as you type and push everything under it around.

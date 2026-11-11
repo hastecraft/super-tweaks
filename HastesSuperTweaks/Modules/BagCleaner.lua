@@ -423,6 +423,7 @@ function B:Queue(delay)
     C_Timer.After(delay or self.DELAY, self.refresh)
 end
 
+B.LOAD_TRIES = 10
 function B:Refresh()
     self.queued = false
     if not (self:IsEnabled() and self.frame) then return end
@@ -432,10 +433,11 @@ function B:Refresh()
     if listing then self:Scan() else picked = 0 end
     self:Watch(listing)
     self:Draw()
-    -- An item the game hadn't loaded yet.
+    -- An item the game hadn't loaded yet. It may never load: this stops asking after a few tries, until your bags change.
     if self.loading then
         self.loading = nil
-        self:Queue(1)
+        self.loadTries = (self.loadTries or 0) + 1
+        if self.loadTries <= self.LOAD_TRIES then self:Queue(1) end
     end
 end
 B.refresh = function() B:Refresh() end
@@ -544,6 +546,8 @@ ns.Listen(B, { "BAG_UPDATE_DELAYED", "PLAYER_ENTERING_WORLD" }, function(self, e
     if event == "PLAYER_ENTERING_WORLD" then self.inWorld = true end
     if event == "QUEST_LOG_UPDATE" or event == "QUEST_DATA_LOAD_RESULT" then
         self.fresh, self.questsPending = true, nil
+    else
+        self.loadTries = 0 -- your bags changed: an item that hadn't loaded is asked for again
     end
     self:Queue()
 end)
@@ -564,7 +568,7 @@ function B:OnListen()
 end
 
 function B:OnUnlisten()
-    self.watching, self.queued, self.fresh = nil, nil, nil
+    self.watching, self.queued, self.fresh, self.loadTries = nil, nil, nil, nil
     self:UpdateEditMode(false)
     picked = 0
     if self.frame then
