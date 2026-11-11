@@ -254,12 +254,16 @@ ns.Listen(P, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "PLAYER_CONTROL
         if event == "PLAYER_REGEN_DISABLED" then return self:Mouse(true) end
         if event == "PLAYER_REGEN_ENABLED" then return self:Mouse(false) end
         if event == "PLAYER_UPDATE_RESTING" then return self:Rest(true) end
-        if event == "PLAYER_CONTROL_LOST" or event == "PLAYER_CONTROL_GAINED" then return self:Fly(true) end
+        if event == "PLAYER_CONTROL_LOST" or event == "PLAYER_CONTROL_GAINED" then
+            -- Nothing flies inside an instance, where a stun or a fear says this often.
+            if self.watching or self.flying then self:Fly(true) end
+            return
+        end
         if event == "PLAYER_ENTERING_WORLD" then
             -- Past a loading screen (a login, a hearthstone, a portal) resting may have changed with nothing said, and
-            -- a login can be in the middle of a flight.
+            -- a login can be in the middle of a flight, which the game may say a moment later.
             if self.restful then self:Rest(true) end
-            self:Fly()
+            self:Fly(true)
         end
         self:Arrive(event == "ZONE_CHANGED_NEW_AREA")
     end)
