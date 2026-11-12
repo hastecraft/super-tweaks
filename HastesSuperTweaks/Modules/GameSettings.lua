@@ -230,7 +230,12 @@ function G:Backup(quiet)
         return
     end
     local cvars = {}
-    for _, setting in ipairs(self.SETTINGS) do cvars[setting.cvar] = ReadCVar(setting.cvar) end
+    -- A setting held here is backed up as it was before: restoring one since switched off gives your value back.
+    for _, setting in ipairs(self.SETTINGS) do
+        local before = self:Records(setting.cvar)[setting.cvar]
+        if before == nil then before = ReadCVar(setting.cvar) end
+        cvars[setting.cvar] = before
+    end
     self.db.char.backup = { at = time(), layouts = info, cvars = cvars }
     if not quiet then HST:Print(string.format("Backed up %d Edit Mode %s and your console settings.", count, count == 1 and "layout" or "layouts")) end
 end

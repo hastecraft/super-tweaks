@@ -5,6 +5,8 @@
 -- Away from instances this costs two events (entering the world, a new zone). Inside one it listens to the XP, loot,
 -- money, death and group events, and to your target and mouseover until a mob's GUID says which copy of the instance
 -- this is: leaving and coming back to the same copy (a corpse run) continues the run, a reset one starts another.
+-- Where the game hides mobs' GUIDs (WoW Forever's instances), coming back as a ghost continues the run and coming back
+-- alive starts another.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -61,9 +63,9 @@ ns.LazyOptions(I, function(m)
             }),
             tracking = ns.Section("Tracking", 3, {
                 resume = ns.Option(profile, "range", "resume", "Continue a run re-entered within (minutes)", 1,
-                    { min = 1, max = 120, step = 1, desc = "Coming back to the same instance within this long, a corpse "
-                        .. "run or a quick trip out, continues the run. A reset instance starts a new run once a mob tells "
-                        .. "it apart." }),
+                    { min = 1, max = 120, step = 1, desc = "Coming back to the same instance within this long after "
+                        .. "dying continues the run. Coming back alive starts a new run on WoW Forever; on Classic Era it "
+                        .. "does only if the instance was reset." }),
                 lootQuality = ns.Option(profile, "select", "lootQuality", "Keep loot", 2,
                     { values = m.QUALITIES, sorting = m.QUALITY_ORDER }),
                 keep = ns.Option(profile, "range", "keep", "Runs kept per character", 3, { min = 50, max = 1000, step = 50 }),
@@ -135,7 +137,8 @@ end
 -- or "raid", df difficulty (when the game names one), cp the copy of the instance once a mob told it, same when an
 -- earlier run was in that copy (so it isn't another entry), re times re-entered, lv level entered, lv2 level left (when
 -- it changed), xp, k kills, dt deaths, g gold gained, sp gold spent (copper), rep { faction = change },
--- items { { id, count } }, grp { { n = name, c = class } }.
+-- items { { id, count } }, grp { { n = name, c = class } }, maps the maps it was seen on, gh when you left it as a
+-- ghost (until you're back).
 -- A character: runs, oldest first, and cleared, when the deleted runs of the last day were entered (in no order): the
 -- game still counts those against its limits.
 ---------------------------------------------------------------------------
@@ -388,9 +391,9 @@ function I:Enter(name, kind, difficulty, mapID, login)
             -- Back after a trip out: a new copy of the instance (a reset) would count as another entry; the mobs tell.
             run.re = (run.re or 0) + 1
             snap.d, snap.xp, snap.k, snap.dt, snap.g, snap.sp, snap.lv = run.d, run.xp, run.k, run.dt, run.g, run.sp, level
-            self.resumeAt, self.resumeEnd = now, run.e
+            self.resumeAt, self.resumeEnd, self.resumeAlive = now, run.e, not run.gh
         end
-        run.e = nil
+        run.e, run.gh = nil, nil
     else
         run = { t = now, s = now, d = 0, n = name, map = mapID, ty = kind, lv = level, xp = 0, k = 0, dt = 0, g = 0, sp = 0 }
         if difficulty then run.df = difficulty end
@@ -409,6 +412,7 @@ function I:Enter(name, kind, difficulty, mapID, login)
             if self.run then
                 self:Touch()
                 SeeMap(self.run, MapHere())
+                if self.rosterOpen then self:Roster() end
             end
         end)
     end
@@ -431,7 +435,7 @@ function I:Leave(turnedOff)
     if not run then return end
     self:Touch()
     run.e = time()
-    self.run, self.resumeAt = nil, nil
+    self.run, self.resumeAt, self.rosterOpen = nil, nil, nil
     if self.ticker then self.ticker:Cancel(); self.ticker = nil end
     local events = self.events
     events:UnregisterEvent("PLAYER_XP_UPDATE")
@@ -440,6 +444,8 @@ function I:Leave(turnedOff)
     -- A corpse run leaves and comes back: the summary waits until you leave alive.
     local ghost = UnitIsDeadOrGhost("player")
     if IsSecret(ghost) then ghost = false end
+    -- Left as a ghost (or with the tweak turned off inside): coming back is the same run, whatever the mobs can tell.
+    run.gh = (ghost or turnedOff) and true or nil
     if self.db.profile.sayLeave and not turnedOff and not ghost then HST:Print(I.Summary(run)) end
     self:Refresh()
 end
@@ -448,14 +454,21 @@ end
 function I:SampleXP()
     local run = self.run
     local xp, cap, level = UnitXP("player") or 0, UnitXPMax("player") or 0, Number(UnitLevel("player")) or self.lastLevel
+    -- The level never goes back: a look that still reads the old one after a level-up keeps the new one, or the next
+    -- look would count the whole bar as gained.
+    if level < self.lastLevel then level = self.lastLevel end
     local gain = 0
-    if level == self.lastLevel and xp < self.lastXP then
+    if self.lastMax <= 0 then
+        gain = 0 -- the bar wasn't known at the last look (or there's no XP to gain): this look only notes it
+    elseif level == self.lastLevel and xp < self.lastXP then
         -- The bar reset before the level caught up: a level-up all the same.
         level = level + 1
         gain = max(0, self.lastMax - self.lastXP) + xp
     elseif level == self.lastLevel then
         gain = xp - self.lastXP
     elseif level == self.lastLevel + 1 then
+        -- The level can arrive before its bar: the bar's own event counts it.
+        if cap == self.lastMax and xp >= self.lastXP then return end
         gain = max(0, self.lastMax - self.lastXP) + xp
     end
     if level ~= run.lv then run.lv2 = level elseif run.lv2 then run.lv2 = nil end
@@ -485,25 +498,33 @@ local function Member(run, unit, me)
 end
 
 -- Who stood in each slot at the last look, by GUID (two members can share a first name on WoW Forever): a roster
--- event with the same members costs nothing. A member whose name hasn't arrived yet is looked at again next time.
+-- event with the same members costs nothing. A member whose GUID the game doesn't give is looked at every time.
+-- Returns whether the member's name was known.
 local function Slot(run, index, unit, me)
     local guid = UnitGUID(unit)
     if IsSecret(guid) then guid = nil end
-    if rosterNames[index] == guid then return end
-    rosterNames[index] = Member(run, unit, me) and guid or nil
+    if guid and rosterNames[index] == guid then return true end
+    local known = Member(run, unit, me)
+    rosterNames[index] = known and guid or nil
+    return known
 end
 
+-- Adds the group's members to the run. A name that hasn't arrived yet (rosterOpen) is asked for again at the next
+-- roster event, and each minute until then.
 function I:Roster()
     local run = self.run
     if not run then return end
     local count = Number(GetNumGroupMembers()) or 0
-    if count <= 1 then return end
-    local me = ns.PlayerName()
-    if IsInRaid() then
-        for i = 1, min(count, 40) do Slot(run, i, RAID[i], me) end
-    else
-        for i = 1, min(count - 1, 4) do Slot(run, i, PARTY[i], me) end
+    local open = false
+    if count > 1 then
+        local me = ns.PlayerName()
+        if IsInRaid() then
+            for i = 1, min(count, 40) do if not Slot(run, i, RAID[i], me) then open = true end end
+        else
+            for i = 1, min(count - 1, 4) do if not Slot(run, i, PARTY[i], me) then open = true end end
+        end
     end
+    self.rosterOpen = open
 end
 
 -- Whether one of the day's earlier runs in this instance was in this copy of it.
@@ -520,12 +541,16 @@ end
 -- A mob's GUID names the copy of the instance you're in (Creature-0-server-map-copy-npc-spawn: the map is the same
 -- for every copy). Once known, the target and mouseover aren't watched. A copy other than the one a continued run
 -- was in splits the run; a new run in a copy an earlier run was in (back after the time a run continues within)
--- isn't another entry. Where the game hides GUIDs from addons inside, there's nothing to watch for.
+-- isn't another entry. Where the game hides mobs' GUIDs from addons inside (WoW Forever), nothing names the copy: a
+-- run continued after leaving alive is taken for another one (a reset, another wing) from the first mob seen, and one
+-- continued after leaving as a ghost for the same.
 function I:LearnID(unit)
     local run = self.run
     if not run or not UnitGUID then return end
     local guid = UnitGUID(unit)
-    if not IsSecret(guid) then
+    if IsSecret(guid) then
+        if self.resumeAt and self.resumeAlive then self:Split() end
+    else
         if type(guid) ~= "string" then return end
         local copy = tonumber(guid:match("^Creature%-%d+%-%d+%-%d+%-(%d+)%-"))
         if not copy then return end
@@ -539,13 +564,13 @@ function I:LearnID(unit)
                 self:Refresh(true)
             end
         end
-        self.resumeAt = nil
     end
+    self.resumeAt = nil
     for _, event in ipairs(ID_EVENTS) do self.events:UnregisterEvent(event) end
 end
 
--- The continued run was a reset instance: what came since the re-entry becomes a run of its own (reputation, loot and
--- group stay with the first).
+-- The continued run was another copy of the instance (`copy`, nil where the game hides it): what came since the
+-- re-entry becomes a run of its own (reputation and loot stay with the first).
 function I:Split(copy)
     local old = self.run
     local char = self:Character()
@@ -561,11 +586,16 @@ function I:Split(copy)
     if old.re == 0 then old.re = nil end
     char.runs[#char.runs + 1] = new
     self.run = new
+    -- The group is the new run's too.
+    wipe(rosterNames)
+    self:Roster()
     self:Prune(char)
     if self.db.profile.sayEnter then
-        HST:Print("That was a reset " .. new.n .. ": it counts as an entry. " .. self:Entries(3600) .. " of "
-            .. self.db.profile.limitHour .. " instances this hour.")
+        local hour = self:Entries(3600) .. " of " .. self.db.profile.limitHour .. " instances this hour."
+        HST:Print(copy and ("That was a reset " .. new.n .. ": it counts as an entry. " .. hour)
+            or ("Entered " .. new.n .. ". " .. hour))
     end
+    self:Refresh()
 end
 
 -- An item you looted, by the link in the game's message, kept from the chosen quality up (and while its quality isn't

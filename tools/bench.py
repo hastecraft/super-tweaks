@@ -164,6 +164,8 @@ HST:SetFeatureEnabled('XPTracker', false)
 
 Section('Instance Tracker', function()
     state.money, state.groupSize = 50000, 5
+    -- The party's members, with GUIDs as the game gives them.
+    for i = 1, 4 do UNITS['party' .. i] = { guid = 'Player-' .. (20 + i), player = true, class = 'MAGE' } end
     Measure('Instance Tracker: XP gain outside an instance', 100, function()
         state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
     end)
@@ -190,6 +192,7 @@ Section('Instance Tracker', function()
     Send('InstanceTracker', 'PLAYER_ENTERING_WORLD', false, false)
     Measure('Instance Tracker: zone change outside an instance', 100, function() Send('InstanceTracker', 'ZONE_CHANGED_NEW_AREA') end)
     state.groupSize = 0
+    for i = 1, 4 do UNITS['party' .. i] = nil end
 end)
 
 local tip = GameTooltip
@@ -818,6 +821,14 @@ Section('Faction Tracker', function()
     Measure('Faction Tracker: mouseover of a player counted today', 300, function()
         Send('FactionTracker', 'UPDATE_MOUSEOVER_UNIT')
     end)
+    -- A mob whose target is a player: the player counts as seen.
+    UNITS.nameplate3 = { guid = 'Creature-0-4372-0-12-40-00002A2', player = false }
+    UNITS.nameplate3target = UNITS.nameplate2
+    Measure('Faction Tracker: nameplate of a mob fighting a player counted today', 300, function() show('nameplate3') end)
+    Measure('Faction Tracker: a mob turned to a player counted today', 300, function()
+        Send('FactionTracker', 'UNIT_TARGET', 'nameplate3')
+    end)
+    UNITS.nameplate3, UNITS.nameplate3target = nil, nil
     Measure('Faction Tracker: a new area of the same zone', 100, function() Send('FactionTracker', 'ZONE_CHANGED_NEW_AREA') end)
     P:Reset()
     Enable({ 'FactionTracker' }, false)
