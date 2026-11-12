@@ -2,6 +2,20 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.11.0 (2026-11-11)
+
+### New Features
+
+- Super Auction House: Shopping Categories. The Shopping tab's sidebar has a Categories view beside Lists and Recent, with the auction house's categories. Click one to search it, such as Armor, Plate, Feet, or type in the box to search inside it.
+
+### Changes
+
+- Super Auction House: "Share prices with these characters" is removed. It didn't work.
+
+### Bug Fixes
+
+- Super Auction House: "Current prices" on the Selling tab stops loading as soon as the game has sent every auction.
+
 ## 3.10.1 (2026-11-11)
 
 ### Bug Fixes

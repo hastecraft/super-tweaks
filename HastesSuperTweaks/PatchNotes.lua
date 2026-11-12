@@ -16,6 +16,19 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.11.0", date = "2026-11-11",
+        new = {
+            { "The Shopping tab's sidebar has a Categories view beside Lists and Recent, with the auction house's categories. Click one to search it, such as Armor, Plate, Feet, or type in the box to search inside it.",
+                title = "Super Auction House: Shopping Categories", module = "SuperAuctionHouse" },
+        },
+        changed = {
+            { "Super Auction House: \"Share prices with these characters\" is removed. It didn't work.", module = "SuperAuctionHouse" },
+        },
+        fixed = {
+            { "Super Auction House: \"Current prices\" on the Selling tab stops loading as soon as the game has sent every auction.", module = "SuperAuctionHouse" },
+        },
+    },
+    {
         version = "3.10.1", date = "2026-11-11",
         fixed = {
             { "Super Auction House: with the window open, your Hearthstone and other items that can't be auctioned can be used from your bags.", module = "SuperAuctionHouse" },
