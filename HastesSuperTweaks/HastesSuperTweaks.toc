@@ -86,7 +86,6 @@ Modules\QuestTracker.lua
 Modules\QuestItemButton.lua
 Modules\QuestSounds.lua
 Modules\ChatFilter.lua
-Modules\GroupFinderWhispers.lua
 Modules\BattlegroundAlerts.lua
 Modules\FactionTracker.lua
 Modules\NameplateMarkers.lua
