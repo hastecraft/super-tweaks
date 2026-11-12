@@ -218,6 +218,7 @@ end
 
 function T:Apply()
     self:Migrate() -- a profile switched to may be from before the Color choice or the faction logo
+    self.classFor = nil -- where the class line is is looked for again (see FormatLevel)
     if not (self.bar and self:IsEnabled()) then return end
     local p, bar, tip = self.db.profile, self.bar, GameTooltip
     local px = Border(bar, p.barBorderSize)
@@ -587,11 +588,16 @@ function T:FormatLevel(tip)
     local race, class, guid = self.raceName, self.className, self.guid
     local index = guid and guid == self.classFor and self.classIndex
     if not race or index == false then return end
+    -- A tooltip redrawn without the game rewriting its lines still shows the swap: its race line is ours.
+    local made = self.levelText
+    local swapped = made.class == class and made.race == race and made.under
     if index then
         local classLine, text = TooltipLine(tip, index)
         if text == class then
             local levelLine, level = TooltipLine(tip, index - 1)
             if level and level:find(race, 1, true) then return self:SwapLevel(levelLine, level, classLine, class, race) end
+        elseif text and text == swapped then
+            return
         end
     end
     -- Not read yet for this unit, or its lines moved: look through them all.
@@ -602,6 +608,7 @@ function T:FormatLevel(tip)
             self.classFor, self.classIndex = guid, i
             return self:SwapLevel(levelLine, level, line, class, race)
         end
+        if text and text == swapped then return end
         if text and text:find(race, 1, true) then levelLine, level = line, text else levelLine = nil end
     end
     -- Only kept for a unit the game names.
