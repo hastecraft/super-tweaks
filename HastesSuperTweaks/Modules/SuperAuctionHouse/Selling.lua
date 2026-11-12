@@ -12,6 +12,7 @@ local W = ns.Widgets
 local N = S.Net
 local K = S.Kit
 local AH = C_AuctionHouse
+local IsSecret = ns.IsSecret
 local P
 
 local LIST_WIDTH = 290
@@ -57,7 +58,15 @@ local function ForEachBagSlot(fn)
     end
 end
 
--- One entry per kind of item you could post.
+-- Whether the gear in a bag slot has lost durability: the auction house refuses it until it's repaired.
+local function Damaged(bag, slot)
+    if not C_Container.GetContainerItemDurability then return false end
+    local now, most = C_Container.GetContainerItemDurability(bag, slot)
+    if IsSecret(now) or IsSecret(most) or type(now) ~= "number" or type(most) ~= "number" then return false end
+    return most > 0 and now < most
+end
+
+-- One entry per kind of item you could post, and damaged gear, which can't be posted until it's repaired.
 local function ScanBags()
     local items, byKey = {}, {}
     wipe(awaited)
@@ -73,19 +82,29 @@ local function ScanBags()
         end
         -- The item being posted is locked, which can read as not sellable.
         local isCurrent = cur ~= nil and cur.bag == bag and cur.slot == slot
-        if location:IsValid() and (isCurrent or AH.IsSellItemValid(location, false)) then
+        local damaged = false
+        if location:IsValid() and not isCurrent and not AH.IsSellItemValid(location, false) then
+            damaged = not info.isBound and Damaged(bag, slot)
+        end
+        if location:IsValid() and (isCurrent or damaged or AH.IsSellItemValid(location, false)) then
             local itemKey = AH.GetItemKeyFromItem(location)
             local key = itemKey and N.KeyString(itemKey)
             if key then
                 local item = byKey[key]
                 if item then
-                    item.count = item.count + (info.stackCount or 1)
+                    if not damaged then
+                        -- Post the sound one.
+                        if item.damaged then
+                            item.damaged, item.location, item.bag, item.slot, item.count = false, location, bag, slot, 0
+                        end
+                        item.count = item.count + (info.stackCount or 1)
+                    end
                 else
                     local _, _, _, _, _, _, _, _, _, _, _, classID = C_Item.GetItemInfo(info.hyperlink or info.itemID)
                     item = { key = key, itemKey = itemKey, itemID = info.itemID, link = info.hyperlink, icon = info.iconFileID,
                         quality = info.quality, count = info.stackCount or 1, location = location, classID = classID,
                         name = info.itemName or (info.hyperlink or ""):match("%[(.-)%]") or "", level = itemKey.itemLevel,
-                        bag = bag, slot = slot }
+                        bag = bag, slot = slot, damaged = damaged }
                     byKey[key] = item
                     items[#items + 1] = item
                 end
@@ -327,7 +346,7 @@ function Se.Layout()
             h:Show()
             y = y + 24
             for i, item in ipairs(section.items) do
-                if not item.missing then order[#order + 1] = item end
+                if not item.missing and not item.damaged then order[#order + 1] = item end
                 if not collapsed then
                     usedButtons = usedButtons + 1
                     local b = buttons[usedButtons]
@@ -335,8 +354,9 @@ function Se.Layout()
                     b.item = item
                     b:SetSize(size, size)
                     b.icon:SetTexture(item.icon)
-                    b.icon:SetDesaturated(item.missing and true or false)
-                    b:SetAlpha(item.missing and 0.5 or 1)
+                    local dim = item.missing or item.damaged
+                    b.icon:SetDesaturated(dim and true or false)
+                    b:SetAlpha(dim and 0.5 or 1)
                     b.count:SetText(item.count and item.count > 1 and item.count or "")
                     local color = ITEM_QUALITY_COLORS and item.quality and ITEM_QUALITY_COLORS[item.quality]
                     b.rim((cur and cur.key == item.key) and P.accent
@@ -643,6 +663,7 @@ function Se.Select(item)
     Se.current:SetLoading(false)
     Unlock()
     if not item.location:IsValid() or not C_Item.DoesItemExist(item.location) then return Se.Refresh() end
+    if item.damaged then return Status("Damaged. Repair it to sell it.") end
     -- A post still on its way stays: its answer records it.
     cur = item
     priceTouched = false
