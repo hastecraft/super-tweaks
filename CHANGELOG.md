@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.12.0 (2026-11-12)
+
+### New Features
+
+- Better Tooltips: Class After Level. A player's class shows after their level, with their race on the line under it. Turn it off with "Class after level".
+
 ## 3.11.0 (2026-11-11)
 
 ### New Features

@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "3.12.0", date = "2026-11-12",
+        new = {
+            { "A player's class shows after their level, with their race on the line under it. Turn it off with \"Class after level\".",
+                title = "Better Tooltips: Class After Level", module = "Tooltip", path = { "lines" }, setting = "classFirst" },
+        },
+    },
+    {
         version = "3.11.0", date = "2026-11-11",
         new = {
             { "The Shopping tab's sidebar has a Categories view beside Lists and Recent, with the auction house's categories. Click one to search it, such as Armor, Plate, Feet, or type in the box to search inside it.",
