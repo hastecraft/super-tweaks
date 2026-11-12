@@ -3,7 +3,7 @@
 -- Nothing is built until the auction house first opens. While it's closed this tweak costs five events and one tooltip
 -- hook that stops at its first line once the tweak is off. Other files in this folder hang their parts off this module:
 -- S.Prices, S.Tooltip, S.Net, S.Kit, S.Terms, S.Search, S.Window, S.Shopping, S.Buy, S.Selling, S.Auctions, S.History,
--- S.Scan, S.Share, S.Crafting and S.Compat.
+-- S.Scan, S.Crafting and S.Compat.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -14,8 +14,7 @@ local S = HST:NewFeature("SuperAuctionHouse", {
     examples = { "openOn", "tipAuction", "undercutPercent", "autoScan" },
     description = "Opens its own window at the auction house, with shopping lists, a selling screen that undercuts for "
         .. "you, a check for undercut auctions and a history of what you've made and spent. Scan the auction house to fill "
-        .. "its price database, which item tooltips read anywhere in the game. Prices stay on your computer, per realm, "
-        .. "and can be shared with your other game accounts.",
+        .. "its price database, which item tooltips read anywhere in the game. Prices stay on your computer, per realm.",
 })
 ns.SuperAuctionHouse = S
 
@@ -44,7 +43,6 @@ local defaults = {
     tipStack = "shift", tipMail = true, tipMerchant = true, tipListings = true, tipPets = true,
     -- Prices and scans
     record = true, scanMode = "replicate", autoScan = false, autoScanMinutes = 15, scanChat = true, keepHistory = true,
-    shareWith = "",
     -- Selling
     undercutMode = "percent", undercutPercent = 0, undercutStatic = 0, duration = 3, saveDuration = false,
     matchMode = "nameLevel", gearMultiplier = 0, confirmLow = true, showBid = false, autoNext = false, reselect = true,
@@ -92,7 +90,6 @@ function S:OnListen()
     self.Tooltip.Install()
     self.Compat.Install()
     self.Crafting.Install()
-    self.Share.Apply()
     -- Turned on at an open auction house or mailbox.
     if AuctionHouseFrame and AuctionHouseFrame:IsShown() then self:AuctionHouseOpened() end
     if MailFrame and MailFrame:IsShown() then self.History.MailOpened() end
@@ -104,7 +101,6 @@ function S:OnUnlisten()
     self.Tooltip.Forget()
     self.Compat.Remove()
     self.Crafting.Remove()
-    self.Share.Apply()
     self.History.MailClosed()
     if self.Window.IsLive() then self:AuctionHouseClosed(true) end
     if self.Window.frame then self.Window.frame:Hide() end
@@ -158,7 +154,6 @@ end
 function S:Apply()
     if self.info.unavailable then return end
     self.Tooltip.Forget()
-    self.Share.Apply()
     if self.Window.frame then self.Window.Apply() end
 end
 
@@ -257,11 +252,6 @@ function S:BuildOptions()
                 resetRealm = { type = "execute", name = "Delete this realm's prices", order = 7,
                     confirm = true, confirmText = "Delete every saved price for this realm?",
                     func = function() self.Prices.ResetRealm() end },
-            }),
-            accounts = ns.Section("Other accounts", 2.5, {
-                shareWith = option("input", "shareWith", "Share prices with these characters", 1, { width = "full",
-                    desc = "Characters on your other game accounts, separated by commas. While you're both online, "
-                        .. "the prices one of you saves are saved by the other too. Set this on both accounts." }),
             }),
             history = ns.Section("History", 3, {
                 keepHistory = option("toggle", "keepHistory", "Keep a history of your sales and purchases", 1,

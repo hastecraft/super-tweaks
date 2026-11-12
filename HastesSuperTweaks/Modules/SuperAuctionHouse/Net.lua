@@ -283,6 +283,22 @@ local function RecordListing(itemKey, entries, isCommodity)
     end
 end
 
+-- A sell search finds every level of an item, so its prices are saved under each auction's own key.
+local groups = {}
+local function RecordLevels(entries)
+    wipe(groups)
+    for _, e in ipairs(entries) do
+        local key = e.itemKey
+        if key then
+            local id = (key.itemLevel or 0) .. ":" .. (key.itemSuffix or 0)
+            local group = groups[id]
+            if not group then group = {}; groups[id] = group end
+            group[#group + 1] = e
+        end
+    end
+    for _, group in pairs(groups) do RecordListing(group[1].itemKey, group) end
+end
+
 -- A request's state: "key" while the game looks up what the item is, "queued" while it waits its turn, "asking" once
 -- its search is on its way, "paging" once the game has answered and more is asked for, then "done" or "cancelled".
 -- The game's answers name the item, not who asked, so one request at a time owns the live search: a newer one takes it
@@ -291,7 +307,7 @@ end
 local REQUEST_WAIT = 20
 local REQUEST_CHECK = 5 -- seconds between looks for requests to give up on, while there are any
 local checking = false
-local Check
+local Check, Finish
 
 local function Watch()
     if checking then return end
@@ -336,7 +352,8 @@ end
 -- final set; failed means the game stopped answering, and entries are what came. Options: sell (asks as the sell screen
 -- does, which for gear finds every level of it). Returns the request, for N.CancelListings.
 function N.Listings(itemKey, options, cb)
-    local request = { key = itemKey, itemID = itemKey.itemID, sell = options and options.sell, cb = cb, state = "key" }
+    local request = { key = itemKey, own = itemKey, itemID = itemKey.itemID, sell = options and options.sell, cb = cb,
+        state = "key" }
     if not started then
         request.state = "cancelled"
         return request
@@ -350,11 +367,14 @@ function N.Listings(itemKey, options, cb)
         end
     end
     request.more = function()
+        local full
         if request.commodity then
-            AH.RequestMoreCommoditySearchResults(request.itemID)
+            full = AH.RequestMoreCommoditySearchResults(request.itemID)
         else
-            AH.RequestMoreItemSearchResults(request.moreKey)
+            full = AH.RequestMoreItemSearchResults(request.moreKey)
         end
+        -- The game says so when it already has everything, and then nothing more comes to end the request.
+        if full == true and request.state == "paging" then Finish(request) end
     end
     request.go = function()
         if current == request and (request.state == "asking" or request.state == "paging") then request.ask() end
@@ -400,17 +420,29 @@ end
 -- answer is the last: the game never asks for more of an empty list, and more doesn't come.
 local function Answered(request, entries, full, itemKey)
     request.entries = entries
+    request.recordKey = itemKey
     if #entries == 0 then full = true end
     if full then
         Over(request, "done")
-        RecordListing(itemKey or request.key, entries, request.commodity)
+        if request.bySell then
+            RecordLevels(entries)
+        else
+            RecordListing(itemKey or request.key, entries, request.commodity)
+        end
     else
         request.state = "paging"
         Ask(request, request.more)
+        -- Asked at once, and the game already had everything: the request ended there, with its own last answer.
+        if request.state ~= "paging" then return end
     end
     -- An error in the part that asked shows, and the searches waiting still get their turn.
     securecallfunction(request.cb, entries, request.commodity and true or false, full)
     if full then NextInLine() end
+end
+
+-- Ends a request that's asking for more with what it has: the game has said that's everything.
+Finish = function(request)
+    Answered(request, request.entries or {}, true, request.recordKey)
 end
 
 Check = function()
@@ -445,39 +477,58 @@ N.On("COMMODITY_SEARCH_RESULTS_RECEIVED", function()
     CommodityResults("COMMODITY_SEARCH_RESULTS_UPDATED", request.itemID)
 end)
 
+-- The key a request's results are read under. The game's own sell screen reads a sell search under the key it asked
+-- with (no level or suffix) whatever key the event names, so that key is tried too, and the fuller of the two is taken.
+local function ResultsKey(request, eventKey)
+    if not request.bySell then return eventKey end
+    local key = request.key
+    return AH.GetNumItemSearchResults(key) >= AH.GetNumItemSearchResults(eventKey) and key or eventKey
+end
+
 local function ItemResults(_, itemKey)
     local request = current
-    -- A sell query asks with item level 0 and hears back with the levels it found, so only the item has to match.
+    -- A sell query asks with item level 0 and may hear back with the levels it found, so only the item has to match.
     if not (request and request.sent and not request.commodity and request.itemID == itemKey.itemID
         and (request.key.battlePetSpeciesID or 0) == (itemKey.battlePetSpeciesID or 0)) then return end
     -- Another suffix of the same item isn't this one.
     if not request.bySell and (request.key.itemSuffix or 0) ~= (itemKey.itemSuffix or 0) then return end
-    request.moreKey = itemKey
-    Answered(request, ReadItems(itemKey), AH.HasFullItemSearchResults(itemKey), itemKey)
+    local key = ResultsKey(request, itemKey)
+    request.moreKey = key
+    Answered(request, ReadItems(key), AH.HasFullItemSearchResults(key), itemKey)
 end
 N.On("ITEM_SEARCH_RESULTS_UPDATED", ItemResults)
 N.On("ITEM_SEARCH_RESULTS_ADDED", ItemResults)
--- An item with no auctions may get no results event: the game's reply alone says its search has loaded, empty. The
--- reply that frees the queue for this query arrives in the same frame the query is sent, so only a later one counts,
--- and results that come with the reply (a gear search answers under other item levels) get a moment to arrive first.
-local emptyFor
-local function AnswerEmpty()
-    local request = current
-    if request ~= emptyFor or request.state ~= "asking" then return end
+-- A search may get no results event (one for an item with no auctions doesn't): the game's reply alone says it has
+-- loaded. The reply that frees the queue for this query arrives in the same frame the query is sent, so only a later
+-- one counts, and a results event that comes with the reply gets a moment to arrive first. What the game then holds
+-- for the search is the answer, read as its own sell screen reads it.
+local HELD_WAIT = 0.2
+local heldFor
+local function HeldKey(request)
+    if not AH.HasSearchResults then return nil end
     local key = request.key
-    if not (AH.HasSearchResults(key) and AH.HasFullItemSearchResults(key) and AH.GetNumItemSearchResults(key) == 0) then return end
+    if AH.HasSearchResults(key) then
+        -- Outside a sell search, only an empty answer is taken without its event.
+        if request.bySell or (AH.HasFullItemSearchResults(key) and AH.GetNumItemSearchResults(key) == 0) then return key end
+        return nil
+    end
+    if request.bySell and request.own ~= key and AH.HasSearchResults(request.own) then return request.own end
+end
+local function AnswerHeld()
+    local request = current
+    if request ~= heldFor or request.state ~= "asking" then return end
+    local key = HeldKey(request)
+    if not key then return end
     request.moreKey = key
-    Answered(request, ReadItems(key), true, key)
+    Answered(request, ReadItems(key), AH.HasFullItemSearchResults(key), request.own)
 end
 N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED", function()
     local request = current
     if not (request and request.state == "asking" and request.sent and request.commodity == false
         and request.sentAt ~= GetTime()) then return end
-    local key = request.key
-    if not (AH.HasSearchResults and AH.HasSearchResults(key) and AH.HasFullItemSearchResults(key)
-        and AH.GetNumItemSearchResults(key) == 0) then return end
-    emptyFor = request
-    C_Timer.After(0.2, AnswerEmpty)
+    if not HeldKey(request) then return end
+    heldFor = request
+    C_Timer.After(HELD_WAIT, AnswerHeld)
 end)
 
 -- The game dropped a message under load: ask again for what the live search last asked.

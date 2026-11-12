@@ -87,6 +87,7 @@ end
 -- Categories, from the game's own list, as "Armor/Plate/Chest" paths.
 ---------------------------------------------------------------------------
 local paths, pathFilters
+local NO_CATEGORIES = {} -- until the game's auction house UI has loaded
 local function Collect(categories, prefix)
     for _, c in ipairs(categories) do
         local path = prefix .. c.name
@@ -100,8 +101,10 @@ end
 
 function T.Categories()
     if not paths then
+        -- Not kept while empty: asked for away from an auction house, the list would stay empty at one.
+        if not AuctionCategories then return NO_CATEGORIES, NO_CATEGORIES end
         paths, pathFilters = {}, {}
-        if AuctionCategories then Collect(AuctionCategories, "") end
+        Collect(AuctionCategories, "")
     end
     return paths, pathFilters
 end
