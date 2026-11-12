@@ -552,41 +552,60 @@ end
 
 -- Puts a player's class on the level line and their race on the line under it: "Level 21 Human (Player)" over
 -- "Warlock" becomes "Level 21 Warlock" over "Human (Player)". Only when the game shows the class on a line of its own,
--- right under the one with the race. One pass over the lines, whose names are built once per tooltip; the texts are
--- kept while the lines they're made from stay the same.
+-- right under the one with the race. Where that line is (false for nowhere) is kept per unit, so a tooltip redrawn
+-- several times a second reads at most those two lines; the texts are kept while the lines they're made from stay the
+-- same.
 local lineNames = {}
-function T:FormatLevel(tip)
-    local race, class = self.raceName, self.className
-    if not race then return end
+local function TooltipLine(tip, i)
     local names = lineNames[tip]
     if names == nil then
         local name = tip:GetName()
         names = name and { prefix = name .. "TextLeft" } or false
         lineNames[tip] = names
     end
-    if not names then return end
-    local prefix, levelLine, current = names.prefix, nil, nil
-    for i = 2, tip:NumLines() do
-        local name = names[i]
-        if not name then name = prefix .. i; names[i] = name end
-        local line = _G[name]
-        local text = line and line:GetText()
-        if IsSecret(text) then
-            text = nil
-        elseif text == class then
-            if not levelLine then return end
-            local made = self.levelText
-            if made.from ~= current or made.class ~= class or made.race ~= race then
-                local first, last = current:find(race, 1, true)
-                made.from, made.class, made.race = current, class, race
-                made.level, made.under = current:sub(1, first - 1) .. class, race .. current:sub(last + 1)
-            end
-            levelLine:SetText(made.level)
-            line:SetText(made.under)
-            return
-        end
-        if text and text:find(race, 1, true) then levelLine, current = line, text else levelLine = nil end
+    if not names then return nil end
+    local name = names[i]
+    if not name then name = names.prefix .. i; names[i] = name end
+    local line = _G[name]
+    local text = line and line:GetText()
+    if IsSecret(text) then text = nil end
+    return line, text
+end
+
+function T:SwapLevel(levelLine, level, classLine, class, race)
+    local made = self.levelText
+    if made.from ~= level or made.class ~= class or made.race ~= race then
+        local first, last = level:find(race, 1, true)
+        made.from, made.class, made.race = level, class, race
+        made.level, made.under = level:sub(1, first - 1) .. class, race .. level:sub(last + 1)
     end
+    levelLine:SetText(made.level)
+    classLine:SetText(made.under)
+end
+
+function T:FormatLevel(tip)
+    local race, class, guid = self.raceName, self.className, self.guid
+    local index = guid and guid == self.classFor and self.classIndex
+    if not race or index == false then return end
+    if index then
+        local classLine, text = TooltipLine(tip, index)
+        if text == class then
+            local levelLine, level = TooltipLine(tip, index - 1)
+            if level and level:find(race, 1, true) then return self:SwapLevel(levelLine, level, classLine, class, race) end
+        end
+    end
+    -- Not read yet for this unit, or its lines moved: look through them all.
+    local levelLine, level
+    for i = 2, tip:NumLines() do
+        local line, text = TooltipLine(tip, i)
+        if text == class and levelLine then
+            self.classFor, self.classIndex = guid, i
+            return self:SwapLevel(levelLine, level, line, class, race)
+        end
+        if text and text:find(race, 1, true) then levelLine, level = line, text else levelLine = nil end
+    end
+    -- Only kept for a unit the game names.
+    if guid then self.classFor, self.classIndex = guid, false end
 end
 
 -- The faction logo in the tooltip's top right, under the text. Made when first shown.
