@@ -1503,6 +1503,42 @@ Section('Better Breath Meter', function()
 end)
 '''
 
+# Combat Reminders reads two buffs by name on every aura change in combat, and draws the ones missing.
+REMINDER_MOCKS = r'''
+PERMISSIVE_FRAMES = true
+REMINDER_AURAS = { ['Battle Shout'] = { expirationTime = 200, duration = 120 }, ['Arcane Intellect'] = { expirationTime = 0, duration = 0 } }
+C_UnitAuras = C_UnitAuras or {}
+C_UnitAuras.GetAuraDataBySpellName = function(_, name) return REMINDER_AURAS[name] end
+C_Spell = C_Spell or {}
+C_Spell.GetSpellName = function(id) if id == 6673 then return 'Battle Shout' end end
+'''
+REMINDERS = r'''
+Section('Combat Reminders', function()
+    Only({ 'CombatReminders' })
+    local R = mod('CombatReminders')
+    R.db.profile.buff1, R.db.profile.buff2 = 'Battle Shout', 'Arcane Intellect'
+    R:Apply()
+    local INFO = {}
+    Measure('Combat reminders: combat starts and ends', 100, function()
+        Send('CombatReminders', 'PLAYER_REGEN_DISABLED'); Send('CombatReminders', 'PLAYER_REGEN_ENABLED')
+    end)
+    Send('CombatReminders', 'PLAYER_REGEN_DISABLED')
+    Measure('Combat reminders: an aura changes in combat, buffs on', 300, function()
+        Send('CombatReminders', 'UNIT_AURA', 'player', INFO)
+    end)
+    local shout = REMINDER_AURAS['Battle Shout']
+    REMINDER_AURAS['Battle Shout'] = nil
+    Measure('Combat reminders: an aura changes in combat, one reminder showing', 300, function()
+        Send('CombatReminders', 'UNIT_AURA', 'player', INFO)
+    end)
+    Measure('Combat reminders: you cast a spell in combat', 300, function()
+        Send('CombatReminders', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-1', 133)
+    end)
+    REMINDER_AURAS['Battle Shout'] = shout
+    Send('CombatReminders', 'PLAYER_REGEN_ENABLED')
+end)
+'''
+
 # Swing Timer Style restyles the game's own bars from hooks on their methods: the scenarios call those methods as the
 # game does (each swing starts and ends one bar; the game's own filling, an OnUpdate, isn't the addon's).
 SWING = r'''
@@ -1657,6 +1693,7 @@ def main():
     runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + BANK_HELPER_MOCKS, BANK_HELPER)
     runtime(BREATH_MOCKS, BREATH)
     runtime(SWING_MOCKS, SWING)
+    runtime(REMINDER_MOCKS, REMINDERS)
     runtime(DRUID_MOCKS, DRUID)
     runtime(SUPER_AH_MOCKS, SUPER_AH)
     if JSON:
