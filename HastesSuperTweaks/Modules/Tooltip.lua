@@ -18,7 +18,7 @@ ns.Configure(T, {
     healthBar = true, barText = "VALUE", colorBy = "CLASS", healthColor = { 0.2, 0.8, 0.2, 1 },
     barHeight = 8, barGap = 2, texture = "EUI: Atrocity", font = "Inter Semi Bold", fontSize = 10, outline = "OUTLINE",
     backgroundColor = { 0.035, 0.045, 0.06, 0.9 }, barBorderColor = { 0, 0, 0, 1 }, barBorderSize = 1,
-    classBorder = true, reactionBorder = false, borderSize = 1,
+    classFirst = true, classBorder = true, reactionBorder = false, borderSize = 1,
     guildLine = true, guildRank = true, highlightGuild = true, guildNotes = true, officerNotes = true,
     guildColor = { 0.25, 1, 0.25, 1 }, ownGuildColor = { 0.4, 0.8, 1, 1 }, rankColor = { 0.7, 0.7, 0.7, 1 },
     factionStyle = "LOGO", logoAlpha = 0.35, logoSize = 32, factionIcon = true, allianceColor = { 0.3, 0.55, 1, 1 }, hordeColor = { 1, 0.2, 0.2, 1 },
@@ -132,9 +132,15 @@ function T:ReadUnit(unit, guid)
             faction, factionName = nil, nil
         end
         self.faction, self.factionName = faction, factionName
+        self.className, self.raceName = nil, nil
         if isPlayer ~= false then
-            local _, class = UnitClass(unit)
+            local className, class = UnitClass(unit)
             self.classColor = not IsSecret(class) and class and RAID_CLASS_COLORS[class] or nil
+            local race = UnitRace(unit)
+            if not IsSecret(className) and not IsSecret(race) and type(className) == "string" and type(race) == "string"
+                and className ~= "" and race ~= "" then
+                self.className, self.raceName = className, race
+            end
         end
     end
     if self.guildRead or self.isPlayer == false then return end
@@ -198,7 +204,7 @@ function T:CreateFrames()
     bar.edges = CreateEdges(bar)
     bar.text = bar:CreateFontString(nil, "OVERLAY")
     bar.text:SetPoint("CENTER", bar, "CENTER", 0, 0)
-    self.shownColor, self.savedBorder, self.guildText, self.factionText = {}, {}, {}, {}
+    self.shownColor, self.savedBorder, self.guildText, self.factionText, self.levelText = {}, {}, {}, {}, {}
     local waited, polls = 0, 0
     self.poll = function(_, elapsed)
         waited = waited + elapsed
@@ -544,6 +550,64 @@ function T:FormatGuild(tip)
     if line and current ~= made.text then line:SetText(made.text) end
 end
 
+-- Puts a player's class on the level line and their race on the line under it: "Level 21 Human (Player)" over
+-- "Warlock" becomes "Level 21 Warlock" over "Human (Player)". Only when the game shows the class on a line of its own,
+-- right under the one with the race. Where that line is (false for nowhere) is kept per unit, so a tooltip redrawn
+-- several times a second reads at most those two lines; the texts are kept while the lines they're made from stay the
+-- same.
+local lineNames = {}
+local function TooltipLine(tip, i)
+    local names = lineNames[tip]
+    if names == nil then
+        local name = tip:GetName()
+        names = name and { prefix = name .. "TextLeft" } or false
+        lineNames[tip] = names
+    end
+    if not names then return nil end
+    local name = names[i]
+    if not name then name = names.prefix .. i; names[i] = name end
+    local line = _G[name]
+    local text = line and line:GetText()
+    if IsSecret(text) then text = nil end
+    return line, text
+end
+
+function T:SwapLevel(levelLine, level, classLine, class, race)
+    local made = self.levelText
+    if made.from ~= level or made.class ~= class or made.race ~= race then
+        local first, last = level:find(race, 1, true)
+        made.from, made.class, made.race = level, class, race
+        made.level, made.under = level:sub(1, first - 1) .. class, race .. level:sub(last + 1)
+    end
+    levelLine:SetText(made.level)
+    classLine:SetText(made.under)
+end
+
+function T:FormatLevel(tip)
+    local race, class, guid = self.raceName, self.className, self.guid
+    local index = guid and guid == self.classFor and self.classIndex
+    if not race or index == false then return end
+    if index then
+        local classLine, text = TooltipLine(tip, index)
+        if text == class then
+            local levelLine, level = TooltipLine(tip, index - 1)
+            if level and level:find(race, 1, true) then return self:SwapLevel(levelLine, level, classLine, class, race) end
+        end
+    end
+    -- Not read yet for this unit, or its lines moved: look through them all.
+    local levelLine, level
+    for i = 2, tip:NumLines() do
+        local line, text = TooltipLine(tip, i)
+        if text == class and levelLine then
+            self.classFor, self.classIndex = guid, i
+            return self:SwapLevel(levelLine, level, line, class, race)
+        end
+        if text and text:find(race, 1, true) then levelLine, level = line, text else levelLine = nil end
+    end
+    -- Only kept for a unit the game names.
+    if guid then self.classFor, self.classIndex = guid, false end
+end
+
 -- The faction logo in the tooltip's top right, under the text. Made when first shown.
 function T:ShowLogo(faction)
     local logo = self.logo
@@ -695,6 +759,7 @@ function T:OnUnitTooltip(tip, data, unit)
     self.unit, self.guid = unit, guid
     if self.isPlayer ~= false and ns.RegionalNames() then self:FormatName(unit) end
     if self.db.profile.guildLine then self:FormatGuild(tip) end
+    if self.db.profile.classFirst then self:FormatLevel(tip) end
     local style = self.db.profile.factionStyle
     if style ~= "NONE" then self:FormatFaction(tip, style) end
     self:AddNotes(tip)
@@ -801,6 +866,11 @@ function T:BuildOptions()
                     desc = "In pixels. 0 hides it." }),
             }, { disabled = noBar }),
         } },
+        lines = { type = "group", name = "Text", order = 5, args = {
+            text = section("Settings", 1, {
+                classFirst = option("toggle", "classFirst", "Class after level", 1),
+            }),
+        } },
         border = { type = "group", name = "Border", order = 2, args = {
             border = section("Border", 1, {
                 classBorder = option("toggle", "classBorder", "Class-colored border", 1, {
@@ -873,7 +943,14 @@ T:PreviewLine(2, function(p)
     if not p.guildLine then return "Exertion" end
     return GuildText("Exertion", nil, p.highlightGuild and p.ownGuildColor or p.guildColor, p.guildRank and "Guild Master" or nil, p.rankColor)
 end)
-T:PreviewLine(3, function(_, v) return "Level 60 " .. RACES[v.faction] .. " Mage" end)
+T:PreviewLine(3, function(p, v)
+    if p.classFirst then return "Level 60 Mage" end
+    return "Level 60 " .. RACES[v.faction] .. " (Player)"
+end)
+T:PreviewLine(3.5, function(p, v)
+    if p.classFirst then return RACES[v.faction] .. " (Player)" end
+    return "Mage"
+end)
 T:PreviewLine(4, function(p, v)
     local style, name = p.factionStyle, FACTION_NAMES[v.faction]
     if style == "LOGO" then return nil end
