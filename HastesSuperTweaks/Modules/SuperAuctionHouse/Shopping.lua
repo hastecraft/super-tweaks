@@ -1,6 +1,6 @@
--- The Shopping tab: a search box with filters, shopping lists and recent searches beside it, and the results. A click on
--- a result opens the buy screen. Lists are shared by all your characters, except temporary ones, which last until you
--- log out or keep them.
+-- The Shopping tab: a search box with filters, the results, and beside them shopping lists, recent searches and the
+-- game's categories. A click on a result opens the buy screen. Lists are shared by all your characters, except temporary
+-- ones, which last until you log out or keep them.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local S = ns.SuperAuctionHouse
@@ -19,6 +19,7 @@ local AUTOCOMPLETE_MIN = 2
 local SIDE_WIDTH = 250
 
 local selected, expanded = nil, {}
+local category -- the chosen category, as a path like "Armor/Plate/Feet"
 
 local function Lists() return S.db.global.lists end
 local function Recents() return S.db.global.recents end
@@ -72,9 +73,27 @@ end
 ---------------------------------------------------------------------------
 -- The side panel
 ---------------------------------------------------------------------------
+-- The game's categories as a tree, open along the chosen one's branch as the game's own list is.
+local function AddCategories(entries, categories, up, depth)
+    for _, c in ipairs(categories) do
+        local path = up and (up .. "/" .. c.name) or c.name
+        local wowToken = c.flags and c.flags.WOW_TOKEN_FLAG
+        if not wowToken and (c.filters or c.subCategories) then
+            entries[#entries + 1] = { kind = "category", path = path, up = up, name = c.name, depth = depth,
+                searches = c.filters ~= nil, parent = c.subCategories ~= nil }
+            if c.subCategories and category and (category == path or category:sub(1, #path + 1) == path .. "/") then
+                AddCategories(entries, c.subCategories, path, depth + 1)
+            end
+        end
+    end
+end
+
 local function SideEntries()
     local entries = {}
-    if S.db.profile.shoppingView == "recents" then
+    if S.db.profile.shoppingView == "categories" then
+        -- Saved prices don't hold an item's category, so there's nothing to search by away from an auction house.
+        if S.Window.IsLive() and AuctionCategories then AddCategories(entries, AuctionCategories, nil, 0) end
+    elseif S.db.profile.shoppingView == "recents" then
         for i, text in ipairs(Recents()) do
             entries[i] = { kind = "recent", text = text, name = T.Pretty(text) }
         end
@@ -93,7 +112,10 @@ local function SideEntries()
 end
 
 local function RefreshSide()
-    if Sh.side then Sh.side:SetEntries(SideEntries(), true) end
+    if not Sh.side then return end
+    local needsHouse = S.db.profile.shoppingView == "categories" and not S.Window.IsLive()
+    Sh.side.emptyText:SetText(needsHouse and "Categories need an auction house." or "Nothing here yet.")
+    Sh.side:SetEntries(SideEntries(), true)
 end
 Sh.RefreshSide = RefreshSide
 
@@ -219,11 +241,26 @@ local function AskForText()
     Status("Type an item name first.")
 end
 
-local function SearchBox()
-    local text = Sh.box:GetText()
-    if text == "" then return AskForText() end
-    AddRecent(text)
-    if S.db.profile.shoppingView == "recents" then RefreshSide() end
+-- Searches for what's in the box. While the Categories view shows a chosen category, the search stays inside it, and
+-- an empty box finds everything there. exact: the box holds one item's name, so the category is let go.
+local function SearchBox(exact)
+    local typed = Sh.box:GetText()
+    if exact and category then
+        category = nil
+        RefreshSide()
+    end
+    local text = typed
+    if category and S.db.profile.shoppingView == "categories" and S.Window.IsLive() then
+        local term = T.Parse(typed)
+        term.category = category
+        text = T.Compose(term)
+    elseif typed == "" then
+        return AskForText()
+    end
+    if typed ~= "" then
+        AddRecent(text)
+        if S.db.profile.shoppingView == "recents" then RefreshSide() end
+    end
     Sh.Run({ text })
 end
 
@@ -241,7 +278,7 @@ function Sh.FromLink(link)
     if not name then return end
     name = name:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
     Sh.box:SetText(name)
-    SearchBox()
+    SearchBox(true)
 end
 
 ---------------------------------------------------------------------------
@@ -450,8 +487,27 @@ local function RecentMenu(owner, text)
     end)
 end
 
+local function CategoryMenu(owner, path)
+    local text = T.Compose({ category = path })
+    K.Menu(owner, function(root)
+        root:CreateButton("Search", function() Sh.Run({ text }) end)
+        root:CreateButton("Add to list", function() AddToListMenu(owner, text) end)
+    end)
+end
+
 local function SideClick(e, button, row)
-    if e.kind == "list" then
+    if e.kind == "category" then
+        if button == "RightButton" then
+            if e.searches then CategoryMenu(row, e.path) end
+            return
+        end
+        -- A click chooses a category and opens it; a click on the chosen one goes back to the one above. One with
+        -- nothing under it is searched at once, and the rest wait for Search: all of Armor is a long search.
+        local chosen = category ~= e.path
+        category = chosen and e.path or e.up
+        RefreshSide()
+        if chosen and e.searches and not e.parent then SearchBox() end
+    elseif e.kind == "list" then
         if button == "RightButton" then return ListMenu(row, e.list) end
         local wasSelected = selected == e.list
         selected = e.list
@@ -535,7 +591,7 @@ local function ChooseSuggestion(row)
     Sh.box:SetText(row.value)
     Sh.flyout:Hide()
     Sh.box.edit:ClearFocus()
-    SearchBox()
+    SearchBox(true)
 end
 
 -- Up and down walk the suggestions; Enter takes the one lit.
@@ -804,7 +860,8 @@ function Sh.Build(frame)
     side:SetPoint("BOTTOMLEFT", 10, 10)
     side:SetWidth(SIDE_WIDTH)
     K.Box(side, P.card, P.border)
-    local view = K.Pills(side, { { "lists", "Lists" }, { "recents", "Recent" } }, function(key)
+    local views = { { "lists", "Lists" }, { "recents", "Recent" }, { "categories", "Categories" } }
+    local view = K.Pills(side, views, function(key)
         S.db.profile.shoppingView = key
         RefreshSide()
     end, 26, true)
@@ -828,12 +885,15 @@ function Sh.Build(frame)
     Sh.side = K.Table(side, { rowHeight = 24, empty = "Nothing here yet.", noHeader = true,
         columns = {
             { key = "name", title = "", fill = 1, noSort = true,
-              indent = function(e) return e.kind == "term" and 12 or 0 end,
-              color = function(e) return e.kind == "list" and P.bright or P.text end },
+              indent = function(e) return e.kind == "term" and 12 or (e.depth or 0) * 12 end,
+              color = function(e) return (e.kind == "list" or e.depth == 0) and P.bright or P.text end },
             { key = "count", title = "", width = 34, justify = "RIGHT", noSort = true,
               color = function() return P.muted end },
         },
-        isSelected = function(e) return e.kind == "list" and e.list == selected end,
+        isSelected = function(e)
+            if e.kind == "category" then return e.path == category end
+            return e.kind == "list" and e.list == selected
+        end,
         onClick = SideClick,
         onEnter = function() end,
         onLeave = function() end,
@@ -964,6 +1024,7 @@ end
 
 -- Between live and saved prices, what's showing no longer applies.
 function Sh.ModeChanged()
+    RefreshSide() -- the categories come and go with the auction house
     if not Sh.results then return end
     if S.Buy.IsOpen() then S.Buy.Close() end
     Sh.entries = {}
