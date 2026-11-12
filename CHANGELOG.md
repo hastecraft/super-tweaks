@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 3.12.1 (2026-11-12)
+
+### Bug Fixes
+
+- Better Tooltips: "Class after level" no longer stops working on a player's tooltip, such as your own, after it redraws.
+
 ## 3.12.0 (2026-11-12)
 
 ### New Features
