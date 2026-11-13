@@ -14,8 +14,8 @@ local B = HST:NewFeature("BagCleaner", {
     examples = { { "count", "Items to show" }, "lowAt", { "quality", "Highest quality" }, "shift" },
     description = "Shows your free bag slots and, once they run low, your cheapest items by vendor price. Click one to "
         .. "delete it, or right-click it to never see it here again. Rare items, quest items, equipment sets, your class's "
-        .. "reagents and anything your quests or professions need stay, along with your Never sell list. With Super "
-        .. "Auction House on, an item's auction price counts when it's higher. Move it in Edit Mode.",
+        .. "reagents and anything your quests or professions need stay, along with your Never sell list. With "Auction "
+        .. "prices" on, an item's auction price counts when it's higher. Move it in Edit Mode.",
 })
 ns.BagCleaner = B
 
@@ -23,7 +23,7 @@ local ItemInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
 local MAX_ITEMS = 5
 local defaults = {
     always = true, special = true, textAt = "topLeft", count = MAX_ITEMS, alwaysItems = false, lowAt = 5, quality = "white", shift = false, say = true,
-    size = 36, prices = true, font = "Inter Semi Bold", fontSize = 12, outline = "OUTLINE", x = 480, y = -220,
+    size = 36, prices = true, auction = false, font = "Inter Semi Bold", fontSize = 12, outline = "OUTLINE", x = 480, y = -220,
     keep = {},
 }
 ns.Configure(B, defaults, function(m) return m:BuildOptions() end, "Apply")
@@ -306,7 +306,7 @@ function B:Worth(info, bag, slot, ctx)
     local count = info.stackCount or 1
     -- By its ID, which costs one table read; gear with a suffix or a level of its own has its own price, by its link.
     -- A bound item can't be put up for auction.
-    local value = not info.isBound and ns.AuctionValue and ns.AuctionValue(info.quality >= 2 and info.hyperlink or itemID) or nil
+    local value = not info.isBound and self.db.profile.auction and ns.AuctionValue(info.quality >= 2 and info.hyperlink or itemID) or nil
     return price * count, nil, value and value * count
 end
 
@@ -673,6 +673,8 @@ function B:BuildOptions()
                 say = option("toggle", "say", "Say what was deleted", 6),
                 size = option("range", "size", "Size", 7, { min = 24, max = 56, step = 1 }),
                 prices = option("toggle", "prices", "Show prices", 8),
+                auction = option("toggle", "auction", "Auction prices", 8.5,
+                    { desc = "Needs Super Auction House on.", disabled = ns.AuctionPricesOff }),
                 keep = { type = "items", name = "Never delete", order = 9,
                     desc = "Right-click an item in the window to add it.",
                     get = function() return profile().keep end,

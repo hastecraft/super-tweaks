@@ -121,6 +121,11 @@ function S.Views(tab) return views[tab] end
 
 -- For other tweaks: an item's lowest auction price in copper, by item ID or link. Nil when it has none, or while this
 -- tweak is off. One read of a saved table.
+-- For other tweaks' settings: whether their auction prices can't be had, so the setting is greyed out.
+function ns.AuctionPricesOff()
+    return not (S.db and S:IsEnabled()) or S.info.unavailable ~= nil
+end
+
 function ns.AuctionValue(item)
     if not (S.db and S:IsEnabled()) or S.info.unavailable then return nil end
     if type(item) == "number" then return S.Prices.Get(item) end
