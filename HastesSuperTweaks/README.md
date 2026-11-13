@@ -48,6 +48,7 @@ Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's
 | Right-Click Guild Invite | Social | Adds Guild Invite to the right-click menu on player names in chat. It fills in your chat line, and Enter sends the invite. The game doesn't let addons send one. |
 | Guild Message Popup | Social | Shows your guild's message of the day in the middle of the screen when you log in or when it changes. |
 | Chat Spam Filter | Social | Hides messages in trade, general and other public channels that match your word lists: gold selling, boosting, guild recruitment and words of your own. |
+| Hide Warlock Pet Chatter | Social | Hides what warlock demons say, yours and other players', in the chat box and in speech bubbles. |
 | Auto-Decline Battle.net Friend Requests | Auto-Decline | Turns down Battle.net friend requests and tells you who sent them. |
 | Auto-Decline Duels | Auto-Decline | Turns down duel requests, including duels to the death on Hardcore realms. You can let friends, guildmates or community members through. |
 | Auto-Decline Guild Charters | Auto-Decline | Turns down guild charters people ask you to sign. You can let friends, guildmates or community members through. |
