@@ -14,8 +14,8 @@ local B = HST:NewFeature("BagCleaner", {
     examples = { { "count", "Items to show" }, "lowAt", { "quality", "Highest quality" }, "shift" },
     description = "Shows your free bag slots and, once they run low, your cheapest items by vendor price. Click one to "
         .. "delete it, or right-click it to never see it here again. Rare items, quest items, equipment sets, your class's "
-        .. "reagents and anything your quests or professions need stay, along with your Never sell list. With "Auction "
-        .. "prices" on, an item's auction price counts when it's higher. Move it in Edit Mode.",
+        .. "reagents and anything your quests or professions need stay, along with your Never sell list. With "
+        .. "\"Auction prices\" on, an item's auction price counts when it's higher. Move it in Edit Mode.",
 })
 ns.BagCleaner = B
 
