@@ -82,11 +82,10 @@ local function ScanBags()
         end
         -- The item being posted is locked, which can read as not sellable.
         local isCurrent = cur ~= nil and cur.bag == bag and cur.slot == slot
+        local valid = location:IsValid() and (isCurrent or AH.IsSellItemValid(location, false))
         local damaged = false
-        if location:IsValid() and not isCurrent and not AH.IsSellItemValid(location, false) then
-            damaged = not info.isBound and Damaged(bag, slot)
-        end
-        if location:IsValid() and (isCurrent or damaged or AH.IsSellItemValid(location, false)) then
+        if not valid and location:IsValid() then damaged = not info.isBound and Damaged(bag, slot) end
+        if valid or damaged then
             local itemKey = AH.GetItemKeyFromItem(location)
             local key = itemKey and N.KeyString(itemKey)
             if key then
@@ -658,12 +657,12 @@ end
 -- Starts posting this item, an entry from the bag list.
 function Se.Select(item)
     if not Se.quantity then return end
+    if item.damaged then return Status("Damaged. Repair it to sell it.") end
     N.CancelListings(request)
     request = nil
     Se.current:SetLoading(false)
     Unlock()
     if not item.location:IsValid() or not C_Item.DoesItemExist(item.location) then return Se.Refresh() end
-    if item.damaged then return Status("Damaged. Repair it to sell it.") end
     -- A post still on its way stays: its answer records it.
     cur = item
     priceTouched = false
@@ -911,7 +910,7 @@ local function PostLanded(stopped)
         if order[at] and order[at].key == job.key then at = at + 1 end
         local nextItem = order[at]
         if nextItem then Se.Select(nextItem) else Se.Clear() end
-    elseif p.reselect and Se.byKey[job.key] then
+    elseif p.reselect and Se.byKey[job.key] and not Se.byKey[job.key].damaged then
         Se.Select(Se.byKey[job.key])
     else
         Se.Clear()
