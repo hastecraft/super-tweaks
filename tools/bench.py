@@ -1503,7 +1503,7 @@ Section('Better Breath Meter', function()
 end)
 '''
 
-# Combat Reminders reads two buffs by name on every aura change in combat, and draws the ones missing.
+# Aura Reminders reads two buffs by name on every aura change in combat, and draws the ones missing.
 REMINDER_MOCKS = r'''
 PERMISSIVE_FRAMES = true
 REMINDER_AURAS = { ['Battle Shout'] = { expirationTime = 200, duration = 120 }, ['Arcane Intellect'] = { expirationTime = 0, duration = 0 } }
@@ -1511,31 +1511,35 @@ C_UnitAuras = C_UnitAuras or {}
 C_UnitAuras.GetAuraDataBySpellName = function(_, name) return REMINDER_AURAS[name] end
 C_Spell = C_Spell or {}
 C_Spell.GetSpellName = function(id) if id == 6673 then return 'Battle Shout' end end
+function UnitIsDeadOrGhost() return false end
+function IsInGroup() return false end
 '''
 REMINDERS = r'''
-Section('Combat Reminders', function()
-    Only({ 'CombatReminders' })
-    local R = mod('CombatReminders')
-    R.db.profile.buff1, R.db.profile.buff2 = 'Battle Shout', 'Arcane Intellect'
+Section('Aura Reminders', function()
+    Only({ 'AuraReminders' })
+    local R = mod('AuraReminders')
+    local shoutReminder, intellect = R.NewReminder(), R.NewReminder()
+    shoutReminder.aura, intellect.aura = 'Battle Shout', 'Arcane Intellect'
+    R.db.profile.reminders = { shoutReminder, intellect }
     R:Apply()
     local INFO = {}
-    Measure('Combat reminders: combat starts and ends', 100, function()
-        Send('CombatReminders', 'PLAYER_REGEN_DISABLED'); Send('CombatReminders', 'PLAYER_REGEN_ENABLED')
+    Measure('Aura reminders: combat starts and ends', 100, function()
+        Send('AuraReminders', 'PLAYER_REGEN_DISABLED'); Send('AuraReminders', 'PLAYER_REGEN_ENABLED')
     end)
-    Send('CombatReminders', 'PLAYER_REGEN_DISABLED')
-    Measure('Combat reminders: an aura changes in combat, buffs on', 300, function()
-        Send('CombatReminders', 'UNIT_AURA', 'player', INFO)
+    Send('AuraReminders', 'PLAYER_REGEN_DISABLED')
+    Measure('Aura reminders: an aura changes in combat, buffs on', 300, function()
+        Send('AuraReminders', 'UNIT_AURA', 'player', INFO)
     end)
     local shout = REMINDER_AURAS['Battle Shout']
     REMINDER_AURAS['Battle Shout'] = nil
-    Measure('Combat reminders: an aura changes in combat, one reminder showing', 300, function()
-        Send('CombatReminders', 'UNIT_AURA', 'player', INFO)
+    Measure('Aura reminders: an aura changes in combat, one reminder showing', 300, function()
+        Send('AuraReminders', 'UNIT_AURA', 'player', INFO)
     end)
-    Measure('Combat reminders: you cast a spell in combat', 300, function()
-        Send('CombatReminders', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-1', 133)
+    Measure('Aura reminders: you cast a spell in combat', 300, function()
+        Send('AuraReminders', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-1', 133)
     end)
     REMINDER_AURAS['Battle Shout'] = shout
-    Send('CombatReminders', 'PLAYER_REGEN_ENABLED')
+    Send('AuraReminders', 'PLAYER_REGEN_ENABLED')
 end)
 '''
 
