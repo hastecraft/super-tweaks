@@ -889,6 +889,16 @@ function Build.items(parent, o, chain, info, gate)
     return c
 end
 
+-- A control a tweak draws itself (o.type "custom"): o.build(parent) returns a frame with Layout(width), which returns
+-- its height, and Refresh(off), off when its tweak or the option is off. A Refresh that changes the height sets
+-- self.resized, so the page is laid out again.
+function Build.custom(parent, o, chain, info, gate)
+    local c = Bind(o.build(parent), o, chain, info, gate)
+    local refresh = c.Refresh
+    function c:Refresh() refresh(self, IsOff(self)) end
+    return c
+end
+
 -- Themes (o.type "theme"): a tile for each, a sketch of the settings window in its colors over its name. Clicking one
 -- switches to it; the chosen one is rimmed in the accent.
 local SKETCH_W, SKETCH_H, TILE_PAD, TILE_GAP, TILE_MOST = 200, 116, 8, 12, 240

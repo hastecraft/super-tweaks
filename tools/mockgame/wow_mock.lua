@@ -370,7 +370,7 @@ function ui:GetAttribute(name) local attributes = self.attributes; return attrib
 function ui:Click(button) if self.scripts.OnClick and enabled(self) then CallIn(self.scripts.OnClick, self, button or 'LeftButton') end end
 -- Animation groups (the patch notes pip's blink): played and stopped, never animated. Unknown methods error.
 local animation = { SetFromAlpha = noop, SetToAlpha = noop, SetDuration = noop, SetSmoothing = noop,
-    SetDegrees = noop,
+    SetDegrees = noop, SetOrigin = noop, SetScaleFrom = noop, SetScaleTo = noop, SetOffset = noop, SetOrder = noop,
     SetFlipBookRows = noop, SetFlipBookColumns = noop, SetFlipBookFrames = noop }
 animation.__index = animation
 local animationGroup = { SetLooping = noop }
