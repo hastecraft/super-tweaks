@@ -22,8 +22,10 @@ local LINE = 18
 local PERIOD_SECONDS = { week = 7 * 86400, month = 30 * 86400 }
 local VIEWS = { { "runs", "Runs" }, { "instances", "Instances" } }
 local SCOPES = { { "char", "This character" }, { "all", "All characters" } }
+-- The auction value (what the runs' loot sold for at auction as it was looted: a run's av) only shows, as a tile and
+-- as a column, while a run shown has one (Win.auction).
 local TOTALS = { { "runs", "Runs" }, { "time", "Time inside" }, { "xp", "XP" }, { "rate", "XP an hour" }, { "gold", "Gold" },
-    { "kills", "Kills" }, { "deaths", "Deaths" } }
+    { "auction", "Auction value" }, { "kills", "Kills" }, { "deaths", "Deaths" } }
 
 -- The runs shown, their owners (which character's) and those characters' keys, and the hour's entry times, all reused
 -- between refreshes.
@@ -74,6 +76,9 @@ local function Count(n) return n > 0 and tostring(n) or "" end
 local function Rounded(copper) return copper >= 1000000 and floor(copper / 100 + 0.5) * 100 or copper end
 local function Gold(e) return e.g > 0 and Rounded(e.g) or nil end
 local function GoldText(e) return e.g > 0 and K.Money(Rounded(e.g), 11) or "" end
+local function Auction(e) return (e.av or 0) > 0 and Rounded(e.av) or nil end
+local function AuctionText(e) return (e.av or 0) > 0 and K.Money(Rounded(e.av), 11) or "" end
+local function AuctionHidden() return not Win.auction end
 
 local function ClassColor(class)
     local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
@@ -244,15 +249,28 @@ local function PaintLockout()
     SetText(card.day, day .. " of " .. p.limitDay .. " in 24 hours, every character on this realm")
 end
 
-local function BuildTotals(band)
-    Win.tiles = {}
+-- The tiles share what's left of the band, each after the one shown before it.
+local function LayoutTiles()
+    local shown = Win.auction and #Win.tiles or #Win.tiles - 1
+    local each = max(40, floor((Win.band:GetWidth() - LOCKOUT_W - PAD * 3 - 6 * (shown - 1)) / shown))
     local previous
+    for _, tile in ipairs(Win.tiles) do
+        local show = tile.key ~= "auction" or Win.auction == true
+        tile:SetShown(show)
+        if show then
+            tile:SetPoint("LEFT", previous or Win.lockout, "RIGHT", previous and 6 or PAD, 0)
+            tile:SetWidth(each)
+            previous = tile
+        end
+    end
+end
+
+local function BuildTotals(band)
+    Win.tiles, Win.band = {}, band
     for i, spec in ipairs(TOTALS) do
         local tile = CreateFrame("Frame", nil, band)
         tile:SetPoint("TOP", 0, -PAD)
         tile:SetPoint("BOTTOM", 0, PAD)
-        if previous then tile:SetPoint("LEFT", previous, "RIGHT", 6, 0)
-        else tile:SetPoint("LEFT", Win.lockout, "RIGHT", PAD, 0) end
         K.Box(tile, P.card, P.border)
         tile.value = K.Text(tile, "GameFontNormalLarge", P.bright, "CENTER")
         tile.value:SetPoint("TOP", 0, -22)
@@ -263,38 +281,38 @@ local function BuildTotals(band)
         tile.label:SetText(spec[2])
         tile.key = spec[1]
         -- Gold with coin textures, where the widget exists; else as text.
-        if spec[1] == "gold" and W.MoneyText then
+        if (spec[1] == "gold" or spec[1] == "auction") and W.MoneyText then
             tile.money = W.MoneyText(tile, "GameFontNormalLarge", P.bright)
             tile.money:SetPoint("TOP", 0, -22)
         end
         Win.tiles[i] = tile
-        previous = tile
     end
-    -- The tiles share what's left of the band.
-    band:HookScript("OnSizeChanged", function(self, width)
-        local each = floor((width - LOCKOUT_W - PAD * 3 - 6 * (#TOTALS - 1)) / #TOTALS)
-        for _, tile in ipairs(Win.tiles) do tile:SetWidth(max(40, each)) end
-    end)
+    band:HookScript("OnSizeChanged", LayoutTiles)
+end
+
+-- The tile is narrow: from a gold up, the copper goes; from a hundred gold, the silver too.
+local function TileMoney(copper)
+    if copper >= 1000000 then return floor(copper / 10000 + 0.5) * 10000 end
+    if copper >= 10000 then return floor(copper / 100 + 0.5) * 100 end
+    return copper
 end
 
 local function PaintTotals()
-    local runs, seconds, xp, gold, kills, deaths = 0, 0, 0, 0, 0, 0
+    local runs, seconds, xp, gold, auction, kills, deaths = 0, 0, 0, 0, 0, 0, 0
     for i = 1, #list do
         local run = list[i]
         runs, seconds, xp, gold = runs + 1, seconds + Seconds(run), xp + run.xp, gold + run.g
-        kills, deaths = kills + run.k, deaths + run.dt
+        auction, kills, deaths = auction + (run.av or 0), kills + run.k, deaths + run.dt
     end
     local rate = Rate(xp, seconds)
     totals.runs, totals.time, totals.xp = tostring(runs), runs > 0 and Duration(seconds) or "0m", xp > 0 and ns.ShortNumber(xp) or "0"
-    -- The tile is narrow: from a gold up, the copper goes; from a hundred gold, the silver too.
-    if gold >= 1000000 then gold = floor(gold / 10000 + 0.5) * 10000
-    elseif gold >= 10000 then gold = floor(gold / 100 + 0.5) * 100 end
-    totals.rate, totals.gold = rate and rate > 0 and ns.ShortNumber(rate) or "--", gold
+    totals.rate, totals.gold, totals.auction = rate and rate > 0 and ns.ShortNumber(rate) or "--", TileMoney(gold), TileMoney(auction)
     totals.kills, totals.deaths = tostring(kills), tostring(deaths)
     for _, tile in ipairs(Win.tiles) do
-        if tile.money then tile.money:SetMoney(gold)
-        elseif tile.key == "gold" then SetText(tile.value, gold > 0 and K.Money(gold, 13) or "0")
-        else SetText(tile.value, totals[tile.key]) end
+        local key = tile.key
+        if tile.money then tile.money:SetMoney(totals[key])
+        elseif key == "gold" or key == "auction" then SetText(tile.value, totals[key] > 0 and K.Money(totals[key], 13) or "0")
+        else SetText(tile.value, totals[key]) end
     end
 end
 
@@ -384,10 +402,12 @@ local function Cutoff()
     return seconds and (time() - seconds) or 0
 end
 
--- Fills `list` with the runs the filters allow, newest first, and remembers whose each is.
+-- Fills `list` with the runs the filters allow, newest first, and remembers whose each is, and whether any has an
+-- auction value to show.
 local function Collect()
     wipe(list)
     local p, cutoff, filter = I.db.profile, Cutoff(), Win.instance or ""
+    local auction = false
     for key, char in pairs(I.db.global.chars) do
         if p.scope == "all" or key == HST.charKey then
             keyOf[char] = key
@@ -398,10 +418,12 @@ local function Collect()
                 if p.view ~= "runs" or filter == "" or run.n == filter then
                     list[#list + 1] = run
                     owner[run] = char
+                    if run.av then auction = true end
                 end
             end
         end
     end
+    Win.auction = auction
 end
 
 local RUN_COLUMNS = {
@@ -416,6 +438,8 @@ local RUN_COLUMNS = {
     { key = "xp", title = "XP", width = 66, justify = "RIGHT", text = function(r) return ShortXP(r.xp) end, sort = function(r) return r.xp end },
     { key = "rate", title = "XP an hour", width = 78, justify = "RIGHT", text = ShortRate, sort = function(r) return Rate(r.xp, Seconds(r)) or 0 end },
     { key = "g", title = "Gold", width = 100, justify = "RIGHT", money = Gold, text = GoldText, sort = function(r) return r.g end },
+    { key = "av", title = "Auction value", width = 96, justify = "RIGHT", hide = AuctionHidden, money = Auction, text = AuctionText,
+        sort = function(r) return r.av or 0 end },
     { key = "k", title = "Kills", width = 50, justify = "RIGHT", text = function(r) return Count(r.k) end, sort = function(r) return r.k end },
     { key = "dt", title = "Deaths", width = 58, justify = "RIGHT", text = function(r) return Count(r.dt) end, sort = function(r) return r.dt end },
     { key = "grp", title = "Group", width = 52, justify = "RIGHT", text = function(r) return r.grp and tostring(#r.grp + 1) or "" end,
@@ -439,6 +463,8 @@ local INSTANCE_COLUMNS = {
     { key = "rate", title = "XP an hour", width = 82, justify = "RIGHT", text = function(e) local r = Rate(e.xp, e.d); return r and r > 0 and ns.ShortNumber(r) or "" end,
         sort = function(e) return Rate(e.xp, e.d) or 0 end },
     { key = "g", title = "Gold", width = 100, justify = "RIGHT", money = Gold, text = GoldText, sort = function(e) return e.g end },
+    { key = "av", title = "Auction value", width = 96, justify = "RIGHT", hide = AuctionHidden, money = Auction, text = AuctionText,
+        sort = function(e) return e.av or 0 end },
     { key = "k", title = "Kills", width = 56, justify = "RIGHT", text = function(e) return Count(e.k) end, sort = function(e) return e.k end },
     { key = "dt", title = "Deaths", width = 60, justify = "RIGHT", text = function(e) return Count(e.dt) end, sort = function(e) return e.dt end },
     { key = "last", title = "Last run", width = 118, justify = "RIGHT", text = function(e) return When(e.last) end, sort = function(e) return e.last end },
@@ -451,8 +477,9 @@ local function Aggregate()
         local run = list[i]
         local e = byName[run.n]
         if not e then e = { n = run.n, runs = 0 }; byName[run.n] = e end
-        if e.runs == 0 then e.d, e.xp, e.g, e.k, e.dt, e.last = 0, 0, 0, 0, 0, 0 end
+        if e.runs == 0 then e.d, e.xp, e.g, e.av, e.k, e.dt, e.last = 0, 0, 0, 0, 0, 0, 0 end
         e.runs, e.d, e.xp, e.g, e.k, e.dt = e.runs + 1, e.d + Seconds(run), e.xp + run.xp, e.g + run.g, e.k + run.k, e.dt + run.dt
+        e.av = e.av + (run.av or 0)
         if run.t > e.last then e.last = run.t end
     end
     wipe(instances)
@@ -599,6 +626,7 @@ local function PaintDetail()
     Put(pane, "XP", Commas(run.xp) .. (rate and rate > 0 and (", " .. ns.ShortNumber(rate) .. " an hour") or ""))
     Put(pane, "Gold gained", nil, false, nil, nil, run.g)
     if run.sp > 0 then Put(pane, "Gold spent", nil, false, nil, nil, run.sp) end
+    if run.av then Put(pane, "Auction value of loot", nil, false, nil, nil, run.av) end
     Put(pane, "Kills", tostring(run.k))
     Put(pane, "Deaths", tostring(run.dt))
     if run.rep then
@@ -686,6 +714,13 @@ function Win.Refresh()
     Win.dirty = nil
     PaintBar()
     Collect()
+    -- The auction value's tile and columns come and go with the runs shown.
+    if Win.shownAuction ~= Win.auction then
+        Win.shownAuction = Win.auction
+        LayoutTiles()
+        Win.tables.runs:Layout()
+        Win.tables.instances:Layout()
+    end
     PaintTotals()
     PaintLockout()
     PaintLive()

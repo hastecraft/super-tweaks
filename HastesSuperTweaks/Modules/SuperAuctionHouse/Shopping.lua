@@ -1,6 +1,7 @@
--- The Shopping tab: a search box with filters, the results, and beside them shopping lists, recent searches and the
--- game's categories. A click on a result opens the buy screen. Lists are shared by all your characters, except temporary
--- ones, which last until you log out or keep them.
+-- The Shopping tab: a search box that takes limits with the name, the results, and beside them shopping lists, smart
+-- lists, recent searches and the game's categories. A click on a result opens the buy screen. Before a search the
+-- results area holds the home view (Home.lua). Lists are shared by all your characters, except temporary ones, which
+-- last until you log out or keep them.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local S = ns.SuperAuctionHouse
@@ -17,13 +18,36 @@ local AUTOCOMPLETE_ROWS = 8
 local AUTOCOMPLETE_OWN = 3
 local AUTOCOMPLETE_MIN = 2
 local SIDE_WIDTH = 250
+local RESULTS_TOP = 34 -- the search row and the progress line
+local CHIP_ROW = 24 -- the row under them, for a search's limits and Buy Next
+
+local floor, max, min = math.floor, math.max, math.min
 
 local selected, expanded = nil, {}
 local category -- the chosen category, as a path like "Armor/Plate/Feet"
+local held -- what the box's search has that can't be typed (T.Typed): it shows as chips, and stays while the name does
+local smartKey -- the smart list whose items are showing
+local searched -- the one search whose results are showing, for the chips under the box
+local fresh = true -- nothing's been searched for: the home view shows
+local RefreshSide, PaintChips, PaintCost, ShowHome, OpenBuy, BoxTerm
 
 local function Lists() return S.db.global.lists end
 local function Recents() return S.db.global.recents end
 local function Status(text) S.Window.Status(text) end
+
+---------------------------------------------------------------------------
+-- What you buy waits in your mailbox, where the game can't count it. It's counted here until you next open your
+-- mail, so a list knows what it still needs.
+---------------------------------------------------------------------------
+local bought = {}
+
+function Sh.NoteBought(itemID, quantity)
+    if itemID and quantity then bought[itemID] = (bought[itemID] or 0) + quantity end
+end
+
+function Sh.Bought(itemID) return bought[itemID] or 0 end
+
+S.On("MAIL_SHOW", function() wipe(bought) end)
 
 ---------------------------------------------------------------------------
 -- Lists
@@ -88,36 +112,124 @@ local function AddCategories(entries, categories, up, depth)
     end
 end
 
+-- The game's categories come with its auction window, which it loads at your first auction house. Away from one
+-- they're loaded the first time they're asked for.
+local function Categories()
+    if not AuctionCategories and C_AddOns and C_AddOns.LoadAddOn then
+        pcall(C_AddOns.LoadAddOn, "Blizzard_AuctionHouseUI")
+    end
+    return AuctionCategories
+end
+
+-- A list's row for one of its searches. One for a single item shows the item's icon, its plain name and its saved
+-- price, which is green at or under the most you'd pay.
+local function TermEntry(list, index, text)
+    local term = T.Parse(text)
+    local entry = { kind = "term", list = list, index = index, text = text, name = T.Pretty(text, true) }
+    if term.exact then
+        local key = S.Prices.KeyByName(term.query)
+        if key then
+            entry.icon, entry.price = S.Prices.IconOf(key), S.Prices.Get(key)
+            entry.deal = term.maxPrice and entry.price and entry.price <= term.maxPrice or false
+            entry.link = type(key) == "number" and ("item:" .. key) or nil
+        end
+    end
+    return entry
+end
+
 local function SideEntries()
     local entries = {}
     if S.db.profile.shoppingView == "categories" then
-        -- Saved prices don't hold an item's category, so there's nothing to search by away from an auction house.
-        if S.Window.IsLive() and AuctionCategories then AddCategories(entries, AuctionCategories, nil, 0) end
+        local categories = Categories()
+        if categories then AddCategories(entries, categories, nil, 0) end
     elseif S.db.profile.shoppingView == "recents" then
         for i, text in ipairs(Recents()) do
             entries[i] = { kind = "recent", text = text, name = T.Pretty(text) }
         end
     else
         for _, list in ipairs(Lists()) do
+            -- A list that says how many to buy counts the items you have enough of.
+            local have, wanted = S.Lists.Progress(list)
             entries[#entries + 1] = { kind = "list", list = list,
-                name = list.temporary and (list.name .. " (temporary)") or list.name, count = #list.terms }
+                name = list.temporary and (list.name .. " (temporary)") or list.name,
+                count = wanted > 0 and (have .. "/" .. wanted) or #list.terms, done = wanted > 0 and have >= wanted }
             if expanded[list] then
-                for i, text in ipairs(list.terms) do
-                    entries[#entries + 1] = { kind = "term", list = list, index = i, text = text, name = T.Pretty(text) }
-                end
+                for i, text in ipairs(list.terms) do entries[#entries + 1] = TermEntry(list, i, text) end
+            end
+        end
+        local smart = S.Smart and S.Smart.LISTS
+        if smart and #smart > 0 then
+            entries[#entries + 1] = { kind = "heading", name = "Smart lists" }
+            for _, list in ipairs(smart) do
+                entries[#entries + 1] = { kind = "smart", key = list.key, name = list.name }
             end
         end
     end
     return entries
 end
 
-local function RefreshSide()
+RefreshSide = function()
     if not Sh.side then return end
-    local needsHouse = S.db.profile.shoppingView == "categories" and not S.Window.IsLive()
-    Sh.side.emptyText:SetText(needsHouse and "Categories need an auction house." or "Nothing here yet.")
     Sh.side:SetEntries(SideEntries(), true)
+    if fresh then S.Home.Refresh() end
 end
 Sh.RefreshSide = RefreshSide
+
+---------------------------------------------------------------------------
+-- What a result's row knows of its item. Each is worked out once per row, the first time a column asks.
+---------------------------------------------------------------------------
+local function ItemIDOf(e)
+    if e.itemKey then return e.itemKey.itemID end
+    local key = e.key
+    if type(key) == "number" then return key end
+    return key and tonumber(key:match("^[gs]:(%d+)")) or nil
+end
+
+-- How many you have: bags, bank, and what you've just bought.
+local function HaveOf(e)
+    local have = e.have
+    if have == nil then
+        local itemID = not e.isPet and ItemIDOf(e)
+        have = itemID and (S.Have(itemID) + (bought[itemID] or 0)) or 0
+        e.have = have
+    end
+    return have
+end
+
+-- Its price key.
+local function KeyOf(e)
+    local key = e.key
+    if key == nil then
+        key = S.ItemPage.KeyOf(e) or false
+        e.key = key
+    end
+    return key or nil
+end
+
+-- How far its price is from the item's usual one: -0.3 is 30% under.
+local function ChangeOf(e)
+    local change = e.change
+    if change == nil then
+        local key = e.price and KeyOf(e)
+        local usual = key and S.Prices.Usual(key)
+        change = usual and usual > 0 and (e.price - usual) / usual or false
+        e.change = change
+    end
+    return change or nil
+end
+
+local SMALL_CHANGE = 0.05
+local function ChangeColor(e)
+    local change = ChangeOf(e)
+    if not change then return nil end
+    return change <= -SMALL_CHANGE and K.GAIN or change >= SMALL_CHANGE and K.LOSS or P.muted
+end
+
+local function Series(e)
+    if e.heading or e.missing then return nil end
+    local key = KeyOf(e)
+    return key and S.Prices.Series(key) or nil
+end
 
 ---------------------------------------------------------------------------
 -- Searching
@@ -126,14 +238,86 @@ local function PaintSearchButton()
     if Sh.searchButton then Sh.searchButton:SetText(S.Search.IsRunning() and "Stop" or "Search") end
 end
 
+-- The home view fills the results area until something's been searched for.
+ShowHome = function(on)
+    fresh = on
+    if not Sh.results then return end
+    if on then S.Home.Show(Sh.body) else S.Home.Hide() end
+    Sh.results:SetShown(not on)
+end
+
+-- Columns that show only while a row has something for them, and whether a row says how many to buy (Buy Next).
+local shownLevels, shownNotes, shownBuys = false, false, false
+
 local function ResultsChanged()
+    local levels, notes, buys = false, false, false
+    for _, e in ipairs(Sh.entries) do
+        if e.level and e.level > 0 then levels = true end
+        if e.note then notes = true end
+        if e.purchase and e.itemKey then buys = true end
+    end
+    local columns = levels ~= shownLevels or notes ~= shownNotes
+    shownLevels, shownNotes = levels, notes
     Sh.results:SetEntries(Sh.entries, true)
+    if columns then Sh.results:Layout() end
+    if buys ~= shownBuys then
+        shownBuys = buys
+        PaintChips()
+        S.Window.BindKeys()
+    end
+end
+
+-- A list's results: each search's under a heading saying what it asked for, in the list's order. done: how many of
+-- the searches have finished. none: what the row under a heading with nothing says. The rows are the run's own and
+-- are kept between draws.
+local function Grouped(run, done, none)
+    local entries = run.grouped
+    if not entries then
+        entries, run.headings, run.nones, run.listed = {}, {}, {}, {}
+        run.grouped = entries
+    end
+    wipe(entries)
+    local listed = run.listed
+    wipe(listed)
+    for i, e in ipairs(run.results) do
+        entries[i] = e
+        listed[e.at] = true
+    end
+    local showMissing = S.db.profile.missingTerms
+    for i, text in ipairs(run.terms) do
+        -- A search whose items are all listed under an earlier one gets no heading of its own.
+        local found = run.found[i] or 0
+        if listed[i] or (found == 0 and showMissing and i <= done) then
+            local heading = run.headings[i]
+            if not heading then
+                heading = { heading = true, at = i, name = T.Pretty(text, true), term = text, keyString = "#" .. i }
+                run.headings[i] = heading
+            end
+            entries[#entries + 1] = heading
+            if not listed[i] then
+                local missing = run.nones[i]
+                if not missing then
+                    missing = { missing = true, at = i, name = none, term = text, keyString = "?" .. i }
+                    run.nones[i] = missing
+                end
+                entries[#entries + 1] = missing
+            end
+        end
+    end
+    return entries
+end
+
+local function Entries(run, done, none)
+    if #run.terms > 1 then return Grouped(run, done, none) end
+    return run.results
 end
 
 -- While results arrive: drawn and sorted a few times a second, however many came.
-local resultsQueued
+local resultsQueued, arriving
 local function DrawQueued()
     resultsQueued = false
+    local run = arriving
+    if run then Sh.entries = Entries(run, run.at - 1, "None listed") end
     ResultsChanged()
 end
 local function ResultsSoon()
@@ -143,80 +327,190 @@ local function ResultsSoon()
 end
 
 local function Finished(run)
+    arriving = nil
     PaintSearchButton()
     Sh.progress:SetProgress(nil)
     Sh.results:SetLoading(false)
-    Sh.entries = run.results
     -- Counted before the rows for what wasn't found join them.
     local count = #run.results
-    if S.db.profile.missingTerms then
-        for _, text in ipairs(run.missing) do
-            Sh.entries[#Sh.entries + 1] = { name = T.Pretty(text), missing = true, term = text, keyString = "?" .. text }
+    local only = count == 1 and run.results[1]
+    if #run.terms > 1 then
+        Sh.entries = Grouped(run, #run.terms, "None listed")
+    else
+        Sh.entries = run.results
+        if S.db.profile.missingTerms then
+            for _, text in ipairs(run.missing) do
+                Sh.entries[#Sh.entries + 1] = { name = T.Pretty(text, true), missing = true, term = text, keyString = "?" .. text }
+            end
         end
     end
     ResultsChanged()
+    PaintCost()
     Status(count .. K.Plural(count, " result", " results"))
+    -- A search for one item that found only it goes straight to its auctions.
+    if only and #run.terms == 1 and S.db.profile.openSingle and T.Parse(run.terms[1]).exact
+        and S.Window.current == "shopping" and not S.Buy.IsOpen() and not K.DialogShown() then
+        OpenBuy(only)
+    end
 end
 
 ---------------------------------------------------------------------------
 -- Away from an auction house: results come from saved prices
 ---------------------------------------------------------------------------
 local SAVED_LIMIT = 500
+-- A search with no name goes through every saved price, this many a frame: there can be tens of thousands.
+local WALK_BATCH = 2000
+local walk
 
 local function SavedEntry(key, name, quality)
     local price = S.Prices.Get(key)
     if not price then return nil end
-    local days = S.Prices.ReadHistory(key)
     return { saved = true, key = key, keyString = tostring(key), name = name, quality = quality, price = price,
-        icon = S.Prices.IconOf(key), available = days[1] and days[1].available, age = S.Prices.Age(key),
+        icon = S.Prices.IconOf(key), available = S.Prices.Available(key), age = S.Prices.Age(key),
         link = type(key) == "number" and ("item:" .. key) or nil }
 end
 
--- Item level, category and crafted level aren't saved with a price, so those parts of a term don't narrow it here.
+-- Whether a saved price's item is in a category, by what the game says the item is: its class, its kind and where
+-- it's worn.
+local function InCategory(filters, key)
+    local itemID = type(key) == "number" and key or tonumber(key:match("^[gs]:(%d+)"))
+    if not itemID then return false end
+    local _, _, _, _, _, classID, subClassID = C_Item.GetItemInfoInstant(itemID)
+    if not classID then return false end
+    local worn
+    for _, f in ipairs(filters) do
+        if f.classID == classID and (f.subClassID == nil or f.subClassID == subClassID) then
+            if f.inventoryType == nil then return true end
+            if worn == nil then worn = C_Item.GetItemInventoryTypeByID(itemID) or false end
+            if f.inventoryType == worn then return true end
+        end
+    end
+    return false
+end
+
+-- Item level and crafted level aren't saved with a price, so those parts of a term don't narrow it here.
 local function SavedMatches(term, entry)
-    if term.exact and entry.name:lower() ~= (term.query or ""):lower() then return false end
-    if term.minGold and entry.price < term.minGold * 10000 then return false end
-    if term.maxGold and entry.price > term.maxGold * 10000 then return false end
+    if term.exact then
+        local suffixed = type(entry.key) == "string" and entry.key:sub(1, 2) == "s:"
+        if not T.NameMatches(entry.name, term.query, suffixed) then return false end
+    end
+    if term.minGold and entry.price < T.Copper(term.minGold) then return false end
+    if term.maxGold and entry.price > T.Copper(term.maxGold) then return false end
     if term.quality and entry.quality ~= term.quality then return false end
     return true
 end
 
-local function RunSaved(terms)
-    local entries, seen = {}, {}
-    for _, text in ipairs(terms) do
-        local term = T.Parse(text)
-        if term.query ~= "" then
-            for _, key in ipairs(S.Prices.FindNames(term.query, SAVED_LIMIT)) do
-                if not seen[key] then
-                    local name, quality = S.Prices.NameOf(key)
-                    local entry = SavedEntry(key, name, quality)
-                    if entry and SavedMatches(term, entry) then
-                        seen[key] = true
-                        entries[#entries + 1] = entry
-                    end
+local function SavedDone(run)
+    walk = nil
+    Sh.results:SetLoading(false)
+    Sh.entries = Entries(run, #run.terms, "No saved price")
+    ResultsChanged()
+    PaintCost()
+    local count = #run.results
+    Status(count .. K.Plural(count, " saved price", " saved prices"))
+end
+
+local function WalkStep()
+    local w = walk
+    if not w then return end
+    local keys, run, term, filters = w.keys, w.run, w.term, w.filters
+    local results, byKey, at = run.results, run.byKey, w.index
+    local last = min(#keys, w.at + WALK_BATCH)
+    local found = run.found[at] or 0
+    for i = w.at + 1, last do
+        local key = keys[i]
+        if not filters or InCategory(filters, key) then
+            local entry = byKey[key]
+            local known = entry ~= nil
+            if not known then
+                local name, quality = S.Prices.NameOf(key)
+                entry = name and SavedEntry(key, name, quality)
+            end
+            if entry and SavedMatches(term, entry) then
+                found = found + 1
+                if not known then
+                    entry.at, entry.purchase, entry.most = at, term.quantity, term.maxPrice
+                    byKey[key] = entry
+                    results[#results + 1] = entry
                 end
             end
         end
     end
-    Sh.entries = entries
-    ResultsChanged()
-    Status(#entries .. K.Plural(#entries, " saved price", " saved prices"))
+    run.found[at] = found
+    w.at = last
+    if #results >= SAVED_LIMIT then return SavedDone(run) end
+    if last < #keys then return C_Timer.After(0, WalkStep) end
+    w.next()
 end
+
+local function RunSaved(terms)
+    local run = { terms = terms, results = {}, found = {}, byKey = {} }
+    local index, categoryFilters = 0, nil
+    local function nextTerm()
+        index = index + 1
+        local text = terms[index]
+        if not text then return SavedDone(run) end
+        local term = T.Parse(text)
+        local filters
+        if term.category then
+            if not categoryFilters then
+                Categories()
+                categoryFilters = select(2, T.Categories())
+            end
+            filters = categoryFilters[term.category]
+            -- A category the game doesn't have finds nothing.
+            if not filters then return nextTerm() end
+        end
+        local keys
+        if term.exact then
+            -- One item: its own key, with no pass over every name.
+            keys = { S.Prices.KeyByName(term.query) }
+        elseif term.query ~= "" then
+            keys = S.Prices.FindNames(term.query, filters and 100000 or SAVED_LIMIT)
+        else
+            keys = {}
+            local realm = S.Prices.Realm()
+            if realm then
+                for key in pairs(realm.p) do keys[#keys + 1] = key end
+            end
+        end
+        walk = { keys = keys, at = 0, index = index, term = term, filters = filters, run = run, next = nextTerm }
+        WalkStep()
+    end
+    Sh.results:SetLoading(true)
+    nextTerm()
+end
+
+-- What Buy Next has passed over, until the next search.
+local skipped = {}
 
 -- Runs a list of terms. Results replace what's showing, and the buy screen closes.
 function Sh.Run(terms)
     if #terms == 0 then return end
-    if S.Window.mode == "saved" then return RunSaved(terms) end
-    if S.Scan.HoldsBrowse() then S.Scan.Stop() end
+    if S.Smart and S.Smart.Stop then S.Smart.Stop() end
+    local wasSmart = smartKey ~= nil
+    smartKey = nil
+    searched = #terms == 1 and terms[1] or nil
+    arriving, walk = nil, nil
+    -- The buy screen closes first: what it passed over belongs to the results it came from.
     if S.Buy.IsOpen() then S.Buy.Close() end
+    wipe(skipped)
+    PaintChips()
+    ShowHome(false)
+    if wasSmart then RefreshSide() end
+    local saved = S.Window.mode == "saved"
     Sh.entries = {}
-    Sh.results:SetLoading(true)
+    Sh.results:ClearCursor()
+    Sh.results:SetEmpty(saved and "No saved price matches." or "Nothing listed.")
     Sh.results:SetEntries(Sh.entries)
+    if saved then return RunSaved(terms) end
+    if S.Scan.HoldsBrowse() then S.Scan.Stop() end
+    Sh.results:SetLoading(true)
     Sh.progress:SetProgress(0.03)
     Status("Searching.")
     S.Search.Start(terms, {
         onResults = function(run)
-            Sh.entries = run.results
+            arriving = run
             ResultsSoon()
         end,
         onProgress = function(done, total)
@@ -225,10 +519,11 @@ function Sh.Run(terms)
         end,
         onDone = Finished,
         onStop = function(run)
+            arriving = nil
             PaintSearchButton()
             Sh.progress:SetProgress(nil)
             Sh.results:SetLoading(false)
-            Sh.entries = run.results
+            Sh.entries = Entries(run, run.at - 1, "None listed")
             ResultsChanged()
             Status("Stopped.")
         end,
@@ -236,27 +531,122 @@ function Sh.Run(terms)
     PaintSearchButton()
 end
 
+-- Back to the home view, with nothing searched for.
+function Sh.Clear()
+    if S.Search.IsRunning() then S.Search.Stop() end
+    if S.Smart and S.Smart.Stop then S.Smart.Stop() end
+    local wasSmart = smartKey ~= nil
+    arriving, walk, searched, smartKey, held = nil, nil, nil, nil, nil
+    wipe(skipped)
+    if not Sh.results then return end
+    if wasSmart then RefreshSide() end
+    Sh.entries = {}
+    Sh.results:SetLoading(false)
+    Sh.results:ClearCursor()
+    ResultsChanged()
+    PaintChips()
+    PaintCost()
+    ShowHome(true)
+end
+
+-- A smart list's items: worked out from saved prices (Smart.lua), which can come a batch at a time.
+local function RunSmart(key, name)
+    if S.Search.IsRunning() then S.Search.Stop() end
+    S.Smart.Stop()
+    arriving, walk, searched = nil, nil, nil
+    smartKey = key
+    if S.Buy.IsOpen() then S.Buy.Close() end
+    wipe(skipped)
+    PaintChips()
+    ShowHome(false)
+    RefreshSide()
+    Sh.box:SetText("")
+    Sh.entries = {}
+    Sh.results:ClearCursor()
+    Sh.results:SetEmpty("Nothing here right now.")
+    Sh.results:SetEntries(Sh.entries)
+    Sh.results:SetLoading(true)
+    Status(name .. ".")
+    local entries, byKey = {}, {}
+    S.Smart.Run(key, function(rows, done)
+        if smartKey ~= key then return end
+        for _, row in ipairs(rows) do
+            local e = byKey[row.key]
+            if not e then
+                e = { saved = true, key = row.key, keyString = tostring(row.key),
+                    link = type(row.key) == "number" and ("item:" .. row.key) or nil }
+                byKey[row.key] = e
+                entries[#entries + 1] = e
+            end
+            e.name, e.quality, e.icon, e.price = row.name, row.quality, row.icon, row.price
+            e.available, e.age, e.note, e.change = row.available, row.age, row.note, row.change or false
+        end
+        Sh.entries = entries
+        if done then
+            Sh.results:SetLoading(false)
+            ResultsChanged()
+            Status(#entries .. K.Plural(#entries, " item", " items"))
+        else
+            ResultsSoon()
+        end
+    end)
+end
+
 local function AskForText()
-    Sh.box.edit:SetFocus()
+    Sh.box:Focus()
     Status("Type an item name first.")
 end
 
--- Searches for what's in the box. While the Categories view shows a chosen category, the search stays inside it, and
--- an empty box finds everything there. exact: the box holds one item's name, so the category is let go.
+-- Shows a term in the box as it would be typed. What can't be typed stays with it, and shows as chips.
+local function ShowTerm(text)
+    local typed, rest = T.Typed(text)
+    held = rest
+    if rest and rest.category and rest.category ~= category then
+        category = rest.category
+        if S.db.profile.shoppingView == "categories" then RefreshSide() end
+    end
+    Sh.box:SetText(typed)
+end
+
+-- Runs one term, shows it in the box, and remembers it.
+local function RunTerm(text)
+    ShowTerm(text)
+    AddRecent(text)
+    if S.db.profile.shoppingView == "recents" then RefreshSide() end
+    Sh.Run({ text })
+end
+Sh.RunTerm = RunTerm
+
+-- Searches for what's in the box, which can name limits with the item (T.Quick). While the Categories view shows a
+-- chosen category, the search stays inside it, and an empty box finds everything there. exact: the box holds one
+-- item's name, so the category is let go.
+-- What the box asks for: what's typed, the limits that came with that name and can't be typed, and the category
+-- chosen on the left.
+BoxTerm = function(typed)
+    local term = T.Parse(T.Quick(typed))
+    if held and held.query == term.query:lower() then
+        for field, value in pairs(held) do
+            if field ~= "query" then term[field] = value end
+        end
+    else
+        held = nil
+    end
+    if category and S.db.profile.shoppingView == "categories" then term.category = category end
+    return term
+end
+
 local function SearchBox(exact)
-    local typed = Sh.box:GetText()
-    if exact and category then
-        category = nil
-        RefreshSide()
+    local typed = strtrim(Sh.box:GetText())
+    if exact then
+        held = nil
+        if category then
+            category = nil
+            RefreshSide()
+        end
     end
-    local text = typed
-    if category and S.db.profile.shoppingView == "categories" and S.Window.IsLive() then
-        local term = T.Parse(typed)
-        term.category = category
-        text = T.Compose(term)
-    elseif typed == "" then
-        return AskForText()
-    end
+    local term = BoxTerm(typed)
+    if typed == "" and not term.category then return AskForText() end
+    local text = T.Compose(term)
     if typed ~= "" then
         AddRecent(text)
         if S.db.profile.shoppingView == "recents" then RefreshSide() end
@@ -268,7 +658,10 @@ local function SearchList(list)
     selected = list
     expanded[list] = true
     RefreshSide()
-    if #list.terms > 0 then Sh.Run(list.terms) end
+    if #list.terms > 0 then
+        Sh.box:SetText("")
+        Sh.Run(list.terms)
+    end
 end
 Sh.SearchList = SearchList
 
@@ -279,6 +672,102 @@ function Sh.FromLink(link)
     name = name:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
     Sh.box:SetText(name)
     SearchBox(true)
+end
+
+---------------------------------------------------------------------------
+-- The chips under the search box: the limits of the one search showing. A click takes a limit off and searches
+-- again. Buy Next sits at the row's other end while the results say how many to buy.
+---------------------------------------------------------------------------
+local function RemoveLimit(chip)
+    if not searched then return end
+    local term = T.Parse(searched)
+    local fields = chip.fields
+    for i = 2, #fields do
+        term[fields[i]] = nil
+        if fields[i] == "category" and category then
+            category = nil
+            RefreshSide()
+        end
+    end
+    local text = T.Compose(term)
+    if text == "" then
+        Sh.box:SetText("")
+        return Sh.Clear()
+    end
+    RunTerm(text)
+end
+
+local function NewChip(row)
+    local chip = CreateFrame("Button", nil, row)
+    chip:SetHeight(20)
+    chip.box = K.Box(chip, P.wash, nil, K.PILL)
+    chip.label = K.Text(chip, "GameFontHighlightSmall", P.accent, "CENTER")
+    chip.label:SetPoint("CENTER")
+    chip:SetScript("OnClick", RemoveLimit)
+    chip:SetScript("OnEnter", function(self) W.Paint(self.label, P.bright) end)
+    chip:SetScript("OnLeave", function(self) W.Paint(self.label, P.accent) end)
+    return chip
+end
+
+-- The row shows while it has something to say: a limit, Buy Next, or what's left to buy.
+local function ShowChipRow()
+    local row = Sh.chips
+    local shown = row.limits > 0 or shownBuys or row.costs
+    if row.shown ~= shown then
+        row.shown = shown
+        row:SetShown(shown)
+        Sh.body:SetPoint("TOPLEFT", 0, -(RESULTS_TOP + (shown and CHIP_ROW or 0)))
+    end
+end
+
+-- Beside Buy Next: what the items a list still needs come to at their lowest prices.
+PaintCost = function()
+    local row = Sh.chips
+    if not row then return end
+    local total, any = 0, false
+    for _, e in ipairs(Sh.entries) do
+        if e.purchase and e.price then
+            local need = e.purchase - HaveOf(e)
+            if need > 0 then total, any = total + need * e.price, true end
+        end
+    end
+    row.cost:SetText(any and ("Left to buy: about " .. K.ShortMoney(total)) or "")
+    row.costs = any
+    ShowChipRow()
+end
+
+PaintChips = function()
+    local row = Sh.chips
+    if not row then return end
+    local limits = searched and T.Limits(T.Parse(searched)) or nil
+    local count = limits and #limits or 0
+    local x = 0
+    for i = 1, count do
+        local chip = row.chips[i]
+        if not chip then
+            chip = NewChip(row)
+            row.chips[i] = chip
+        end
+        chip.fields = limits[i]
+        chip.label:SetText(limits[i][1] .. "  x")
+        local width = floor((chip.label:GetStringWidth() or 40) + 22)
+        chip:SetWidth(width)
+        chip:ClearAllPoints()
+        chip:SetPoint("LEFT", row, "LEFT", x, 0)
+        chip:Show()
+        x = x + width + 4
+    end
+    for i = count + 1, #row.chips do row.chips[i]:Hide() end
+    local key = S.db.profile.keyBuy
+    row.buyNext.tipText = "Opens the next item you still need. Press it again to buy." .. (key ~= "" and ("\nKey: " .. key) or "")
+    row.buyNext:SetShown(shownBuys)
+    if row.beside ~= shownBuys then
+        row.beside = shownBuys
+        row.cost:ClearAllPoints()
+        if shownBuys then row.cost:SetPoint("RIGHT", row.buyNext, "LEFT", -10, 0) else row.cost:SetPoint("RIGHT") end
+    end
+    row.limits = count
+    ShowChipRow()
 end
 
 ---------------------------------------------------------------------------
@@ -412,14 +901,14 @@ end
 local function ShowCsv()
     -- In the order the table shows them.
     local shown = Sh.results.entries
-    if #shown == 0 then return Status("No results to export.") end
     local lines = { "Name,Item level,Price,Available,Yours" }
     for _, e in ipairs(shown) do
-        if not e.missing then
+        if not e.missing and not e.heading then
             lines[#lines + 1] = string.format('"%s",%d,%d,%d,%s', (e.name or ""):gsub('"', '""'), e.level or 0, e.price or 0,
                 e.available or 0, e.owned and "yes" or "no")
         end
     end
+    if #lines == 1 then return Status("No results to export.") end
     K.Dialog({ title = "Copy this text", multiline = true, inputText = table.concat(lines, "\n"), focus = true, wide = true,
         confirm = "Close", hideCancel = true })
 end
@@ -459,10 +948,40 @@ local function ListMenu(owner, list)
     end)
 end
 
+-- The most you'd pay for each of a list's item: its results at or under it are green, and its saved price is checked
+-- against it after every scan (Lists.lua).
+local function AskMost(list, index)
+    local term = T.Parse(list.terms[index])
+    K.Dialog({ title = "Most you'd pay for each", text = "Like 80s or 1g 20s. Empty: no limit.", input = true,
+        inputText = term.maxPrice and T.MoneyText(term.maxPrice) or "", confirm = "Save",
+        onConfirm = function(_, typed)
+            typed = strtrim(typed or "")
+            local copper = typed ~= "" and T.Money(typed) or nil
+            if typed ~= "" and not copper then return Status("That isn't an amount of money.") end
+            term.maxPrice = copper and copper > 0 and copper or nil
+            list.terms[index] = T.Compose(term)
+            RefreshSide()
+        end })
+end
+
+local function AskQuantity(list, index)
+    local term = T.Parse(list.terms[index])
+    K.Dialog({ title = "How many to buy", text = "Empty: no number.", input = true, inputNumeric = true,
+        inputText = term.quantity or "", confirm = "Save",
+        onConfirm = function(_, typed)
+            local quantity = tonumber(typed)
+            term.quantity = quantity and quantity > 0 and quantity or nil
+            list.terms[index] = T.Compose(term)
+            RefreshSide()
+        end })
+end
+
 local function TermMenu(owner, list, index, text)
     K.Menu(owner, function(root)
         root:CreateButton("Search", function() Sh.Run({ text }) end)
         root:CreateButton("Edit", function() Sh.OpenFilters(text, list, index) end)
+        root:CreateButton("Most you'd pay", function() AskMost(list, index) end)
+        root:CreateButton("How many to buy", function() AskQuantity(list, index) end)
         root:CreateButton("Move up", function() MoveInList(list, index, index - 1) end)
         root:CreateButton("Move down", function() MoveInList(list, index, index + 1) end)
         root:CreateButton("Delete", function()
@@ -475,7 +994,7 @@ end
 local function RecentMenu(owner, text)
     K.Menu(owner, function(root)
         root:CreateButton("Search", function()
-            Sh.box:SetText(text)
+            ShowTerm(text)
             Sh.Run({ text })
         end)
         root:CreateButton("Add to list", function() AddToListMenu(owner, text) end)
@@ -496,7 +1015,10 @@ local function CategoryMenu(owner, path)
 end
 
 local function SideClick(e, button, row)
-    if e.kind == "category" then
+    if e.kind == "heading" then return end
+    if e.kind == "smart" then
+        if button == "LeftButton" then RunSmart(e.key, e.name) end
+    elseif e.kind == "category" then
         if button == "RightButton" then
             if e.searches then CategoryMenu(row, e.path) end
             return
@@ -505,6 +1027,7 @@ local function SideClick(e, button, row)
         -- nothing under it is searched at once, and the rest wait for Search: all of Armor is a long search.
         local chosen = category ~= e.path
         category = chosen and e.path or e.up
+        if held then held.category = nil end
         RefreshSide()
         if chosen and e.searches and not e.parent then SearchBox() end
     elseif e.kind == "list" then
@@ -519,11 +1042,11 @@ local function SideClick(e, button, row)
         end
     elseif e.kind == "term" then
         if button == "RightButton" then return TermMenu(row, e.list, e.index, e.text) end
-        Sh.box:SetText(e.text)
+        ShowTerm(e.text)
         Sh.Run({ e.text })
     else
         if button == "RightButton" then return RecentMenu(row, e.text) end
-        Sh.box:SetText(e.text)
+        ShowTerm(e.text)
         Sh.Run({ e.text })
     end
 end
@@ -531,9 +1054,17 @@ end
 ---------------------------------------------------------------------------
 -- Autocomplete
 ---------------------------------------------------------------------------
--- Your own searches that start with the text, then items whose names hold it. A suggestion searches for exactly that item.
+-- Your own searches that start with the text, then items whose names hold it; with nothing typed, your last
+-- searches. An item's suggestion searches for exactly that item.
 local function Suggestions(text)
     local found, seen = {}, {}
+    if text == "" then
+        for i, term in ipairs(Recents()) do
+            if i > AUTOCOMPLETE_ROWS then break end
+            found[i] = { value = term, label = T.Pretty(term) }
+        end
+        return found
+    end
     local prefix = text:lower()
     local function consider(term)
         if #found < AUTOCOMPLETE_OWN and not seen[term] and term:lower():sub(1, #prefix) == prefix then
@@ -567,7 +1098,9 @@ end
 
 local function ShowSuggestions(text)
     local flyout = Sh.flyout
-    local found = text ~= "" and Suggestions(text) or {}
+    Sh.results:ClearCursor()
+    -- With nothing typed, the last searches show only while the box is being typed in.
+    local found = (text ~= "" or Sh.box.edit:HasFocus()) and Suggestions(text) or {}
     flyout.at = nil
     flyout.count = #found
     if #found == 0 or (#found == 1 and found[1].value == text) then return flyout:Hide() end
@@ -588,16 +1121,18 @@ local function ShowSuggestions(text)
 end
 
 local function ChooseSuggestion(row)
-    Sh.box:SetText(row.value)
     Sh.flyout:Hide()
     Sh.box.edit:ClearFocus()
-    SearchBox(true)
+    if category then
+        category = nil
+        RefreshSide()
+    end
+    RunTerm(row.value)
 end
 
 -- Up and down walk the suggestions; Enter takes the one lit.
 local function MoveSuggestion(direction)
     local flyout = Sh.flyout
-    if not flyout:IsShown() or flyout.count == 0 then return end
     local at = (flyout.at or (direction > 0 and 0 or flyout.count + 1)) + direction
     if at < 1 then at = flyout.count elseif at > flyout.count then at = 1 end
     flyout.at = at
@@ -611,6 +1146,7 @@ local function BuildFlyout()
     flyout:SetPoint("TOPRIGHT", Sh.box, "BOTTOMRIGHT", 0, -2)
     K.Box(flyout, P.card, P.line)
     flyout.rows = {}
+    flyout.count = 0
     for i = 1, AUTOCOMPLETE_ROWS do
         local row = CreateFrame("Button", nil, flyout)
         row:SetHeight(24)
@@ -668,8 +1204,9 @@ end
 
 local RANGES = {
     { "minItemLevel", "maxItemLevel", "Item level" }, { "minLevel", "maxLevel", "Required level" },
-    { "minCrafted", "maxCrafted", "Crafted level" }, { "minGold", "maxGold", "Price (gold)" },
+    { "minCrafted", "maxCrafted", "Crafted level" },
 }
+local FILTER_LEFT = 150
 
 local function BuildFilters()
     local v = CreateFrame("Frame", nil, S.Window.frame)
@@ -678,7 +1215,7 @@ local function BuildFilters()
     v:EnableMouse(true)
     W.Fill(v, P.veil, "BACKGROUND"):SetAllPoints()
     local card = CreateFrame("Frame", nil, v)
-    card:SetSize(460, 438)
+    card:SetSize(FILTER_LEFT + 178 + 26 + 178 + 16, 484)
     card:SetPoint("CENTER")
     K.Box(card, P.window, P.line)
     local title = K.Text(card, "GameFontNormal", P.title)
@@ -688,70 +1225,94 @@ local function BuildFilters()
     local function caption(text)
         local c = K.Text(card, "GameFontHighlightSmall", P.muted)
         c:SetPoint("TOPLEFT", 16, y - 5)
-        c:SetWidth(118)
+        c:SetWidth(FILTER_LEFT - 20)
         c:SetText(text)
         return c
     end
-    local draft = {}
-    v.draft = draft
+    local draft, flags, switches = {}, {}, {}
+    v.draft, v.flags, v.switches = draft, flags, switches
+    local function switch(key, text)
+        caption(text)
+        local s = W.Switch(card)
+        s:SetPoint("TOPLEFT", FILTER_LEFT, y - 2)
+        s.onClick = function(on)
+            flags[key] = on
+            s:SetOn(on, true)
+        end
+        switches[key] = s
+        y = y - 30
+    end
+    local function dropdown(text, entries, key)
+        caption(text)
+        local s = K.Select(card, entries, function() return draft[key] or "" end,
+            function(value) draft[key] = value ~= "" and value or nil end)
+        s:SetPoint("TOPLEFT", FILTER_LEFT, y)
+        s:SetPoint("RIGHT", -16, 0)
+        y = y - 30
+        return s
+    end
     caption("Name")
     v.query = K.Input(card, {})
-    v.query:SetPoint("TOPLEFT", 134, y)
+    v.query:SetPoint("TOPLEFT", FILTER_LEFT, y)
     v.query:SetPoint("RIGHT", -16, 0)
     y = y - 30
-    caption("Match whole name")
-    v.exact = W.Switch(card)
-    v.exact:SetPoint("TOPLEFT", 134, y - 2)
-    v.exact.onClick = function(on)
-        v.exactOn = on
-        v.exact:SetOn(on, true)
-    end
-    y = y - 30
-    caption("Category")
-    v.category = K.Select(card, CategoryEntries, function() return draft.category or "" end,
-        function(key) draft.category = key ~= "" and key or nil end)
-    v.category:SetPoint("TOPLEFT", 134, y)
-    v.category:SetPoint("RIGHT", -16, 0)
-    y = y - 30
+    switch("exact", "Match whole name")
+    v.category = dropdown("Category", CategoryEntries, "category")
     v.ranges = {}
     for _, range in ipairs(RANGES) do
         caption(range[3])
         local low = K.Input(card, { numeric = true, placeholder = "From", width = 100 })
-        low:SetPoint("TOPLEFT", 134, y)
+        low:SetPoint("TOPLEFT", FILTER_LEFT, y)
         local high = K.Input(card, { numeric = true, placeholder = "To", width = 100 })
         high:SetPoint("LEFT", low, "RIGHT", 8, 0)
         v.ranges[range[1]], v.ranges[range[2]] = low, high
         y = y - 30
     end
-    caption("Quality")
-    v.quality = K.Select(card, function() return QUALITY_VALUES, QUALITY_ORDER end,
-        function() return draft.quality or "" end, function(key) draft.quality = key ~= "" and key or nil end)
-    v.quality:SetPoint("TOPLEFT", 134, y)
-    v.quality:SetPoint("RIGHT", -16, 0)
+    caption("Price for each")
+    v.minPrice = K.MoneyInput(card)
+    v.minPrice:SetPoint("TOPLEFT", FILTER_LEFT, y)
+    local to = K.Text(card, "GameFontHighlightSmall", P.muted, "CENTER")
+    to:SetPoint("LEFT", v.minPrice, "RIGHT", 0, 0)
+    to:SetWidth(26)
+    to:SetText("to")
+    v.maxPrice = K.MoneyInput(card)
+    v.maxPrice:SetPoint("LEFT", v.minPrice, "RIGHT", 26, 0)
     y = y - 30
-    caption("Expansion")
-    v.expansion = K.Select(card, ExpansionEntries, function() return draft.expansion or "" end,
-        function(key) draft.expansion = key ~= "" and key or nil end)
-    v.expansion:SetPoint("TOPLEFT", 134, y)
-    v.expansion:SetPoint("RIGHT", -16, 0)
-    y = y - 30
+    v.quality = dropdown("Quality", function() return QUALITY_VALUES, QUALITY_ORDER end, "quality")
+    v.expansion = dropdown("Expansion", ExpansionEntries, "expansion")
+    switch("usable", "Usable by you")
+    switch("uncollected", "Not collected yet")
     caption("Quantity to buy")
     v.quantity = K.Input(card, { numeric = true, width = 100 })
-    v.quantity:SetPoint("TOPLEFT", 134, y)
+    v.quantity:SetPoint("TOPLEFT", FILTER_LEFT, y)
+    y = y - 30
+    caption("Most you'd pay for each")
+    v.most = K.MoneyInput(card)
+    v.most:SetPoint("TOPLEFT", FILTER_LEFT, y)
 
     local function compose()
         local term = {}
         term.query = strtrim(v.query:GetText())
-        term.exact = v.exactOn
+        term.exact = flags.exact and term.query ~= "" or nil
+        term.usable, term.uncollected = flags.usable or nil, flags.uncollected or nil
         term.category, term.quality, term.expansion = draft.category, draft.quality, draft.expansion
         for key, input in pairs(v.ranges) do
             local number = tonumber(input:GetText())
             if number then term[key] = number end
         end
+        local low, high = v.minPrice:GetValue(), v.maxPrice:GetValue()
+        if low > 0 then term.minGold = low / 10000 end
+        if high > 0 then term.maxGold = high / 10000 end
         local quantity = tonumber(v.quantity:GetText())
         if quantity and quantity > 0 then term.quantity = quantity end
+        local most = v.most:GetValue()
+        if most > 0 then term.maxPrice = most end
         term.tier = draft.tier
         return T.Compose(term)
+    end
+    local function close()
+        v.editList = nil
+        v:Hide()
     end
     local go = K.Button(card, "Search", "primary")
     go:SetWidth(90)
@@ -760,12 +1321,11 @@ local function BuildFilters()
         local text = compose()
         if v.editList then
             v.editList.terms[v.editIndex] = text
-            v.editList = nil
             RefreshSide()
         end
-        v:Hide()
-        Sh.box:SetText(text)
-        SearchBox()
+        close()
+        if text == "" then return AskForText() end
+        RunTerm(text)
     end)
     local add = K.Button(card, "Add to list")
     add:Fit(90)
@@ -774,10 +1334,9 @@ local function BuildFilters()
         local text = compose()
         if v.editList then
             v.editList.terms[v.editIndex] = text
-            v.editList = nil
             RefreshSide()
-            v:Hide()
-        else
+            close()
+        elseif text ~= "" then
             AddToListMenu(self, text)
         end
     end)
@@ -785,12 +1344,14 @@ local function BuildFilters()
     local cancel = K.Button(card, "Cancel")
     cancel:SetWidth(70)
     cancel:SetPoint("BOTTOMLEFT", 16, 14)
-    cancel:SetScript("OnClick", function() v.editList = nil; v:Hide() end)
+    cancel:SetScript("OnClick", close)
     local clear = K.Button(card, "Clear")
     clear:SetWidth(70)
     clear:SetPoint("LEFT", cancel, "RIGHT", 6, 0)
     clear:SetScript("OnClick", function() Sh.FillFilters("") end)
     v:Hide()
+    -- Escape closes it before the window.
+    K.BackLayer(v, close)
     Sh.filters = v
 end
 
@@ -800,9 +1361,14 @@ function Sh.FillFilters(text)
     local draft = v.draft
     draft.category, draft.quality, draft.expansion, draft.tier = term.category, term.quality, term.expansion, term.tier
     v.query:SetText(term.query or "")
-    v.exactOn = term.exact and true or false
-    v.exact:SetOn(v.exactOn)
+    for key, switch in pairs(v.switches) do
+        v.flags[key] = term[key] and true or false
+        switch:SetOn(v.flags[key])
+    end
     for key, input in pairs(v.ranges) do input:SetText(term[key] or "") end
+    v.minPrice:SetValue(term.minGold and T.Copper(term.minGold) or 0)
+    v.maxPrice:SetValue(term.maxGold and T.Copper(term.maxGold) or 0)
+    v.most:SetValue(term.maxPrice or 0)
     v.quantity:SetText(term.quantity or "")
     v.category:Refresh()
     v.quality:Refresh()
@@ -820,38 +1386,114 @@ function Sh.OpenFilters(text, list, index)
 end
 
 ---------------------------------------------------------------------------
--- The tab
+-- Results: clicks, the buy screen and Buy Next
 ---------------------------------------------------------------------------
+local opened, openedByKey
+
+-- The buy screen closed. boughtSome: something was bought from it.
+-- Whether a result has something Buy Next can buy: any for sale, the cheapest at or under the most you'd pay.
+local function Buyable(e)
+    return e.available ~= 0 and not (e.most and e.price and e.price > e.most)
+end
+
+local function BuyClosed(boughtSome)
+    local e = opened
+    opened = nil
+    if e then
+        -- The buy screen left what's for sale now on the row.
+        e.have, e.change = nil, nil
+        if openedByKey and not boughtSome and Buyable(e) then skipped[e] = true end
+    end
+    PaintCost()
+    if Sh.results then Sh.results:Redraw() end
+    RefreshSide()
+end
+
+-- byKey: Buy Next opened it, so the screen closes again once you've bought.
+OpenBuy = function(e, byKey)
+    e.have = nil
+    e.need = e.purchase and max(1, e.purchase - HaveOf(e)) or nil
+    opened, openedByKey = e, byKey
+    S.Buy.Open(e, BuyClosed, byKey)
+end
+
+-- One key buys a list: it answers the question that's up, or presses Buy on the buy screen, or opens the next item
+-- you still need. Every purchase is one press of its own, as the game asks.
+function Sh.BuyNext()
+    if K.ConfirmDialog("buy") then return end
+    if S.Buy.IsOpen() then return S.Buy.Press() end
+    if not (S.Window.IsLive() and Sh.results) then return end
+    local over, gone = false, false
+    for _, e in ipairs(Sh.results.entries) do
+        if e.purchase and e.itemKey and not skipped[e] then
+            e.have = nil
+            if HaveOf(e) < e.purchase then
+                if Buyable(e) then return OpenBuy(e, true) end
+                if e.available == 0 then gone = true else over = true end
+            end
+        end
+    end
+    if next(skipped) then
+        wipe(skipped)
+        return Status("That's the end of the list. Press again for the items you passed over.")
+    end
+    Status(over and gone and "The rest cost more than the most you'd pay, or have none for sale."
+        or over and "The rest cost more than the most you'd pay."
+        or gone and "The rest have none for sale."
+        or "Nothing left to buy here.")
+end
+
+-- Whether the key for Buy Next has something to do (Window.lua binds it only then).
+function Sh.WantsBuyKey() return shownBuys or S.Buy.IsOpen() end
+
+local function LinkOf(e)
+    return e.link or (e.itemKey and select(2, C_Item.GetItemInfo(e.itemKey.itemID))) or nil
+end
+
+local function ResultMenu(e, row)
+    local live = e.itemKey ~= nil
+    K.ItemMenu(row, { name = e.name, key = KeyOf(e), link = e.link, itemKey = e.itemKey, itemID = ItemIDOf(e),
+        quality = e.quality, searched = live }, live and function(root)
+        root:CreateButton("Buy", function() OpenBuy(e) end)
+    end or nil)
+end
+
 local function ResultClick(e, button, row)
     if e.missing then return end
-    if e.saved then
-        if e.link and IsModifiedClick() and HandleModifiedItemClick(e.link) then return end
-        return S.Scan.ShowHistory(e.key, e.name)
-    end
-    if IsShiftKeyDown() and button == "LeftButton" then
-        local chatting = ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow()
-        local link = e.link or select(2, C_Item.GetItemInfo(e.itemKey.itemID))
-        if chatting and link then
-            HandleModifiedItemClick(link)
-        else
-            Sh.box:SetText(e.name)
+    -- A heading searches for its own item alone.
+    if e.heading then
+        if button == "LeftButton" then
+            ShowTerm(e.term)
+            Sh.Run({ e.term })
         end
         return
     end
-    if IsModifiedClick("DRESSUP") and button == "LeftButton" then
-        local link = e.link or select(2, C_Item.GetItemInfo(e.itemKey.itemID))
-        if link then HandleModifiedItemClick(link) end
+    if button == "RightButton" then return ResultMenu(e, row or Sh.results) end
+    local link = LinkOf(e)
+    if IsShiftKeyDown() then
+        local chatting = ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow()
+        if chatting and link then HandleModifiedItemClick(link) else Sh.box:SetText(e.name) end
         return
     end
-    if button == "RightButton" then
-        local key = S.Prices.KeyForLink(e.link)
-        if not key then key = e.isPet and e.itemKey.battlePetSpeciesID and ("p:" .. e.itemKey.battlePetSpeciesID) or e.itemKey.itemID end
-        S.Scan.ShowHistory(key, e.name)
-        return
+    if link and IsModifiedClick() and HandleModifiedItemClick(link) then return end
+    if e.saved then
+        -- A saved price: at an auction house its auctions are a search away, and anywhere else its history is.
+        if S.Window.IsLive() then return Sh.SearchExact(e.name) end
+        return S.ItemPage.Open({ name = e.name, key = e.key, link = e.link, quality = e.quality })
     end
-    S.Buy.Open(e)
+    OpenBuy(e)
 end
 
+local function HaveText(e)
+    if e.heading or e.missing then return "" end
+    local have = HaveOf(e)
+    if e.purchase then return have .. "/" .. e.purchase end
+    return have > 0 and have or ""
+end
+
+---------------------------------------------------------------------------
+-- The tab
+---------------------------------------------------------------------------
 function Sh.Build(frame)
     P = K.Palette()
     -- Side panel
@@ -884,19 +1526,30 @@ function Sh.Build(frame)
     export.tipText = "The selected list, or all lists when none is selected."
     Sh.side = K.Table(side, { rowHeight = 24, empty = "Nothing here yet.", noHeader = true,
         columns = {
-            { key = "name", title = "", fill = 1, noSort = true,
+            { key = "name", title = "", fill = 1, noSort = true, icon = function(e) return e.icon end,
               indent = function(e) return e.kind == "term" and 12 or (e.depth or 0) * 12 end,
-              color = function(e) return (e.kind == "list" or e.depth == 0) and P.bright or P.text end },
-            { key = "count", title = "", width = 34, justify = "RIGHT", noSort = true,
-              color = function() return P.muted end },
+              color = function(e)
+                  if e.kind == "heading" then return P.muted end
+                  if e.deal then return K.GAIN end
+                  return (e.kind == "list" or e.kind == "smart" or e.depth == 0) and P.bright or P.text
+              end },
+            -- A list's count or progress; for one of its items, the saved price.
+            { key = "count", title = "", width = 62, justify = "RIGHT", noSort = true,
+              text = function(e)
+                  if e.kind == "term" then return e.price and K.ShortMoney(e.price) or "" end
+                  return e.count or ""
+              end,
+              color = function(e) return (e.deal or e.done) and K.GAIN or P.muted end },
         },
         isSelected = function(e)
             if e.kind == "category" then return e.path == category end
+            if e.kind == "smart" then return e.key == smartKey end
             return e.kind == "list" and e.list == selected
         end,
         onClick = SideClick,
-        onEnter = function() end,
-        onLeave = function() end,
+        onEnter = function(e, row)
+            if e.kind == "term" and e.link then K.ItemTip(row, e.link) end
+        end,
     })
     Sh.side:SetPoint("TOPLEFT", 6, -42)
     Sh.side:SetPoint("BOTTOMRIGHT", -6, 38)
@@ -915,13 +1568,17 @@ function Sh.Build(frame)
                 root:CreateButton("Search tracked recipes", function() S.Crafting.SearchTracked() end)
             end
             root:CreateButton("Export results as CSV", ShowCsv)
+            root:CreateButton("Clear results", function()
+                Sh.box:SetText("")
+                Sh.Clear()
+            end)
         end)
     end)
     local addTerm = K.Button(main, "Add to list")
     addTerm:Fit(80)
     addTerm:SetPoint("RIGHT", more, "LEFT", -4, 0)
     addTerm:SetScript("OnClick", function(self)
-        local text = Sh.box:GetText()
+        local text = T.Compose(BoxTerm(strtrim(Sh.box:GetText())))
         if text == "" then return AskForText() end
         AddToListMenu(self, text)
     end)
@@ -935,58 +1592,113 @@ function Sh.Build(frame)
     local filters = K.Button(main, "Filters")
     filters:Fit(64)
     filters:SetPoint("RIGHT", search, "LEFT", -4, 0)
-    filters:SetScript("OnClick", function() Sh.OpenFilters(Sh.box:GetText()) end)
-    Sh.box = K.Input(main, { placeholder = "Search for an item",
+    filters:SetScript("OnClick", function() Sh.OpenFilters(T.Compose(BoxTerm(strtrim(Sh.box:GetText())))) end)
+    Sh.box = K.Input(main, { placeholder = 'Search for an item, like "ore <50s"', clear = true,
+        onClear = function() Sh.Clear() end,
         onChange = ShowSuggestions,
         onEnter = function()
             local flyout = Sh.flyout
             local lit = flyout:IsShown() and flyout.at and flyout.rows[flyout.at]
             flyout:Hide()
-            if lit then ChooseSuggestion(lit) else SearchBox() end
+            if lit then return ChooseSuggestion(lit) end
+            -- The row the arrow keys are on opens; with none, the box is searched for.
+            local cursor = Sh.results.cursor
+            if cursor then return ResultClick(cursor, "LeftButton") end
+            SearchBox()
         end,
         onFocus = function(on)
-            if not on then C_Timer.After(0.15, function() if Sh.flyout then Sh.flyout:Hide() end end) end
+            if on then
+                if Sh.box:GetText() == "" then ShowSuggestions("") end
+            else
+                C_Timer.After(0.15, function() if Sh.flyout then Sh.flyout:Hide() end end)
+            end
+        end,
+        -- Up and down walk the suggestions while they show, and the results otherwise.
+        onArrow = function(key)
+            local step = key == "UP" and -1 or key == "DOWN" and 1
+            if not step then return end
+            local flyout = Sh.flyout
+            if flyout:IsShown() and flyout.count > 0 then return MoveSuggestion(step) end
+            if not fresh then Sh.results:MoveCursor(step) end
         end,
     })
     Sh.box:SetPoint("TOPLEFT")
     Sh.box:SetPoint("RIGHT", filters, "LEFT", -6, 0)
-    Sh.box.edit:SetScript("OnArrowPressed", function(_, key)
-        if key == "UP" then MoveSuggestion(-1) elseif key == "DOWN" then MoveSuggestion(1) end
-    end)
     BuildFlyout()
+
+    -- Under the search row: the search's limits, and Buy Next
+    local chips = CreateFrame("Frame", nil, main)
+    chips:SetPoint("TOPLEFT", 0, -(RESULTS_TOP - 2))
+    chips:SetPoint("TOPRIGHT", 0, -(RESULTS_TOP - 2))
+    chips:SetHeight(20)
+    chips.chips, chips.limits, chips.costs = {}, 0, false
+    chips.cost = K.Text(chips, "GameFontHighlightSmall", P.muted, "RIGHT")
+    chips:Hide()
+    local buyNext = K.Button(chips, "Buy Next", "primary")
+    buyNext:SetHeight(20)
+    buyNext:Fit(76)
+    buyNext:SetPoint("RIGHT")
+    buyNext:SetScript("OnClick", function() Sh.BuyNext() end)
+    buyNext:Hide()
+    chips.buyNext = buyNext
+    Sh.chips = chips
 
     -- Results
     Sh.progress = K.Progress(main)
     Sh.progress:SetPoint("TOPLEFT", 0, -28)
     Sh.progress:SetPoint("TOPRIGHT", 0, -28)
     local body = CreateFrame("Frame", nil, main)
-    body:SetPoint("TOPLEFT", 0, -34)
+    body:SetPoint("TOPLEFT", 0, -RESULTS_TOP)
     body:SetPoint("BOTTOMRIGHT")
     K.Box(body, P.card, P.border)
+    Sh.body = body
     Sh.results = K.Table(body, {
-        id = "shopping", rowHeight = 26, empty = "Search for an item, or pick a list.",
+        id = "shopping", rowHeight = 26, empty = "Nothing listed.",
         columns = {
             { key = "name", title = "Name", fill = 1, icon = function(e) return e.icon end,
-              text = function(e) return K.QualityCode(e.quality) .. (e.name or "") .. "|r" end },
-            { key = "level", title = "Item level", width = 70, justify = "RIGHT",
+              text = function(e)
+                  if e.heading or e.missing then return e.name end
+                  return K.QualityCode(e.quality) .. (e.name or "") .. "|r"
+              end,
+              color = function(e) return e.heading and P.accent or nil end },
+            { key = "level", title = "Item level", width = 64, justify = "RIGHT", hide = function() return not shownLevels end,
               text = function(e) return (e.level and e.level > 0) and e.level or "" end },
-            { key = "price", title = "Price", width = 150, justify = "RIGHT", money = function(e) return e.price end },
-            { key = "owned", title = "Yours", width = 50, justify = "CENTER", sort = function(e) return e.owned and 1 or 0 end,
+            -- Green at or under the most you'd pay.
+            { key = "price", title = "Price", width = 124, justify = "RIGHT", money = function(e) return e.price end,
+              color = function(e) return e.most and e.price and e.price <= e.most and K.GAIN or nil end },
+            { key = "change", title = "Vs usual", width = 64, justify = "RIGHT", sort = ChangeOf, color = ChangeColor,
+              text = function(e)
+                  local change = ChangeOf(e)
+                  return change and K.Percent(change) or ""
+              end },
+            { key = "trend", title = "Trend", width = 66, noSort = true, spark = Series, sparkColor = ChangeColor,
+              text = function() return "" end },
+            { key = "have", title = "Have", width = 58, justify = "RIGHT", sort = HaveOf, text = HaveText,
+              color = function(e) return e.purchase and HaveOf(e) >= e.purchase and K.GAIN or P.muted end },
+            { key = "owned", title = "Yours", width = 46, justify = "CENTER", sort = function(e) return e.owned and 1 or 0 end,
               text = function(e) return e.owned and "Yes" or "" end, hide = function() return S.Window.mode == "saved" end },
-            { key = "available", title = "Available", width = 80, justify = "RIGHT",
+            { key = "available", title = "Available", width = 74, justify = "RIGHT",
               text = function(e) return e.available and FormatLargeNumber(e.available) or "" end },
-            { key = "age", title = "Last seen", width = 90, justify = "RIGHT", hide = function() return S.Window.mode ~= "saved" end,
+            -- What a smart list says of the row.
+            { key = "note", title = "Note", fill = 0.9, noSort = true, hide = function() return not shownNotes end,
+              text = function(e) return e.note or "" end, color = function() return P.muted end },
+            { key = "age", title = "Last seen", width = 86, justify = "RIGHT", hide = function() return S.Window.mode ~= "saved" end,
               text = function(e)
                   if not e.age then return "" end
                   if e.age == 0 then return "Today" end
                   return e.age .. K.Plural(e.age, " day ago", " days ago")
               end },
         },
+        -- A list's results stay under their own heading, whatever they're sorted by.
+        group = function(e)
+            local at = e.at or 1
+            return e.heading and at or at + 0.5
+        end,
         dim = function(e) return e.missing end,
         onClick = ResultClick,
         onEnter = function(e, row)
-            if e.missing or (e.saved and not e.link) then return end
-            K.ItemTip(row, e.link, e.itemKey, true)
+            if e.heading or e.missing or (e.saved and not e.link) then return end
+            K.ItemTip(row, e.link, e.itemKey, not e.saved)
         end,
     })
     Sh.results:SetPoint("TOPLEFT", 6, -4)
@@ -994,32 +1706,41 @@ function Sh.Build(frame)
     Sh.results:SortBy("price")
     Sh.entries = {}
 
-    -- The buy screen sits over the results and search row.
+    -- The buy screen sits over the results and search row. Escape leaves it before the window.
     S.Buy.frame = CreateFrame("Frame", nil, main)
     S.Buy.frame:SetAllPoints()
     S.Buy.frame:SetFrameLevel(main:GetFrameLevel() + 20)
     S.Buy.frame:EnableMouse(true)
     W.Fill(S.Buy.frame, P.window, "BACKGROUND", -1):SetAllPoints()
     S.Buy.Build(S.Buy.frame)
+    K.BackLayer(S.Buy.frame, function() S.Buy.Close() end)
 
     -- Temporary lists from an earlier session are gone.
     local lists = Lists()
     for i = #lists, 1, -1 do if lists[i].temporary then table.remove(lists, i) end end
     SortLists()
-    RefreshSide()
     local default = S.db.profile.defaultList
     if default ~= "" then
         local list = FindList(default)
         if list then
             selected = list
             expanded[list] = true
-            RefreshSide()
         end
     end
+    ShowHome(true)
+    RefreshSide()
 end
 
 function Sh.OnShow()
     if Sh.frame then RefreshSide() end
+end
+
+-- The key for the search box.
+function Sh.Find()
+    if not Sh.box then return end
+    if S.Buy.IsOpen() then S.Buy.Close() end
+    if Sh.filters and Sh.filters:IsShown() then Sh.filters:Hide() end
+    Sh.box:Focus()
 end
 
 -- Between live and saved prices, what's showing no longer applies.
@@ -1027,12 +1748,14 @@ function Sh.ModeChanged()
     RefreshSide() -- the categories come and go with the auction house
     if not Sh.results then return end
     if S.Buy.IsOpen() then S.Buy.Close() end
-    Sh.entries = {}
+    Sh.Clear()
     Sh.results:Layout()
-    Sh.results:SetEntries(Sh.entries)
 end
 
-function Sh.Apply() end
+function Sh.Apply()
+    if Sh.chips then PaintChips() end
+    if S.Buy.frame then S.Buy.Apply() end
+end
 
 -- A search asked for from elsewhere (reagents, other addons), as a temporary list.
 function Sh.External(name, terms)
@@ -1046,7 +1769,7 @@ function Sh.External(name, terms)
     SearchList(list)
 end
 
--- Lets the Selling tab search for an item by name.
+-- Lets the other tabs search for an item by name.
 function Sh.SearchExact(name)
     S.Window.Select("shopping")
     local text = '"' .. name .. '"'

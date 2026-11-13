@@ -314,7 +314,8 @@ local function NewEdit(parent, numeric)
     return e
 end
 
--- A flat text box. spec: placeholder, numeric, onChange(text), onEnter(text), width.
+-- A flat text box. spec: placeholder, numeric, onChange(text), onEnter(text), width, clear (a button at its right end
+-- that empties it, then runs onChange("") and onClear()), onArrow(key) for the arrow keys ("UP", "DOWN").
 function K.Input(parent, spec)
     spec = spec or {}
     local f = CreateFrame("Frame", nil, parent)
@@ -323,14 +324,33 @@ function K.Input(parent, spec)
     f.box = K.Box(f, P.field, P.border, K.PILL)
     local e = NewEdit(f, spec.numeric)
     e:SetPoint("LEFT", 11, 0)
-    e:SetPoint("RIGHT", -11, 0)
+    e:SetPoint("RIGHT", spec.clear and -26 or -11, 0)
     e:SetHeight(20)
     f.edit = e
     local hint = K.Text(f, "GameFontDisableSmall", P.muted)
     hint:SetPoint("LEFT", 11, 0)
     hint:SetText(spec.placeholder or "")
+    local clear
+    if spec.clear then
+        clear = K.Close(f)
+        clear:SetPoint("RIGHT", -3, 0)
+        clear:Hide()
+        clear:SetScript("OnClick", function()
+            e:SetText("")
+            hint:Show()
+            clear:Hide()
+            if spec.onChange then spec.onChange("") end
+            if spec.onClear then spec.onClear() end
+        end)
+    end
+    if spec.onArrow then
+        e:SetAltArrowKeyMode(false)
+        e:SetScript("OnArrowPressed", function(_, key) spec.onArrow(key) end)
+    end
     local function changed(self, user)
-        hint:SetShown(self:GetText() == "")
+        local empty = self:GetText() == ""
+        hint:SetShown(empty)
+        if clear then clear:SetShown(not empty) end
         if user and spec.onChange then spec.onChange(self:GetText()) end
     end
     e:SetScript("OnTextChanged", changed)
@@ -352,12 +372,15 @@ function K.Input(parent, spec)
     function f:GetNumber() return tonumber(e:GetText()) or 0 end
     function f:SetText(value)
         e:SetText(value == nil and "" or tostring(value))
-        hint:SetShown(e:GetText() == "")
+        local empty = e:GetText() == ""
+        hint:SetShown(empty)
+        if clear then clear:SetShown(not empty) end
     end
     function f:SetEnabledLook(on)
         e:SetEnabled(on)
         self:SetAlpha(on and 1 or 0.5)
     end
+    function f:Focus() e:SetFocus() end
     return f
 end
 
@@ -562,8 +585,15 @@ end
 -- A column: key, title, width or fill, justify, text(entry) or field, sort(entry) or field, icon(entry), color(entry).
 -- A money column has money(entry) instead of text: copper draws with coins (signed = true puts a + before gains, a -
 -- before losses), a string shows as text ("None"), nil shows nothing.
+-- A column can also draw: spark(entry) returns a list of values for a sparkline in place of text (sparkColor(entry)
+-- colors it), and bar(entry) a share from 0 to 1 for a thin bar under the cell's text (barColor(entry) colors it).
+-- Without a rowHeight, rows follow the "Compact rows" setting. table:MoveCursor(delta) moves the keyboard's row.
+-- spec.group(entry) returns a number rows are kept together by, lowest first: sorting a column sorts inside each group.
 ---------------------------------------------------------------------------
 local HEADER_H = 22
+local ROW_H, ROW_COMPACT = 24, 20
+-- Tables whose rows follow the setting.
+local sized = setmetatable({}, { __mode = "k" })
 
 -- A column can also hide itself (column.hide()), such as the ones that only mean something at an auction house.
 local function Hidden(t, column)
@@ -610,7 +640,8 @@ end
 local Table = {}
 
 function Table:PaintRow(row)
-    local selected = row.entry and self.isSelected and self.isSelected(row.entry)
+    local entry = row.entry
+    local selected = entry and (entry == self.cursor or self.isSelected and self.isSelected(entry))
     local tint = selected and P.selected or row.over and P.hover
     if tint and tint ~= row.tintColor then
         row.tintColor = tint
@@ -799,10 +830,60 @@ function Table:FillRow(row, entry)
             W.Paint(cell, color)
         end
         cell:Show()
+        local spark = row.sparks and row.sparks[i]
+        local values = c.spark and c.spark(entry)
+        if values then
+            local sparkW, sparkH = max(10, c.w - 12), self.rowHeight - 8
+            if not spark then
+                row.sparks = row.sparks or {}
+                spark = K.Spark(row, sparkW, sparkH)
+                row.sparks[i] = spark
+            end
+            spark:Resize(sparkW, sparkH)
+            if spark.placedAt ~= left then
+                spark.placedAt = left
+                spark:ClearAllPoints()
+                spark:SetPoint("LEFT", row, "LEFT", left, 0)
+            end
+            spark:SetValues(values, c.sparkColor and c.sparkColor(entry) or nil)
+            spark:Show()
+        elseif spark then
+            spark:Hide()
+        end
+        local bar = row.bars and row.bars[i]
+        local share = c.bar and c.bar(entry)
+        if share then
+            if not bar then
+                row.bars = row.bars or {}
+                bar = row:CreateTexture(nil, "BORDER")
+                bar:SetHeight(2)
+                row.bars[i] = bar
+            end
+            local barW = max(1, floor((c.w - 12) * min(1, max(0, share))))
+            if bar.placedAt ~= left then
+                bar.placedAt = left
+                bar:ClearAllPoints()
+                bar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", left, 2)
+            end
+            if bar.placedW ~= barW then
+                bar.placedW = barW
+                bar:SetWidth(barW)
+            end
+            local barColor = c.barColor and c.barColor(entry) or P.accent
+            if bar.painted ~= barColor then
+                bar.painted = barColor
+                bar:SetColorTexture(barColor[1], barColor[2], barColor[3], barColor[4] or 0.85)
+            end
+            bar:Show()
+        elseif bar then
+            bar:Hide()
+        end
     end
     for i = #self.visible + 1, #row.cells do
         row.cells[i]:Hide()
         if row.coins and row.coins[i] then row.coins[i]:Hide() end
+        if row.sparks and row.sparks[i] then row.sparks[i]:Hide() end
+        if row.bars and row.bars[i] then row.bars[i]:Hide() end
     end
     if rowIcon then
         if row.shownIcon ~= rowIcon then
@@ -825,10 +906,17 @@ local orderOf = {}
 function Table:Sort()
     local column
     for _, c in ipairs(self.columns) do if c.key == self.sortKey then column = c end end
-    if column then
+    local group = self.group
+    if column or group then
         local reverse = self.sortReverse
         for i, e in ipairs(self.entries) do orderOf[e] = i end
         table.sort(self.entries, function(a, b)
+            -- Rows stay with their group, whatever the column.
+            if group then
+                local ga, gb = group(a), group(b)
+                if ga ~= gb then return ga < gb end
+            end
+            if not column then return (orderOf[a] or 0) < (orderOf[b] or 0) end
             local x, y = SortValue(column, a), SortValue(column, b)
             if x == y or x == nil or y == nil or type(x) ~= type(y) then
                 if x == nil and y ~= nil then return false end
@@ -856,6 +944,15 @@ function Table:SetEntries(entries, keepScroll)
     for i = 1, count do shown[i] = entries[i] end
     for i = #shown, count + 1, -1 do shown[i] = nil end
     self.entries = shown
+    -- The keyboard's row goes with its entry.
+    local cursor = self.cursor
+    if cursor then
+        local kept = false
+        for i = 1, count do
+            if shown[i] == cursor then kept = true; break end
+        end
+        if not kept then self.cursor = nil end
+    end
     self:Sort()
     if not keepScroll then self.area:ScrollTo(0) end
     if not self.visible then self:Layout() else self:Render() end
@@ -867,6 +964,61 @@ function Table:SortBy(key, reverse)
 end
 
 function Table:Redraw() if self.visible then self:Render() end end
+
+-- Moves the keyboard's row by delta (from none: to the first), keeps it in view and returns its entry.
+function Table:MoveCursor(delta)
+    local entries = self.entries
+    local n = #entries
+    if n == 0 then return nil end
+    local at = 0
+    local cursor = self.cursor
+    if cursor then
+        for i = 1, n do
+            if entries[i] == cursor then at = i; break end
+        end
+    end
+    at = min(n, max(1, at + delta))
+    self.cursor = entries[at]
+    local rowH, area = self.rowHeight, self.area
+    local top, height, scroll = (at - 1) * rowH, area:GetHeight() or 0, area:GetVerticalScroll() or 0
+    if top < scroll then
+        area:ScrollTo(top)
+    elseif top + rowH > scroll + height then
+        area:ScrollTo(top + rowH - height)
+    end
+    self:Redraw()
+    return self.cursor
+end
+
+function Table:ClearCursor()
+    if not self.cursor then return end
+    self.cursor = nil
+    self:Redraw()
+end
+
+function Table:SetEmpty(text)
+    self.empty = text
+    self.emptyText:SetText(text or "")
+    self:PaintEmpty()
+end
+
+-- Rows as tall as the "Compact rows" setting says, in every table that didn't choose a height.
+local function SetRowHeight(t, height)
+    if t.rowHeight == height then return end
+    t.rowHeight = height
+    for _, row in ipairs(t.rows) do
+        row:SetHeight(height)
+        row.icon:SetSize(height - 6, height - 6)
+        row.placedY = nil
+    end
+    t.contentHeight = nil
+    t:Redraw()
+end
+
+function K.ApplyDensity()
+    local height = S.db.profile.compact and ROW_COMPACT or ROW_H
+    for t in pairs(sized) do SetRowHeight(t, height) end
+end
 
 local function ColumnMenu(t)
     if not MenuUtil then return end
@@ -893,8 +1045,9 @@ function K.Table(parent, spec)
     local t = CreateFrame("Frame", nil, parent)
     for key, value in pairs(Table) do t[key] = value end
     t.id, t.columns, t.onClick, t.onEnter, t.onLeave = spec.id, spec.columns, spec.onClick, spec.onEnter, spec.onLeave
-    t.isSelected, t.dim, t.empty = spec.isSelected, spec.dim, spec.empty
-    t.rowHeight = spec.rowHeight or 24
+    t.isSelected, t.dim, t.empty, t.group = spec.isSelected, spec.dim, spec.empty, spec.group
+    t.rowHeight = spec.rowHeight or (S.db.profile.compact and ROW_COMPACT or ROW_H)
+    if not spec.rowHeight then sized[t] = true end
     t.noHeader = spec.noHeader
     t.entries, t.rows, t.headers = {}, {}, {}
     if not t.noHeader then
@@ -1030,6 +1183,8 @@ local function BuildDialog(parent)
         self.spec = nil
     end
     veil:Hide()
+    -- Escape answers no.
+    K.BackLayer(veil, K.CloseDialog)
 end
 
 function K.Dialog(spec)
@@ -1082,6 +1237,18 @@ function K.Dialog(spec)
 end
 
 function K.DialogShown() return dialog ~= nil and dialog.veil:IsShown() end
+
+-- Answers yes, as a click on the dialog's button does. For a key: it has to run inside a key press or a click.
+-- With a kind, only a dialog of that kind (spec.kind) is answered; one that says byHand takes a click, never a key.
+-- Returns whether a dialog was up, answered or not.
+function K.ConfirmDialog(kind)
+    if not K.DialogShown() then return false end
+    local spec = dialog.spec
+    if spec and not spec.byHand and (kind == nil or spec.kind == kind) and dialog.ok:IsEnabled() then
+        dialog.ok:GetScript("OnClick")(dialog.ok)
+    end
+    return true
+end
 
 -- Closing without an answer is answering no.
 function K.CloseDialog()

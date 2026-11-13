@@ -1,5 +1,6 @@
 -- Quest Reward Value: when a quest offers a choice of rewards, the one a vendor pays the most for gets a gold coin and
--- its price, so the best one to sell is easy to spot. Nothing is chosen for you.
+-- its price, so the best one to sell is easy to spot. A reward that sells for more than that at auction, by Super
+-- Auction House's saved prices, gets a coin and that price too. Nothing is chosen for you.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -9,12 +10,13 @@ local Q = HST:NewFeature("QuestRewards", {
     name = "Quest Reward Value", category = "quests", order = 4,
     summary = "Marks the quest reward that sells for the most.",
     description = "When a quest lets you choose a reward, the one that sells to a vendor for the most gets a gold coin "
-        .. "and its price.",
+        .. "and its price. With Super Auction House on, so does one that sells for more at auction.",
 })
 ns.QuestRewards = Q
 
 local ItemInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
 local COIN = "Interface\\MoneyFrame\\UI-GoldIcon"
+local AH_CUT = 0.95
 
 -- Settings preview: three rewards to choose from, the most valuable marked with a coin and its price.
 local CHOICES = { { "INV_Chest_Leather_09", "Tunic" }, { "INV_Sword_04", "Blade" }, { "INV_Jewelry_Ring_03", "Ring" } }
@@ -72,47 +74,54 @@ local function HideMarks(rewards)
     end
 end
 
--- The choice that sells for the most (its index and price), or nil. Waiting is true while an item's details haven't
--- arrived yet.
+-- The choices that sell for the most, as Best and BestInLog find them: at a vendor (the choice's index and price) and
+-- at auction. waiting is true while an item's details haven't arrived yet.
+local vendorAt, vendorValue, auctionAt, auctionValue, waiting
+
+local function Reset() vendorAt, vendorValue, auctionAt, auctionValue, waiting = nil, 0, nil, 0, false end
+
+-- Counts one choice. Its auction price is Super Auction House's lowest saved one after the 5% cut: there's none while
+-- that tweak is off, and none for a reward that binds when picked up.
+local function Consider(index, link, count)
+    local name, _, _, _, _, _, _, _, _, _, vendor, _, _, bind = ItemInfo(link)
+    if not name then waiting = true; return end
+    count = math.max(1, count or 1)
+    vendor = (vendor or 0) * count
+    if vendor > vendorValue then vendorAt, vendorValue = index, vendor end
+    if bind ~= 1 and bind ~= 4 then
+        local price = ns.AuctionValue and ns.AuctionValue(link)
+        local auction = price and math.floor(price * AH_CUT) * count
+        if auction and auction > auctionValue then auctionAt, auctionValue = index, auction end
+    end
+end
+
 local function Best()
-    local best, bestValue, waiting = nil, 0, false
+    Reset()
     for i = 1, GetNumQuestChoices() or 0 do
         local _, _, count = GetQuestItemInfo("choice", i)
         local link = GetQuestItemLink("choice", i)
-        if link then
-            local price = select(11, ItemInfo(link))
-            if price == nil then
-                waiting = true
-            elseif price * math.max(1, count or 1) > bestValue then
-                best, bestValue = i, price * math.max(1, count or 1)
-            end
-        end
+        if link then Consider(i, link, count) end
     end
-    return best, bestValue, waiting
 end
 
 -- The same for the quest selected in the quest log, which reads its choices with calls of its own. Currencies are left
--- out: the game numbers the log's item choices apart from them, and so does the best one's index here. Also returns
--- how many item choices there are.
+-- out: the game numbers the log's item choices apart from them, and so do the indexes here. Returns how many item
+-- choices there are.
 local function BestInLog()
+    Reset()
     local questID = C_QuestLog.GetSelectedQuest()
-    local best, bestValue, waiting, items = nil, 0, false, 0
+    local items = 0
     for i = 1, questID and GetNumQuestLogChoices(questID, true) or 0 do
         if not GetQuestLogChoiceInfoLootType or GetQuestLogChoiceInfoLootType(i) == 0 then
             items = items + 1
             local link = GetQuestLogItemLink("choice", items)
             if link then
                 local _, _, count = GetQuestLogChoiceInfo(i)
-                local price = select(11, ItemInfo(link))
-                if price == nil then
-                    waiting = true
-                elseif price * math.max(1, count or 1) > bestValue then
-                    best, bestValue = items, price * math.max(1, count or 1)
-                end
+                Consider(items, link, count)
             end
         end
     end
-    return best, bestValue, waiting, items
+    return items
 end
 
 function Q:Update()
@@ -122,25 +131,31 @@ function Q:Update()
     if not rewards then return end
     HideMarks(rewards)
     if not (self:IsEnabled() and rewards:IsShown()) then return end
-    local best, value, waiting
     if frame.questLog then
         if not (C_QuestLog and C_QuestLog.GetSelectedQuest and GetNumQuestLogChoices and GetQuestLogChoiceInfo
             and GetQuestLogItemLink) then return end
-        local choices
-        best, value, waiting, choices = BestInLog()
-        if choices < 2 then return end
+        if BestInLog() < 2 then return end
     else
         if (GetNumQuestChoices() or 0) < 2 then return end
-        best, value, waiting = Best()
+        Best()
     end
     -- Item details still loading: drawn again when they arrive.
     if waiting then self.events:RegisterEvent("GET_ITEM_INFO_RECEIVED") end
-    if not best then return end
+    -- An auction price is marked when it beats every vendor price.
+    if auctionValue <= vendorValue then auctionAt = nil end
+    if not (vendorAt or auctionAt) then return end
     for _, button in ipairs(rewards.RewardButtons or {}) do
-        if button:IsShown() and button.type == "choice" and button.objectType == "item" and button:GetID() == best then
-            local mark = Mark(button)
-            mark.price:SetText(Money(value, 10))
-            mark:Show()
+        if button:IsShown() and button.type == "choice" and button.objectType == "item" then
+            local id = button:GetID()
+            if id == auctionAt then
+                local mark = Mark(button)
+                mark.price:SetText("Auction " .. Money(auctionValue, 10))
+                mark:Show()
+            elseif id == vendorAt then
+                local mark = Mark(button)
+                mark.price:SetText(Money(vendorValue, 10))
+                mark:Show()
+            end
         end
     end
 end

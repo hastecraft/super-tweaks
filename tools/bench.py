@@ -1591,6 +1591,19 @@ Section('Super Auction House: item tooltips', function()
     S.db.profile.tipMean, S.db.profile.tipAge = true, true
     S:Apply()
     Measure('Item tooltip: every line on, redraw', 300, function() fill(GameTooltip, data) end)
+    -- The lines added with the change from usual, the best price and your own auctions (older bases lack them).
+    if S.db.profile.tipBest ~= nil then
+        local p = S.db.profile
+        p.tipTrend, p.tipDetail, p.tipOnSale, p.tipBest, p.tipPosted = true, true, true, true, true
+        S:Apply()
+        S.Tooltip.Forget()
+        fill(GameTooltip, data)
+        Measure('Item tooltip: trend, best, on sale and posted lines on, redraw', 300, function() fill(GameTooltip, data) end)
+        Measure('Item tooltip: trend, best, on sale and posted lines on, first draw', 100, function()
+            S.Tooltip.Forget()
+            fill(GameTooltip, data)
+        end)
+    end
 end)
 
 -- History reads auction mail as the inbox changes: a mailbox of sale letters over a long history.

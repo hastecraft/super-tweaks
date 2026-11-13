@@ -1,5 +1,7 @@
 -- Mail Expiry & Alt List: remembers when mail holding items or gold expires on each of your characters and warns you
--- at login, and adds a list of your characters (and people you mailed recently) beside the mail's To: field.
+-- at login, and adds a list of your characters (and people you mailed recently) beside the mail's To: field. With
+-- Super Auction House on, the list also offers its Selling groups: picking one and who gets it fills the letter with
+-- the group's items from your bags, and you press Send.
 -- A character's mailbox is only known once you've opened it on that character.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -15,7 +17,7 @@ M.RECENT = 8 -- recipients remembered per realm and faction
 M.DAY = 86400
 
 M.defaults = {
-    profile = { warnLogin = true, days = 3, altButton = true, recent = true },
+    profile = { warnLogin = true, days = 3, altButton = true, recent = true, groups = true },
     -- Every character's details and mailbox, by character key ("Name - Realm"); recent recipients by realm and faction.
     global = { characters = {}, recent = {} },
 }
@@ -83,6 +85,14 @@ function M:OnInitialize()
     ns.OnProfile(self, "UpdateButton") -- the character list button is a profile setting
 end
 
+-- Super Auction House's Selling tab, while that tweak is on and tells others its groups: GroupNames() lists their
+-- names, and InGroup(name, itemID) says whether an item is in one.
+local function Selling()
+    local auctions = ns.SuperAuctionHouse
+    local selling = auctions and auctions:IsEnabled() and not auctions.info.unavailable and auctions.Selling
+    return selling and selling.GroupNames and selling.InGroup and selling or nil
+end
+
 ns.LazyOptions(M, function(self)
     local function profile() return self.db.profile end
     local function others()
@@ -108,7 +118,9 @@ ns.LazyOptions(M, function(self)
                     { desc = "Click it to fill in one of your characters on this realm and faction." }, function() self:UpdateButton() end),
                 recent = ns.Option(profile, "toggle", "recent", "Include people you mailed recently", 2,
                     { desc = "Also lists the last " .. self.RECENT .. " other players you sent mail to." }),
-                forget = { type = "select", name = "Forget a character", order = 3,
+                groups = ns.Option(profile, "toggle", "groups", "Include your Selling groups", 3,
+                    { desc = "Needs Super Auction House on.", disabled = function() return not Selling() end }),
+                forget = { type = "select", name = "Forget a character", order = 4,
                     desc = "Removes a deleted or renamed character from the list and the warnings. Logging in on it adds it again.",
                     values = others, disabled = function() return next(others()) == nil end,
                     confirm = function(_, key) return "Forget " .. key .. "?" end,
@@ -288,6 +300,104 @@ function M:BuildMenu(root)
         root:CreateDivider()
         root:CreateTitle("Recently mailed")
         for _, name in ipairs(recent) do root:CreateButton(name, function() self:Fill(name) end) end
+    end
+    if self.db.profile.groups then self:AddGroups(root, alts, recent) end
+end
+
+---------------------------------------------------------------------------
+-- Selling groups in the list: a group's items in your bags go in the letter, for the character picked under it.
+-- Only the letter is filled: sending it is your click on Send.
+---------------------------------------------------------------------------
+-- A stack the game can mail from your bags: not soulbound, and not locked (in a trade, or already in the letter).
+local function Mailable(info) return info and info.itemID and not info.isBound and not info.isLocked end
+
+-- How many stacks of each Selling group your bags hold, by group name.
+local function GroupStacks(selling, names)
+    local stacks = {}
+    for bag = 0, ns.VendorSale.LastBag() do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if Mailable(info) then
+                for _, name in ipairs(names) do
+                    if selling.InGroup(name, info.itemID) then stacks[name] = (stacks[name] or 0) + 1 end
+                end
+            end
+        end
+    end
+    return stacks
+end
+
+-- Adds the groups with something to mail, each opening onto who can get it: the name in the To: field, your
+-- characters and, when listed, the people you mailed recently. With nobody to list, picking the group fills the
+-- letter and leaves the To: field to you.
+function M:AddGroups(root, alts, recent)
+    local selling = Selling()
+    local names = selling and selling.GroupNames()
+    if type(names) ~= "table" or #names == 0 then return end
+    local stacks, titled = GroupStacks(selling, names), false
+    local typed = ns.Trim(SendMailNameEditBox:GetText() or "")
+    local typedKey = typed ~= "" and ns.NameKey(typed)
+    for _, alt in ipairs(alts) do if ns.NameKey(alt.name) == typedKey then typedKey = nil end end
+    for _, name in ipairs(recent) do if ns.NameKey(name) == typedKey then typedKey = nil end end
+    for _, group in ipairs(names) do
+        if stacks[group] then
+            if not titled then
+                titled = true
+                root:CreateDivider()
+                root:CreateTitle("Send a Selling group")
+            end
+            local label = group .. "  |cff808080" .. stacks[group] .. "|r"
+            if not typedKey and #alts == 0 and #recent == 0 then
+                root:CreateButton(label, function() self:AttachGroup(group) end)
+            else
+                local entry = root:CreateButton(label)
+                if typedKey then entry:CreateButton(typed, function() self:AttachGroup(group, typed) end) end
+                for _, alt in ipairs(alts) do
+                    entry:CreateButton(Colored(alt), function() self:AttachGroup(group, alt.name) end)
+                end
+                for _, name in ipairs(recent) do entry:CreateButton(name, function() self:AttachGroup(group, name) end) end
+            end
+        end
+    end
+end
+
+-- Puts a Selling group's stacks from your bags in the letter's free places, names the letter after the group when it
+-- has no subject, and addresses it to `name` when one was picked. A stack the game won't mail goes back to its slot.
+function M:AttachGroup(group, name)
+    local selling = Selling()
+    if not (selling and self.atMailbox and ClickSendMailItemButton and HasSendMailItem) then return end
+    ClearCursor()
+    local subject = SendMailSubjectEditBox
+    local titled = subject and subject:GetText() == ""
+    if titled then subject:SetText(group) end
+    local places, place, attached, left = ATTACHMENTS_MAX_SEND or 12, 1, 0, 0
+    for bag = 0, ns.VendorSale.LastBag() do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if Mailable(info) and selling.InGroup(group, info.itemID) then
+                while place <= places and HasSendMailItem(place) do place = place + 1 end
+                if place > places then
+                    left = left + 1
+                else
+                    C_Container.PickupContainerItem(bag, slot)
+                    local kind, held = GetCursorInfo()
+                    if kind == "item" and held == info.itemID then ClickSendMailItemButton(place) end
+                    if GetCursorInfo() then
+                        ClearCursor()
+                    elseif kind == "item" then
+                        attached, place = attached + 1, place + 1
+                    end
+                end
+            end
+        end
+    end
+    if attached == 0 and titled then subject:SetText("") end
+    if name then self:Fill(name) end
+    if attached == 0 then
+        HST:Print(left > 0 and "The letter is full. Send it, then pick the group again."
+            or string.format("Nothing in %s could be attached.", group))
+    elseif left > 0 then
+        HST:Print(string.format("%d more from %s didn't fit. Send this letter, then pick the group again.", left, group))
     end
 end
 

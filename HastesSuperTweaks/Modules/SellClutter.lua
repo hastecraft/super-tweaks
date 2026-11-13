@@ -697,9 +697,12 @@ function S:Limit() return self.db.profile.buyback and 12 or nil end
 
 -- The clutter-specific policy and unit price. VendorSale checks locks, exclusions and quest-item flags first. With
 -- quests hidden (see Objectives) nothing sells, which a vendor visit's scan says once, if there's clutter to keep.
--- Gear kept for its look answers nil, then its category and why (see S:KeepsLook), for its tooltip.
+-- Gear kept for its look answers nil, then its category and why (see S:KeepsLook), for its tooltip. So does a stack
+-- kept because it's worth more at auction ("auction": see ns.VendorSale:WorthMoreAtAuction); your Always sell list
+-- still sells.
 local HIDDEN = "Clutter is kept while quests are under collapsed headers in your quest log, since what they need can't "
     .. "be seen. Expand the headers to sell it."
+S.KEPT = "Kept %d %s worth %s at auction: %s"
 function S:SalePrice(info, bag, slot, ctx)
     if not info.quality or info.quality > 4 then return nil end
     local itemID, scan = info.itemID, ctx ~= nil
@@ -716,7 +719,14 @@ function S:SalePrice(info, bag, slot, ctx)
     end
     -- Verdict only names items with a price: an item kept for its kind has one, and an Always sell item was just asked.
     local item = self:Item(itemID)
-    return item and item.price or select(11, ItemInfo(itemID)), category
+    local price = item and item.price or select(11, ItemInfo(itemID))
+    -- By its ID, which costs one table read; green gear has a price of its own for each suffix, by its link.
+    -- A bound item can't be put up for auction.
+    if category ~= "list" and price and not info.isBound and ns.VendorSale:WorthMoreAtAuction(self,
+        info.quality >= 2 and info.hyperlink or itemID, info.stackCount or 1, price) then
+        return nil, category, "auction"
+    end
+    return price, category
 end
 
 -- Says what sold, by category: "Sold 6 items you won't use for 1s 12c: cooking ingredients 3, gear your class can't
@@ -854,9 +864,10 @@ local function TooltipSlot(tip, itemID)
 end
 
 S.TIP_COLOR, S.KEEP_COLOR = { 0.95, 0.6, 0.25 }, { 0.45, 0.8, 0.45 }
--- What gear kept for its look says, by why it's kept (see S:KeepsLook).
+-- What clutter that's kept all the same says, by why: gear for its look (see S:KeepsLook), a stack for the auction
+-- house (see S:SalePrice).
 S.LOOK_TIPS = { new = "Kept: a look you haven't collected", waiting = "Kept: a look you haven't collected",
-    alt = "Kept: a look another of your characters can learn" }
+    alt = "Kept: a look another of your characters can learn", auction = "Kept: worth more at auction" }
 -- Adds the tooltip line for an item, if it gets one. link is the tooltip's item link, when it has one.
 function S:TooltipLine(tip, itemID, link)
     if IsSecret(itemID) or type(itemID) ~= "number" or not (self:IsEnabled() and self.db.profile.tooltip) then return end
@@ -874,6 +885,9 @@ function S:TooltipLine(tip, itemID, link)
             if not ctx.hidden then
                 category = self:Verdict(itemID, nil, ctx)
                 if GEAR[category] then look = self:KeepsLook(itemID, not IsSecret(link) and link or nil) end
+                -- One of it, by its item ID: there's no stack to count, and no copy to tell from the others.
+                local item = not look and category and category ~= "list" and self:Item(itemID)
+                if item and item.price and ns.VendorSale:WorthMoreAtAuction(self, itemID, 1, item.price) then look = "auction" end
             end
         end
         if not category then return end
@@ -908,6 +922,7 @@ S.DEFAULTS = {
     cooking = true, parts = true, reagents = true, drinks = true, clams = false, gear = true, lighter = true, boundGreens = true,
     anyGreens = false, oldGear = true, food = true, potions = true, cloth = false, leather = true, herbs = true,
     metal = true, devices = true, recipes = false, rxp = true, rxpDone = true, looks = "player",
+    auction = true, auctionGain = 10,
     keep = {}, sell = {},
 }
 S.KEEP_CHOICES = { all = "All your professions", crafting = "Crafting and gathering only", none = "None" }
@@ -921,6 +936,7 @@ ns.Configure(S, S.DEFAULTS, function(m)
         return ns.Option(profile, "toggle", key, name, order, ns.With({ desc = desc }, extra))
     end
     local function gearOff() return not profile().gear end
+    local auction, auctionGain = ns.VendorSale.AuctionOptions(profile, 4)
     local function items(list, name, order, desc)
         return { type = "items", name = name, order = order, desc = desc,
             get = function() return profile()[list] end,
@@ -1006,8 +1022,10 @@ ns.Configure(S, S.DEFAULTS, function(m)
                 buyback = toggle("buyback", "At most 12 a visit", 3,
                     "Keeps each visit within the Buyback tab's 12 slots, so every sale can be undone. The rest sells "
                         .. "next time. Sell Junk's greys don't count."),
-                tooltip = toggle("tooltip", "Show in item tooltips", 4, "Item tooltips say when an item will be sold at your next vendor visit."),
-                list = { type = "execute", name = "List clutter in your bags", order = 5,
+                auction = auction,
+                auctionGain = auctionGain,
+                tooltip = toggle("tooltip", "Show in item tooltips", 6, "Item tooltips say when an item will be sold at your next vendor visit."),
+                list = { type = "execute", name = "List clutter in your bags", order = 7,
                     desc = "Prints what your next vendor visit would sell. /hst clutter list does the same.",
                     func = function() m:PrintClutter() end },
             }),

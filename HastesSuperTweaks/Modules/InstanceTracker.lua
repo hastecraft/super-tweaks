@@ -117,7 +117,7 @@ end
 
 function I.Plural(n, one, many) return n .. " " .. (n == 1 and one or many) end
 
--- "Deadmines: 42m, 12.3k XP (17.6k an hour), 2g 14s, 48 kills, 1 death."
+-- "Deadmines: 42m, 12.3k XP (17.6k an hour), 2g 14s, loot worth 5g 20s at auction, 48 kills, 1 death."
 function I.Summary(run, seconds)
     seconds = seconds or run.d
     local parts = { I.Duration(seconds) }
@@ -126,6 +126,7 @@ function I.Summary(run, seconds)
         parts[#parts + 1] = ns.ShortNumber(run.xp) .. " XP" .. (rate and (" (" .. ns.ShortNumber(rate) .. " an hour)") or "")
     end
     if run.g > 0 then parts[#parts + 1] = ns.Money(run.g, 12) end
+    if run.av then parts[#parts + 1] = "loot worth " .. ns.Money(run.av, 12) .. " at auction" end
     if run.k > 0 then parts[#parts + 1] = I.Plural(run.k, "kill", "kills") end
     if run.dt > 0 then parts[#parts + 1] = I.Plural(run.dt, "death", "deaths") end
     return run.n .. ": " .. table.concat(parts, ", ") .. "."
@@ -137,8 +138,9 @@ end
 -- or "raid", df difficulty (when the game names one), cp the copy of the instance once a mob told it, same when an
 -- earlier run was in that copy (so it isn't another entry), re times re-entered, lv level entered, lv2 level left (when
 -- it changed), xp, k kills, dt deaths, g gold gained, sp gold spent (copper), rep { faction = change },
--- items { { id, count } }, grp { { n = name, c = class } }, maps the maps it was seen on, gh when you left it as a
--- ghost (until you're back).
+-- items { { id, count } }, av what its loot sold for at auction when it was looted (copper; only with Super Auction
+-- House's prices), grp { { n = name, c = class } }, maps the maps it was seen on, gh when you left it as a ghost (until
+-- you're back).
 -- A character: runs, oldest first, and cleared, when the deleted runs of the last day were entered (in no order): the
 -- game still counts those against its limits.
 ---------------------------------------------------------------------------
@@ -598,16 +600,34 @@ function I:Split(copy)
     self:Refresh()
 end
 
+-- How many of its item a loot message names.
+local function LootCount(message)
+    return tonumber(message:match("|h|rx(%d+)")) or tonumber(message:match("|hx(%d+)")) or 1
+end
+
 -- An item you looted, by the link in the game's message, kept from the chosen quality up (and while its quality isn't
--- known yet).
+-- known yet). Whatever its quality, what it sells for at auction right now is added to the run's auction value, when
+-- Super Auction House has a price for it (prices change, so it's counted as it's looted).
 function I:Loot(message)
     local run = self.run
     local id = tonumber(message:match("item:(%d+)"))
     if not id then return end
     local quality = C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(id)
     if quality == nil and GetItemInfo then quality = select(3, GetItemInfo(id)) end
-    if quality ~= nil and (IsSecret(quality) or quality < self.db.profile.lootQuality) then return end
-    local count = tonumber(message:match("|h|rx(%d+)")) or tonumber(message:match("|hx(%d+)")) or 1
+    local hidden = quality ~= nil and IsSecret(quality)
+    local count
+    local value = ns.AuctionValue and ns.AuctionValue(id)
+    if value then
+        count = LootCount(message)
+        -- Gear with a suffix or a level of its own has its own price, by its link.
+        if hidden or quality == nil or quality >= 2 then
+            local link = message:match("|H(item:[%-%d:]+)|h")
+            value = link and ns.AuctionValue(link) or value
+        end
+        run.av = (run.av or 0) + value * count
+    end
+    if quality ~= nil and (hidden or quality < self.db.profile.lootQuality) then return end
+    count = count or LootCount(message)
     local items = run.items
     if items then
         for i = 1, #items do
