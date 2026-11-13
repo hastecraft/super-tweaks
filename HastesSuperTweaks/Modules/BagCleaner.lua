@@ -1,6 +1,7 @@
 -- Bag Cleaner: a window you place in Edit Mode with your free bag slots and, once they run low, your cheapest stacks by
--- vendor price. A click deletes one. The game only deletes an item inside a click of the player's own, and not in
--- combat, so this never deletes on its own and every click checks the slot again first.
+-- vendor price, or by auction price where Super Auction House has saved a higher one (ns.AuctionValue). A click
+-- deletes one. The game only deletes an item inside a click of the player's own, and not in combat, so this never
+-- deletes on its own and every click checks the slot again first.
 -- Slots are counted on every bag change, which is cheap. Items are only looked through while your bags are low.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -13,7 +14,8 @@ local B = HST:NewFeature("BagCleaner", {
     examples = { { "count", "Items to show" }, "lowAt", { "quality", "Highest quality" }, "shift" },
     description = "Shows your free bag slots and, once they run low, your cheapest items by vendor price. Click one to "
         .. "delete it, or right-click it to never see it here again. Rare items, quest items, equipment sets, your class's "
-        .. "reagents and anything your quests or professions need stay, along with your Never sell list. Move it in Edit Mode.",
+        .. "reagents and anything your quests or professions need stay, along with your Never sell list. With Super "
+        .. "Auction House on, an item's auction price counts when it's higher. Move it in Edit Mode.",
 })
 ns.BagCleaner = B
 
@@ -82,6 +84,21 @@ local function Dress(f, clickable)
     end
 end
 
+-- A stack's auction price goes under its vendor price, marked "AH". Its text is made the first time a stack has one,
+-- in the window's font (see Layout), and from then on the row keeps room for that line (f.auctionLine: see B:Refresh).
+local AUCTION_MARK = "|cffa8a8a8AH|r "
+local function StyleAuction(f, slot)
+    local price = slot.auction
+    price:SetFont(f.font, f.fontSize, f.fontFlags)
+    price:SetShadowOffset(f.fontShadow, -f.fontShadow)
+    price:ClearAllPoints()
+    price:SetPoint("TOP", slot, "BOTTOM", 0, -5 - f.fontSize)
+end
+local function AuctionOn()
+    local auctions = ns.SuperAuctionHouse
+    return auctions ~= nil and auctions:IsEnabled() == true and auctions.info.unavailable == nil
+end
+
 -- Places the row, moved along by shift while it holds fewer items than the window has room for.
 local function PlaceRow(f, shift)
     if f.rowShift == shift then return end
@@ -102,9 +119,11 @@ local function Layout(f, p)
     ns.SetFont(f.label, font, p.fontSize + 2, flags)
     f.label:SetShadowOffset(shadow, -shadow)
 
+    f.font, f.fontSize, f.fontFlags, f.fontShadow = font, p.fontSize, flags, shadow
+
     local items = p.count > 0
     local rowWidth = items and p.count * pitch - (pitch - p.size) or 0
-    local rowHeight = items and p.size + (p.prices and p.fontSize + 5 or 0) or 0
+    local rowHeight = items and p.size + (p.prices and p.fontSize + 5 + (f.auctionLine and p.fontSize + 2 or 0) or 0) or 0
     local place = TEXT_PLACES[p.textAt] or TEXT_PLACES.topLeft
     -- With no row there's nothing to sit beside.
     if not items and place.beside then place = TEXT_PLACES.topLeft end
@@ -143,6 +162,10 @@ local function Layout(f, p)
         slot.price:SetFont(font, p.fontSize, flags)
         slot.price:SetShadowOffset(shadow, -shadow)
         slot.shownWorth = nil -- its coins are sized to the text
+        if slot.auction then
+            StyleAuction(f, slot)
+            slot.shownAuction = nil
+        end
     end
     f:SetSize(f.width, f.height)
     f.shownFree = nil
@@ -162,7 +185,7 @@ local function ShowBags(f, p, free, total, special)
     f.label:SetText(special > 0 and text .. SPECIAL_TEXT:format(special) or text)
 end
 
-local function ShowSlot(slot, p, icon, count, worth)
+local function ShowSlot(slot, p, icon, count, worth, auction)
     if slot.shownIcon ~= icon then
         slot.shownIcon = icon
         slot.icon:SetTexture(icon)
@@ -175,9 +198,19 @@ local function ShowSlot(slot, p, icon, count, worth)
         slot.shownWorth = worth
         slot.price:SetMoney(worth)
     end
+    if slot.shownAuction ~= auction then
+        slot.shownAuction = auction
+        if auction and not slot.auction then
+            slot.auction = ns.Widgets.MoneyText(slot, "GameFontHighlightSmall")
+            StyleAuction(slot:GetParent(), slot)
+            slot.shownPrices = nil
+        end
+        if slot.auction then slot.auction:SetMoney(auction, auction and AUCTION_MARK or nil) end
+    end
     if slot.shownPrices ~= p.prices then
         slot.shownPrices = p.prices
         slot.price:SetShown(p.prices)
+        if slot.auction then slot.auction:SetShown(p.prices) end
     end
     if not slot.visible then
         slot.visible = true
@@ -236,8 +269,9 @@ local picks = {}
 for i = 1, MAX_ITEMS do picks[i] = {} end
 local picked = 0
 
--- What a stack in your bags sells for, or nil and why it can't be offered for deleting. ctx is Sell Clutter's facts
--- about your quests, professions and sets.
+-- What a stack in your bags sells for at a vendor, or nil and why it can't be offered for deleting; then, when Super
+-- Auction House has a price for it, what it sells for at auction. ctx is Sell Clutter's facts about your quests,
+-- professions and sets.
 function B:Worth(info, bag, slot, ctx)
     if not (info and info.itemID) then return nil end
     if info.isLocked then return nil, "Locked" end
@@ -269,18 +303,23 @@ function B:Worth(info, bag, slot, ctx)
     if look then
         return nil, look == "alt" and "A look another of your characters can learn" or "A look you haven't collected"
     end
-    return price * (info.stackCount or 1)
+    local count = info.stackCount or 1
+    -- By its ID, which costs one table read; gear with a suffix or a level of its own has its own price, by its link.
+    -- A bound item can't be put up for auction.
+    local value = not info.isBound and ns.AuctionValue and ns.AuctionValue(info.quality >= 2 and info.hyperlink or itemID) or nil
+    return price * count, nil, value and value * count
 end
 
--- Keeps a stack if it's among the n cheapest. Ties stay in bag order.
-local function Offer(n, worth, bag, slot, info)
-    if picked == n and worth >= picks[n].worth then return end
+-- Keeps a stack if it's among the n cheapest, by the higher of its vendor and auction price (`rank`). Ties stay in
+-- bag order.
+local function Offer(n, rank, worth, auction, bag, slot, info)
+    if picked == n and rank >= picks[n].rank then return end
     picked = math.min(picked + 1, n)
     local pick = picks[picked]
-    pick.worth, pick.bag, pick.slot, pick.itemID = worth, bag, slot, info.itemID
+    pick.rank, pick.worth, pick.auction, pick.bag, pick.slot, pick.itemID = rank, worth, auction, bag, slot, info.itemID
     pick.count, pick.icon, pick.link = info.stackCount or 1, info.iconFileID, info.hyperlink
     local i = picked
-    while i > 1 and picks[i - 1].worth > worth do
+    while i > 1 and picks[i - 1].rank > rank do
         picks[i] = picks[i - 1]
         i = i - 1
     end
@@ -328,8 +367,8 @@ function B:Scan()
         if IsRegular(bag) then
             for slot = 1, C_Container.GetContainerNumSlots(bag) do
                 local info = C_Container.GetContainerItemInfo(bag, slot)
-                local worth = self:Worth(info, bag, slot, ctx)
-                if worth then Offer(n, worth, bag, slot, info) end
+                local worth, _, auction = self:Worth(info, bag, slot, ctx)
+                if worth then Offer(n, auction and auction > worth and auction or worth, worth, auction, bag, slot, info) end
             end
         end
     end
@@ -399,7 +438,7 @@ function B:Draw()
         slot.pick = pick
         slot.shownLink = pick and pick.link
         if pick then
-            ShowSlot(slot, p, pick.icon, pick.count, pick.worth)
+            ShowSlot(slot, p, pick.icon, pick.count, pick.worth, pick.auction)
         elseif sample then
             ShowSlot(slot, p, sample[1], sample[2], sample[3])
         else
@@ -427,10 +466,24 @@ B.LOAD_TRIES = 10
 function B:Refresh()
     self.queued = false
     if not (self:IsEnabled() and self.frame) then return end
-    local p = self.db.profile
+    local p, f = self.db.profile, self.frame
     self.free, self.total, self.special = CountSlots()
     local listing = (p.alwaysItems or self.free <= p.lowAt) and p.count > 0
     if listing then self:Scan() else picked = 0 end
+    -- The row makes room for auction prices once a stack has one, and takes it back when Super Auction House is
+    -- turned off.
+    local line = f.auctionLine
+    if line then
+        line = AuctionOn()
+    else
+        for i = 1, picked do
+            if picks[i].auction then line = true end
+        end
+    end
+    if line ~= f.auctionLine then
+        f.auctionLine = line
+        Layout(f, p)
+    end
     self:Watch(listing)
     self:Draw()
     -- An item the game hadn't loaded yet. It may never load: this stops asking after a few tries, until your bags change.
@@ -469,7 +522,7 @@ function B:Delete(slot, pick)
     end
     if GetCursorInfo() then return end
     local bag, itemSlot, itemID, worth, link = pick.bag, pick.slot, pick.itemID, pick.worth, pick.link
-    local count = pick.count
+    local count, auction = pick.count, pick.auction
     local info = C_Container.GetContainerItemInfo(bag, itemSlot)
     -- As in B:Scan, nothing goes while what your quests need can't all be read.
     local ctx = ns.SellClutter:Context(true)
@@ -490,7 +543,9 @@ function B:Delete(slot, pick)
     slot.pick, slot.shownLink = nil, nil
     HideSlot(slot)
     if self.db.profile.say then
-        HST:Print(string.format("Deleted %s%s, worth %s.", link or itemID, count > 1 and ("x" .. count) or "", Money(worth)))
+        local atAuction = auction ~= nil and auction > worth
+        HST:Print(string.format("Deleted %s%s, worth %s%s.", link or itemID, count > 1 and ("x" .. count) or "",
+            Money(atAuction and auction or worth), atAuction and " at auction" or ""))
     end
     self:Queue()
 end

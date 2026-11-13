@@ -37,21 +37,23 @@ S.QUANTITY_CLASSES = {
 
 local defaults = {
     -- Window
-    openOn = "shopping", width = 1040, height = 660, scale = 1, lastTab = "shopping", locked = false,
+    openOn = "shopping", width = 1040, height = 660, scale = 1, lastTab = "shopping", locked = false, compact = false,
+    keyNextTab = "CTRL-TAB", keyPrevTab = "CTRL-SHIFT-TAB", keyFind = "CTRL-F",
     -- Tooltips
     tipAuction = true, tipVendor = false, tipMean = false, tipMeanDays = 21, tipAge = false, tipDisenchant = false,
-    tipStack = "shift", tipMail = true, tipMerchant = true, tipListings = true, tipPets = true,
+    tipStack = "shift", tipMail = true, tipMerchant = true, tipListings = true, tipPets = true, tipMaterials = true,
     -- Prices and scans
     record = true, scanMode = "replicate", autoScan = false, autoScanMinutes = 15, scanChat = true, keepHistory = true,
+    historyDays = 21,
     -- Selling
     undercutMode = "percent", undercutPercent = 0, undercutStatic = 0, duration = 3, saveDuration = false,
-    matchMode = "nameLevel", gearMultiplier = 0, confirmLow = true, showBid = false, autoNext = false, reselect = true,
+    matchMode = "nameLevel", gearMultiplier = 0, confirmLow = true, showBid = false, autoNext = true, reselect = true,
     postChat = true, bagSelect = "alt", missingFavourites = true, iconSize = 36, showBag = true, splitPanels = false,
     collapsed = {}, historyLength = 10, keyPost = "SPACE", keySkip = "SHIFT-SPACE", keyPrev = "BACKSPACE",
     cancelClick = true, buyClick = true,
     -- Shopping
     autoListSearch = true, missingTerms = false, confirmQuantity = false, defaultList = "", shoppingView = "lists",
-    buyWarn = true,
+    buyWarn = true, openSingle = true, buyCharts = true, buyChart = "depth", keyBuy = "SPACE",
     -- Auctions
     undercutAhead = 0, undercutGear = true, keyCancel = "SPACE",
     columns = {},
@@ -73,16 +75,68 @@ end
 
 local function Word(rest) return (rest or ""):lower():match("^%s*(%S*)") end
 
+-- How many of an item you have: bags, bank and the account's bank.
+function S.Have(itemID)
+    return C_Item.GetItemCount(itemID, true, false, true, true) or 0
+end
+
 ---------------------------------------------------------------------------
 -- Lifecycle. Whether a visit is open is the window's mode (S.Window.IsLive).
+-- The files after this one add their own parts as they load: S.On(event, fn) runs fn(event, ...) on a game event while
+-- the tweak is on (rare events only: these are heard anywhere in the game), S.WhenOn(fn) and S.WhenOff(fn) run as the
+-- tweak turns on and off, and S.Extend(fn) adds settings (see S:BuildOptions).
 ---------------------------------------------------------------------------
-ns.Listen(S, { "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "MERCHANT_SHOW", "MAIL_SHOW", "MAIL_CLOSED" }, function(self, event)
+local EVENTS = { "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "MERCHANT_SHOW", "MAIL_SHOW", "MAIL_CLOSED" }
+local heard, whenOn, whenOff, extenders = {}, {}, {}, {}
+
+function S.On(event, fn)
+    local list = heard[event]
+    if not list then
+        list = {}
+        heard[event] = list
+        local listed = false
+        for _, name in ipairs(EVENTS) do listed = listed or name == event end
+        if not listed then EVENTS[#EVENTS + 1] = event end
+    end
+    list[#list + 1] = fn
+end
+function S.WhenOn(fn) whenOn[#whenOn + 1] = fn end
+function S.WhenOff(fn) whenOff[#whenOff + 1] = fn end
+function S.Extend(fn) extenders[#extenders + 1] = fn end
+
+-- More views of a tab, picked with pills along its top (K.Views draws them): S.AddView("prices", { key = "market",
+-- name = "Market", order = 2, build = function(frame) end, show = function() end, hide = function() end }).
+local views = {}
+local function ByOrder(a, b) return (a.order or 99) < (b.order or 99) end
+function S.AddView(tab, view)
+    local list = views[tab]
+    if not list then
+        list = {}
+        views[tab] = list
+    end
+    list[#list + 1] = view
+    table.sort(list, ByOrder)
+end
+function S.Views(tab) return views[tab] end
+
+-- For other tweaks: an item's lowest auction price in copper, by item ID or link. Nil when it has none, or while this
+-- tweak is off. One read of a saved table.
+function ns.AuctionValue(item)
+    if not (S.db and S:IsEnabled()) or S.info.unavailable then return nil end
+    if type(item) == "number" then return S.Prices.Get(item) end
+    return (S.Prices.PriceForLink(item))
+end
+
+ns.Listen(S, EVENTS, function(self, event, ...)
     if self.info.unavailable then return end
     if event == "AUCTION_HOUSE_SHOW" then self:AuctionHouseOpened()
     elseif event == "AUCTION_HOUSE_CLOSED" then self:AuctionHouseClosed()
     elseif event == "MERCHANT_SHOW" then self.Prices.ReadMerchant()
     elseif event == "MAIL_SHOW" then self.History.MailOpened()
     elseif event == "MAIL_CLOSED" then self.History.MailClosed() end
+    local list = heard[event]
+    -- One part's error shows, and the others still hear the event.
+    if list then for i = 1, #list do securecallfunction(list[i], event, ...) end end
 end)
 
 function S:OnListen()
@@ -90,6 +144,7 @@ function S:OnListen()
     self.Tooltip.Install()
     self.Compat.Install()
     self.Crafting.Install()
+    for i = 1, #whenOn do securecallfunction(whenOn[i]) end
     -- Turned on at an open auction house or mailbox.
     if AuctionHouseFrame and AuctionHouseFrame:IsShown() then self:AuctionHouseOpened() end
     if MailFrame and MailFrame:IsShown() then self.History.MailOpened() end
@@ -102,6 +157,7 @@ function S:OnUnlisten()
     self.Compat.Remove()
     self.Crafting.Remove()
     self.History.MailClosed()
+    for i = 1, #whenOff do securecallfunction(whenOff[i]) end
     if self.Window.IsLive() then self:AuctionHouseClosed(true) end
     if self.Window.frame then self.Window.frame:Hide() end
 end
@@ -228,7 +284,7 @@ function S:BuildOptions()
         quantities[c.key] = option("range", c.key, c.name, i, { min = 0, max = 1000, step = 1,
             desc = i == 1 and "0: everything you have." or nil })
     end
-    return { name = self.info.name, type = "group", args = {
+    local tree = { name = self.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             window = ns.Section("Window", 1, {
                 openOn = option("select", "openOn", "Open on", 1, { values = OPEN_ON, sorting = OPEN_ON_ORDER }),
@@ -236,8 +292,15 @@ function S:BuildOptions()
                 height = option("range", "height", "Height", 3, { min = 570, max = 1100, step = 10 }),
                 scale = option("range", "scale", "Scale", 4, { min = 0.7, max = 1.3, step = 0.05 }),
                 locked = option("toggle", "locked", "Lock position", 5),
+                compact = option("toggle", "compact", "Compact rows", 5.5),
                 resetPosition = { type = "execute", name = "Reset position", order = 6,
                     func = function() self.Window.ResetPosition() end },
+            }),
+            keys = ns.Section("Keys", 1.5, {
+                keyNextTab = option("input", "keyNextTab", "Next tab", 1,
+                    { desc = "Key names as the game writes them: CTRL-TAB, F5. Empty: no key." }),
+                keyPrevTab = option("input", "keyPrevTab", "Previous tab", 2),
+                keyFind = option("input", "keyFind", "Search box", 3),
             }),
             prices = ns.Section("Prices", 2, {
                 record = option("toggle", "record", "Save prices", 1,
@@ -247,6 +310,7 @@ function S:BuildOptions()
                 autoScanMinutes = option("range", "autoScanMinutes", "Time between scans (minutes)", 4,
                     { min = 15, max = 720, step = 5, disabled = function() return not profile().autoScan end }),
                 scanChat = option("toggle", "scanChat", "Say when a scan starts and ends", 5),
+                historyDays = option("range", "historyDays", "Days of price history", 5.5, { min = 7, max = 90, step = 1 }),
                 resetTimer = { type = "execute", name = "Allow a scan now", order = 6,
                     func = function() self.Prices.ResetScanTimer() end },
                 resetRealm = { type = "execute", name = "Delete this realm's prices", order = 7,
@@ -267,10 +331,11 @@ function S:BuildOptions()
                 tipVendor = option("toggle", "tipVendor", "Vendor price", 2),
                 tipMean = option("toggle", "tipMean", "Average auction price", 3),
                 tipMeanDays = option("range", "tipMeanDays", "Average over (days)", 4,
-                    { min = 1, max = 21, step = 1, disabled = function() return not profile().tipMean end }),
+                    { min = 1, max = 90, step = 1, disabled = function() return not profile().tipMean end }),
                 tipAge = option("toggle", "tipAge", "When the price was last seen", 5),
                 tipDisenchant = option("toggle", "tipDisenchant", "Disenchant value", 6,
                     { desc = "An estimate from the usual materials for the item's level and quality, at saved prices." }),
+                tipMaterials = option("toggle", "tipMaterials", "Materials cost on recipes", 6.5),
                 tipStack = option("select", "tipStack", "Price for the whole stack", 7,
                     { values = STACK, sorting = STACK_ORDER }),
             }),
@@ -336,8 +401,13 @@ function S:BuildOptions()
                     { values = function() return (listNames()) end,
                       sorting = function() local _, order = listNames(); return order end }),
                 missingTerms = option("toggle", "missingTerms", "List searches with no results", 3),
+                openSingle = option("toggle", "openSingle", "Open an item's auctions when it's the only result", 3.5,
+                    { desc = "For a search by an item's whole name, such as a click on a list's item." }),
                 buyWarn = option("toggle", "buyWarn", "Warn when prices rise sharply within your quantity", 4),
                 confirmQuantity = option("toggle", "confirmQuantity", "Type the quantity to confirm buying materials", 5),
+                buyCharts = option("toggle", "buyCharts", "Charts on the buy screen", 5.5),
+                keyBuy = option("input", "keyBuy", "Key for Buy Next", 8,
+                    { desc = "Opens the next item a list still needs, and buys it when pressed again." }),
             }),
         } },
         auctions = { type = "group", name = "Auctions", order = 5, args = {
@@ -349,6 +419,10 @@ function S:BuildOptions()
             }),
         } },
     } }
+    -- The other files' settings: each extender gets the pages (args.selling.args.price.args and so on), the option
+    -- builder used above and the function that returns the profile.
+    for _, extend in ipairs(extenders) do extend(tree.args, option, profile) end
+    return tree
 end
 
 ---------------------------------------------------------------------------

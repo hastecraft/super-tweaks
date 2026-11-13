@@ -1,5 +1,6 @@
 -- Prices on the game's professions window: what a recipe's materials cost and what you'd make, with a button that takes
--- the materials to the Shopping tab while the auction house is open. Hooks into the window once it loads.
+-- the materials to the Shopping tab while the auction house is open, and one that puts what you don't have for a
+-- number of crafts on your shopping list. Hooks into the window once it loads.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local S = ns.SuperAuctionHouse
@@ -100,9 +101,9 @@ local function NamesThen(ids, tries, done)
     end
 end
 
-local function TermsFor(recipeID, ids)
+-- Adds what one craft of a recipe takes to ids, as { id = itemID, quantity = how many }. Returns the recipe's schematic.
+local function Reagents(recipeID, ids)
     local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
-    if schematic.outputItemID then ids[#ids + 1] = { id = schematic.outputItemID, quantity = 0 } end
     local basic = Enum.CraftingReagentType and Enum.CraftingReagentType.Basic
     for _, slot in ipairs(schematic.reagentSlotSchematics) do
         if slot.reagentType == basic and slot.reagents[1] and slot.reagents[1].itemID then
@@ -110,6 +111,46 @@ local function TermsFor(recipeID, ids)
         end
     end
     return schematic
+end
+
+-- The same with the recipe's result ahead of them, for a search.
+local function TermsFor(recipeID, ids)
+    local at = #ids + 1
+    local schematic = Reagents(recipeID, ids)
+    if schematic.outputItemID then table.insert(ids, at, { id = schematic.outputItemID, quantity = 0 }) end
+    return schematic
+end
+
+-- Puts what you don't have for this many crafts on the list things are added to without asking, and says what.
+-- ids: what one craft takes, as { id = itemID, quantity = how many }.
+function C.AddMissing(ids, crafts)
+    NamesThen(ids, NAME_RETRIES, function()
+        local list
+        local added, need, unnamed = {}, {}, false
+        -- A material in two of the recipe's places counts once, with both quantities.
+        for _, entry in ipairs(ids) do need[entry.id] = (need[entry.id] or 0) + entry.quantity end
+        for _, entry in ipairs(ids) do
+            local each = need[entry.id]
+            need[entry.id] = nil
+            local name = each and C_Item.GetItemNameByID(entry.id)
+            local missing = each and each * crafts - S.Have(entry.id) or 0
+            if each and not name then unnamed = true end
+            if name and missing > 0 then
+                list = list or S.Lists.Default()
+                -- Asked again, the list asks for what's missing, not twice that.
+                if S.Lists.AddItem(list, name, missing, true) then added[#added + 1] = missing .. " " .. name end
+            end
+        end
+        if #added > 0 then
+            ns.HST:Print("Added to " .. list.name .. ": " .. table.concat(added, ", ") .. ".")
+        elseif unnamed then
+            ns.HST:Print("Some materials haven't loaded yet. Try again.")
+        elseif list then
+            ns.HST:Print("Your list already has what's missing.")
+        else
+            ns.HST:Print("You already have the materials.")
+        end
+    end)
 end
 
 local function RunSearch(name, ids)
@@ -141,6 +182,10 @@ function C.SearchRecipe(recipeID)
     RunSearch(schematic.name or "Recipe", ids)
 end
 
+-- The same search for a saved recipe, which is read without the professions window. ids: its result and materials,
+-- as { id = itemID, quantity = how many to buy, 0 for any }.
+function C.SearchItems(name, ids) RunSearch(name, ids) end
+
 -- Searches for the materials of every recipe you track.
 function C.SearchTracked()
     local ids = {}
@@ -159,7 +204,7 @@ local function Attach()
     if not form or C.panel then return end
     local panel = CreateFrame("Frame", nil, form)
     C.panel = panel
-    panel:SetSize(280, 40)
+    panel:SetSize(280, 62)
     local below = form.Reagents or form
     panel:SetPoint("LEFT", below, "LEFT", 0, 0)
     panel:SetPoint("TOP", below, "BOTTOM", 0, -6)
@@ -174,6 +219,31 @@ local function Attach()
     panel.search:SetScript("OnClick", function()
         local info = form:GetRecipeInfo()
         if info then C.SearchRecipe(info.recipeID) end
+    end)
+    -- How many crafts to shop for, and what's missing for them onto your shopping list.
+    local label = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    label:SetPoint("BOTTOMLEFT", 0, 5)
+    label:SetText("Crafts")
+    local crafts = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
+    panel.crafts = crafts
+    crafts:SetSize(36, 20)
+    crafts:SetPoint("LEFT", label, "RIGHT", 10, 0)
+    crafts:SetAutoFocus(false)
+    crafts:SetNumeric(true)
+    crafts:SetMaxLetters(4)
+    crafts:SetNumber(1)
+    crafts:SetScript("OnEnterPressed", crafts.ClearFocus)
+    panel.add = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    panel.add:SetSize(176, 20)
+    panel.add:SetPoint("LEFT", crafts, "RIGHT", 8, 0)
+    panel.add:SetText("Add missing to shopping list")
+    panel.add:SetScript("OnClick", function()
+        local info = form:GetRecipeInfo()
+        if not info then return end
+        crafts:ClearFocus()
+        local ids = {}
+        Reagents(info.recipeID, ids)
+        C.AddMissing(ids, math.max(1, crafts:GetNumber()))
     end)
     panel:SetScript("OnShow", Update)
     local function refresh() Update(panel) end

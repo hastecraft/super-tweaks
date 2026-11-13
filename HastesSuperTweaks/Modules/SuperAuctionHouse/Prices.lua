@@ -15,7 +15,10 @@ local P = {}
 S.Prices = P
 
 local tonumber, floor, match, gmatch = tonumber, math.floor, string.match, string.gmatch
-local HISTORY_DAYS = 21
+local find, byte, lower, sub = string.find, string.byte, string.lower, string.sub
+-- How many days of prices are kept: the "Days of price history" setting.
+local function HistoryDays() return S.db.profile.historyDays or 21 end
+P.HistoryDays = HistoryDays
 -- Gear at or above this level gets its own price per level; below it, levels don't change what an item sells for.
 local GEAR_LEVEL = 168
 P.GEAR_LEVEL = GEAR_LEVEL -- gear from this item level up is priced by level too
@@ -196,6 +199,76 @@ function P.Mean(key, days)
     return count > 0 and floor(total / count) or nil
 end
 
+-- The usual price: the average of the daily lows before the newest day, so a price that just moved is measured
+-- against where it was. Nil for an item seen on one day only.
+function P.Usual(key)
+    local r = realm or P.Activate()
+    local text = r and r.h[key]
+    if not text then return nil end
+    local total, count, index = 0, 0, 0
+    for low in gmatch(text, "%d+:%d+:(%d+):") do
+        index = index + 1
+        if index > 1 then total, count = total + tonumber(low), count + 1 end
+    end
+    return count > 0 and floor(total / count) or nil
+end
+
+-- How far the price is from its usual one: -0.3 is 30% under. Nil without a usual price.
+function P.Change(key)
+    local r = realm or P.Activate()
+    local price, usual = r and r.p[key], P.Usual(key)
+    if not (price and usual and usual > 0) then return nil end
+    return (price - usual) / usual
+end
+
+-- 1 when the price is well over its usual one, -1 when well under, 0 otherwise.
+local TREND = 0.1
+function P.Trend(key)
+    local change = P.Change(key)
+    if not change then return 0 end
+    return change >= TREND and 1 or change <= -TREND and -1 or 0
+end
+
+-- The daily lows, oldest first, for a sparkline; nil for an item seen on one day only. The list is shared and kept
+-- until prices change: read it, don't change it.
+local series, seriesCount = {}, 0
+local SERIES_LIMIT = 600
+function P.Series(key)
+    local known = series[key]
+    if known ~= nil then return known or nil end
+    local r = realm or P.Activate()
+    local text = r and r.h[key]
+    local list = false
+    if text and find(text, ";", 1, true) then
+        list = {}
+        for low in gmatch(text, "%d+:%d+:(%d+):") do list[#list + 1] = tonumber(low) end
+        local n = #list
+        for i = 1, floor(n / 2) do list[i], list[n + 1 - i] = list[n + 1 - i], list[i] end
+    end
+    if seriesCount >= SERIES_LIMIT then series, seriesCount = {}, 0 end
+    series[key], seriesCount = list, seriesCount + 1
+    return list or nil
+end
+
+-- The day a key was last seen on, as a day number (P.Today), or nil.
+function P.LastDay(key)
+    local r = realm or P.Activate()
+    local text = r and r.h[key]
+    local day = text and match(text, "^(%d+):")
+    return day and tonumber(day) or nil
+end
+
+-- How many were available the last time the key was seen, or nil.
+function P.Available(key)
+    local r = realm or P.Activate()
+    local text = r and r.h[key]
+    local available = text and match(text, "^%d+:%d+:%d+:(%d+)")
+    return available and tonumber(available) or nil
+end
+
+-- This realm's tables, for walking every price a batch at a time: p (lowest prices) and h (histories), by key.
+function P.Realm() return realm or P.Activate() end
+
 function P.Summary()
     local r = P.Activate()
     local count = 0
@@ -246,7 +319,7 @@ end
 ---------------------------------------------------------------------------
 -- Drops days past the history's length. Called only when a new day starts, so a key is trimmed once a day at most.
 local function Trim(text, today)
-    local kept, cutoff = nil, today - HISTORY_DAYS
+    local kept, cutoff = nil, today - HistoryDays()
     for segment in gmatch(text, "[^;]+") do
         local day = tonumber(match(segment, "^%d+"))
         if day and day > cutoff then kept = kept and (kept .. ";" .. segment) or segment end
@@ -378,6 +451,7 @@ local function TrimStep()
     local r = trimRealm
     if r ~= realm or not S:IsEnabled() then trimRealm, trimKey = nil, nil; return end
     local h, key, today = r.h, trimKey, Today()
+    local cutoff = today - HistoryDays()
     for _ = 1, BATCH do
         local text
         key, text = next(h, key)
@@ -386,7 +460,7 @@ local function TrimStep()
             return
         end
         local last, rest = match(text, "^([^;]+);(.*)$")
-        if rest and tonumber(match(last, "^%d+")) <= today - HISTORY_DAYS then h[key] = last end
+        if rest and tonumber(match(last, "^%d+")) <= cutoff then h[key] = last end
     end
     trimKey = key
     C_Timer.After(0, TrimStep)
@@ -401,6 +475,7 @@ end
 
 function P.Listen(id, fn) listeners[id] = fn end
 function P.Fire()
+    if seriesCount > 0 then series, seriesCount = {}, 0 end
     for id, fn in pairs(listeners) do
         local ok = pcall(fn)
         if not ok then listeners[id] = nil end
@@ -439,14 +514,20 @@ function P.VendorCost(itemID) return S.db.global.vendor[itemID] end
 -- shared by all realms. The lowercase index is made the first time someone searches.
 ---------------------------------------------------------------------------
 local NAME_BATCH, NAME_GAP, NAME_RETRY, NAME_PASSES = 40, 0.1, 2, 3
-local find, byte, lower, sub = string.find, string.byte, string.lower, string.sub
 -- The index: every key, in name order, and its name in lowercase at the same place.
 local lowers, indexKeys, lowerOf, indexUnsorted
+-- Keys found by exact name (false: no item has it), until a new name is learned.
+local keyOfName, wantedNames, oneName = {}, {}, {}
 
 function P.LearnName(key, name, quality)
     local names = S.db.global.names
     if names[key] or not name or name == "" then return end
     names[key] = (quality or 1) .. name
+    -- An answer for this name changes only if this is the item's own key, or the first key the name has.
+    local answer = keyOfName[name]
+    if answer == false or (answer ~= nil and type(key) == "number" and type(answer) ~= "number") then
+        keyOfName[name] = key
+    end
     if lowers then
         indexKeys[#indexKeys + 1] = key
         lowerOf[key] = lower(name)
@@ -469,6 +550,34 @@ function P.NameOf(key)
     local text = S.db.global.names[key]
     if not text then return nil end
     return sub(text, 2), tonumber(sub(text, 1, 1))
+end
+
+-- The keys of the items with exactly these names, from the names learned at the auction house: found[name] is the
+-- key, or false. One pass over the saved names finds all of them, and each answer is kept until a new name is learned.
+-- An item's own key wins over one of its suffixes'.
+function P.KeysByName(list)
+    local missing = false
+    for i = 1, #list do
+        local name = list[i]
+        if keyOfName[name] == nil then
+            missing = true
+            keyOfName[name] = false
+            for quality = 0, 7 do wantedNames[quality .. name] = name end
+        end
+    end
+    if missing then
+        for key, value in pairs(S.db.global.names) do
+            local name = wantedNames[value]
+            if name and (type(key) == "number" or not keyOfName[name]) then keyOfName[name] = key end
+        end
+        wipe(wantedNames)
+    end
+    return keyOfName
+end
+
+function P.KeyByName(name)
+    oneName[1] = name
+    return P.KeysByName(oneName)[name] or nil
 end
 
 function P.IconOf(key)

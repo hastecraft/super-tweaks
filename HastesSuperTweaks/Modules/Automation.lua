@@ -513,13 +513,18 @@ local J = HST:NewFeature("SellJunk", {
         .. "stay. Hold Shift to skip.",
 })
 ns.SellJunk = J
-Settings(J,{ summary = true, keepGear = false, skipConfirm = false }, function(m) return {
-    summary = Toggle(m, "summary", "Say what was sold", 1),
-    keepGear = Toggle(m, "keepGear", "Keep grey weapons and armor", 2),
-    skipConfirm = Toggle(m, "skipConfirm", "Sell All Junk without asking", 3,
-        "The vendor's own Sell All Junk button sells right away, without asking you to confirm. It still asks "
-            .. "when it would sell an item Sell Junk keeps."),
-} end)
+Settings(J,{ summary = true, keepGear = false, skipConfirm = false, auction = true, auctionGain = 10 }, function(m)
+    local auction, auctionGain = ns.VendorSale.AuctionOptions(function() return m.db.profile end, 3)
+    return {
+        summary = Toggle(m, "summary", "Say what was sold", 1),
+        keepGear = Toggle(m, "keepGear", "Keep grey weapons and armor", 2),
+        auction = auction,
+        auctionGain = auctionGain,
+        skipConfirm = Toggle(m, "skipConfirm", "Sell All Junk without asking", 5,
+            "The vendor's own Sell All Junk button sells right away, without asking you to confirm. It still asks "
+                .. "when it would sell an item Sell Junk keeps."),
+    }
+end)
 
 J.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
 
@@ -578,7 +583,8 @@ end
 -- answers whether the seller is ready (false waits a little for data still loading) and a context, which the scan
 -- hands SalePrice as a fourth argument; Keeps(itemID), true for items no seller may sell; Limit(), the most items it
 -- sells in one visit. A SalePrice that keeps an item because its data is still loading sets saleWaiting, which waits
--- the same way.
+-- the same way. KEPT, the words for what the seller kept for the auction house (see Sale:WorthMoreAtAuction): a
+-- format taking the count, "item" or "items", what they're worth there, and their names.
 ---------------------------------------------------------------------------
 local Sale = { sellers = {}, step = 0.1 }
 ns.VendorSale = Sale
@@ -625,6 +631,69 @@ function Sale:Price(seller, info, bag, slot)
     return seller:SalePrice(info, bag, slot)
 end
 
+-- Keeping what's worth more at auction (a seller's "auction" setting): whether `count` of an item (a link or an item
+-- ID) would earn at least the seller's chosen amount more at the auction house, after its cut, than the vendor's
+-- `price` each. Super Auction House answers with its saved price, or nil while it's off or has none: nothing is kept
+-- then. A scan counts a slot for the first seller that keeps it this way, unless a later one sells it (see Sale:Find),
+-- and the vendor visit says it in the seller's KEPT words.
+local AUCTION_CUT = 0.95
+function Sale:WorthMoreAtAuction(seller, item, count, price)
+    local p = seller.db.profile
+    if not p.auction then return false end
+    local value = ns.AuctionValue and ns.AuctionValue(item)
+    if not value or (value * AUCTION_CUT - price) * count < p.auctionGain * 100 then return false end
+    if not self.keeper then self.keeper, self.keeperWorth = seller, value * count end
+    return true
+end
+
+-- A scan found a stack its seller keeps for the auction house: counted and, for a seller that says what it sold,
+-- named while the line has room.
+Sale.KEPT_NAMED = 6
+function Sale:Keep(seller, info)
+    seller.keptCount, seller.keptWorth = seller.keptCount + 1, seller.keptWorth + self.keeperWorth
+    if not seller.db.profile.summary then return end
+    local names = seller.keptNames
+    if not names then
+        names = {}
+        seller.keptNames = names
+    end
+    if #names < self.KEPT_NAMED then
+        local count = info.stackCount or 1
+        names[#names + 1] = (info.hyperlink or ("item:" .. info.itemID)) .. (count > 1 and "x" .. count or "")
+    end
+end
+
+-- Says what each seller's scan kept for the auction house: "Kept 2 items worth 23s 80c at auction: [Peacebloom]x20
+-- [Copper Ore]x12." Once, until a scan keeps something else.
+function Sale:TellKept()
+    for _, seller in ipairs(self.sellers) do
+        if seller.KEPT and seller:IsEnabled() and seller.db.profile.summary then
+            local count, line = seller.keptCount, nil
+            if count > 0 then
+                local names = seller.keptNames
+                line = string.format(seller.KEPT, count, count == 1 and "item" or "items", Money(seller.keptWorth),
+                    table.concat(names, " ")) .. (count > #names and " and " .. (count - #names) .. " more." or ".")
+            end
+            if line ~= seller.toldKept then
+                seller.toldKept = line
+                if line then HST:Print(line) end
+            end
+        end
+    end
+end
+
+-- The two settings a seller offers for it, greyed out while Super Auction House is off.
+function Sale.AuctionOptions(profile, order)
+    local function off()
+        local auctions = ns.SuperAuctionHouse
+        return not (auctions and auctions:IsEnabled()) or auctions.info.unavailable ~= nil
+    end
+    return ns.Option(profile, "toggle", "auction", "Keep items worth more at auction", order,
+            { desc = "Needs Super Auction House on.", disabled = off }),
+        ns.Option(profile, "range", "auctionGain", "By at least (silver)", order + 1, { min = 1, max = 500, step = 1,
+            disabled = function() return off() or not profile().auction end })
+end
+
 -- Bag slots holding something a selling module that's on would sell: { bag, slot, itemID, seller }, each seller's in
 -- bag order after those of the sellers before it.
 function Sale:Find()
@@ -633,6 +702,8 @@ function Sale:Find()
         if seller:IsEnabled() then
             active[#active + 1] = seller
             found[seller] = {}
+            seller.keptCount, seller.keptWorth = 0, 0
+            if seller.keptNames then wipe(seller.keptNames) end
             if seller.PrepareSale then
                 local ready, context = seller:PrepareSale()
                 contexts[seller] = context
@@ -644,13 +715,16 @@ function Sale:Find()
         for slot = 1, self.Excluded(bag) and 0 or C_Container.GetContainerNumSlots(bag) do
             local info = C_Container.GetContainerItemInfo(bag, slot)
             if self:SlotAllowed(info, bag, slot) then
+                self.keeper = nil
                 for _, seller in ipairs(active) do
                     if seller:SalePrice(info, bag, slot, contexts[seller]) then
                         local mine = found[seller]
                         mine[#mine + 1] = { bag = bag, slot = slot, itemID = info.itemID, seller = seller }
+                        self.keeper = nil -- a seller before this one kept it for the auction house; this one sells it
                         break
                     end
                 end
+                if self.keeper then self:Keep(self.keeper, info) end
             end
         end
     end
@@ -724,6 +798,7 @@ function Sale:Open()
         attempts = attempts + 1
         if waiting and attempts < 6 then return C_Timer.After(0.5, begin) end
         if waiting then HST:Print("Kept some items while your quest data loads. Visit the vendor again to sell them.") end
+        self:TellKept()
         if #list == 0 then return end
         queue = { unpack(list) }
         step(true)
@@ -791,22 +866,25 @@ function Sale:Listen(seller)
     function seller:OnUnlisten() Sale:Left() end
 end
 
--- Grey items, keeping grey weapons and armor when asked (the sale has checked the slot: see Sale:SlotAllowed), and
--- what Sell Clutter keeps whether it's on or not: items in an equipment set, named by a quest in your log, or that a
--- RestedXP guide needs. Its facts are read once a grey item would sell: fresh for each scan of the bags, or as Sell
--- Clutter read them for that scan when it's on. While your quests are still loading (right after logging in), what
--- they need can't be told: grey items stay, and the scan waits for the quests as Sell Clutter's does.
+-- Grey items, keeping grey weapons and armor when asked (the sale has checked the slot: see Sale:SlotAllowed), what's
+-- worth more at auction when asked (see Sale:WorthMoreAtAuction), and what Sell Clutter keeps whether it's on or not:
+-- items in an equipment set, named by a quest in your log, or that a RestedXP guide needs. Its facts are read once a
+-- grey item would sell: fresh for each scan of the bags, or as Sell Clutter read them for that scan when it's on.
+-- While your quests are still loading (right after logging in), what they need can't be told: grey items stay, and the
+-- scan waits for the quests as Sell Clutter's does.
 local GetInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
 local IsEquippable = C_Item and C_Item.IsEquippableItem or IsEquippableItem
 function J:PrepareSale()
     self.freshFacts, self.saleWaiting = true, nil
     return true
 end
+J.KEPT = "Kept %d junk %s worth %s at auction: %s"
 function J:SalePrice(info)
     local itemID = info.itemID
     if info.quality ~= 0 or self.db.profile.keepGear and IsEquippable and IsEquippable(itemID) then return nil end
     local name, _, _, _, _, _, _, _, _, _, price = GetInfo(itemID)
     if not name or (price or 0) <= 0 then return nil end
+    if not info.isBound and Sale:WorthMoreAtAuction(self, itemID, info.stackCount or 1, price) then return nil end
     local clutter = ns.SellClutter
     if clutter then
         local ctx

@@ -12,7 +12,8 @@ S.Net = N
 local AH = C_AuctionHouse
 local EVENTS = {
     "AUCTION_CANCELED", "AUCTION_HOUSE_AUCTION_CREATED", "AUCTION_HOUSE_BROWSE_FAILURE", "AUCTION_HOUSE_BROWSE_RESULTS_ADDED",
-    "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", "AUCTION_HOUSE_POST_ERROR", "AUCTION_HOUSE_SHOW_ERROR", "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED",
+    "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", "AUCTION_HOUSE_POST_ERROR", "AUCTION_HOUSE_PURCHASE_COMPLETED", "AUCTION_HOUSE_SHOW_ERROR",
+    "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED",
     "AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED", "AUCTION_HOUSE_THROTTLED_SYSTEM_READY", "AUCTION_MULTISELL_FAILURE",
     "AUCTION_MULTISELL_START", "AUCTION_MULTISELL_UPDATE", "BIDS_UPDATED", "BID_ADDED", "COMMODITY_PRICE_UNAVAILABLE",
     "COMMODITY_PRICE_UPDATED", "COMMODITY_PURCHASE_FAILED", "COMMODITY_PURCHASE_SUCCEEDED", "COMMODITY_SEARCH_RESULTS_ADDED",
@@ -31,8 +32,10 @@ local idle, idleHead, idleTail = {}, 1, 0
 local PUMP_CHECK = 0.5 -- seconds: a look at the game's readiness while something's queued, should its event not come
 local QUIET = 1.5 -- seconds after you last asked for something before a scan asks for more
 local IDLE_MOST = 8 -- seconds a scan's page waits at most, however busy you keep the auction house
+local WAIT_SHOW = 1.5 -- seconds something you asked for waits on the game before the window says so
 local quietUntil, idleSince = 0, 0
 local pumpChecking = false
+local waitingSince, waitingShown -- when what you asked for began to wait, and whether the window says so
 local keyWaiters = {}
 local requests, current = {}, nil -- listings not yet over, oldest first, and the one whose search is out
 local purchase -- the material purchase that's out, whoever started it
@@ -82,6 +85,7 @@ function N.Stop()
     current = nil
     if purchase then purchase.state = nil; purchase = nil end
     browseOwner, browseAnswered, sendingFor = nil, false, nil
+    waitingSince, waitingShown = nil, false
 end
 
 function N.IsStarted() return started end
@@ -122,6 +126,20 @@ function N.Pump()
     if (head <= tail or laterHead <= laterTail or idleHead <= idleTail) and not pumpChecking then
         pumpChecking = true
         C_Timer.After(PUMP_CHECK, PumpCheck)
+    end
+    -- What you asked for is still waiting on the game: the window says so once that's been a moment.
+    if head <= tail then
+        waitingSince = waitingSince or GetTime()
+        if not waitingShown and GetTime() - waitingSince >= WAIT_SHOW then
+            waitingShown = true
+            S.Window.Waiting(true)
+        end
+    elseif waitingSince then
+        waitingSince = nil
+        if waitingShown then
+            waitingShown = false
+            S.Window.Waiting(false)
+        end
     end
 end
 

@@ -28,12 +28,15 @@ local FOOT = 36
 local BAR_SPEED = 5
 local BAR_HOLD = 0.6
 -- Tabs that need an auction house.
-local LIVE_ONLY = { selling = true, auctions = true }
+local LIVE_ONLY = { selling = true }
 local SAVED_STATUS = "Saved prices from your last scan."
 
 local function Modules()
     return { shopping = S.Shopping, selling = S.Selling, auctions = S.Auctions, history = S.History, prices = S.Scan }
 end
+
+-- A tab's module, by the tab's key.
+function Win.Module(key) return Modules()[key] end
 
 -- Hides the panes of every display mode the game's frame has. Not through the game's SetDisplayMode, which run from
 -- here would write the display mode.
@@ -144,6 +147,8 @@ function Win.UpdateScanLine()
     end
     if running then
         Win.scanLine:SetText(S.Scan.ProgressText())
+    elseif Win.waiting then
+        Win.scanLine:SetText("Waiting for the auction house")
     elseif last and last > 0 then
         local minutes = math.floor((time() - last) / 60)
         if minutes < 1 then
@@ -163,11 +168,39 @@ function Win.UpdateScanLine()
     end
 end
 
+-- The game is slow to answer what you asked for: the bar along the bottom says so until it does.
+function Win.Waiting(on)
+    on = on and true or false
+    if Win.waiting == on then return end
+    Win.waiting = on
+    Win.UpdateScanLine()
+end
+
 local function PaintTab(b)
     local on = Win.current == b.key
     local off = Win.mode == "saved" and LIVE_ONLY[b.key]
     W.Paint(b.label, off and P.disabled or on and P.accent or b.lit and P.text or P.muted)
     b.mark:SetShown(on)
+end
+
+-- A count beside a tab's name ("3" auctions undercut); nil or "" takes it away. Kept for a window not built yet.
+local badges = {}
+function Win.SetBadge(key, text)
+    if text == "" then text = nil end
+    if text ~= nil then text = tostring(text) end
+    badges[key] = text
+    local b = Win.tabs and Win.tabs[key]
+    if not b or b.badgeText == text then return end
+    b.badgeText = text
+    if text and not b.badge then
+        b.badge = W.Badge(b)
+        b.badge:SetPoint("LEFT", b.label, "RIGHT", 5, 0)
+    end
+    if b.badge then b.badge:SetText(text) end
+    local extra = text and (b.badge:GetWidth() + 5) or 0
+    b.label:ClearAllPoints()
+    b.label:SetPoint("CENTER", -extra / 2, 0)
+    b:SetWidth(b.plainWidth + extra)
 end
 
 local function BuildTabs(head)
@@ -180,7 +213,8 @@ local function BuildTabs(head)
         b.label = K.Text(b, "GameFontNormal", P.muted, "CENTER")
         b.label:SetPoint("CENTER")
         b.label:SetText(TAB_NAMES[key])
-        b:SetWidth(math.floor(b.label:GetStringWidth() + 28))
+        b.plainWidth = math.floor(b.label:GetStringWidth() + 28)
+        b:SetWidth(b.plainWidth)
         b.mark = W.Fill(b, P.accent, "ARTWORK")
         b.mark:SetPoint("BOTTOMLEFT", 10, 0)
         b.mark:SetPoint("BOTTOMRIGHT", -10, 0)
@@ -192,6 +226,7 @@ local function BuildTabs(head)
         b:SetScript("OnEnter", function(self) self.lit = true; PaintTab(self) end)
         b:SetScript("OnLeave", function(self) self.lit = false; PaintTab(self) end)
         Win.tabs[key] = b
+        if badges[key] then Win.SetBadge(key, badges[key]) end
     end
 end
 
@@ -343,6 +378,114 @@ function Win.ResetPosition()
     if Win.frame then Place() end
 end
 
+---------------------------------------------------------------------------
+-- The corner that sizes the window. Dragged, the width and height settings follow it.
+---------------------------------------------------------------------------
+local MIN_W, MIN_H, MAX_W, MAX_H = 900, 570, 1600, 1100
+
+local function StopSizing()
+    if not Win.sizing then return end
+    Win.sizing = false
+    local f = Win.frame
+    f:StopMovingOrSizing()
+    f:SetUserPlaced(false)
+    local p = S.db.profile
+    p.width = math.min(MAX_W, math.max(MIN_W, math.floor(f:GetWidth() / 10 + 0.5) * 10))
+    p.height = math.min(MAX_H, math.max(MIN_H, math.floor(f:GetHeight() / 10 + 0.5) * 10))
+    local scale = f:GetEffectiveScale()
+    p.posX, p.posY = f:GetLeft() * scale, f:GetTop() * scale
+    Win.Apply()
+    HST:RefreshSettings()
+end
+
+local function BuildGrip(f)
+    local grip = CreateFrame("Button", nil, f)
+    grip:SetSize(18, 18)
+    grip:SetPoint("BOTTOMRIGHT", -1, 1)
+    grip:SetFrameLevel(f:GetFrameLevel() + 30)
+    local dots = {}
+    for i, at in ipairs({ { -4, 4 }, { -9, 4 }, { -4, 9 } }) do
+        local dot = W.Fill(grip, P.header, "OVERLAY")
+        dot:SetSize(2, 2)
+        dot:SetPoint("BOTTOMRIGHT", at[1], at[2])
+        dots[i] = dot
+    end
+    local function paint(color) for _, dot in ipairs(dots) do W.Paint(dot, color) end end
+    grip:SetScript("OnEnter", function(self)
+        paint(P.bright)
+        W.ShowTooltip(self, "Drag to resize", nil, "ANCHOR_TOP")
+    end)
+    grip:SetScript("OnLeave", function(self)
+        paint(P.header)
+        W.HideTooltip(self)
+    end)
+    grip:SetScript("OnMouseDown", function()
+        if S.db.profile.locked or Win.sizing then return end
+        Win.sizing = true
+        f:StartSizing("BOTTOMRIGHT")
+    end)
+    grip:SetScript("OnMouseUp", StopSizing)
+    grip:SetScript("OnHide", StopSizing)
+    Win.grip = grip
+end
+
+---------------------------------------------------------------------------
+-- Keys while the window is up: the tab keys, the search key, and Escape while something is open on top of a tab
+-- (K.BackLayer). Bindings can't change in combat: they go as a fight starts and come back after it.
+---------------------------------------------------------------------------
+local keyOwner
+
+local function StepTab(by)
+    local at = 1
+    for i, key in ipairs(TAB_ORDER) do if key == Win.current then at = i end end
+    for _ = 1, #TAB_ORDER do
+        at = (at - 1 + by) % #TAB_ORDER + 1
+        local key = TAB_ORDER[at]
+        if not (Win.mode == "saved" and LIVE_ONLY[key]) then return Win.Select(key) end
+    end
+end
+
+function Win.BindKeys()
+    if not keyOwner or InCombatLockdown() then return end
+    ClearOverrideBindings(keyOwner)
+    if not Win.frame:IsVisible() then return end
+    local p = S.db.profile
+    if p.keyNextTab ~= "" then SetOverrideBinding(keyOwner, true, p.keyNextTab, "CLICK HSTSuperAHNextTab:LeftButton") end
+    if p.keyPrevTab ~= "" then SetOverrideBinding(keyOwner, true, p.keyPrevTab, "CLICK HSTSuperAHPrevTab:LeftButton") end
+    if p.keyFind ~= "" then SetOverrideBinding(keyOwner, true, p.keyFind, "CLICK HSTSuperAHFind:LeftButton") end
+    -- Buy Next has its key only while the Shopping tab has something for it to buy.
+    if p.keyBuy ~= "" and Win.current == "shopping" and S.Shopping.WantsBuyKey() then
+        SetOverrideBinding(keyOwner, true, p.keyBuy, "CLICK HSTSuperAHBuy:LeftButton")
+    end
+    if K.BackTop() then SetOverrideBinding(keyOwner, true, "ESCAPE", "CLICK HSTSuperAHBack:LeftButton") end
+end
+
+local function BuildKeys(f)
+    keyOwner = CreateFrame("Frame", nil, f)
+    keyOwner:SetScript("OnEvent", function(self, event)
+        if event == "PLAYER_REGEN_DISABLED" then ClearOverrideBindings(self) else Win.BindKeys() end
+    end)
+    local function button(name, onClick)
+        local b = CreateFrame("Button", name, f)
+        b:SetScript("OnClick", onClick)
+    end
+    button("HSTSuperAHNextTab", function() StepTab(1) end)
+    button("HSTSuperAHPrevTab", function() StepTab(-1) end)
+    button("HSTSuperAHFind", function()
+        local module = Win.current and S.Window.Module(Win.current)
+        if module and module.Find then module.Find() end
+    end)
+    button("HSTSuperAHBack", function() K.Back() end)
+    button("HSTSuperAHBuy", function() S.Shopping.BuyNext() end)
+end
+
+-- Parts outside the tabs hear of settings changing and of the auction house closing: Win.OnApply(fn), Win.OnClose(fn).
+local onApply, onClose, onSelect = {}, {}, {}
+function Win.OnApply(fn) onApply[#onApply + 1] = fn end
+function Win.OnClose(fn) onClose[#onClose + 1] = fn end
+-- fn(key) runs after a tab has been picked.
+function Win.OnSelect(fn) onSelect[#onSelect + 1] = fn end
+
 local function Build()
     P = K.Palette()
     local f = CreateFrame("Frame", "HSTSuperAuctionHouse", UIParent)
@@ -351,6 +494,8 @@ local function Build()
     -- Over the game's panels, under its popups and menus.
     f:SetFrameStrata("HIGH")
     f:SetMovable(true)
+    f:SetResizable(true)
+    if f.SetResizeBounds then f:SetResizeBounds(MIN_W, MIN_H, MAX_W, MAX_H) end
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
     f:EnableMouseWheel(true)
@@ -379,9 +524,9 @@ local function Build()
     Win.settingsButton = settings
     settings:SetPoint("RIGHT", close, "LEFT", -2, 0)
     settings:SetScript("OnClick", function() HST:OpenSettings("SuperAuctionHouse") end)
-    Win.gameButton = K.Button(head, "Game's window", "ghost")
+    Win.gameButton = K.Button(head, "Game's window")
     Win.gameButton:Fit(40)
-    Win.gameButton:SetPoint("RIGHT", settings, "LEFT", -2, 0)
+    Win.gameButton:SetPoint("RIGHT", settings, "LEFT", -6, 0)
     Win.gameButton:SetScript("OnClick", ShowGame)
     Win.lock = K.HeadButton(head, { W.ART .. "Lock", W.ART .. "Unlock" })
     Win.lock:SetPoint("RIGHT", Win.gameButton, "LEFT", -2, 0)
@@ -432,6 +577,8 @@ local function Build()
     Win.body = CreateFrame("Frame", nil, f)
     Win.body:SetPoint("TOPLEFT", head, "BOTTOMLEFT")
     Win.body:SetPoint("BOTTOMRIGHT", foot, "TOPRIGHT")
+    BuildGrip(f)
+    BuildKeys(f)
 
     FitToScreen()
     W.FitIcons() -- the rules were drawn before the window took its scale
@@ -455,12 +602,17 @@ local function Build()
         local module = Modules()[Win.current]
         if module and module.OnHide then module.OnHide() end
         K.CloseDialog()
+        keyOwner:UnregisterAllEvents()
+        Win.BindKeys()
     end)
     f:SetScript("OnShow", function()
         local module = not selecting and Modules()[Win.current]
         if module and module.OnShow then module.OnShow() end
         UpdateMoney()
         Win.UpdateScanLine()
+        keyOwner:RegisterEvent("PLAYER_REGEN_DISABLED")
+        keyOwner:RegisterEvent("PLAYER_REGEN_ENABLED")
+        Win.BindKeys()
     end)
 end
 
@@ -526,6 +678,23 @@ function Win.Select(key)
     for _, b in pairs(Win.tabs) do PaintTab(b) end
     Win.Status(Win.mode == "saved" and SAVED_STATUS or "")
     if module.OnShow then module.OnShow() end
+    -- Some keys belong to one tab.
+    Win.BindKeys()
+    for _, fn in ipairs(onSelect) do fn(key) end
+end
+
+-- A page that takes a tab's place (the item page): the tab that's up is left as picking another would be, so its keys
+-- go quiet, and no tab is lit. Returns the tab it covered.
+function Win.Cover()
+    local key = Win.current
+    if not key then return nil end
+    local leaving = Modules()[key]
+    if leaving.frame then leaving.frame:Hide() end
+    if leaving.OnHide then leaving.OnHide() end
+    Win.current = nil
+    for _, b in pairs(Win.tabs) do PaintTab(b) end
+    Win.BindKeys()
+    return key
 end
 
 -- Away from an auction house: closed to saved, or saved to closed.
@@ -580,9 +749,11 @@ function Win.Close(turnedOff)
         Win.frame:Hide()
         if turnedOff then RestoreGame() else ShowGameFrame() end
     end
+    Win.Waiting(false)
     if S.Selling.frame then S.Selling.OnClosed() end
     if S.Auctions.frame then S.Auctions.OnClosed() end
     if S.Buy.frame then S.Buy.OnClosed() end
+    for i = 1, #onClose do securecallfunction(onClose[i]) end
 end
 
 -- Settings changed while the window exists.
@@ -591,7 +762,10 @@ function Win.Apply()
     W.FitIcons()
     PaintLock()
     PaintAutoScan()
+    K.ApplyDensity()
+    Win.BindKeys()
     if S.Selling.frame then S.Selling.Apply() end
     if S.Shopping.frame then S.Shopping.Apply() end
     if S.Auctions.frame then S.Auctions.Apply() end
+    for i = 1, #onApply do securecallfunction(onApply[i]) end
 end
