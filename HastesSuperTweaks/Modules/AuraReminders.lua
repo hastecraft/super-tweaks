@@ -744,11 +744,14 @@ end
 ns.Configure(R, defaults, function(m)
     local function profile() return m.db.profile end
     local function selected() return m:Selected() end
+    -- What the selected reminder's settings read while none is (they're hidden then, but still drawn).
+    local blank = m.NewReminder()
+    local function target() return m:Selected() or blank end
     local function apply() m:Apply() end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra, apply) end
     -- A setting of the selected reminder: hidden while none is.
     local function own(kind, key, name, order, extra)
-        local o = ns.Option(selected, kind, key, name, order, extra, function() m:Apply(); HST:RefreshSettings() end)
+        local o = ns.Option(target, kind, key, name, order, extra, function() m:Apply(); HST:RefreshSettings() end)
         local hidden = o.hidden
         o.hidden = function(...)
             if not selected() then return true end
