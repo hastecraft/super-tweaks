@@ -186,7 +186,7 @@ local function ValueText(o, info)
     end
     if o.type == "items" then
         local count = 0
-        for _ in pairs(o.get(info) or {}) do count = count + 1 end
+        for _, v in pairs(o.get(info) or {}) do if v then count = count + 1 end end
         return count .. (count == 1 and " item" or " items")
     end
 end
@@ -820,6 +820,9 @@ function Build.items(parent, o, chain, info, gate)
                 GameTooltip:Hide()
                 o.remove(info, self.itemID)
                 P:Refresh()
+            elseif o.ordered and self.itemID then
+                o.move(info, self.itemID)
+                P:Refresh()
             end
         end)
         s:SetScript("OnEnter", function(self)
@@ -827,6 +830,9 @@ function Build.items(parent, o, chain, info, gate)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             if self.itemID then
                 GameTooltip:SetItemByID(self.itemID)
+                if o.ordered then
+                    GameTooltip:AddLine("Click to move it up the list.", C.body[1], C.body[2], C.body[3], true)
+                end
                 GameTooltip:AddLine("Right-click to take it off this list.", C.body[1], C.body[2], C.body[3], true)
             else
                 GameTooltip:SetText("Add an item", 1, 1, 1, 1, true)
@@ -863,14 +869,19 @@ function Build.items(parent, o, chain, info, gate)
         box:SetAlpha(self.off and 0.5 or 1)
         local list, columns = self.list, self.columns
         wipe(list)
-        -- An imported profile can hold any key: only item IDs are items (and numbers sort together).
+        -- An imported profile can hold any key: only item IDs are items (and numbers sort together). An ordered list
+        -- (o.ordered) holds item IDs in its own order, and o.move moves one up.
         local items = o.get(info)
-        if items then
+        if items and o.ordered then
+            for _, itemID in ipairs(items) do
+                if type(itemID) == "number" then list[#list + 1] = itemID end
+            end
+        elseif items then
             for itemID in pairs(items) do
                 if type(itemID) == "number" then list[#list + 1] = itemID end
             end
+            table.sort(list)
         end
-        table.sort(list)
         self.offset = math.min(self.offset, math.max(0, math.ceil((#list + 1) / columns) - rows))
         -- The + slot leads the first row; the items follow it.
         local first = self.offset * columns

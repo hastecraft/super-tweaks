@@ -39,6 +39,19 @@ function UnitIsAFK() return state.afk end
 function InCombatLockdown() return state.combat end
 function IsInInstance() return state.instanceType ~= "none", state.instanceType end
 function GetRealZoneText() return "Elwynn Forest" end
+-- Gear worn, as Gear Shift reads it (GetInventoryItemID is each runtime's own).
+function GetInventoryItemTexture(_, slot)
+    local id = GetInventoryItemID and GetInventoryItemID('player', slot)
+    return id and ('icon' .. id) or nil
+end
+function GetInventoryItemLink(_, slot)
+    local id = GetInventoryItemID and GetInventoryItemID('player', slot)
+    return id and ('item:' .. id) or nil
+end
+function GetInventoryItemCooldown(_, slot) local cd = INVENTORY_COOLDOWNS and INVENTORY_COOLDOWNS[slot]; if cd then return cd[1], cd[2], 1 end return 0, 0, 1 end
+function GetInventorySlotInfo(name) return 0, 'empty-' .. name end
+function CursorHasItem() return false end
+function GetSubZoneText() return '' end
 function UnitIsVisible() return true end
 function UnitGUID(unit) if unit == "player" then return "Player-0" end end
 function time() return 1000000 end

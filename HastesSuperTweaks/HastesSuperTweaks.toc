@@ -56,6 +56,7 @@ Modules\LootRolls.lua
 Modules\SpellRanks.lua
 Modules\ConsumableMacros.lua
 Modules\AutoBags.lua
+Modules\GearShift.lua
 Modules\MailHelper.lua
 Modules\MailGuard.lua
 Modules\BagTweaks.lua
