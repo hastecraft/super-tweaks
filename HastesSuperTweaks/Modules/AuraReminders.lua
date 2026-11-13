@@ -331,6 +331,9 @@ local function Draw()
     for i = count + 1, shownCount do lines[i]:Hide(); lines[i].reminder = nil end
     shownCount = count
     if not holder then return end
+    -- A sample shows over the settings window, which covers the middle of the screen.
+    local strata = sampling and "TOOLTIP" or "HIGH"
+    if holder.strata ~= strata then holder.strata = strata; holder:SetFrameStrata(strata) end
     if count > 0 then
         if not holder:IsShown() then
             holder:Show()
