@@ -1353,6 +1353,14 @@ Section('Startup and settings (one cold run, then warmed navigation)', function(
     Measure('Settings: XP and tooltip page navigation', 30, function()
         HST:OpenSettings('XPTracker'); HST:OpenSettings('Tooltip')
     end)
+    if HST:GetModule('AuraReminders', true) then
+        HST:SetFeatureEnabled('AuraReminders', true)
+        Measure('Settings: Aura Reminders page with a reminder', 1, function()
+            local R = HST:GetModule('AuraReminders')
+            HST:OpenSettings('AuraReminders'); R:Add(); R:Pick('6673'); HST:OpenSettings('Tooltip')
+        end, 0)
+        HST:SetFeatureEnabled('AuraReminders', false)
+    end
     HST:OpenSettings('XPTracker')
     Measure('Settings open on XP Tracker: combat start + end', 30, function()
         Dispatch('PLAYER_REGEN_DISABLED'); Dispatch('PLAYER_REGEN_ENABLED')
@@ -1500,6 +1508,47 @@ Section('Better Breath Meter', function()
         AdvanceTime(1)
     end)
     Measure('Breath meter idle: one second of frames (64 fps)', 100, function() Seconds(1) end)
+end)
+'''
+
+# Aura Reminders reads two buffs by name on every aura change in combat, and draws the ones missing.
+REMINDER_MOCKS = r'''
+PERMISSIVE_FRAMES = true
+REMINDER_AURAS = { ['Battle Shout'] = { expirationTime = 200, duration = 120 }, ['Arcane Intellect'] = { expirationTime = 0, duration = 0 } }
+C_UnitAuras = C_UnitAuras or {}
+C_UnitAuras.GetAuraDataBySpellName = function(_, name) return REMINDER_AURAS[name] end
+C_Spell = C_Spell or {}
+C_Spell.GetSpellName = function(id) if id == 6673 then return 'Battle Shout' end end
+function UnitIsDeadOrGhost() return false end
+function IsInGroup() return false end
+'''
+REMINDERS = r'''
+Section('Aura Reminders', function()
+    Only({ 'AuraReminders' })
+    local R = mod('AuraReminders')
+    local shoutReminder, intellect = R.NewReminder(), R.NewReminder()
+    shoutReminder.aura, intellect.aura = 'Battle Shout', 'Arcane Intellect'
+    R.db.profile.reminders = { shoutReminder, intellect }
+    R:Apply()
+    local INFO = {}
+    Measure('Aura reminders: combat starts and ends', 100, function()
+        Send('AuraReminders', 'PLAYER_REGEN_DISABLED'); Send('AuraReminders', 'PLAYER_REGEN_ENABLED')
+    end)
+    Send('AuraReminders', 'PLAYER_REGEN_DISABLED')
+    Measure('Aura reminders: an aura changes in combat, buffs on', 300, function()
+        Send('AuraReminders', 'UNIT_AURA', 'player', INFO)
+    end)
+    local shout = REMINDER_AURAS['Battle Shout']
+    REMINDER_AURAS['Battle Shout'] = nil
+    Measure('Aura reminders: an aura changes in combat, one reminder showing', 300, function()
+        Send('AuraReminders', 'UNIT_AURA', 'player', INFO)
+    end)
+    Measure('Aura reminders: one second of frames, a reminder blinking (64 fps)', 30, function() Seconds(1) end)
+    Measure('Aura reminders: you cast a spell in combat', 300, function()
+        Send('AuraReminders', 'UNIT_SPELLCAST_SUCCEEDED', 'player', 'Cast-1', 133)
+    end)
+    REMINDER_AURAS['Battle Shout'] = shout
+    Send('AuraReminders', 'PLAYER_REGEN_ENABLED')
 end)
 '''
 
@@ -1657,6 +1706,7 @@ def main():
     runtime(mock('automation_mocks.lua') + mock('clutter_mocks.lua') + BANK_HELPER_MOCKS, BANK_HELPER)
     runtime(BREATH_MOCKS, BREATH)
     runtime(SWING_MOCKS, SWING)
+    runtime(REMINDER_MOCKS, REMINDERS)
     runtime(DRUID_MOCKS, DRUID)
     runtime(SUPER_AH_MOCKS, SUPER_AH)
     if JSON:

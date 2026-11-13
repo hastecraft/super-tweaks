@@ -147,8 +147,8 @@ end
 ---------------------------------------------------------------------------
 -- Import
 ---------------------------------------------------------------------------
--- An entry of a list the player fills in: a plain value, or a table of them (a layout's position); nil for anything
--- else.
+-- An entry of a list the player fills in: a plain value, or a table of them and colors (a layout's position, an aura
+-- reminder); nil for anything else.
 local function Entry(value)
     if type(value) ~= "table" then
         if Plain(value) then return value end
@@ -156,8 +156,15 @@ local function Entry(value)
     end
     local copy = {}
     for key, inner in pairs(value) do
-        if not (PlainKey(key) and Plain(inner)) then return nil end
-        copy[key] = inner
+        if not PlainKey(key) then return nil end
+        if type(inner) == "table" then
+            if not IsColor(inner) then return nil end
+            copy[key] = Copy(inner)
+        elseif Plain(inner) then
+            copy[key] = inner
+        else
+            return nil
+        end
     end
     return copy
 end
