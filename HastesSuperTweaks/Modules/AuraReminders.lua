@@ -1,10 +1,11 @@
 -- Aura Reminders: your own text, with the aura's icon, in the middle of the screen when a buff you choose is missing or
 -- running out, or while a proc is on you, drawn as Better Scrolling Combat Text draws its spell alerts. Each reminder
 -- has its own conditions (in or out of combat, in a group or solo), color and sound.
--- Your auras are read as they change. Where the game hides them in combat, a buff read on you is taken to last until
--- the time it was read to run out, and casting it yourself counts as renewing it for as long as it lasted before;
--- combat starting is still readable (the game allows it while it dispatches PLAYER_REGEN_DISABLED). Aura changes are
--- listened to only while a reminder could show: in combat, unless one is for out of combat too.
+-- Your auras are read as they change. In combat the game hides them from addons, but its Cooldown Manager still knows:
+-- an aura its buff icons or bars track is read from there. For any other, a buff read on you before it was hidden is
+-- taken to last until the time it was read to run out, and casting it yourself counts as renewing it for as long as it
+-- lasted before. Aura changes are listened to only while a reminder could show: in combat, unless one is for out of
+-- combat too.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -149,7 +150,7 @@ local lines, shownCount = {}, 0
 local function FontFile(p)
     if p.font ~= "" then return ns.Media("font", p.font) end
     local font = CombatTextFont and CombatTextFont:GetFont()
-    return font or GAME_DAMAGE_FONT or ns.FALLBACK_FONT
+    return font or DAMAGE_TEXT_FONT or ns.FALLBACK_FONT
 end
 local function FontFlags(p)
     if ns.CombatText and ns.CombatText.FontFlags then return ns.CombatText.FontFlags(p) end
@@ -181,8 +182,8 @@ local function Animate(self)
             alpha = alpha * (BLINK_LOW + (1 - BLINK_LOW) * abs(cos(age * PI / BLINK)))
         end
         line:SetAlpha(alpha)
-        if line.scale ~= scale then line.scale = scale; line:SetScale(scale) end
-        if line.x ~= x then
+        if line.scale ~= scale or line.x ~= x then
+            if line.scale ~= scale then line.scale = scale; line:SetScale(scale) end
             line.x = x
             line:ClearAllPoints()
             line:SetPoint("CENTER", holder, "CENTER", x / scale, line.y / scale)
@@ -203,6 +204,7 @@ local function NewLine()
     line.icon = line:CreateTexture(nil, "ARTWORK")
     line.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     line.icon:SetPoint("LEFT")
+    line.icon:Hide()
     line.text = line:CreateFontString(nil, "OVERLAY")
     line.text:SetShadowColor(0, 0, 0, 1)
     line.since, line.x, line.y, line.scale = 0, 0, 0, 1
@@ -347,16 +349,60 @@ end
 ---------------------------------------------------------------------------
 -- Your auras
 ---------------------------------------------------------------------------
+-- Takes an aura's end, length and stacks where the game shows them; an end it hides is kept unless already past.
+local function Times(r, aura, now)
+    local at, length, stacks = aura.expirationTime, aura.duration, aura.applications
+    if IsSecret(at) or type(at) ~= "number" then
+        if r.ends and r.ends <= now then r.ends = nil end
+    elseif at > 0 then
+        r.ends = at
+    else
+        r.ends = nil
+    end
+    if not IsSecret(length) and type(length) == "number" and length > 0 then r.lasts = length end
+    if not IsSecret(stacks) and type(stacks) == "number" then r.stacks = stacks end
+end
+
+-- The Cooldown Manager's buff icons and bars, and for each of its item frames hooked so far, its viewer.
+local VIEWERS = { "BuffIconCooldownViewer", "BuffBarCooldownViewer" }
+local viewerOf = {}
+
+-- Whether you have a reminder's aura by the Cooldown Manager: nil when it doesn't track it or isn't showing.
+local function ReadTracked(r, now)
+    local frame = r.item
+    local viewer = frame and viewerOf[frame]
+    if not (viewer and viewer:IsVisible()) then return nil end
+    local ok, active = pcall(frame.IsActive, frame)
+    if not ok or IsSecret(active) or type(active) ~= "boolean" then return nil end
+    if not active then r.ends, r.stacks = nil, 0; return false end
+    local got, aura = pcall(frame.GetAuraDataCached, frame)
+    if got and type(aura) == "table" then Times(r, aura, now) end
+    return true
+end
+
+-- Whether the game shows addons a reminder's aura now. It hides most in combat: the lookup then finds nothing, as if
+-- the aura were gone.
+local AurasHidden = C_Secrets and C_Secrets.ShouldAurasBeSecret
+local SpellHidden = C_Secrets and C_Secrets.ShouldSpellAuraBeSecret
+local function Readable(r)
+    if not AurasHidden then return true end
+    local ok, all = pcall(AurasHidden)
+    if not ok or IsSecret(all) then return false end
+    if not all then return true end
+    if not (r.id and SpellHidden) then return false end
+    local got, hidden = pcall(SpellHidden, r.id)
+    return got and not IsSecret(hidden) and hidden == false
+end
+
 -- Whether you have a reminder's aura: true or false when the game says, nil when it hides your auras.
-local function Read(r)
-    if not GetByName then return nil end
+local function Read(r, now)
+    local tracked = ReadTracked(r, now)
+    if tracked ~= nil then return tracked end
+    if not GetByName or not Readable(r) then return nil end
     local ok, aura = pcall(GetByName, "player", r.name, "HELPFUL")
     if not ok or IsSecret(aura) then return nil end
     if aura == nil then r.ends, r.stacks = nil, 0; return false end
-    local at, length, stacks = aura.expirationTime, aura.duration, aura.applications
-    if not IsSecret(at) and type(at) == "number" and at > 0 then r.ends = at else r.ends = nil end
-    if not IsSecret(length) and type(length) == "number" and length > 0 then r.lasts = length end
-    if not IsSecret(stacks) and type(stacks) == "number" then r.stacks = stacks end
+    Times(r, aura, now)
     return true
 end
 
@@ -376,14 +422,14 @@ function Update()
     local now, soonest = GetTime(), nil
     for i = 1, #list do
         local r = list[i]
-        local state = Read(r)
+        local state = Read(r, now)
         if state == nil then
-            -- Hidden: still on until it was to run out.
-            state = r.has or false
+            -- Hidden: still on until it was to run out; unknown if never read.
+            state = r.has
             if state and r.ends and r.ends <= now then state = false end
         end
         r.has = state
-        if state and r.ends then
+        if state and r.ends and (inCombat or needOut) then
             soonest = Sooner(soonest, r.ends, now)
             if r.show == "expiring" then soonest = Sooner(soonest, r.ends - r.seconds, now) end
             if r.dynamic then soonest = Sooner(soonest, r.ends - (ceil(r.ends - now) - 1), now) end
@@ -408,6 +454,68 @@ local function Cast(spellID)
             r.has = true
             r.ends = r.lasts and now + r.lasts or nil
         end
+    end
+end
+
+---------------------------------------------------------------------------
+-- What the Cooldown Manager tracks: hooked to hear when one of its buffs turns on or off, and looked through again
+-- whenever it lays out its icons. Hooked only once a reminder exists.
+---------------------------------------------------------------------------
+local trackedBy = {} -- aura name -> the item frame tracking it
+local viewersHooked = false
+
+local function OnTracked(frame)
+    if not (inCombat or needOut) then return end
+    for i = 1, #list do
+        if list[i].item == frame then return Update() end
+    end
+end
+
+local function TrackSpell(frame, id)
+    if type(id) ~= "number" or IsSecret(id) then return end
+    local name = SpellName(id)
+    if name and not IsSecret(name) and not trackedBy[name] then trackedBy[name] = frame end
+end
+
+local function Track()
+    wipe(trackedBy)
+    for _, key in ipairs(VIEWERS) do
+        local viewer = _G[key]
+        local ok, frames = false, nil
+        if viewer and viewer.GetItemFrames then ok, frames = pcall(viewer.GetItemFrames, viewer) end
+        if ok and type(frames) == "table" then
+            for _, frame in ipairs(frames) do
+                local got, info = false, nil
+                if frame.GetCooldownInfo then got, info = pcall(frame.GetCooldownInfo, frame) end
+                if got and type(info) == "table" then
+                    TrackSpell(frame, info.spellID)
+                    TrackSpell(frame, info.overrideSpellID)
+                    if type(info.linkedSpellIDs) == "table" then
+                        for _, id in ipairs(info.linkedSpellIDs) do TrackSpell(frame, id) end
+                    end
+                    if not viewerOf[frame] and frame.SetIsActive and frame.IsActive then
+                        viewerOf[frame] = viewer
+                        hooksecurefunc(frame, "SetIsActive", OnTracked)
+                    end
+                end
+            end
+        end
+    end
+    for i = 1, #list do list[i].item = trackedBy[list[i].name] end
+end
+
+local function Retrack()
+    if #list == 0 then return end
+    Track()
+    Update()
+end
+
+local function HookViewers()
+    if viewersHooked then return end
+    viewersHooked = true
+    for _, key in ipairs(VIEWERS) do
+        local viewer = _G[key]
+        if viewer and viewer.RefreshLayout then hooksecurefunc(viewer, "RefreshLayout", Retrack) end
     end
 end
 
@@ -442,6 +550,9 @@ end
 
 function R:Apply()
     local p = self.db.profile
+    -- What's known of each aura carries over: settings change mid-fight too, while auras can't be read.
+    local was = {}
+    for i = 1, #list do was[list[i].name] = list[i] end
     wipe(list)
     needOut = false
     local groupMatters = false
@@ -450,11 +561,16 @@ function R:Apply()
         if name then
             local text = ns.Trim(saved.text or "")
             if text == "" then text = name .. "!" end
-            list[#list + 1] = { name = name, text = text, dynamic = text:find("%%[tn]") ~= nil, show = saved.show,
-                seconds = saved.seconds or 10, combat = saved.combat, group = saved.group, icon = saved.icon,
-                texture = AuraIcon(saved), color = saved.color or GOLD, sound = saved.sound }
-            if saved.combat ~= "in" then needOut = true end
-            if saved.group ~= "any" then groupMatters = true end
+            local combat, group = saved.combat or "in", saved.group or "any"
+            local r = { name = name, id = tonumber(saved.aura), text = text, dynamic = text:find("%%[tn]") ~= nil,
+                show = saved.show or "missing", seconds = saved.seconds or 10, combat = combat, group = group,
+                icon = saved.icon ~= false, texture = AuraIcon(saved), color = saved.color or GOLD,
+                sound = saved.sound or "" }
+            local old = was[name]
+            if old then r.has, r.ends, r.lasts, r.stacks, r.visible = old.has, old.ends, old.lasts, old.stacks, old.visible end
+            list[#list + 1] = r
+            if combat ~= "in" then needOut = true end
+            if group ~= "any" then groupMatters = true end
         end
     end
     self:Style()
@@ -473,6 +589,10 @@ function R:Apply()
     events:RegisterEvent("PLAYER_ALIVE")
     events:RegisterEvent("PLAYER_UNGHOST")
     if groupMatters then events:RegisterEvent("GROUP_ROSTER_UPDATE") end
+    -- Auras hidden or shown again: read them while the game still allows it, and once it does again.
+    if C_RestrictedActions then pcall(events.RegisterEvent, events, "ADDON_RESTRICTION_STATE_CHANGED") end
+    HookViewers()
+    Track()
     grouped = IsInGroup() and true or false
     dead = UnitIsDeadOrGhost("player") and true or false
     Listen(InCombatLockdown() and true or false)
@@ -498,6 +618,7 @@ end
 -- Settings preview: a reminder popping in and blinking, with its icon.
 ---------------------------------------------------------------------------
 R.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
+R.info.examples = { "size", "blink", "y" }
 
 function R.info.preview(frame)
     local W = ns.Widgets
@@ -511,7 +632,7 @@ function R.info.preview(frame)
         v.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         v.icon:SetPoint("LEFT")
         v.text = row:CreateFontString(nil, "OVERLAY")
-        ns.SetFont(v.text, GAME_DAMAGE_FONT or ns.FALLBACK_FONT, 26, "OUTLINE")
+        ns.SetFont(v.text, DAMAGE_TEXT_FONT or ns.FALLBACK_FONT, 26, "OUTLINE")
         v.text:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
         v.text:SetPoint("LEFT", v.icon, "RIGHT", 7, 0)
         v.text:SetText("Shout!")
@@ -530,7 +651,11 @@ end
 ---------------------------------------------------------------------------
 R.selected = 1
 
-function R:Selected() return self.db.profile.reminders[self.selected] end
+function R:Selected()
+    local reminders = self.db.profile.reminders
+    if not reminders[self.selected] then self.selected = math.max(1, #reminders) end
+    return reminders[self.selected]
+end
 
 local SHOW_NAMES = { missing = "When missing", expiring = "Missing or running out", on = "While on you" }
 local COMBAT_NAMES = { ["in"] = "In combat", out = "Out of combat", any = "Always" }
