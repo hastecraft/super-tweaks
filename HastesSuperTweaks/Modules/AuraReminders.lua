@@ -142,7 +142,7 @@ local needOut = false -- a reminder can show out of combat: auras are listened t
 ---------------------------------------------------------------------------
 -- The text
 ---------------------------------------------------------------------------
-local holder, blink
+local holder
 local lines, shownCount = {}, 0
 
 -- The font and its flags: as Better Scrolling Combat Text's (its font, outline and Slug choices).
@@ -157,29 +157,45 @@ local function FontFlags(p)
 end
 R.FontFile, R.FontFlags = FontFile, FontFlags
 
+-- How lines move, as Better Scrolling Combat Text's spell alerts: blinking down to BLINK_LOW of their opacity and
+-- back every BLINK seconds, and coming in over INTRO seconds (popping from twice their size, fading in, shaking).
+local BLINK, BLINK_LOW, INTRO = 0.5, 0.2, 0.2
+local abs, cos, sin, PI = math.abs, math.cos, math.sin, math.pi
+
+-- Runs while a line is shown that blinks or is still coming in, and stops once none is.
+local function Animate(self)
+    local p, now, busy = R.db.profile, GetTime(), false
+    for i = 1, shownCount do
+        local line = lines[i]
+        local age = now - line.since
+        local alpha, scale, x = 1, 1, 0
+        if age < INTRO then
+            busy = true
+            local left = 1 - age / INTRO
+            if p.fadeIn then alpha = age / INTRO end
+            if p.pop then scale = 1 + left end
+            if p.shake then x = 6 * sin(age * 70) * left end
+        end
+        if p.blink then
+            busy = true
+            alpha = alpha * (BLINK_LOW + (1 - BLINK_LOW) * abs(cos(age * PI / BLINK)))
+        end
+        line:SetAlpha(alpha)
+        if line.scale ~= scale then line.scale = scale; line:SetScale(scale) end
+        if line.x ~= x then
+            line.x = x
+            line:ClearAllPoints()
+            line:SetPoint("CENTER", holder, "CENTER", x / scale, line.y / scale)
+        end
+    end
+    if not busy then self:SetScript("OnUpdate", nil); self.animating = false end
+end
+
 local function Build()
     holder = CreateFrame("Frame", nil, UIParent)
     holder:SetFrameStrata("HIGH")
     holder:SetSize(1, 1)
     holder:Hide()
-    blink = holder:CreateAnimationGroup()
-    blink:SetLooping("BOUNCE")
-    local fade = blink:CreateAnimation("Alpha")
-    fade:SetFromAlpha(1)
-    fade:SetToAlpha(0.2)
-    fade:SetDuration(0.5)
-end
-
--- How a line comes in: popping from twice its size, fading in and shaking, as each is chosen.
-local SHAKE = { { 5, 0 }, { -9, 2 }, { 7, -3 }, { -3, 1 } }
-local function StyleIntro(line, p)
-    local a = line.anims
-    a.pop:SetScaleFrom(p.pop and 2 or 1, p.pop and 2 or 1)
-    a.fade:SetFromAlpha(p.fadeIn and 0 or 1)
-    for i, offset in ipairs(SHAKE) do
-        a.shake[i]:SetOffset(p.shake and offset[1] or 0, p.shake and offset[2] or 0)
-    end
-    line.hasIntro = p.pop or p.fadeIn or p.shake
 end
 
 local function NewLine()
@@ -189,23 +205,7 @@ local function NewLine()
     line.icon:SetPoint("LEFT")
     line.text = line:CreateFontString(nil, "OVERLAY")
     line.text:SetShadowColor(0, 0, 0, 1)
-    local intro = line:CreateAnimationGroup()
-    local pop = intro:CreateAnimation("Scale")
-    pop:SetOrigin("CENTER", 0, 0)
-    pop:SetScaleTo(1, 1)
-    pop:SetDuration(0.15)
-    pop:SetOrder(1)
-    local fade = intro:CreateAnimation("Alpha")
-    fade:SetToAlpha(1)
-    fade:SetDuration(0.15)
-    fade:SetOrder(1)
-    local shake = {}
-    for i = 1, #SHAKE do
-        shake[i] = intro:CreateAnimation("Translation")
-        shake[i]:SetDuration(0.04)
-        shake[i]:SetOrder(i + 1)
-    end
-    line.intro, line.anims = intro, { pop = pop, fade = fade, shake = shake }
+    line.since, line.x, line.y, line.scale = 0, 0, 0, 1
     return line
 end
 
@@ -233,15 +233,15 @@ function R:Style()
         else
             line.text:SetPoint("LEFT")
         end
+        line.y = -(i - 1) * floor(size * 1.35 + 0.5)
         line:ClearAllPoints()
-        line:SetPoint("CENTER", holder, "CENTER", 0, -(i - 1) * floor(size * 1.35 + 0.5))
-        StyleIntro(line, p)
+        line:SetPoint("CENTER", holder, "CENTER", line.x / line.scale, line.y / line.scale)
         Fit(line, size)
     end
-    if blink then
-        if p.blink and holder:IsShown() and not blink:IsPlaying() then blink:Play() end
-        if not p.blink and blink:IsPlaying() then blink:Stop() end
+    if not p.blink then
+        for i = 1, shownCount do lines[i]:SetAlpha(1) end
     end
+    if shownCount > 0 and not holder.animating then holder.animating = true; holder:SetScript("OnUpdate", Animate) end
 end
 
 local function Line(i)
@@ -288,7 +288,8 @@ local function ShowOn(line, r, now, size)
     if line.reminder ~= r or not line:IsShown() then
         line.reminder = r
         line:Show()
-        if line.hasIntro then line.intro:Stop(); line.intro:Play() end
+        line.since = GetTime()
+        if not holder.animating then holder.animating = true; holder:SetScript("OnUpdate", Animate) end
     end
 end
 
@@ -335,13 +336,11 @@ local function Draw()
     local strata = sampling and "TOOLTIP" or "HIGH"
     if holder.strata ~= strata then holder.strata = strata; holder:SetFrameStrata(strata) end
     if count > 0 then
-        if not holder:IsShown() then
-            holder:Show()
-            if p.blink then blink:Play() end
-        end
+        if not holder:IsShown() then holder:Show() end
     elseif holder:IsShown() then
-        blink:Stop()
         holder:Hide()
+        holder:SetScript("OnUpdate", nil)
+        holder.animating = false
     end
 end
 
