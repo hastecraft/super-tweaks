@@ -10,22 +10,63 @@ local IsSecret = ns.IsSecret
 
 local R = HST:NewFeature("CombatReminders", {
     name = "Combat Reminders", category = "interface", order = 2.7, enabledByDefault = false,
-    summary = "Blinks a reminder in combat when you're missing a buff you choose.",
-    description = "Blinks your own text in the middle of the screen while you're in combat without a buff you choose, "
-        .. "such as \"Shout!\" when Battle Shout is missing.",
+    summary = "Blinks a reminder in combat when a buff you choose is missing, or a proc is up.",
+    description = "Blinks your own text in the middle of the screen in combat while a buff you choose is missing, such "
+        .. "as \"Shout!\" without Battle Shout, or while a proc such as Clearcasting is on you. Pick from your class's "
+        .. "buffs and procs, or add any buff.",
 })
 ns.CombatReminders = R
 
 R.SLOTS = 6
 local SAMPLE_SECONDS = 4
+-- Each reminder: its buff (a spell ID from the menu, or the name or spell ID typed for Other buff), whether it was
+-- typed (other), what shows, and when ("missing", or "on" while you have it, for procs).
 local defaults = { font = "", size = 30, color = { 1, 0.82, 0, 1 }, blink = true, y = 150 }
-for i = 1, R.SLOTS do defaults["buff" .. i], defaults["text" .. i] = "", "" end
+for i = 1, R.SLOTS do
+    defaults["buff" .. i], defaults["other" .. i], defaults["text" .. i], defaults["show" .. i] = "", false, "", "missing"
+end
+
+-- Buffs to pick from, by the spell ID of a rank (any rank's aura has the same name): each class's own buffs and procs
+-- (proc: shown while on you), then buffs other classes put on you.
+R.BUFFS = {
+    WARRIOR = { { 6673 }, { 12966, proc = true }, { 12880, proc = true } }, -- Battle Shout; Flurry, Enrage
+    MAGE = { { 1459 }, { 168 }, { 7302 }, { 6117 }, { 11426 }, { 12536, proc = true } },
+    PRIEST = { { 1243 }, { 588 }, { 976 }, { 15473 }, { 15271, proc = true } },
+    WARLOCK = { { 687 }, { 706 }, { 17941, proc = true } },
+    HUNTER = { { 13165 }, { 13163 }, { 19506 }, { 6150, proc = true }, { 3045, proc = true } },
+    ROGUE = { { 5171 }, { 5277, proc = true } },
+    DRUID = { { 1126 }, { 467 }, { 16864 }, { 16870, proc = true } },
+    SHAMAN = { { 324 }, { 16246, proc = true } },
+    PALADIN = { { 25780 }, { 465 }, { 7294 }, { 19746 }, { 19740 }, { 19742 }, { 20217 }, { 1038 },
+        { 20050, proc = true } },
+    ALL = { { 1459 }, { 1243 }, { 1126 }, { 19740 }, { 19742 }, { 20217 }, { 19705 } }, -- and Well Fed
+}
 
 local SpellName = C_Spell and C_Spell.GetSpellName or function(id) return (GetSpellInfo(id)) end
 local GetByName = C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName
 local GetTime, min = GetTime, math.min
 
-local list = {}        -- the reminders set: { name = the buff's name, text = what shows }
+-- The Buff menu: "" for none, this class's buffs and procs, other classes' buffs, then "other". Built when the settings
+-- ask for it; spells this client lacks are left out.
+local menu, procs
+function R:BuffMenu()
+    if menu then return menu end
+    menu, procs = { values = { [""] = "None" }, sorting = { "" } }, {}
+    local function add(entry, suffix)
+        local key, name = tostring(entry[1]), SpellName(entry[1])
+        if not name or menu.values[key] then return end
+        menu.values[key] = name .. (suffix or "")
+        menu.sorting[#menu.sorting + 1] = key
+        if entry.proc then procs[key] = true end
+    end
+    for _, entry in ipairs(self.BUFFS[select(2, UnitClass("player"))] or {}) do add(entry, entry.proc and " (proc)") end
+    for _, entry in ipairs(self.BUFFS.ALL) do add(entry) end
+    menu.values.other, menu.sorting[#menu.sorting + 1] = "Other buff", "other"
+    return menu
+end
+function R:IsProc(key) self:BuffMenu(); return procs[key] == true end
+
+local list = {}        -- the reminders set: { name = the buff's name, text = what shows, on = shown while you have it }
 local has = {}         -- whether you have each one's buff
 local ends = {}        -- when each one's buff runs out, when the game said
 local lasts = {}       -- how long each one's buff lasted when last read
@@ -89,7 +130,8 @@ local function Draw()
     local count = 0
     local sampling = GetTime() < sampleUntil
     for i = 1, #list do
-        if (inCombat and has[i] == false) or (sampling and i == 1) then
+        local want = list[i].on
+        if (inCombat and has[i] == want) or (sampling and i == 1) then
             if not holder then Build() end
             count = count + 1
             local line = Line(count)
@@ -200,7 +242,7 @@ function R:Apply()
         local name = id and SpellName(id) or (buff ~= "" and buff or nil)
         if name then
             local text = ns.Trim(p["text" .. i] or "")
-            list[#list + 1] = { name = name, text = text ~= "" and text or (name .. "!") }
+            list[#list + 1] = { name = name, text = text ~= "" and text or (name .. "!"), on = p["show" .. i] == "on" }
         end
     end
     self:Style()
@@ -268,19 +310,27 @@ ns.Configure(R, defaults, function(m)
     local function apply() m:Apply() end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra, apply) end
 
-    local reminders = {
-        help = { type = "description", order = 0,
-            name = "For each, a buff's name, such as Battle Shout, or its spell ID. Leave Text empty to show the buff's "
-                .. "name." },
-    }
+    local function empty(i) local p = profile(); return p["buff" .. i] == "" and not p["other" .. i] end
+    local reminders = {}
     for i = 1, m.SLOTS do
         reminders["slot" .. i] = ns.Section("Reminder " .. i, i, {
-            ["buff" .. i] = option("input", "buff" .. i, "Buff", 1),
-            ["text" .. i] = option("input", "text" .. i, "Text", 2),
-        }, { hidden = function()
-            local p = profile()
-            return i > 1 and p["buff" .. (i - 1)] == "" and p["buff" .. i] == ""
-        end })
+            ["pick" .. i] = { type = "select", name = "Buff", order = 1,
+                values = function() return m:BuffMenu().values end, sorting = function() return m:BuffMenu().sorting end,
+                get = function() local p = profile(); return p["other" .. i] and "other" or p["buff" .. i] end,
+                set = function(_, key)
+                    local p = profile()
+                    p["other" .. i] = key == "other"
+                    p["buff" .. i] = key == "other" and "" or key
+                    if key ~= "other" and key ~= "" then p["show" .. i] = m:IsProc(key) and "on" or "missing" end
+                    m:Apply()
+                end },
+            ["buff" .. i] = option("input", "buff" .. i, "Name or spell ID", 2,
+                { hidden = function() return not profile()["other" .. i] end }),
+            ["show" .. i] = option("select", "show" .. i, "Show", 3, {
+                values = { missing = "When it's missing", on = "While it's on you" }, sorting = { "missing", "on" },
+                hidden = function() return empty(i) end }),
+            ["text" .. i] = option("input", "text" .. i, "Text", 4, { hidden = function() return empty(i) end }),
+        }, { hidden = function() return i > 1 and empty(i - 1) and empty(i) end })
     end
 
     return { name = m.info.name, type = "group", args = {
