@@ -16,6 +16,38 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.0.0", date = "2026-11-13",
+        highlights = {
+            { "Buy a shopping list one key press at a time, see price charts on the buy screen and on each item's page, and keep a watchlist that tells you when a price drops.",
+                title = "Super Auction House: Buy Next, Charts and Watchlist", module = "SuperAuctionHouse" },
+            { "Blinks your own text when a buff is missing or running out, or a proc is up.",
+                title = "Aura Reminders", module = "AuraReminders" },
+            { "Hides what warlock pets say, in chat and over their heads.",
+                title = "Hide Warlock Pet Chatter", module = "PetChatter" },
+        },
+        new = {
+            { "Type limits with a name, such as \"ore <50s\" or \"x40\", and remove them as chips. The Shopping tab opens on your recent searches, lists and watched items, and the buy screen can buy everything up to a price.",
+                title = "Super Auction House: Shopping", module = "SuperAuctionHouse" },
+            { "\"Never post below\", \"Keep N on sale\", \"Like last time\" and a list view.",
+                title = "Super Auction House: Selling", module = "SuperAuctionHouse" },
+            { "Undercut, Expiring, Sold and With bids views, bids, and cancel all of an item. The tab opens away from an auction house too.",
+                title = "Super Auction House: Auctions", module = "SuperAuctionHouse" },
+            { "Says in chat when an auction sells, and at login what ended while you were away.",
+                title = "Super Auction House: Sold Alerts", module = "SuperAuctionHouse" },
+            { "History adds flips and net worth. The Prices tab adds a market browser, quick scans, smart lists and Recipes.",
+                title = "Super Auction House: History and Prices", module = "SuperAuctionHouse" },
+            { "Tooltips show the best price and the change from the usual price, and a recipe's own price apart from what it makes.",
+                title = "Super Auction House: Tooltips", module = "SuperAuctionHouse" },
+            { "Sell Junk, Sell Clutter, Bag Cleaner, Instance Tracker and Quest Reward Value can use Super Auction House's prices, each with its own setting, off at first.",
+                title = "Auction Prices in Other Tweaks" },
+            { "\"Send a Selling group\" fills a letter with that group's items.",
+                title = "Mail Expiry & Alt List: Send a Selling Group", module = "MailHelper" },
+        },
+        changed = {
+            "Group Finder Whispers is removed.",
+        },
+    },
+    {
         version = "3.12.1", date = "2026-11-12",
         fixed = {
             { "Better Tooltips: \"Class after level\" no longer stops working on a player's tooltip, such as your own, after it redraws.",

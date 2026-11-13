@@ -2,6 +2,35 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.0.0 (2026-11-13)
+
+### Super Auction House: Buy Next, Charts and Watchlist
+
+Buy a shopping list one key press at a time, see price charts on the buy screen and on each item's page, and keep a watchlist that tells you when a price drops.
+
+### Aura Reminders
+
+Blinks your own text when a buff is missing or running out, or a proc is up.
+
+### Hide Warlock Pet Chatter
+
+Hides what warlock pets say, in chat and over their heads.
+
+### New Features
+
+- Super Auction House: Shopping. Type limits with a name, such as "ore <50s" or "x40", and remove them as chips. The Shopping tab opens on your recent searches, lists and watched items, and the buy screen can buy everything up to a price.
+- Super Auction House: Selling. "Never post below", "Keep N on sale", "Like last time" and a list view.
+- Super Auction House: Auctions. Undercut, Expiring, Sold and With bids views, bids, and cancel all of an item. The tab opens away from an auction house too.
+- Super Auction House: Sold Alerts. Says in chat when an auction sells, and at login what ended while you were away.
+- Super Auction House: History and Prices. History adds flips and net worth. The Prices tab adds a market browser, quick scans, smart lists and Recipes.
+- Super Auction House: Tooltips. Tooltips show the best price and the change from the usual price, and a recipe's own price apart from what it makes.
+- Auction Prices in Other Tweaks. Sell Junk, Sell Clutter, Bag Cleaner, Instance Tracker and Quest Reward Value can use Super Auction House's prices, each with its own setting, off at first.
+- Mail Expiry & Alt List: Send a Selling Group. "Send a Selling group" fills a letter with that group's items.
+
+### Changes
+
+- Group Finder Whispers is removed.
+
 ## 3.12.1 (2026-11-12)
 
 ### Bug Fixes
