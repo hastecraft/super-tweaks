@@ -35,7 +35,7 @@ I.defaults = { profile = {
     -- Limits
     limitHour = 5, limitDay = 30,
     -- Tracking
-    resume = 30, lootQuality = 2, keep = 300,
+    resume = 30, lootQuality = 2, keep = 300, auction = false,
     -- Chat
     sayEnter = true, sayLeave = true,
 }, global = { chars = {} } }
@@ -69,6 +69,8 @@ ns.LazyOptions(I, function(m)
                 lootQuality = ns.Option(profile, "select", "lootQuality", "Keep loot", 2,
                     { values = m.QUALITIES, sorting = m.QUALITY_ORDER }),
                 keep = ns.Option(profile, "range", "keep", "Runs kept per character", 3, { min = 50, max = 1000, step = 50 }),
+                auction = ns.Option(profile, "toggle", "auction", "Auction value of loot", 4,
+                    { desc = "Needs Super Auction House on.", disabled = ns.AuctionPricesOff }),
             }),
             chat = ns.Section("In chat", 4, {
                 sayEnter = ns.Option(profile, "toggle", "sayEnter", "Say it when you enter", 1,
@@ -616,7 +618,7 @@ function I:Loot(message)
     if quality == nil and GetItemInfo then quality = select(3, GetItemInfo(id)) end
     local hidden = quality ~= nil and IsSecret(quality)
     local count
-    local value = ns.AuctionValue and ns.AuctionValue(id)
+    local value = self.db.profile.auction and ns.AuctionValue(id)
     if value then
         count = LootCount(message)
         -- Gear with a suffix or a level of its own has its own price, by its link.

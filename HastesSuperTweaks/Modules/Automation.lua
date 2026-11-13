@@ -513,7 +513,7 @@ local J = HST:NewFeature("SellJunk", {
         .. "stay. Hold Shift to skip.",
 })
 ns.SellJunk = J
-Settings(J,{ summary = true, keepGear = false, skipConfirm = false, auction = true, auctionGain = 10 }, function(m)
+Settings(J,{ summary = true, keepGear = false, skipConfirm = false, auction = false, auctionGain = 10 }, function(m)
     local auction, auctionGain = ns.VendorSale.AuctionOptions(function() return m.db.profile end, 3)
     return {
         summary = Toggle(m, "summary", "Say what was sold", 1),
@@ -684,10 +684,7 @@ end
 
 -- The two settings a seller offers for it, greyed out while Super Auction House is off.
 function Sale.AuctionOptions(profile, order)
-    local function off()
-        local auctions = ns.SuperAuctionHouse
-        return not (auctions and auctions:IsEnabled()) or auctions.info.unavailable ~= nil
-    end
+    local off = ns.AuctionPricesOff
     return ns.Option(profile, "toggle", "auction", "Keep items worth more at auction", order,
             { desc = "Needs Super Auction House on.", disabled = off }),
         ns.Option(profile, "range", "auctionGain", "By at least (silver)", order + 1, { min = 1, max = 500, step = 1,

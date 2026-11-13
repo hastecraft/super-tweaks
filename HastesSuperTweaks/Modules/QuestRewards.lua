@@ -10,9 +10,19 @@ local Q = HST:NewFeature("QuestRewards", {
     name = "Quest Reward Value", category = "quests", order = 4,
     summary = "Marks the quest reward that sells for the most.",
     description = "When a quest lets you choose a reward, the one that sells to a vendor for the most gets a gold coin "
-        .. "and its price. With Super Auction House on, so does one that sells for more at auction.",
+        .. "and its price.",
 })
 ns.QuestRewards = Q
+ns.Configure(Q, { auction = false }, function(m)
+    local function profile() return m.db.profile end
+    return { name = m.info.name, type = "group", args = {
+        general = { type = "group", name = "Settings", order = 1, args = {
+            auction = ns.Option(profile, "toggle", "auction", "Mark the one worth most at auction", 1,
+                { desc = "Needs Super Auction House on.", disabled = ns.AuctionPricesOff },
+                function() if m:IsEnabled() then m:Update() end end),
+        } },
+    } }
+end)
 
 local ItemInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
 local COIN = "Interface\\MoneyFrame\\UI-GoldIcon"
@@ -89,7 +99,7 @@ local function Consider(index, link, count)
     vendor = (vendor or 0) * count
     if vendor > vendorValue then vendorAt, vendorValue = index, vendor end
     if bind ~= 1 and bind ~= 4 then
-        local price = ns.AuctionValue and ns.AuctionValue(link)
+        local price = Q.db.profile.auction and ns.AuctionValue(link)
         local auction = price and math.floor(price * AH_CUT) * count
         if auction and auction > auctionValue then auctionAt, auctionValue = index, auction end
     end

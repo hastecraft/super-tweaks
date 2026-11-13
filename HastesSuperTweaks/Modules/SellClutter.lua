@@ -922,7 +922,7 @@ S.DEFAULTS = {
     cooking = true, parts = true, reagents = true, drinks = true, clams = false, gear = true, lighter = true, boundGreens = true,
     anyGreens = false, oldGear = true, food = true, potions = true, cloth = false, leather = true, herbs = true,
     metal = true, devices = true, recipes = false, rxp = true, rxpDone = true, looks = "player",
-    auction = true, auctionGain = 10,
+    auction = false, auctionGain = 10,
     keep = {}, sell = {},
 }
 S.KEEP_CHOICES = { all = "All your professions", crafting = "Crafting and gathering only", none = "None" }
