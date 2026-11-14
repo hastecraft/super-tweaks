@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.1.0", date = "2026-11-13",
+        highlights = {
+            { "A bar of your gear slots: hover one to swap in another item from your bags, queue trinkets so the next ready one goes on, and put on gear when you mount, swim, eat or rest.",
+                title = "Gear Shift", module = "GearShift" },
+        },
+    },
+    {
         version = "4.0.0", date = "2026-11-13",
         highlights = {
             { "Buy a shopping list one key press at a time, see price charts on the buy screen and on each item's page, and keep a watchlist that tells you when a price drops.",
