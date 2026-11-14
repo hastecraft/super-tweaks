@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.3.1 (2026-11-14)
+
+### Bug Fixes
+
+- Gear Shift: mount gear comes off after every kind of dismount, including gathering and opening things.
+
 ## 4.3.0 (2026-11-14)
 
 ### Super Auction House: Recipes
