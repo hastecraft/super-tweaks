@@ -16,6 +16,12 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.3.1", date = "2026-11-14",
+        fixed = {
+            { "Gear Shift: mount gear comes off after every kind of dismount, including gathering and opening things.", module = "GearShift" },
+        },
+    },
+    {
         version = "4.3.0", date = "2026-11-14",
         highlights = {
             { "A new Recipes view in the Shopping tab lists every recipe and enchant with what its materials cost. Click one to search its materials, then buy them with Buy Next.",
