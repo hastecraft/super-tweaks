@@ -2,6 +2,16 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.2.0 (2026-11-13)
+
+### Auto-Invite Customers
+
+Invites and whispers players who ask in trade chat for a portal, an enchant or a craft you offer.
+
+### Changes
+
+- Super Auction House: posts for 8 hours by default.
+
 ## 4.1.0 (2026-11-13)
 
 ### Gear Shift
