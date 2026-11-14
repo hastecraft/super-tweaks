@@ -46,7 +46,7 @@ local defaults = {
     record = true, scanMode = "replicate", autoScan = false, autoScanMinutes = 15, scanChat = true, keepHistory = true,
     historyDays = 21,
     -- Selling
-    undercutMode = "percent", undercutPercent = 0, undercutStatic = 0, duration = 3, saveDuration = false,
+    undercutMode = "percent", undercutPercent = 0, undercutStatic = 0, duration = 2, saveDuration = false,
     matchMode = "nameLevel", gearMultiplier = 0, confirmLow = true, showBid = false, autoNext = true, reselect = true,
     postChat = true, bagSelect = "alt", missingFavourites = true, iconSize = 36, showBag = true, splitPanels = false,
     collapsed = {}, historyLength = 10, keyPost = "SPACE", keySkip = "SHIFT-SPACE", keyPrev = "BACKSPACE",
