@@ -436,10 +436,25 @@ function G:Restore(slot)
     if was then self:Put(slot, LinkItemID(was), was) else self:Put(slot, false) end
 end
 
+-- A swap still on its way would read as a slot you changed, so the change waits for it.
+G.retrySituation = function()
+    G.situationRetry = nil
+    G:UpdateSituation()
+end
+
 function G:UpdateSituation()
     if not self:IsEnabled() then return end
     if Busy() then return self:Wait() end
     local c = self.db.char
+    for slot in pairs(c.put) do
+        if IsInventoryItemLocked(slot) then
+            if not self.situationRetry then
+                self.situationRetry = true
+                C_Timer.After(0.5, self.retrySituation)
+            end
+            return
+        end
+    end
     local key, setID = self:Situation()
     if key == c.situation and setID == c.situationSet then return end
     wipe(taken)
@@ -497,7 +512,9 @@ function G:Watch()
     Want(self, "PLAYER_EQUIPMENT_CHANGED", on)
     Want(self, "PLAYER_MOUNT_DISPLAY_CHANGED", picked.mounted ~= nil)
     Want(self, "UPDATE_SHAPESHIFT_FORM", picked.form ~= nil and select(2, Class()) ~= false)
-    Want(self, "UNIT_AURA", picked.eating ~= nil and not combat, "player")
+    local eating = picked.eating ~= nil and not combat
+    if not eating then self.eating = nil end
+    Want(self, "UNIT_AURA", eating, "player")
     Want(self, "PLAYER_UPDATE_RESTING", picked.resting ~= nil)
     local zoneWatch = picked.zone ~= nil and next(zones) ~= nil
     Want(self, "ZONE_CHANGED", zoneWatch)
@@ -530,11 +547,19 @@ ns.Listen(G, { "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_E
             self.combat = true
             self:Watch()
         elseif event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
-            self.combat = false
+            -- Coming back to life mid-fight is still combat.
+            self.combat = event ~= "PLAYER_REGEN_ENABLED" and InCombatLockdown() or false
             if self:IsEnabled() then self:Watch() end
             self:Flush()
         elseif event == "MODIFIER_STATE_CHANGED" then
             self:OnModifier()
+        elseif event == "UNIT_AURA" then
+            -- Only a start or end of eating or drinking matters.
+            local now = self.SITUATIONS[4].check()
+            if now ~= self.eating then
+                self.eating = now
+                if not self.combat then self:UpdateSituation() end
+            end
         elseif event == "EQUIPMENT_SETS_CHANGED" then
             self.setIDs = nil
             self:ShowSetSoon()

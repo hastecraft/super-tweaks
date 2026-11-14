@@ -48,6 +48,7 @@ function GetInventoryItemLink(_, slot)
     local id = GetInventoryItemID and GetInventoryItemID('player', slot)
     return id and ('item:' .. id) or nil
 end
+function IsInventoryItemLocked() return false end
 function GetInventoryItemCooldown(_, slot) local cd = INVENTORY_COOLDOWNS and INVENTORY_COOLDOWNS[slot]; if cd then return cd[1], cd[2], 1 end return 0, 0, 1 end
 function GetInventorySlotInfo(name) return 0, 'empty-' .. name end
 function CursorHasItem() return false end
