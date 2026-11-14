@@ -334,6 +334,16 @@ local function Has(check)
     return not IsSecret(value) and value and true or false
 end
 
+-- Whether a spell is instant (UNIT_SPELLCAST_SENT's spell ID, which can be secret).
+local SpellInfo = C_Spell and C_Spell.GetSpellInfo
+local function InstantSpell(spellID)
+    if IsSecret(spellID) or type(spellID) ~= "number" or not SpellInfo then return false end
+    local info = SpellInfo(spellID)
+    if IsSecret(info) or not info then return false end
+    local castTime = info.castTime
+    return not IsSecret(castTime) and castTime == 0
+end
+
 local function AuraNamed(name)
     if not (name and AuraByName and name ~= "") then return false end
     local aura = AuraByName("player", name, "HELPFUL")
@@ -457,11 +467,22 @@ function G:UpdateSituation()
     end
     local key, setID = self:Situation()
     if key == c.situation and setID == c.situationSet then return end
+    -- A swap would cut a cast short (gathering, opening a chest): it waits for the cast to end.
+    if UnitCastingInfo("player") or UnitChannelInfo("player") then
+        if not self.situationRetry then
+            self.situationRetry = true
+            C_Timer.After(0.5, self.retrySituation)
+        end
+        return
+    end
     wipe(taken)
     local want = key and self:Plan(key, setID) or NONE
-    -- What only the old situation's gear held goes back.
+    -- What only the old situation's gear held goes back, checked a moment later in case the game refused the swap.
     for slot in pairs(c.restore) do
-        if want[slot] == nil then self:Restore(slot) end
+        if want[slot] == nil then
+            if c.put[slot] ~= nil then self:CheckRestore(slot, c.restore[slot], c.put[slot]) end
+            self:Restore(slot)
+        end
     end
     -- A set alone goes on as the game puts sets on (it knows which copy of an item); with items, slot by slot.
     local items = key and c.situationItems[key]
@@ -476,21 +497,47 @@ function G:UpdateSituation()
     self:ShowSet()
 end
 G.updateSituation = function() G:UpdateSituation() end
--- What the mount's gear had replaced as the cast went, by slot: what it was and what the mount put on.
-local leftWas, leftPut = {}, {}
-G.leftMount = function()
-    G.leavingMount = nil
+-- Gear going back, checked a moment after the swap: what the slot held before and what the situation had put on.
+-- The game can refuse a swap (a fight that started first, a cast, a busy slot): then what goes back is kept and
+-- tried again, a few times.
+local CHECK_AFTER, CHECK_TRIES = 1, 5
+local checkWas, checkPut, checkTries = {}, {}, {}
+local checking = false
+function G:CheckRestore(slot, was, put)
+    checkWas[slot], checkPut[slot] = was, put
+    checkTries[slot] = checkTries[slot] or 0
+    if not checking then
+        checking = true
+        C_Timer.After(CHECK_AFTER, self.checkRestores)
+    end
+end
+
+G.checkRestores = function()
+    checking = false
     local c = G.db.char
-    for slot, put in pairs(leftPut) do
-        -- The swap didn't happen (the fight started first) or the cast didn't dismount you: what goes back is kept,
-        -- and goes back once it can.
-        if c.put[slot] == nil and c.restore[slot] == nil and (GetInventoryItemID("player", slot) or false) == put then
-            c.restore[slot], c.put[slot] = leftWas[slot], put
-            if not Has(IsMounted) then G:Restore(slot) end
+    if not G:IsEnabled() then
+        wipe(checkWas); wipe(checkPut); wipe(checkTries)
+        return
+    end
+    for slot, put in pairs(checkPut) do
+        local was, tries = checkWas[slot], checkTries[slot]
+        checkWas[slot], checkPut[slot] = nil, nil
+        if c.put[slot] == nil and c.restore[slot] == nil and G.pending[slot] == nil
+            and (GetInventoryItemID("player", slot) or false) == put and tries < CHECK_TRIES then
+            -- Still on: it's owed back again.
+            c.restore[slot], c.put[slot] = was, put
+            checkTries[slot] = tries + 1
+            c.situation, c.situationSet = "owed", nil
+        else
+            checkTries[slot] = nil
         end
     end
-    wipe(leftWas)
-    wipe(leftPut)
+    G:UpdateSituation()
+end
+
+-- A cast from the saddle ended its moment of grace: still mounted, the mount's gear goes back on.
+G.leftMount = function()
+    G.leavingMount = nil
     G:UpdateSituation()
 end
 
@@ -550,7 +597,7 @@ end
 
 ns.Listen(G, { "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "EQUIPMENT_SETS_CHANGED",
     "EQUIPMENT_SWAP_FINISHED" },
-    function(self, event, a, b)
+    function(self, event, a, b, _, d)
         if event == "BAG_UPDATE_COOLDOWN" then
             self:ShowCooldowns()
             if self.queuing and not self.combat then self:QueueSoon(0.5) end
@@ -582,10 +629,11 @@ ns.Listen(G, { "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_E
             -- A spell cast from the saddle, like Charge, dismounts you and can start the fight before the game says
             -- you've dismounted, and only weapons can be swapped in a fight: the mount's gear comes off as the cast
             -- goes. Still mounted a moment later (a spell that doesn't dismount), it goes back on.
-            if not self.combat and not self.leavingMount and self.db.char.situation == "mounted" and Has(IsMounted) then
+            -- Only instant spells: one with a cast time can't start a fight before the dismount, and a swap would cut
+            -- it short.
+            if not self.combat and not self.leavingMount and self.db.char.situation == "mounted" and Has(IsMounted)
+                and InstantSpell(d) then
                 self.leavingMount = true
-                local c = self.db.char
-                for slot, put in pairs(c.put) do leftWas[slot], leftPut[slot] = c.restore[slot], put end
                 self:UpdateSituation()
                 C_Timer.After(1, self.leftMount)
             end
@@ -603,7 +651,11 @@ ns.Listen(G, { "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_E
             C_Timer.After(1, self.updateSituation)
             self:QueueSoon(1)
         else -- a situation's event
-            if not self.combat then self:UpdateSituation() end
+            if not self.combat then
+                self:UpdateSituation()
+                -- The game can say the mount changed a moment before it reads so: look again.
+                if event == "PLAYER_MOUNT_DISPLAY_CHANGED" then C_Timer.After(0.3, self.updateSituation) end
+            end
         end
     end)
 
