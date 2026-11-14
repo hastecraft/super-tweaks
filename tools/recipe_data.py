@@ -108,7 +108,16 @@ def apply_hotfixes(rows, fixes):
         values = flatten(data)
         if len(values) != len(columns):
             sys.exit(f'Hotfix for record {record} has {len(values)} values, the table {len(columns)}')
-        by_id[key] = {c: str(v) for c, v in zip(columns, values)}
+        fixed = {c: str(v) for c, v in zip(columns, values)}
+        # wago records some hotfixes from other locales' clients, so a row's text stays the English the CSV has.
+        old = by_id.get(key)
+        if old:
+            for c in columns:
+                if c.endswith('_lang'):
+                    fixed[c] = old[c]
+        elif any(ord(ch) > 127 for c in columns if c.endswith('_lang') for ch in fixed[c]):
+            sys.exit(f'Hotfix for record {record} adds a row whose text isn\'t English: {fixed}')
+        by_id[key] = fixed
     return by_id
 
 
