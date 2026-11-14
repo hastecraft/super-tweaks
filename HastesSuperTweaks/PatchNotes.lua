@@ -16,6 +16,12 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.3.2", date = "2026-11-14",
+        fixed = {
+            { "Super Auction House: Glove Enchants and Gloves show in English in the Recipes list.", module = "SuperAuctionHouse" },
+        },
+    },
+    {
         version = "4.3.1", date = "2026-11-14",
         fixed = {
             { "Gear Shift: mount gear comes off after every kind of dismount, including gathering and opening things.", module = "GearShift" },
