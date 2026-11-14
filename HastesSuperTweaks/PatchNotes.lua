@@ -16,6 +16,16 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.2.0", date = "2026-11-13",
+        highlights = {
+            { "Invites and whispers players who ask in trade chat for a portal, an enchant or a craft you offer.",
+                title = "Auto-Invite Customers", module = "AutoInvite" },
+        },
+        changed = {
+            { "Super Auction House: posts for 8 hours by default.", module = "SuperAuctionHouse" },
+        },
+    },
+    {
         version = "4.1.0", date = "2026-11-13",
         highlights = {
             { "A bar of your gear slots: hover one to swap in another item from your bags, queue trinkets so the next ready one goes on, and put on gear when you mount, swim, eat or rest.",
