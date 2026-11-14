@@ -12,8 +12,8 @@ local S = HST:NewFeature("SuperAuctionHouse", {
     name = "Super Auction House", category = "items", order = 3.65, command = "ah", enabledByDefault = false,
     summary = "Replaces the auction house window and puts prices on item tooltips.",
     examples = { "openOn", "tipAuction", "undercutPercent", "autoScan" },
-    description = "Opens its own window at the auction house, with shopping lists, a selling screen that undercuts for "
-        .. "you, a check for undercut auctions and a history of what you've made and spent. Scan the auction house to fill "
+    description = "Opens its own window at the auction house, with shopping lists, the materials for every recipe and "
+        .. "enchant to buy, a selling screen that undercuts for you, a check for undercut auctions and a history of what you've made and spent. Scan the auction house to fill "
         .. "its price database, which item tooltips read anywhere in the game. Prices stay on your computer, per realm.",
 })
 ns.SuperAuctionHouse = S

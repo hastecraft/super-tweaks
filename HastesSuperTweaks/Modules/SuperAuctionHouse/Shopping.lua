@@ -17,7 +17,7 @@ local RECENT_LIMIT = 30
 local AUTOCOMPLETE_ROWS = 8
 local AUTOCOMPLETE_OWN = 3
 local AUTOCOMPLETE_MIN = 2
-local SIDE_WIDTH = 250
+local SIDE_WIDTH = 270
 local RESULTS_TOP = 34 -- the search row and the progress line
 local CHIP_ROW = 24 -- the row under them, for a search's limits and Buy Next
 
@@ -142,6 +142,8 @@ local function SideEntries()
     if S.db.profile.shoppingView == "categories" then
         local categories = Categories()
         if categories then AddCategories(entries, categories, nil, 0) end
+    elseif S.db.profile.shoppingView == "recipes" then
+        return S.RecipeBook.Entries()
     elseif S.db.profile.shoppingView == "recents" then
         for i, text in ipairs(Recents()) do
             entries[i] = { kind = "recent", text = text, name = T.Pretty(text) }
@@ -1016,6 +1018,8 @@ end
 
 local function SideClick(e, button, row)
     if e.kind == "heading" then return end
+    if e.kind == "book" then return S.RecipeBook.Toggle(e) end
+    if e.kind == "recipe" then return S.RecipeBook.Click(e, button, row) end
     if e.kind == "smart" then
         if button == "LeftButton" then RunSmart(e.key, e.name) end
     elseif e.kind == "category" then
@@ -1502,9 +1506,12 @@ function Sh.Build(frame)
     side:SetPoint("BOTTOMLEFT", 10, 10)
     side:SetWidth(SIDE_WIDTH)
     K.Box(side, P.card, P.border)
-    local views = { { "lists", "Lists" }, { "recents", "Recent" }, { "categories", "Categories" } }
+    local views = { { "lists", "Lists" }, { "recents", "Recent" }, { "categories", "Categories" },
+        { "recipes", "Recipes" } }
+    local ShowViewParts
     local view = K.Pills(side, views, function(key)
         S.db.profile.shoppingView = key
+        ShowViewParts()
         RefreshSide()
     end, 26, true)
     view:SetPoint("TOPLEFT", 8, -8)
@@ -1524,6 +1531,20 @@ function Sh.Build(frame)
     export:SetWidth(76)
     export:SetScript("OnClick", function() ShowExport(selected and { selected } or Lists()) end)
     export.tipText = "The selected list, or all lists when none is selected."
+    -- The Recipes view has a filter where the list buttons are.
+    local recipeFilter = K.Input(side, { placeholder = "Filter recipes", clear = true,
+        onChange = function(text) S.RecipeBook.SetFilter(text) end })
+    recipeFilter:SetPoint("BOTTOMLEFT", 8, 8)
+    recipeFilter:SetPoint("BOTTOMRIGHT", -8, 8)
+    ShowViewParts = function()
+        local recipes = S.db.profile.shoppingView == "recipes"
+        recipeFilter:SetShown(recipes)
+        newList:SetShown(not recipes)
+        import:SetShown(not recipes)
+        export:SetShown(not recipes)
+    end
+    Sh.ShowViewParts = ShowViewParts
+    ShowViewParts()
     Sh.side = K.Table(side, { rowHeight = 24, empty = "Nothing here yet.", noHeader = true,
         columns = {
             { key = "name", title = "", fill = 1, noSort = true, icon = function(e) return e.icon end,
@@ -1537,6 +1558,7 @@ function Sh.Build(frame)
             { key = "count", title = "", width = 62, justify = "RIGHT", noSort = true,
               text = function(e)
                   if e.kind == "term" then return e.price and K.ShortMoney(e.price) or "" end
+                  if e.kind == "recipe" then return S.RecipeBook.CostText(e) end
                   return e.count or ""
               end,
               color = function(e) return (e.deal or e.done) and K.GAIN or P.muted end },
@@ -1544,11 +1566,13 @@ function Sh.Build(frame)
         isSelected = function(e)
             if e.kind == "category" then return e.path == category end
             if e.kind == "smart" then return e.key == smartKey end
+            if e.kind == "recipe" then return S.RecipeBook.IsSelected(e) end
             return e.kind == "list" and e.list == selected
         end,
         onClick = SideClick,
         onEnter = function(e, row)
             if e.kind == "term" and e.link then K.ItemTip(row, e.link) end
+            if e.kind == "recipe" then S.RecipeBook.Tip(e, row) end
         end,
     })
     Sh.side:SetPoint("TOPLEFT", 6, -42)
@@ -1757,15 +1781,25 @@ function Sh.Apply()
     if S.Buy.frame then S.Buy.Apply() end
 end
 
--- A search asked for from elsewhere (reagents, other addons), as a temporary list.
-function Sh.External(name, terms)
+-- A search asked for from elsewhere (reagents, other addons), as a temporary list. stay: the side panel keeps its
+-- view (the Recipes view asked).
+function Sh.External(name, terms, stay)
     S.Window.Select("shopping")
     -- A list of your own with that name keeps its searches: these run without a list.
     local own = FindList(name)
     if own and not own.temporary then return Sh.Run(terms) end
     local list = CreateList(name, terms, true)
-    S.db.profile.shoppingView = "lists"
-    Sh.view:Choose("lists")
+    -- The Recipes view keeps one list, its newest search, so your lists don't fill up with recipes.
+    if stay then
+        local previous = Sh.bookList
+        if previous and previous ~= list and previous.temporary then DeleteList(previous) end
+        Sh.bookList = list
+    end
+    if not stay then
+        S.db.profile.shoppingView = "lists"
+        Sh.view:Choose("lists")
+        Sh.ShowViewParts()
+    end
     SearchList(list)
 end
 

@@ -284,6 +284,7 @@ end
 -- The saved recipes changed.
 function M.Changed()
     stale = true
+    if S.RecipeBook then S.RecipeBook.Reset() end
     if view.frame and view.frame:IsVisible() then Fill(true) end
 end
 

@@ -88,6 +88,8 @@ Modules\SuperAuctionHouse\History.lua
 Modules\SuperAuctionHouse\Window.lua
 Modules\SuperAuctionHouse\Crafting.lua
 Modules\SuperAuctionHouse\Recipes.lua
+Modules\SuperAuctionHouse\RecipeData.lua
+Modules\SuperAuctionHouse\RecipeBook.lua
 Modules\SuperAuctionHouse\Compat.lua
 Modules\Appearances.lua
 Modules\Restock.lua
