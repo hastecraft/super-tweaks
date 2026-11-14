@@ -1027,7 +1027,6 @@ local ICONS = "Interface\\Icons\\"
 local SAMPLE_SET = ICONS .. "INV_Helmet_03"
 local SAMPLE_WORN = { ICONS .. "INV_Jewelry_Talisman_01", ICONS .. "INV_Misc_Bone_ElfSkull_01" }
 local SAMPLE_BAG = { ICONS .. "INV_Misc_Orb_03", ICONS .. "INV_Misc_Rune_01" }
-local CAPTIONS = { "Your trinkets on the bar", "Hover one for the others in your bags", "Click one to put it on" }
 function G.info.preview(frame)
     local W = ns.Widgets
     local p = G.db.profile
@@ -1037,7 +1036,6 @@ function G.info.preview(frame)
         frame.hstGearShift = v
         for i = 1, 3 do v.buttons[i] = Dress(CreateFrame("Frame", nil, v.bar)) end
         for i = 1, 2 do v.menu[i] = Dress(CreateFrame("Frame", nil, v.bar)) end
-        v.caption = W.Caption(frame, CAPTIONS[1])
     end
     local size = min(p.size, 40)
     local step = size + p.spacing
@@ -1063,7 +1061,7 @@ function G.info.preview(frame)
         else e:SetPoint("BOTTOM", owner, "TOP", 0, p.spacing + (i - 1) * step) end
     end
     v.buttons[3].icon:SetTexture(SAMPLE_WORN[2])
-    W.Column(frame, { v.bar, 14, v.caption })
+    W.Column(frame, { v.bar })
     local phase
     W.Loop(frame, 6, function(t)
         local now = t < 1.5 and 1 or t < 3.5 and 2 or 3
@@ -1071,7 +1069,6 @@ function G.info.preview(frame)
         phase = now
         for _, e in ipairs(v.menu) do e:SetShown(now == 2) end
         owner.icon:SetTexture(now == 3 and SAMPLE_BAG[1] or SAMPLE_WORN[1])
-        v.caption:SetText(CAPTIONS[now])
     end, 2.5)
 end
 
