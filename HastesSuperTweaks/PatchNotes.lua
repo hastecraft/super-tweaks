@@ -16,6 +16,16 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.3.0", date = "2026-11-14",
+        highlights = {
+            { "A new Recipes view in the Shopping tab lists every recipe and enchant with what its materials cost. Click one to search its materials, then buy them with Buy Next.",
+                title = "Super Auction House: Recipes", module = "SuperAuctionHouse" },
+        },
+        fixed = {
+            { "Gear Shift: charging off your mount swaps your mount gear back before the fight starts.", module = "GearShift" },
+        },
+    },
+    {
         version = "4.2.0", date = "2026-11-13",
         highlights = {
             { "Invites and whispers players who ask in trade chat for a portal, an enchant or a craft you offer.",

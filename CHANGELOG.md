@@ -2,6 +2,16 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.3.0 (2026-11-14)
+
+### Super Auction House: Recipes
+
+A new Recipes view in the Shopping tab lists every recipe and enchant with what its materials cost. Click one to search its materials, then buy them with Buy Next.
+
+### Bug Fixes
+
+- Gear Shift: charging off your mount swaps your mount gear back before the fight starts.
+
 ## 4.2.0 (2026-11-13)
 
 ### Auto-Invite Customers
