@@ -1102,6 +1102,97 @@ local SHOW_HIDE = { [""] = "Leave as is", show = "Show", hide = "Hide" }
 local SHOW_HIDE_ORDER = { "", "show", "hide" }
 G.MAX_SETS = 10
 
+-- The bar's slots, picked on a paper doll laid out like your character window: your gear down the left and right,
+-- weapons along the bottom. Each tile shows what you wear there (or the empty slot); the ones on the bar are lit.
+local DOLL_LEFT, DOLL_RIGHT, DOLL_BOTTOM = { 1, 2, 3, 15, 5, 4, 19, 9 }, { 10, 6, 7, 8, 11, 12, 13, 14 }, { 16, 17, 18 }
+local TILE, TILE_PAD, TILE_GAP, TILE_MOST = 34, 4, 6, 220
+
+local function SlotPicker(parent)
+    local W = ns.Widgets
+    local C = W.C
+    local c = CreateFrame("Frame", nil, parent)
+    c.tiles = {}
+    local function paint(b)
+        local on = G.db.profile.slots[b.slot] and true or false
+        b.SetBorderColor(on and C.accent or (b.hovered and C.line or C.border))
+        b.SetFill(b.hovered and C.buttonLit or C.field)
+        b.icon:SetDesaturated(not on)
+        b.icon:SetAlpha(on and 1 or 0.45)
+        W.Paint(b.name, on and C.bright or C.muted)
+    end
+    local function tile(slot, right)
+        local b = CreateFrame("Button", nil, c)
+        b.slot = slot
+        b:SetHeight(TILE + 2 * TILE_PAD)
+        b.SetBorderColor, b.SetFill = W.Outline(b, 6, C.border, C.field)
+        b.frame = W.Slot(b, nil, TILE)
+        b.frame:SetPoint(right and "RIGHT" or "LEFT", right and -TILE_PAD or TILE_PAD, 0)
+        b.icon = b.frame:CreateTexture(nil, "ARTWORK")
+        W.Inside(b.icon, b.frame)
+        b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        b.name = W.Text(b, "GameFontHighlight", C.bright, right and "RIGHT" or "LEFT")
+        if right then b.name:SetPoint("RIGHT", b.frame, "LEFT", -10, 0) else b.name:SetPoint("LEFT", b.frame, "RIGHT", 10, 0) end
+        b.name:SetText(SLOT_NAME[slot])
+        b:SetScript("OnClick", function(self)
+            if c.off then return end
+            local slots = G.db.profile.slots
+            slots[self.slot] = not slots[self.slot]
+            G:Apply()
+            HST:RefreshSettings()
+        end)
+        b:SetScript("OnEnter", function(self)
+            self.hovered = true
+            paint(self)
+            GameTooltip:SetOwner(self, right and "ANCHOR_LEFT" or "ANCHOR_RIGHT")
+            if not GameTooltip:SetInventoryItem("player", self.slot) then GameTooltip:SetText(SLOT_NAME[self.slot], 1, 1, 1) end
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function(self)
+            self.hovered = false
+            paint(self)
+            W.HideTooltip(self)
+        end)
+        c.tiles[#c.tiles + 1] = b
+        return b
+    end
+    local left, right, bottom = {}, {}, {}
+    for i, slot in ipairs(DOLL_LEFT) do left[i] = tile(slot) end
+    for i, slot in ipairs(DOLL_RIGHT) do right[i] = tile(slot, true) end
+    for i, slot in ipairs(DOLL_BOTTOM) do bottom[i] = tile(slot) end
+    function c:Layout(width)
+        local tall = TILE + 2 * TILE_PAD
+        local column = math.min(TILE_MOST, math.floor((width - TILE_GAP) / 2))
+        for i, b in ipairs(left) do
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", 0, -(i - 1) * (tall + TILE_GAP))
+            b:SetWidth(column)
+        end
+        for i, b in ipairs(right) do
+            b:ClearAllPoints()
+            b:SetPoint("TOPRIGHT", 0, -(i - 1) * (tall + TILE_GAP))
+            b:SetWidth(column)
+        end
+        local rows = #left * (tall + TILE_GAP)
+        local weapon = math.min(160, math.floor((width - 2 * TILE_GAP) / 3))
+        local across = 3 * weapon + 2 * TILE_GAP
+        for i, b in ipairs(bottom) do
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", math.floor((width - across) / 2) + (i - 1) * (weapon + TILE_GAP), -(rows + 8))
+            b:SetWidth(weapon)
+        end
+        return rows + 8 + tall + 4
+    end
+    function c:Refresh(off)
+        self.off = off
+        self:SetAlpha(off and 0.5 or 1)
+        for _, b in ipairs(self.tiles) do
+            b.icon:SetTexture(GetInventoryItemTexture("player", b.slot) or EmptyArt(b.slot))
+            paint(b)
+        end
+    end
+    return c
+end
+
 function G:BuildOptions()
     local function profile() return self.db.profile end
     local function char() return self.db.char end
@@ -1109,8 +1200,10 @@ function G:BuildOptions()
     local function apply() self:Apply() end
     local function noSets() return not SetsUsable() end
 
-    local slotArgs = {}
-    for i, s in ipairs(SLOTS) do slotArgs["slot" .. s[1]] = ns.Option(slots, "toggle", s[1], s[2], i, nil, apply) end
+    local slotArgs = {
+        help = { type = "description", order = 0, name = "Click a slot to put it on the bar or take it off." },
+        doll = { type = "custom", name = "Slots", order = 1, build = SlotPicker },
+    }
 
     local function queueChanged(slot)
         self:Watch()
