@@ -426,6 +426,15 @@ Section('Gear Shift', function()
     Measure('Gear Shift: item cooldown update with a queue, in combat', 300, function() Send('GearShift', 'BAG_UPDATE_COOLDOWN') end)
     state.combat = false; Send('GearShift', 'PLAYER_REGEN_ENABLED'); AdvanceTime(1)
     G.db.char.queues[13], G.db.char.queueOn[13] = nil, nil
+    -- A trinket picked for eating or drinking: each aura change out of combat checks for the food and drink auras.
+    G.db.char.situationItems.eating = { 9003 }
+    G.db.char.situation = false
+    G:Watch(); G:UpdateSituation()
+    Measure('Gear Shift: an aura change, not eating (eating situation picked)', 300, function()
+        Send('GearShift', 'UNIT_AURA', 'player')
+    end)
+    G.db.char.situationItems.eating = nil
+    G:Watch()
     Enable({ 'GearShift' }, false)
     WIELDED[13], WIELDED[14], BAGS[1] = nil, nil, bag
 end)

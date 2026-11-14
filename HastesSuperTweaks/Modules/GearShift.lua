@@ -1,7 +1,8 @@
 -- Gear Shift: a bar of the gear slots you pick. Hovering a slot opens a menu of the items in your bags that fit it, and
 -- the set button's menu holds the gear sets saved in the game's Equipment Manager. A slot's queue swaps in the first
 -- ready item of a list you order when the one you wear goes on cooldown (trinkets, mostly). Situations put on a gear
--- set while you're mounted, swimming, eating and so on, and put back what it replaced when that ends. The game only
+-- set, items you pick or both while you're mounted, swimming, eating and so on, and put back what they replaced when
+-- that ends. The game only
 -- swaps weapons in combat: other swaps wait for it to end.
 -- The bar's buttons use the item worn in their slot, so they're secure buttons: they're only made, moved, shown or
 -- hidden out of combat. Their icons, cooldowns and menus aren't protected and follow along in combat.
@@ -34,11 +35,12 @@ local defaults = { slots = { [13] = true, [14] = true }, setButton = true, size 
 ns.Configure(G, defaults, function(m) return m:BuildOptions() end, "Apply")
 -- Gear sets, item IDs and what to put back are the character's own, whatever profile it uses.
 -- queues[slot]: item IDs in order; queueOn[slot]: that slot's queue is on; situations[key]: a gear set's name;
--- helm[name], cloak[name]: "show" or "hide" when that set goes on; restore[slot]: the item link a situation's set
--- replaced (false: the slot was empty), put[slot]: the item ID the set put there (false: none), so a slot you changed
--- since is left alone; situation: the key of the situation whose set is on.
-G.defaults.char = { queues = {}, queueOn = {}, situations = {}, zones = "", helm = {}, cloak = {}, restore = {},
-    put = {} }
+-- situationItems[key]: item IDs in order, each put on in its own slot (over the set's); helm[name], cloak[name]: "show"
+-- or "hide" when that set goes on; restore[slot]: the item link a situation's gear replaced (false: the slot was
+-- empty), put[slot]: the item ID it put there (false: none), so a slot you changed since is left alone; situation: the
+-- key of the situation whose gear is on (false: put it on again, after its settings changed).
+G.defaults.char = { queues = {}, queueOn = {}, situations = {}, situationItems = {}, zones = "", helm = {}, cloak = {},
+    restore = {}, put = {} }
 
 -- Slots in the order the bar shows them: inventory slot, name, the game's slot name (for its empty-slot art).
 local SLOTS = {
@@ -339,6 +341,7 @@ local function AuraNamed(name)
     return aura ~= nil
 end
 
+local NONE = {}
 local zones = {} -- the zone setting, lowercased, as a set
 G.SITUATIONS = {
     { key = "mounted", name = "Mounted", check = function() return Has(IsMounted) end },
@@ -372,17 +375,56 @@ function G:ReadZones()
     end
 end
 
--- The situation whose set goes on now and that set's ID; nil when none.
+-- The situation whose gear goes on now, and its set's ID (nil when it has items only); nil when none.
 function G:Situation()
-    if not SetsUsable() then return nil end
-    local picked = self.db.char.situations
+    local c = self.db.char
+    local usable = SetsUsable()
     for _, s in ipairs(self.SITUATIONS) do
-        local name = picked[s.key]
-        if name and not (s.hidden and s.hidden()) and s.check() then
-            local setID = Sets.GetEquipmentSetID(name)
-            if setID then return s.key, setID end
+        local name = usable and c.situations[s.key]
+        local setID = name and Sets.GetEquipmentSetID(name)
+        local items = c.situationItems[s.key]
+        if (setID or (items and #items > 0)) and not (s.hidden and s.hidden()) and s.check() then return s.key, setID end
+    end
+end
+
+-- The situations with gear picked, key = true (kept, so it makes no garbage).
+local pickedKeys = {}
+function G:PickedKeys()
+    wipe(pickedKeys)
+    local c = self.db.char
+    local usable = SetsUsable()
+    for _, s in ipairs(self.SITUATIONS) do
+        local items = c.situationItems[s.key]
+        if (usable and c.situations[s.key]) or (items and #items > 0) then pickedKeys[s.key] = true end
+    end
+    return pickedKeys
+end
+
+-- The slots a situation's gear fills, slot = item ID (false: empty): its set's, then its items in their own slots
+-- over them (a ring, trinket or one-hander that comes second goes in the other of its two slots). Kept, as above.
+local plan, filled = {}, {}
+function G:Plan(key, setID)
+    wipe(plan)
+    if setID then
+        local ids, ignored = Sets.GetItemIDs(setID), Sets.GetIgnoredSlots(setID)
+        for slot = 1, 19 do
+            if not (ignored and ignored[slot]) then
+                local id = ids and ids[slot]
+                plan[slot] = type(id) == "number" and id > 1 and id or false
+            end
         end
     end
+    wipe(filled)
+    for _, itemID in ipairs(self.db.char.situationItems[key] or NONE) do
+        local _, _, _, equipLoc = ItemInfoInstant(itemID)
+        local slot = FITS[equipLoc]
+        if slot and filled[slot] and TWO_PLACES[equipLoc] and Fits(equipLoc, TWIN[slot]) then slot = TWIN[slot] end
+        if slot and not filled[slot] then
+            filled[slot] = true
+            plan[slot] = itemID
+        end
+    end
+    return plan
 end
 
 -- Puts back what a situation's set replaced in this slot, unless you changed the slot since.
@@ -401,22 +443,20 @@ function G:UpdateSituation()
     local key, setID = self:Situation()
     if key == c.situation and setID == c.situationSet then return end
     wipe(taken)
-    local ignored = setID and Sets.GetIgnoredSlots(setID)
-    -- What only the old situation's set held goes back.
+    local want = key and self:Plan(key, setID) or NONE
+    -- What only the old situation's gear held goes back.
     for slot in pairs(c.restore) do
-        if not setID or (ignored and ignored[slot]) then self:Restore(slot) end
+        if want[slot] == nil then self:Restore(slot) end
     end
-    if setID then
-        local ids = Sets.GetItemIDs(setID)
-        for slot = 1, 19 do
-            if not (ignored and ignored[slot]) then
-                if c.restore[slot] == nil then c.restore[slot] = GetInventoryItemLink("player", slot) or false end
-                local id = ids and ids[slot]
-                c.put[slot] = type(id) == "number" and id > 1 and id or false
-            end
-        end
-        Sets.UseEquipmentSet(setID)
+    -- A set alone goes on as the game puts sets on (it knows which copy of an item); with items, slot by slot.
+    local items = key and c.situationItems[key]
+    local bySlot = items ~= nil and #items > 0
+    for slot, itemID in pairs(want) do
+        if c.restore[slot] == nil then c.restore[slot] = GetInventoryItemLink("player", slot) or false end
+        c.put[slot] = itemID
+        if bySlot then self:Put(slot, itemID) end
     end
+    if setID and not bySlot then Sets.UseEquipmentSet(setID) end
     c.situation, c.situationSet = key, setID
     self:ShowSet()
 end
@@ -435,7 +475,6 @@ end
 ---------------------------------------------------------------------------
 -- Events registered only while something needs them: the bar's, each picked situation's, the queues'.
 ---------------------------------------------------------------------------
-local NONE = {}
 local function Want(self, event, on, unit)
     on = on and true or false
     local f, registered = self.events, self.registered
@@ -449,8 +488,7 @@ function G:Watch()
     if not self.events then return end
     self.registered = self.registered or {}
     local on = self:IsEnabled()
-    local c = self.db.char
-    local picked = on and SetsUsable() and c.situations or NONE
+    local picked = on and self:PickedKeys() or NONE
     local combat = self.combat
     self.queuing = on and self:Queuing()
     local bar = on and self.shown ~= nil and next(self.shown) ~= nil
@@ -1115,30 +1153,62 @@ function G:BuildOptions()
         }, { hidden = function() return not slots()[slot] end })
     end
 
+    -- A change puts the situation's gear on again (see UpdateSituation).
     local function situationChanged()
+        char().situation = false
         self:ReadZones()
         self:Watch()
         self:UpdateSituation()
     end
     local situationArgs = {
-        help = { type = "description", order = 0, name = "Puts on a gear set while one of these is true, and puts "
-            .. "back what it replaced when it ends. The first one in this list that's true wins." },
+        help = { type = "description", order = 0, name = "Puts on a gear set, items or both while one of these is "
+            .. "true, and puts back what they replaced when it ends. Items go over the set's. The first one in this "
+            .. "list that's true wins." },
     }
     for i, s in ipairs(self.SITUATIONS) do
         if not (s.hidden and s.hidden()) then
-            situationArgs[s.key] = { type = "select", name = s.name, order = i, disabled = noSets,
-                desc = function() return SetsUsable() and nil or NO_SETS end,
-                values = function() return (SetChoices("None")) end,
-                sorting = function() return select(2, SetChoices("None")) end,
-                get = function() return char().situations[s.key] or "" end,
-                set = function(_, value)
-                    char().situations[s.key] = value ~= "" and value or nil
-                    situationChanged()
-                end }
+            local function list()
+                local all = char().situationItems
+                all[s.key] = all[s.key] or {}
+                return all[s.key]
+            end
+            local function find(itemID)
+                for at, id in ipairs(list()) do if id == itemID then return at end end
+            end
+            local args = {
+                set = { type = "select", name = "Gear set", order = 1, disabled = noSets,
+                    desc = function() return SetsUsable() and nil or NO_SETS end,
+                    values = function() return (SetChoices("None")) end,
+                    sorting = function() return select(2, SetChoices("None")) end,
+                    get = function() return char().situations[s.key] or "" end,
+                    set = function(_, value)
+                        char().situations[s.key] = value ~= "" and value or nil
+                        situationChanged()
+                    end },
+                items = { type = "items", ordered = true, name = "Items", order = 2, rows = 1,
+                    get = function() return char().situationItems[s.key] end,
+                    add = function(_, itemID)
+                        local _, _, _, equipLoc = ItemInfoInstant(itemID)
+                        if not FITS[equipLoc] then return HST:Print("That item can't be worn.") end
+                        if not find(itemID) then table.insert(list(), itemID) end
+                        situationChanged()
+                    end,
+                    remove = function(_, itemID)
+                        local at = find(itemID)
+                        if at then table.remove(list(), at) end
+                        situationChanged()
+                    end,
+                    move = function(_, itemID)
+                        local q, at = list(), find(itemID)
+                        if at and at > 1 then q[at], q[at - 1] = q[at - 1], q[at] end
+                        situationChanged()
+                    end },
+            }
             if s.key == "zone" then
-                situationArgs.zones = ns.Option(char, "input", "zones", "Zones", i + 0.5, {
+                args.zones = ns.Option(char, "input", "zones", "Zones", 0.5, {
                     desc = "Zone or area names, separated by commas, such as Molten Core, Booty Bay." }, situationChanged)
             end
+            situationArgs[s.key] = ns.Section(s.name, i, args)
         end
     end
 
@@ -1182,8 +1252,7 @@ function G:BuildOptions()
         } },
         slots = { type = "group", name = "Slots", order = 2, args = { slots = ns.Section("Slots", 1, slotArgs) } },
         queues = { type = "group", name = "Queues", order = 3, args = queueArgs },
-        situations = { type = "group", name = "Situations", order = 4, args = {
-            sets = ns.Section("Gear sets", 1, situationArgs) } },
+        situations = { type = "group", name = "Situations", order = 4, args = situationArgs },
         sets = { type = "group", name = "Helm and cloak", order = 5, args = setArgs },
     } }
 end
