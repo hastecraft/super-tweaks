@@ -85,7 +85,7 @@ Separate scroll areas for damage and healing you take and for notices: entering 
 
 **Group and PvP:** Instance Tracker (a history of your dungeon and raid runs with their XP, gold, kills, loot and group, and your instances entered against the hourly and daily limits), Faction Tracker (how many Alliance and Horde players you come across in each zone), Auto Accept Summons, Auto Accept Resurrection, Auto Release in Battlegrounds and Battleground Alerts (a countdown to enter, a gates alert and the match result in chat).
 
-**Social:** Right-Click Guild Invite, Guild Message Popup, Chat Spam Filter (hides gold selling, boosting, recruitment and guilds you mute in public channels), Hide Warlock Pet Chatter (what warlock demons say, in chat and over their heads).
+**Social:** Right-Click Guild Invite, Guild Message Popup, Chat Spam Filter (hides gold selling, boosting, recruitment and guilds you mute in public channels), Auto-Invite Customers (invites and whispers players asking in trade chat for a portal, an enchant or a craft you offer), Hide Warlock Pet Chatter (what warlock demons say, in chat and over their heads).
 
 **Auto-decline:** Battle.net friend requests, duels, guild charters, join requests, party invites and shared quests. Friends, guildmates and community members can be let through.
 

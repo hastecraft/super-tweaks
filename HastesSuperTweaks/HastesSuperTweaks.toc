@@ -100,6 +100,7 @@ Modules\QuestTracker.lua
 Modules\QuestItemButton.lua
 Modules\QuestSounds.lua
 Modules\ChatFilter.lua
+Modules\AutoInvite.lua
 Modules\PetChatter.lua
 Modules\BattlegroundAlerts.lua
 Modules\FactionTracker.lua

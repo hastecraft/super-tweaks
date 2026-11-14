@@ -692,6 +692,25 @@ Section('Chat Spam Filter (one guild muted)', function()
     for i = 1, 4 do UNITS['party' .. i] = nil end
 end)
 
+Section('Auto-Invite Customers (portals and enchanting offered)', function()
+    local F = mod('AutoInvite')
+    Enable({ 'AutoInvite' }, true)
+    F.db.profile.portals, F.db.profile.enchanting = true, true
+    F:Apply()
+    local n = 0
+    -- A public channel message (zone channel 2) from a new sender each time.
+    local function channel(text)
+        n = n + 1
+        CallIn(F.events.scripts.OnEvent, F.events, 'CHAT_MSG_CHANNEL', text, 'Buyer' .. n .. '-TestRealm', '', '', '', '',
+            2, 0, '', 0, n, 'Player-' .. (100 + n))
+    end
+    Measure('Channel message, nothing asked for', 300, function() channel('WTS Linen Cloth 20x, pst') end)
+    Measure('Channel message, an offer (ignored)', 300, function() channel('WTS +4 stats chest enchant, LFW') end)
+    Measure('Channel message, asks: invite and whisper', 300, function() channel('LF enchanter for +4 stats chest') end)
+    F.db.profile.portals, F.db.profile.enchanting = false, false
+    Enable({ 'AutoInvite' }, false)
+end)
+
 Section('Level-Up Screenshot', function()
     Measure('Level up: screenshot after the banner wait', 50, function()
         Send('LevelUpScreenshot', 'PLAYER_LEVEL_UP', 30, 0, 0, 0, 0, 0, 0, 0, 0); AdvanceTime(6)
