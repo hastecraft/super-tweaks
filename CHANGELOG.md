@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.1.0 (2026-11-13)
+
+### Gear Shift
+
+A bar of your gear slots: hover one to swap in another item from your bags, queue trinkets so the next ready one goes on, and put on gear when you mount, swim, eat or rest.
+
 ## 4.0.0 (2026-11-13)
 
 ### Super Auction House: Buy Next, Charts and Watchlist
