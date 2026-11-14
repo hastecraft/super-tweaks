@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.3.2 (2026-11-14)
+
+### Bug Fixes
+
+- Super Auction House: Glove Enchants and Gloves show in English in the Recipes list.
+
 ## 4.3.1 (2026-11-14)
 
 ### Bug Fixes
