@@ -153,7 +153,9 @@ function C.AddMissing(ids, crafts)
     end)
 end
 
-local function RunSearch(name, ids)
+-- stay: the search is from the Shopping tab's own Recipes view, which stays showing, and runs on saved prices away
+-- from the auction house.
+local function RunSearch(name, ids, stay)
     NamesThen(ids, NAME_RETRIES, function()
         -- One term for each name, with what every recipe needs of it added up.
         local terms, names, amounts = {}, {}, {}
@@ -171,7 +173,7 @@ local function RunSearch(name, ids)
             local quantity = amounts[itemName]
             terms[i] = S.Terms.Compose({ query = itemName, exact = true, quantity = quantity > 0 and quantity or nil })
         end
-        if #terms > 0 and S.Window.IsLive() then S.Shopping.External(name, terms) end
+        if #terms > 0 and (stay or S.Window.IsLive()) then S.Shopping.External(name, terms, stay) end
     end)
 end
 
@@ -184,7 +186,7 @@ end
 
 -- The same search for a saved recipe, which is read without the professions window. ids: its result and materials,
 -- as { id = itemID, quantity = how many to buy, 0 for any }.
-function C.SearchItems(name, ids) RunSearch(name, ids) end
+function C.SearchItems(name, ids, stay) RunSearch(name, ids, stay) end
 
 -- Searches for the materials of every recipe you track.
 function C.SearchTracked()
