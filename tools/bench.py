@@ -399,6 +399,46 @@ Section('Quest Item Button', function()
     ITEM_COUNTS[6001], ITEM_COUNTS[6002], BAGS[1] = nil, nil, bag
 end)
 
+Section('Gear Shift', function()
+    if not HST:GetModule('GearShift', true) then return end -- a version without this tweak
+    -- Two trinkets worn and a third in your bags; the bar shows the set button and both trinket slots. Trinket 1 has a
+    -- queue: the one worn, then the one in the bag.
+    local bag = BAGS[1]
+    BAGS[1] = { { 9003, 1 } }
+    WIELDED[13], WIELDED[14] = 9001, 9002
+    INVENTORY_COOLDOWNS = {}
+    C_Container.GetContainerItemCooldown = C_Container.GetContainerItemCooldown or function() return 0, 0, 1 end
+    PickupInventoryItem = PickupInventoryItem or function() end
+    IsAltKeyDown = IsAltKeyDown or function() return false end
+    local G = mod('GearShift')
+    Enable({ 'GearShift' }, true); AdvanceTime(1.5)
+    Measure('Gear Shift: item cooldown update, bar shown', 300, function() Send('GearShift', 'BAG_UPDATE_COOLDOWN') end)
+    Measure('Gear Shift: a trinket swapped (equipment event)', 100, function()
+        Send('GearShift', 'PLAYER_EQUIPMENT_CHANGED', 13, false); AdvanceTime(0.3)
+    end)
+    G.db.char.queues[13] = { 9001, 9003 }
+    G.db.char.queueOn[13] = true
+    G:Watch()
+    Measure('Gear Shift: item cooldown update with a queue, worn trinket ready', 100, function()
+        Send('GearShift', 'BAG_UPDATE_COOLDOWN'); AdvanceTime(0.6)
+    end)
+    state.combat = true; Send('GearShift', 'PLAYER_REGEN_DISABLED')
+    Measure('Gear Shift: item cooldown update with a queue, in combat', 300, function() Send('GearShift', 'BAG_UPDATE_COOLDOWN') end)
+    state.combat = false; Send('GearShift', 'PLAYER_REGEN_ENABLED'); AdvanceTime(1)
+    G.db.char.queues[13], G.db.char.queueOn[13] = nil, nil
+    -- A trinket picked for eating or drinking: each aura change out of combat checks for the food and drink auras.
+    G.db.char.situationItems.eating = { 9003 }
+    G.db.char.situation = false
+    G:Watch(); G:UpdateSituation()
+    Measure('Gear Shift: an aura change, not eating (eating situation picked)', 300, function()
+        Send('GearShift', 'UNIT_AURA', 'player')
+    end)
+    G.db.char.situationItems.eating = nil
+    G:Watch()
+    Enable({ 'GearShift' }, false)
+    WIELDED[13], WIELDED[14], BAGS[1] = nil, nil, bag
+end)
+
 Section('Quest Progress Sounds', function()
     if not HST:GetModule('QuestSounds', true) then return end -- a copy of the addon from before this tweak
     UIErrorsFrame = UIErrorsFrame or CreateFrame('MessageFrame', 'UIErrorsFrame', UIParent)
