@@ -344,7 +344,7 @@ end
 local NONE = {}
 local zones = {} -- the zone setting, lowercased, as a set
 G.SITUATIONS = {
-    { key = "mounted", name = "Mounted", check = function() return Has(IsMounted) end },
+    { key = "mounted", name = "Mounted", check = function() return Has(IsMounted) and not G.leavingMount end },
     { key = "form", name = function() return Class() == "SHAMAN" and "In Ghost Wolf" or "In travel or aquatic form" end,
         hidden = function() return not select(2, Class()) end,
         check = function()
@@ -476,6 +476,23 @@ function G:UpdateSituation()
     self:ShowSet()
 end
 G.updateSituation = function() G:UpdateSituation() end
+-- What the mount's gear had replaced as the cast went, by slot: what it was and what the mount put on.
+local leftWas, leftPut = {}, {}
+G.leftMount = function()
+    G.leavingMount = nil
+    local c = G.db.char
+    for slot, put in pairs(leftPut) do
+        -- The swap didn't happen (the fight started first) or the cast didn't dismount you: what goes back is kept,
+        -- and goes back once it can.
+        if c.put[slot] == nil and c.restore[slot] == nil and (GetInventoryItemID("player", slot) or false) == put then
+            c.restore[slot], c.put[slot] = leftWas[slot], put
+            if not Has(IsMounted) then G:Restore(slot) end
+        end
+    end
+    wipe(leftWas)
+    wipe(leftPut)
+    G:UpdateSituation()
+end
 
 -- Swimming has no event: it's checked every second while a set is picked for it, out of combat.
 G.SWIM_EVERY = 1
@@ -511,6 +528,7 @@ function G:Watch()
     Want(self, "BAG_UPDATE_DELAYED", self.queuing)
     Want(self, "PLAYER_EQUIPMENT_CHANGED", on)
     Want(self, "PLAYER_MOUNT_DISPLAY_CHANGED", picked.mounted ~= nil)
+    Want(self, "UNIT_SPELLCAST_SENT", picked.mounted ~= nil and not combat, "player")
     Want(self, "UPDATE_SHAPESHIFT_FORM", picked.form ~= nil and select(2, Class()) ~= false)
     local eating = picked.eating ~= nil and not combat
     if not eating then self.eating = nil end
@@ -559,6 +577,17 @@ ns.Listen(G, { "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_E
             if now ~= self.eating then
                 self.eating = now
                 if not self.combat then self:UpdateSituation() end
+            end
+        elseif event == "UNIT_SPELLCAST_SENT" then
+            -- A spell cast from the saddle, like Charge, dismounts you and can start the fight before the game says
+            -- you've dismounted, and only weapons can be swapped in a fight: the mount's gear comes off as the cast
+            -- goes. Still mounted a moment later (a spell that doesn't dismount), it goes back on.
+            if not self.combat and not self.leavingMount and self.db.char.situation == "mounted" and Has(IsMounted) then
+                self.leavingMount = true
+                local c = self.db.char
+                for slot, put in pairs(c.put) do leftWas[slot], leftPut[slot] = c.restore[slot], put end
+                self:UpdateSituation()
+                C_Timer.After(1, self.leftMount)
             end
         elseif event == "EQUIPMENT_SETS_CHANGED" then
             self.setIDs = nil
