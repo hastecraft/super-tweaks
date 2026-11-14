@@ -176,7 +176,14 @@ C_GossipInfo = { GetOptions = function() return {} end, GetActiveQuests = functi
 C_SummonInfo = { GetSummonConfirmTimeLeft = function() return 0 end }
 C_DeathInfo = { GetSelfResurrectOptions = function() return {} end }
 C_GameRules = { IsHardcoreActive = function() return false end }
-C_ChatInfo = { InChatMessagingLockdown = function() return false end }
+C_ChatInfo = { InChatMessagingLockdown = function() return false end, SendChatMessage = function() end }
+-- Group invites (Auto-Invite Customers): alone, so every invite goes out.
+C_PartyInfo = C_PartyInfo or {}
+C_PartyInfo.InviteUnit = function() end
+function UnitInParty() return nil end
+function UnitIsGroupLeader() return false end
+function UnitIsGroupAssistant() return false end
+function Ambiguate(name) return name end
 function GetInstanceInfo()
     return state.instanceName or 'Elwynn Forest', state.instanceType or 'none', 0, state.difficultyName or '', 0, 0, false,
         state.instanceID or 0
