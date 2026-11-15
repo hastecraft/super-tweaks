@@ -647,12 +647,21 @@ local function TooltipLink(data)
 end
 
 local LABEL = { 0.6, 0.6, 0.6 }
+-- A scale's name is in its class's color.
+local function NameColor(scale)
+    local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[scale.class or Class()]
+    if c then return c.r, c.g, c.b end
+    return LABEL[1], LABEL[2], LABEL[3]
+end
+U.NameColor = NameColor
+
 local equips = {} -- where each item ID goes (false: not gear)
 local function AddLine(tip, scale, link)
     local result = U:Result(scale, link)
     if not result then return end
     local color = result[3]
-    tip:AddDoubleLine(scale.name, result[2], LABEL[1], LABEL[2], LABEL[3], color[1], color[2], color[3])
+    local r, g, b = NameColor(scale)
+    tip:AddDoubleLine(scale.name, result[2], r, g, b, color[1], color[2], color[3])
 end
 
 local function OnTooltip(tip, data)
@@ -835,7 +844,7 @@ function U:OnUnlisten()
 end
 
 ---------------------------------------------------------------------------
--- Scales as text: the weights editor's lines, and Pawn's scale tags (with this tweak's caps added) to copy and paste.
+-- Scales as text: the weights editor's lines, and scale strings to copy and paste.
 ---------------------------------------------------------------------------
 local function Round(n) return (format("%.3f", n):gsub("0+$", ""):gsub("%.$", "")) end
 
@@ -896,14 +905,15 @@ function U.ParseText(text)
     return weights
 end
 
--- A Pawn scale tag, with this tweak's caps as extra stats Pawn leaves alone: MeleeHitCap=8/4.16/2.59.
+-- A scale string: ( Gear Upgrades: v1: "Name": Class=Warrior, Strength=2.2, MeleeHitCap=8/4.16/2.59, Units=Rating ).
+-- Other tools' strings of the same shape read the first band of a cap as the stat's weight.
 local CLASS_NAMES = { WARRIOR = "Warrior", PALADIN = "Paladin", HUNTER = "Hunter", ROGUE = "Rogue", PRIEST = "Priest",
     SHAMAN = "Shaman", MAGE = "Mage", WARLOCK = "Warlock", DRUID = "Druid" }
 function U.ScaleTag(scale)
     local parts, w = { "Class=" .. (CLASS_NAMES[scale.class or Class()] or "") }, scale.weights
     for _, stat in ipairs(STAT_ORDER) do
         local value = w[stat]
-        -- For Pawn, a capped stat is worth its first band.
+        -- A capped stat also gets its first band, for tools that don't read caps.
         if value == nil then
             for _, kind in ipairs(CAP_ORDER) do
                 if CAPS[kind].stat == stat and w[kind] and value == nil then value = w[kind][2] end
@@ -920,17 +930,17 @@ function U.ScaleTag(scale)
         end
     end
     parts[#parts + 1] = "Units=Rating"
-    return format("( Pawn: v1: \"%s\": %s )", scale.name, table.concat(parts, ", "))
+    return format("( Gear Upgrades: v1: \"%s\": %s )", scale.name, table.concat(parts, ", "))
 end
 
--- Pawn's names for stats this tweak counts another way.
-local PAWN_ALIASES = { OneHandDps = "MeleeDps", TwoHandDps = "MainHandDps", Dps = "MeleeDps" }
+-- Other tools' names for stats this tweak counts another way.
+local ALIASES = { OneHandDps = "MeleeDps", TwoHandDps = "MainHandDps", Dps = "MeleeDps" }
 
--- Reads a Pawn scale tag. perPercent: its rating stats are per 1%, as Pawn's own scales are. Returns name, class,
+-- Reads a scale string. perPercent: its rating stats are per 1% (strings without Units=Rating). Returns name, class,
 -- weights; or nil and what's wrong.
 function U.ParseTag(text, perPercent)
-    local name, body = match(text or "", "^%s*%(%s*Pawn%s*:%s*v%d+%s*:%s*\"([^\"]+)\"%s*:%s*(.-)%s*%)%s*$")
-    if not name then return nil, "That isn't a Pawn scale. It starts with ( Pawn: v1: \"Name\":" end
+    local name, body = match(text or "", "^%s*%(%s*[^:]+:%s*v%d+%s*:%s*\"([^\"]+)\"%s*:%s*(.-)%s*%)%s*$")
+    if not name then return nil, "Can't read that scale. Copy the whole line, brackets included." end
     local weights, class, ours, minDamage, maxDamage = {}, nil, false, 0, 0
     for pair in body:gmatch("[^,]+") do
         local key, value = match(pair, "^%s*([%w_]+)%s*=%s*(.-)%s*$")
@@ -944,7 +954,7 @@ function U.ParseTag(text, perPercent)
             if #list >= 3 and #list % 2 == 1 then weights[key] = list end
         elseif key then
             local number = tonumber(value)
-            key = PAWN_ALIASES[key] or key
+            key = ALIASES[key] or key
             if number and key == "MeleeMinDamage" then minDamage = number
             elseif number and key == "MeleeMaxDamage" then maxDamage = number
             elseif number and STAT_NAMES[key] then weights[key] = (weights[key] or 0) + number end
@@ -994,7 +1004,7 @@ end
 local SOURCES = {
     MOB = "Mobalytics' guide by <Progress> Ahlaundoh.",
     MS = "MythicSim's simulations for WoW Forever.",
-    PAWN = "Pawn's built-in WoW Forever scale (no guide gives numbers for it yet).",
+    HJ = "HawsJon's scale for WoW Forever. No guide gives numbers for it yet.",
 }
 
 ns.Configure(U, { tooltip = true, allScales = false, bags = true, quests = true, markFrom = 1, importUnits = "RATING" },
@@ -1009,26 +1019,35 @@ function U:BuildOptions()
     local function picked() return self:Active() end
     local function isCustom() return picked().custom == true end
 
-    local editing = {} -- what's typed in the import box, before it's added
+    local editing = {} -- what's typed in the paste box, before it's added
+    local function scaleSelect(order)
+        return ns.Option(char, "select", "scale", "Scale", order, {
+            values = function()
+                local values = { AUTO = "From your talents (" .. self:TalentScale().name .. ")" }
+                for _, scale in ipairs(self:Scales()) do values[scale.key] = scale.name end
+                return values
+            end,
+            sorting = function()
+                local order = { "AUTO" }
+                for _, scale in ipairs(self:Scales()) do order[#order + 1] = scale.key end
+                return order
+            end,
+            desc = function()
+                local scale = picked()
+                return scale.custom and "Your own scale." or SOURCES[scale.source]
+            end,
+        }, remark)
+    end
+    -- A pasted string with no units of its own: the player says what its rating weights are per.
+    local function noUnits()
+        local text = editing.text or ""
+        return text == "" or text:find("Units=Rating", 1, true) ~= nil
+    end
+
     return { name = self.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             weights = ns.Section("Stat weights", 1, {
-                scale = ns.Option(char, "select", "scale", "Scale", 1, {
-                    values = function()
-                        local values = { AUTO = "From your talents (" .. self:TalentScale().name .. ")" }
-                        for _, scale in ipairs(self:Scales()) do values[scale.key] = scale.name end
-                        return values
-                    end,
-                    sorting = function()
-                        local order = { "AUTO" }
-                        for _, scale in ipairs(self:Scales()) do order[#order + 1] = scale.key end
-                        return order
-                    end,
-                    desc = function()
-                        local scale = picked()
-                        return scale.custom and "One of your own." or SOURCES[scale.source]
-                    end,
-                }, remark),
+                scale = scaleSelect(1),
                 allScales = ns.Option(profile, "toggle", "allScales", "Show every scale on tooltips", 2, nil, remark),
             }),
             show = ns.Section("Show", 2, {
@@ -1040,16 +1059,17 @@ function U:BuildOptions()
                     { min = 0, max = 20, step = 0.5 }, remark),
             }),
         } },
-        scales = { type = "group", name = "Your scales", order = 2, args = {
+        scales = { type = "group", name = "Stat weights", order = 2, args = {
             edit = ns.Section("Weights", 1, {
-                help = { type = "description", order = 0, name = function()
-                    if isCustom() then
-                        return "One stat a line. Hit, crit, haste and expertise are per rating point: 10 hit, 14 crit, "
-                            .. "10 haste or 10 expertise make 1%."
-                    end
-                    return "The weights of " .. picked().name .. ". Changing them makes a copy of your own."
-                end },
-                text = { type = "input", order = 1, name = "", multiline = 14, width = "full",
+                scale = scaleSelect(1),
+                text = { type = "input", order = 2, multiline = 12, width = "full",
+                    name = function() return picked().name end,
+                    desc = function()
+                        local help = "One stat a line. Hit, crit, haste and expertise are per rating point. Press Enter "
+                            .. "to save, Shift+Enter for a new line."
+                        if isCustom() then return help end
+                        return help .. " Saving makes your own copy, " .. picked().name .. " (yours)."
+                    end,
                     get = function() return self.ScaleText(picked()) end,
                     set = function(_, text)
                         local weights, problem = self.ParseText(text)
@@ -1063,7 +1083,7 @@ function U:BuildOptions()
                         end
                         remark()
                     end },
-                delete = { type = "execute", order = 2, name = "Delete this scale",
+                delete = { type = "execute", order = 3, name = "Delete scale",
                     hidden = function() return not isCustom() end,
                     confirm = function() return "Delete " .. picked().name .. "?" end,
                     func = function()
@@ -1074,17 +1094,18 @@ function U:BuildOptions()
                         remark()
                     end },
             }),
-            share = ns.Section("Import and export", 2, {
-                export = { type = "input", order = 1, name = "Copy this scale", width = "full",
-                    desc = "A Pawn scale tag; Pawn reads it too, without the caps.",
+            share = ns.Section("Share", 2, {
+                export = { type = "input", order = 1, name = "Copy", width = "full",
+                    desc = "Click it, then press Ctrl+C.",
                     get = function() return self.ScaleTag(picked()) end, set = function() end },
-                import = { type = "input", order = 2, name = "Paste a scale", width = "full", live = true,
+                import = { type = "input", order = 2, name = "Paste", width = "full", live = true,
+                    desc = "A scale someone copied for you.",
                     get = function() return editing.text or "" end,
                     set = function(_, text) editing.text = text end },
                 importUnits = ns.Option(profile, "select", "importUnits", "Its hit, crit, haste and expertise are", 3, {
-                    values = { RATING = "Per rating point, as guides give them", PERCENT = "Per 1%, as Pawn's own scales" },
-                    sorting = { "RATING", "PERCENT" } }),
-                add = { type = "execute", order = 4, name = "Add",
+                    values = { RATING = "Per rating point", PERCENT = "Per 1%" },
+                    sorting = { "RATING", "PERCENT" }, hidden = noUnits }),
+                add = { type = "execute", order = 4, name = "Add scale",
                     disabled = function() return (editing.text or "") == "" end,
                     func = function()
                         local name, class, weights = self.ParseTag(editing.text, self.db.profile.importUnits == "PERCENT")
@@ -1150,6 +1171,7 @@ function U.info.preview(frame)
     local p = U.db.profile
     local scale = U:Active()
     v.label:SetText(scale and scale.name or "Fury")
+    if scale then v.label:SetTextColor(NameColor(scale)) end
     -- The tooltip is as wide as its longest line, as the game's are.
     local wide = v.label:GetStringWidth() + 12 + v.change:GetStringWidth()
     for _, text in ipairs(v.texts) do wide = math.max(wide, text:GetStringWidth()) end

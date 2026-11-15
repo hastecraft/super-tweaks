@@ -13,8 +13,8 @@
 --   MS   MythicSim (mythicsim.com/wow-forever/stat-priority), 10,000-iteration sims on client 1.60.1, 15 Nov 2026.
 --        Hybrids get melee and spell weights added, since Forever has one hit, crit and haste rating for both.
 --        MS's "weapon damage" is per point of average damage per swing.
---   PAWN Pawn 2.14.3's built-in Forever scales (HawsJon), the only numeric source for healers and tank survival,
---        turned from Pawn's per-1% into per-rating with Forever's own rating table.
+--   HJ   HawsJon's Forever scales, the only numeric source for healers and tank survival,
+--        turned from per-1% into per-rating with Forever's own rating table.
 --   est  A weight no source gives, worked out from the scale's other weights (noted where used).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -30,18 +30,18 @@ ns.GearUpgradeScales = {
             MainHandDps = 10.66, MeleeHitCap = { 8, 4.16, 2.59 }, CritRating = 3.33, OffHandDps = 3.24,
             Agility = 2.67, HasteRating = 2.38, Strength = 2.20, ExpertiseCap = { 6.5, 1.75, 0 }, Ap = 1,
             ArmorPenetration = 0.39 } },
-        { key = "Protection", name = "Protection", tree = 2, source = "PAWN", weights = {
+        { key = "Protection", name = "Protection", tree = 2, source = "HJ", weights = {
             Stamina = 1, DefenseCap = { 440, 1.2, 0.4 }, DodgeRating = 0.55, ParryRating = 0.37, BlockRating = 0.81,
             BlockValue = 0.35, MeleeHitCap = { 8, 0.63, 0.1 }, ExpertiseCap = { 6.5, 0.31, 14, 0.16, 0 },
             CritRating = 0.24, HasteRating = 0.17, Strength = 0.6, Agility = 0.5, Armor = 0.02, MainHandDps = 5,
             Hp5 = 1 } },
     },
     PALADIN = {
-        { key = "Holy", name = "Holy", tree = 0, source = "PAWN", weights = {
+        { key = "Holy", name = "Holy", tree = 0, source = "HJ", weights = {
             Intellect = 1, Mp5 = 1, Healing = 0.54, Spirit = 0.4, CritRating = 0.26, HasteRating = 0.31,
             Stamina = 0.1 } },
-        -- Expertise doubled from Pawn's (est): tanks' expertise counts against dodge and parry under 6.5%.
-        { key = "Protection", name = "Protection", tree = 1, source = "PAWN", weights = {
+        -- Expertise doubled from HawsJon's (est): tanks' expertise counts against dodge and parry under 6.5%.
+        { key = "Protection", name = "Protection", tree = 1, source = "HJ", weights = {
             Stamina = 1, DefenseCap = { 440, 1.05, 0.35 }, DodgeRating = 0.55, ParryRating = 0.38, BlockRating = 1.1,
             BlockValue = 0.15, MeleeHitCap = { 8, 0.62, 0.1 }, ExpertiseCap = { 6.5, 0.25, 14, 0.13, 0 },
             CritRating = 0.34, HasteRating = 0.4, Agility = 0.6, Intellect = 0.5, SpellDamage = 0.44,
@@ -86,10 +86,10 @@ ns.GearUpgradeScales = {
             OffHandDamage = 2.95, Stamina = 0.1 } },
     },
     PRIEST = {
-        { key = "Discipline", name = "Discipline", tree = 0, source = "PAWN", weights = {
+        { key = "Discipline", name = "Discipline", tree = 0, source = "HJ", weights = {
             Spirit = 1, Intellect = 0.9, Healing = 0.7, Mp5 = 1.5, CritRating = 0.4, HasteRating = 0.48,
             Stamina = 0.1 } },
-        { key = "Holy", name = "Holy", tree = 1, source = "PAWN", weights = {
+        { key = "Holy", name = "Holy", tree = 1, source = "HJ", weights = {
             Spirit = 1, Intellect = 0.9, Healing = 0.7, Mp5 = 1.5, CritRating = 0.4, HasteRating = 0.48,
             Stamina = 0.1 } },
         { key = "Shadow", name = "Shadow", tree = 2, source = "MS", weights = {
@@ -106,7 +106,7 @@ ns.GearUpgradeScales = {
             SpellHitCap = { 16, 2.08, 0 }, Intellect = 1.96, CritRating = 2.66, Agility = 1.43, SpellDamage = 1.37,
             Ap = 1, NatureSpellDamage = 0.63, ArmorPenetration = 0.35, MainHandDps = 10.6, OffHandDps = 3.2,
             Stamina = 0.1 } },
-        { key = "Restoration", name = "Restoration", tree = 2, source = "PAWN", weights = {
+        { key = "Restoration", name = "Restoration", tree = 2, source = "HJ", weights = {
             Intellect = 1, Healing = 0.9, Spirit = 0.9, Mp5 = 1.4, HasteRating = 0.59, CritRating = 0.34,
             Stamina = 0.1 } },
     },
@@ -146,11 +146,11 @@ ns.GearUpgradeScales = {
             Agility = 1, Strength = 0.89, CritRating = 0.78, MeleeHitCap = { 8, 0.69, 0 },
             ExpertiseCap = { 6.5, 0.67, 0 }, HasteRating = 0.55, Ap = 0.36, FeralAp = 0.36, ArmorPenetration = 0.12,
             Stamina = 0.05 } },
-        { key = "Bear", name = "Feral (Bear)", tree = 1, alternate = true, source = "PAWN", weights = {
+        { key = "Bear", name = "Feral (Bear)", tree = 1, alternate = true, source = "HJ", weights = {
             Stamina = 1, DefenseCap = { 440, 0.9, 0.3 }, Armor = 0.1, DodgeRating = 0.3, Agility = 0.48,
             CritRating = 0.24, MeleeHitCap = { 8, 0.3, 0.05 }, HasteRating = 0.25, ExpertiseCap = { 6.5, 0.14, 14, 0.07, 0 },
             Strength = 0.3, Ap = 0.1, FeralAp = 0.1, Hp5 = 1 } },
-        { key = "Restoration", name = "Restoration", tree = 2, source = "PAWN", weights = {
+        { key = "Restoration", name = "Restoration", tree = 2, source = "HJ", weights = {
             Healing = 1.21, Spirit = 1, Intellect = 0.8, Mp5 = 1.4, CritRating = 0.34, HasteRating = 0.4,
             Stamina = 0.1 } },
     },
