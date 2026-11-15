@@ -31,7 +31,8 @@ local GetTime, max, min = GetTime, math.max, math.min
 local LAST_BAG = NUM_BAG_SLOTS or 4
 
 local defaults = { slots = { [13] = true, [14] = true }, setButton = true, size = 36, spacing = 2, vertical = false,
-    menus = "hover", x = 0, y = -180 }
+    menus = "hover", flyout = "AUTO", alpha = 1, cdText = true, cdFont = "Inter Semi Bold", cdSize = 14,
+    cdOutline = "OUTLINE", cdColor = { 1, 1, 1, 1 }, x = 0, y = -180 }
 ns.Configure(G, defaults, function(m) return m:BuildOptions() end, "Apply")
 -- Gear sets, item IDs and what to put back are the character's own, whatever profile it uses.
 -- queues[slot]: item IDs in order; queueOn[slot]: that slot's queue is on; situations[key]: a gear set's name;
@@ -720,6 +721,23 @@ local function Dress(f, size)
 end
 G.DressButton = Dress
 
+-- The cooldown numbers' look, set again on a button whenever the settings changed since (G.cdLook counts changes).
+G.cdLook = 0
+local function StyleCooldown(f)
+    if f.cdLook == G.cdLook then return end
+    local cd, p = f.cooldown, G.db.profile
+    if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(not p.cdText) end
+    local text = cd.GetCountdownFontString and cd:GetCountdownFontString()
+    if not text then return end -- made with the first cooldown: styled then
+    f.cdLook = G.cdLook
+    local flags = ns.OutlineFlags(p.cdOutline)
+    ns.SetFont(text, ns.Media("font", p.cdFont), p.cdSize, flags)
+    local shadow = flags == "" and 1 or 0
+    text:SetShadowOffset(shadow, -shadow)
+    local c = p.cdColor
+    text:SetTextColor(c[1], c[2], c[3], c[4])
+end
+
 local function EmptyArt(slot) return GetInventorySlotInfo and select(2, GetInventorySlotInfo(SLOT_ART[slot])) end
 
 local function SizeButton(f, size)
@@ -831,6 +849,7 @@ function G:Apply()
     end
     self.relayout = nil
     local show = on and not editing and #keys > 0
+    self.cdLook = self.cdLook + 1
     if not self.bar then
         if not show then return end
         self.bar = CreateFrame("Frame", "HastesSuperTweaksGearShift", UIParent)
@@ -847,11 +866,13 @@ function G:Apply()
             local offset = (i - 1) * (p.size + p.spacing)
             if p.vertical then b:SetPoint("TOP", bar, "TOP", 0, -offset) else b:SetPoint("LEFT", bar, "LEFT", offset, 0) end
             b:Show()
+            StyleCooldown(b)
             self.shown[key] = b
         end
         bar:SetSize(self:BarSize(p, #keys))
         bar:ClearAllPoints()
         bar:SetPoint("CENTER", UIParent, "CENTER", p.x, p.y)
+        bar:SetAlpha(p.alpha)
     end
     for key, b in pairs(self.buttons or {}) do
         if not self.shown[key] then b:Hide() end
@@ -940,7 +961,7 @@ function G:ShowCooldowns()
             if not running then start, duration = 0, 0 end
             if b.cdStart ~= start or b.cdDuration ~= duration then
                 b.cdStart, b.cdDuration = start, duration
-                if running then b.cooldown:SetCooldown(start, duration) else b.cooldown:Clear() end
+                if running then b.cooldown:SetCooldown(start, duration); StyleCooldown(b) else b.cooldown:Clear() end
             end
         end
     end
@@ -1026,6 +1047,7 @@ function G:FillMenu(slot)
                     local start, duration = Bags.GetContainerItemCooldown(bag, bagSlot)
                     if not IsSecret(start) and not IsSecret(duration) and start and duration and start > 0 and duration > 0 then
                         e.cooldown:SetCooldown(start, duration)
+                        StyleCooldown(e)
                     end
                 end
             end
@@ -1049,25 +1071,30 @@ function G:OpenMenu(owner)
     for i = count + 1, #menu.entries do menu.entries[i]:Hide() end
     if count == 0 then return self:CloseMenu() end
     menu.owner, menu.slot, menu.away = owner, owner.slot, 0
-    -- Away from the nearer screen edge: up or down from a row, right or left of a column.
-    local x, y = owner:GetCenter()
-    local scale = owner:GetEffectiveScale() / UIParent:GetEffectiveScale()
-    x, y = x * scale, y * scale
-    local midX, midY = UIParent:GetWidth() / 2, UIParent:GetHeight() / 2
+    -- The way picked, or away from the nearer screen edge: up or down from a row, right or left of a column.
+    local way = p.flyout
+    if way == "AUTO" then
+        local x, y = owner:GetCenter()
+        local scale = owner:GetEffectiveScale() / UIParent:GetEffectiveScale()
+        x, y = x * scale, y * scale
+        if p.vertical then way = x < UIParent:GetWidth() / 2 and "RIGHT" or "LEFT"
+        else way = y < UIParent:GetHeight() / 2 and "UP" or "DOWN" end
+    end
+    local sideways = way == "LEFT" or way == "RIGHT"
     local size, gap = p.size, p.spacing
     local step = size + gap
     local runs = math.ceil(count / MAX_RUN)
     local along = min(count, MAX_RUN)
     local point, dx, dy, side
-    if p.vertical then
-        local right = x < midX
+    if sideways then
+        local right = way == "RIGHT"
         point, side = right and "LEFT" or "RIGHT", right and 1 or -1
         dx, dy = side * step, -step
         menu:SetSize(runs * step, along * step - gap)
         menu:ClearAllPoints()
         menu:SetPoint(right and "TOPLEFT" or "TOPRIGHT", owner, right and "TOPRIGHT" or "TOPLEFT", side * gap, 0)
     else
-        local up = y < midY
+        local up = way == "UP"
         point, side = up and "BOTTOM" or "TOP", up and 1 or -1
         dx, dy = step, side * step
         menu:SetSize(runs * step - gap, along * step)
@@ -1079,7 +1106,7 @@ function G:OpenMenu(owner)
         SizeButton(e, size)
         e:ClearAllPoints()
         local run, at = math.floor((i - 1) / MAX_RUN), (i - 1) % MAX_RUN
-        if p.vertical then
+        if sideways then
             e:SetPoint(point == "LEFT" and "TOPLEFT" or "TOPRIGHT", menu, point == "LEFT" and "TOPLEFT" or "TOPRIGHT",
                 run * dx, at * dy)
         else
@@ -1427,6 +1454,7 @@ function G:BuildOptions()
             { hidden = function() return NthSet(i) == nil end })
     end
 
+    local function noCdText() return not profile().cdText end
     return { name = self.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             bar = ns.Section("Bar", 1, {
@@ -1437,8 +1465,22 @@ function G:BuildOptions()
                 vertical = ns.Option(profile, "toggle", "vertical", "Vertical", 4, nil, apply),
                 menus = ns.Option(profile, "select", "menus", "Open menus", 5, {
                     values = { hover = "On hover", alt = "On hover with Alt held" }, sorting = { "hover", "alt" } }),
+                flyout = ns.Option(profile, "select", "flyout", "Menu direction", 6, {
+                    values = { AUTO = "Away from the screen edge", UP = "Up", DOWN = "Down", LEFT = "Left", RIGHT = "Right" },
+                    sorting = { "AUTO", "UP", "DOWN", "LEFT", "RIGHT" } }, apply),
+                alpha = ns.Option(profile, "range", "alpha", "Opacity", 7,
+                    { min = 0.1, max = 1, step = 0.05, isPercent = true }, apply),
             }),
-            position = ns.Section("Position", 2, {
+            cooldown = ns.Section("Cooldown text", 2, {
+                cdText = ns.Option(profile, "toggle", "cdText", "Show cooldown numbers", 1, nil, apply),
+                cdFont = ns.MediaOption(profile, "font", "cdFont", "Font", 2, { disabled = noCdText }, apply),
+                cdSize = ns.Option(profile, "range", "cdSize", "Size", 3,
+                    { min = 8, max = 32, step = 1, disabled = noCdText }, apply),
+                cdOutline = ns.Option(profile, "select", "cdOutline", "Outline", 4, ns.With({ desc = ns.OutlineDesc(),
+                    disabled = noCdText }, ns.OutlineChoices("Drop shadow")), apply),
+                cdColor = ns.Option(profile, "color", "cdColor", "Color", 5, { disabled = noCdText }, apply),
+            }),
+            position = ns.Section("Position", 3, {
                 reset = { type = "execute", name = "Reset position", order = 1, func = function()
                     local p = profile()
                     p.x, p.y = defaults.x, defaults.y
