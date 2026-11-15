@@ -2,6 +2,20 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.4.0 (2026-11-15)
+
+### Gear Upgrades
+
+Item tooltips show how much an item would improve on your gear, scored with stat weights for your talents. Hit, expertise and defense caps are counted from your own stats, and upgrades in your bags and the best quest reward get a green arrow. It starts off.
+
+### New Features
+
+- Gear Upgrades: Stat Weights. Built-in stat weights for every spec. Edit them stat by stat, or import and export your own.
+
+### Changes
+
+- The settings window groups tweaks into new categories: Leveling, Quests, Combat, Gear & Bags, Loot & Vendors, Dungeons & PvP, Accept & Decline, Chat, Guild & Mail, Interface and Sound.
+
 ## 4.3.2 (2026-11-14)
 
 ### Bug Fixes
