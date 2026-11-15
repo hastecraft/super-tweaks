@@ -1272,7 +1272,8 @@ end
 -- Select: a pill showing the chosen entry; clicking it opens a menu of the entries under it. One menu serves every
 -- select. It shows MENU_ROWS entries at most, the mouse wheel scrolling the rest, and is filled only when it opens
 -- or scrolls. A select's source has getEntries() (values and display order), getValue(), onSelect(key) and,
--- optionally, fontFor(key), a font file to show that entry in.
+-- optionally, fontFor(key), a font file to show that entry in. A source that picks several has isChosen(key) instead
+-- of getValue(): its menu stays open, and onSelect(key) turns an entry on or off.
 ---------------------------------------------------------------------------
 local SELECT_H, MENU_ROW, MENU_ROWS, MENU_PAD, MENU_RADIUS = 24, 20, 14, 4, 7
 local menu
@@ -1296,7 +1297,8 @@ end
 
 local function FillMenu()
     local source, values, order = menu.owner.source, menu.values, menu.order
-    local current = source.getValue()
+    local isChosen = source.isChosen
+    local current = not isChosen and source.getValue()
     for i, row in ipairs(menu.rows) do
         local key = order[menu.offset + i]
         if i > menu.shown or key == nil then
@@ -1305,7 +1307,7 @@ local function FillMenu()
             row.key = key
             row.label:SetText(tostring(values[key]))
             SetEntryFont(row, source.fontFor and source.fontFor(key) or nil)
-            row.selected = key == current
+            if isChosen then row.selected = isChosen(key) and true or false else row.selected = key == current end
             row.check:SetShown(row.selected)
             W.Paint(row.label, row.selected and C.accent or row:IsMouseOver() and C.bright or C.text)
             row:Show()
@@ -1352,6 +1354,11 @@ local function MenuRow(i)
     row:SetScript("OnClick", function(self)
         Play("U_CHAT_SCROLL_BUTTON")
         local source = menu.owner.source
+        if source.isChosen then
+            source.onSelect(self.key)
+            FillMenu()
+            return
+        end
         menu:Hide()
         if source.onSelect then source.onSelect(self.key) end
     end)
@@ -1407,7 +1414,7 @@ local function OpenMenu(s)
     if previous and previous ~= s then PaintSelect(previous) end
     menu.shown = math.min(#order, MENU_ROWS)
     -- Opened at the chosen entry.
-    local current, at = s.source.getValue(), 1
+    local current, at = s.source.getValue and s.source.getValue(), 1
     for i, key in ipairs(order) do if key == current then at = i; break end end
     menu.offset = math.max(0, math.min(#order - menu.shown, at - math.ceil(menu.shown / 2)))
     -- As big as the select, wherever the window is scaled; under it, or over it when there's no room below.

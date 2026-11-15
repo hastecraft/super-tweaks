@@ -628,9 +628,12 @@ local chips = {}
 local activityRows = {}
 local activityCounts = {}
 
+local selects = {}
+
 local function PaintChips()
     local p = G.db.profile
     for _, c in ipairs(chips) do c:SetOn(c.isOn(p)) end
+    for _, d in ipairs(selects) do d:Refresh() end
 end
 
 local function FilterChanged()
@@ -724,7 +727,14 @@ local function LayoutRail()
         section.label:ClearAllPoints()
         section.label:SetPoint("TOPLEFT", rail.child, "TOPLEFT", 12, y)
         y = y - 18
-        y = y - Win.FlowChips(section.chips, rail.child, 12, y, width) - 12
+        if section.select then
+            section.select:ClearAllPoints()
+            section.select:SetPoint("TOPLEFT", rail.child, "TOPLEFT", 12, y)
+            section.select:SetWidth(width)
+            y = y - section.select:GetHeight() - 12
+        else
+            y = y - Win.FlowChips(section.chips, rail.child, 12, y, width) - 12
+        end
     end
     F.clearActivities:ClearAllPoints()
     F.clearActivities:SetPoint("RIGHT", F.sections[#F.sections].label, "LEFT", RAIL - 26, 0)
@@ -773,34 +783,51 @@ local function BuildRail(page)
     edge:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", RAIL, 0)
     W.Line(edge, true)
 
-    local function Set(key, value) return function(p) p[key] = value end end
-    local function Is(key, value) return function(p) return p[key] == value end end
-    local function Flag(key, value)
-        return function(p) p[key][value] = not p[key][value] or nil end, function(p) return p[key][value] == true end
-    end
     F.sections = {}
-    local function Section(label, list)
-        local section = { label = Win.Label(rail.child, label), chips = list }
+    local function Section(label, list, select)
+        local section = { label = Win.Label(rail.child, label), chips = list, select = select }
         F.sections[#F.sections + 1] = section
     end
 
-    local needChips = {}
-    for _, role in ipairs(G.ROLE_ORDER) do
-        local toggle, isOn = Flag("need", role)
-        needChips[#needChips + 1] = AddChip(G.ROLE_NAMES[role], isOn, toggle)
+    -- A dropdown. keys and names: its entries in order. With a set (a profile table), several can be picked, and
+    -- none picked reads "Any"; else get() and set(key) hold the one picked.
+    local function Dropdown(keys, names, set, get, put)
+        local values = {}
+        for i, key in ipairs(keys) do values[key] = names[i] end
+        local source = { getEntries = function() return values, keys end }
+        if set then
+            source.isChosen = function(key) return G.db.profile[set][key] == true end
+            source.onSelect = function(key)
+                local t = G.db.profile[set]
+                t[key] = not t[key] or nil
+                FilterChanged()
+            end
+        else
+            source.getValue = function() return get(G.db.profile) end
+            source.onSelect = function(key)
+                put(G.db.profile, key)
+                FilterChanged()
+            end
+        end
+        local d = W.Select(rail.child, source)
+        function d:Refresh()
+            if not set then return self:SetText(values[get(G.db.profile)] or "") end
+            local picked, chosen = {}, G.db.profile[set]
+            for _, key in ipairs(keys) do if chosen[key] then picked[#picked + 1] = values[key] end end
+            self:SetText(#picked > 0 and table.concat(picked, ", ") or "Any")
+        end
+        selects[#selects + 1] = d
+        return d
     end
-    Section("Room for", needChips)
-    Section("Show", {
-        AddChip("Everyone", Is("show", "both"), Set("show", "both")),
-        AddChip("Groups", Is("show", "groups"), Set("show", "groups")),
-        AddChip("Players", Is("show", "players"), Set("show", "players")),
-    })
-    local styleChips = {}
-    for _, value in ipairs(G.PLAYSTYLES) do
-        local toggle, isOn = Flag("playstyles", value)
-        styleChips[#styleChips + 1] = AddChip(G.PlaystyleName(value), isOn, toggle)
-    end
-    Section("Playstyle", styleChips)
+
+    local roleNames = {}
+    for i, role in ipairs(G.ROLE_ORDER) do roleNames[i] = G.ROLE_NAMES[role] end
+    Section("Room for", nil, Dropdown(G.ROLE_ORDER, roleNames, "need"))
+    Section("Show", nil, Dropdown({ "both", "groups", "players" }, { "Everyone", "Groups", "Players" }, nil,
+        function(p) return p.show end, function(p, key) p.show = key end))
+    local styleNames = {}
+    for i, value in ipairs(G.PLAYSTYLES) do styleNames[i] = G.PlaystyleName(value) end
+    Section("Playstyle", nil, Dropdown(G.PLAYSTYLES, styleNames, "playstyles"))
     Section("Groups", {
         AddChip("Hide full", function(p) return p.hideFull end, function(p) p.hideFull = not p.hideFull end),
     })
