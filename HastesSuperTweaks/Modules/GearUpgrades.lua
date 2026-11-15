@@ -966,11 +966,50 @@ local SOURCES = {
     HJ = "HawsJon's scale for WoW Forever. No guide gives numbers for it yet.",
 }
 
-ns.Configure(U, { tooltip = true, allScales = false, bags = true, quests = true, markFrom = 1, importUnits = "RATING",
+ns.Configure(U, { tooltip = true, allScales = false, bags = true, quests = true, markFrom = 1,
     statless = false },
     function(m) return m:BuildOptions() end, "Changed")
 U.defaults.char = { scale = "AUTO" }
 U.defaults.global = { scales = {} }
+
+-- The Export and Import popups, defined the first time they're needed. Every popup shares one text box, and a
+-- popup's maxLetters stays on it; these set their own (0: no limit).
+local function EditBoxOf(popup) return popup.editBox or popup.EditBox end
+local function Dialogs()
+    if StaticPopupDialogs.HASTES_SUPER_TWEAKS_WEIGHTS_EXPORT then return end
+    StaticPopupDialogs.HASTES_SUPER_TWEAKS_WEIGHTS_EXPORT = {
+        text = "Stat weights of \"%s\"\n\nPress Ctrl+C to copy them.", button1 = CLOSE or "Close",
+        hasEditBox = true, editBoxWidth = 350, maxLetters = 0,
+        OnShow = function(popup, text)
+            local box = EditBoxOf(popup)
+            box:SetText(text); box:HighlightText(); box:SetFocus()
+        end,
+        EditBoxOnTextChanged = function(box, text)
+            if box:IsVisible() and box:GetText() ~= text then box:SetText(text); box:HighlightText() end
+        end,
+        EditBoxOnEnterPressed = function(box) box:GetParent():Hide() end,
+        EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end,
+        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+    }
+    -- data.import(text) adds the pasted weights, or says why it can't and keeps the popup open.
+    StaticPopupDialogs.HASTES_SUPER_TWEAKS_WEIGHTS_IMPORT = {
+        text = "Paste stat weights:", button1 = ACCEPT or "Accept", button2 = CANCEL or "Cancel",
+        hasEditBox = true, editBoxWidth = 350, maxLetters = 0,
+        OnShow = function(popup) local box = EditBoxOf(popup); box:SetText(""); box:SetFocus() end,
+        OnAccept = function(popup, data) return not data.import(EditBoxOf(popup):GetText()) end,
+        EditBoxOnEnterPressed = function(box, data) if data.import(box:GetText()) then box:GetParent():Hide() end end,
+        EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end,
+        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+    }
+    -- Weights from elsewhere don't say what their hit, crit, haste and expertise are per: the player picks.
+    StaticPopupDialogs.HASTES_SUPER_TWEAKS_WEIGHTS_UNITS = {
+        text = "Are its hit, crit, haste and expertise weights per rating point or per 1%%?",
+        button1 = "Per rating point", button2 = "Per 1%",
+        OnAccept = function(_, data) data.add(false) end,
+        OnCancel = function(_, data, reason) if reason == "clicked" then data.add(true) end end,
+        noCancelOnEscape = true, timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+    }
+end
 
 function U:BuildOptions()
     local function profile() return self.db.profile end
@@ -979,7 +1018,6 @@ function U:BuildOptions()
     local function picked() return self:Active() end
     local function isCustom() return picked().custom == true end
 
-    local editing = {} -- what's typed in the paste box, before it's added
     local function scaleSelect(order)
         return ns.Option(char, "select", "scale", "Scale", order, {
             values = function()
@@ -997,11 +1035,6 @@ function U:BuildOptions()
                 return scale.custom and "Your own scale." or SOURCES[scale.source]
             end,
         }, remark)
-    end
-    -- A pasted string with no units of its own: the player says what its rating weights are per.
-    local function noUnits()
-        local text = editing.text or ""
-        return text == "" or text:find("Units=Rating", 1, true) ~= nil
     end
 
     -- The scale to change: yours, or from the first change to a built-in one, your own copy of it.
@@ -1032,8 +1065,38 @@ function U:BuildOptions()
             set = function(_, text) local scale = writable(); set(scale, tonumber(strtrim(text or ""))); changed(scale) end }
     end
 
+    local function add(text, perPercent)
+        local name, class, weights = self.ParseTag(text, perPercent)
+        if not name then return end
+        char().scale = self:AddScale(name, weights, class)
+        remark()
+        HST:RefreshSettings()
+        HST:Print("Added " .. char().scale .. ".")
+    end
+    local function import(text)
+        local name, problem = self.ParseTag(text)
+        if not name then HST:Print(problem); return false end
+        if text:find("Units=Rating", 1, true) then
+            add(text, false)
+        else
+            StaticPopup_Show("HASTES_SUPER_TWEAKS_WEIGHTS_UNITS", nil, nil,
+                { add = function(perPercent) add(text, perPercent) end })
+        end
+        return true
+    end
+
     local weightArgs = {
         scale = scaleSelect(1),
+        import = { type = "execute", order = 3, name = "Import", desc = "Add stat weights someone copied for you.",
+            func = function()
+                Dialogs()
+                StaticPopup_Show("HASTES_SUPER_TWEAKS_WEIGHTS_IMPORT", nil, nil, { import = import })
+            end },
+        export = { type = "execute", order = 4, name = "Export", desc = "Copy this scale to share it.",
+            func = function()
+                Dialogs()
+                StaticPopup_Show("HASTES_SUPER_TWEAKS_WEIGHTS_EXPORT", picked().name, nil, self.ScaleTag(picked()))
+            end },
         help = { type = "description", order = 2, name = function()
             if isCustom() then return "Clear a weight to remove it." end
             return "Clear a weight to remove it. Changing " .. picked().name .. " makes your own copy, "
@@ -1127,28 +1190,6 @@ function U:BuildOptions()
         } },
         scales = { type = "group", name = "Stat weights", order = 2, args = {
             edit = ns.Section("Weights", 1, weightArgs),
-            share = ns.Section("Share", 2, {
-                export = { type = "input", order = 1, name = "Copy", width = "full",
-                    desc = "Click it, then press Ctrl+C.",
-                    get = function() return self.ScaleTag(picked()) end, set = function() end },
-                import = { type = "input", order = 2, name = "Paste", width = "full", live = true,
-                    desc = "A scale someone copied for you.",
-                    get = function() return editing.text or "" end,
-                    set = function(_, text) editing.text = text end },
-                importUnits = ns.Option(profile, "select", "importUnits", "Its hit, crit, haste and expertise are", 3, {
-                    values = { RATING = "Per rating point", PERCENT = "Per 1%" },
-                    sorting = { "RATING", "PERCENT" }, hidden = noUnits }),
-                add = { type = "execute", order = 4, name = "Add scale",
-                    disabled = function() return (editing.text or "") == "" end,
-                    func = function()
-                        local name, class, weights = self.ParseTag(editing.text, self.db.profile.importUnits == "PERCENT")
-                        if not name then return HST:Print(class) end
-                        char().scale = self:AddScale(name, weights, class)
-                        editing.text = ""
-                        remark()
-                        HST:Print("Added " .. char().scale .. ".")
-                    end },
-            }),
         } },
     } }
 end
