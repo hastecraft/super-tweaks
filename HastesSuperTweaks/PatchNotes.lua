@@ -16,6 +16,20 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.6.0", date = "2026-11-15",
+        highlights = {
+            { "A new Looking For Group window. Find groups and players by the role they need, playstyle and activity, see every member's class, role and level, whisper or invite in one click, list yourself or your group, and run /who with quick filters. It starts off.",
+                title = "Group Finder", module = "GroupFinder" },
+        },
+        changed = {
+            "Super Auction House and Instance Tracker: clicking outside a dialog closes it.",
+            "Super Auction House, Loot Window and the settings window: every close and clear button uses the same X.",
+        },
+        fixed = {
+            { "Gear Shift: its buttons can be pointed at and clicked when the bar sits next to your action bars.", module = "GearShift" },
+        },
+    },
+    {
         version = "4.5.0", date = "2026-11-15",
         new = {
             { "Choose which way its menus open, set the bar's opacity, and turn off or restyle the cooldown numbers: font, size, outline and color.",
