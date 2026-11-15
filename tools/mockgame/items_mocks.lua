@@ -125,6 +125,7 @@ C_Item = {
         return b and b[2]
     end,
     GetItemInfo = function(id)
+        if type(id) == 'string' then id = tonumber(id:match('item:(%d+)')) end -- a link, as the game takes
         local i = ITEMS[id]
         if not i or not i.name then return nil end
         return i.name, 'link', 1, i.ilvl or 1, i.level or 0, 'Consumable', '', 20, '', 0, 0, i.class or 0, i.sub or 0

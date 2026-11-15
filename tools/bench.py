@@ -439,6 +439,32 @@ Section('Gear Shift', function()
     WIELDED[13], WIELDED[14], BAGS[1] = nil, nil, bag
 end)
 
+Section('Gear Upgrades', function()
+    if not HST:GetModule('GearUpgrades', true) then return end -- a version without this tweak
+    -- A breastplate in the bags against the one worn, read from their tooltip lines; a bag slot redraws its tooltip
+    -- five times a second.
+    ITEMS[9101] = { name = 'Lionheart Breastplate', equipLoc = 'INVTYPE_CHEST', tip = { 'Lionheart Breastplate',
+        'Chest', '512 Armor', '+12 Strength', '+9 Agility', 'Equip: Improves your chance to hit by 1%.' } }
+    ITEMS[9102] = { name = 'Old Breastplate', equipLoc = 'INVTYPE_CHEST', tip = { 'Old Breastplate', 'Chest',
+        '400 Armor', '+10 Strength', 'Equip: Increases attack power by 20.' } }
+    WIELDED[5] = 9102
+    local U = mod('GearUpgrades')
+    Enable({ 'GearUpgrades' }, true); AdvanceTime(0.1)
+    local CHEST = { id = 9101, hyperlink = 'item:9101' }
+    local function itemTip()
+        local fill = POSTCALLS[Enum.TooltipDataType.Item]
+        if fill then fill(tip, CHEST) end
+    end
+    Measure('Gear Upgrades: item tooltip, same item redrawn', 300, itemTip)
+    Measure('Gear Upgrades: item tooltip after your gear changed', 100, function()
+        Send('GearUpgrades', 'PLAYER_EQUIPMENT_CHANGED', 5, false); AdvanceTime(0.1); itemTip()
+    end)
+    Enable({ 'GearUpgrades' }, false)
+    Measure('Gear Upgrades off: item tooltip (hook already installed)', 300, itemTip)
+    WIELDED[5], ITEMS[9101], ITEMS[9102] = nil, nil, nil
+    U.Stats('item:1') -- nothing
+end)
+
 Section('Quest Progress Sounds', function()
     if not HST:GetModule('QuestSounds', true) then return end -- a copy of the addon from before this tweak
     UIErrorsFrame = UIErrorsFrame or CreateFrame('MessageFrame', 'UIErrorsFrame', UIParent)

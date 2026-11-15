@@ -77,6 +77,7 @@ function GetCursorPosition() return 0, 0 end
 function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
 tinsert, tremove = table.insert, table.remove
 function wipe(t) for k in pairs(t) do t[k] = nil end; return t end
+function strtrim(s) return (string.gsub(s or "", "^%s*(.-)%s*$", "%1")) end
 RAID_CLASS_COLORS = { WARRIOR = { r = 0.7, g = 0.5, b = 0.3 } }
 state.loadedAddons = { EllesmereUI = true }
 C_AddOns = {

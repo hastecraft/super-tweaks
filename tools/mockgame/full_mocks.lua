@@ -130,9 +130,18 @@ C_Container.PickupContainerItem = function() end
 function GetInventoryItemID(_, slot) return WIELDED[slot] end
 function PutItemInBag() end
 C_Item.GetItemInfoInstant = function(id)
+    if type(id) == 'string' then id = tonumber(id:match('item:(%d+)')) end -- a link, as the game takes
     local i = ITEMS[id]
     if not i then return nil end
-    return id, '', '', '', 'icon' .. id, i.class or 0, i.sub or 0
+    return id, '', '', i.equipLoc or '', 'icon' .. id, i.class or 0, i.sub or 0
+end
+-- An item's tooltip lines by link (Gear Upgrades reads gear's stats from them): ITEMS[id].tip lists the left texts.
+C_TooltipInfo.GetHyperlink = function(link)
+    local i = ITEMS[tonumber(link:match('item:(%d+)'))]
+    if not (i and i.tip) then return nil end
+    local lines = {}
+    for n, text in ipairs(i.tip) do lines[n] = { leftText = text } end
+    return { lines = lines }
 end
 
 -- Sell Clutter: quest items in bags, junk-sell flags, equipment sets, professions and skills, quest objectives.
