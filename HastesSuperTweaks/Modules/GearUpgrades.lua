@@ -1108,7 +1108,7 @@ function U.info.preview(frame)
     local W = ns.Widgets
     local v = frame.hstUpgrades
     if not v then
-        v = {}
+        v = { texts = {} }
         frame.hstUpgrades = v
         v.tip = W.Panel(frame, 190, 76)
         local lines = {
@@ -1120,6 +1120,7 @@ function U.info.preview(frame)
             local text = W.Text(v.tip, "GameFontHighlightSmall", line[2], "LEFT")
             text:SetPoint("TOPLEFT", 8, y)
             text:SetText(line[1])
+            v.texts[#v.texts + 1] = text
             y = y - 13
         end
         v.label = W.Text(v.tip, "GameFontHighlightSmall", LABEL, "LEFT")
@@ -1127,6 +1128,7 @@ function U.info.preview(frame)
         local change = W.Text(v.tip, "GameFontHighlightSmall", GREEN, "RIGHT")
         change:SetPoint("TOPRIGHT", -8, y)
         change:SetText("+6.4% upgrade")
+        v.change = change
         v.bag = CreateFrame("Frame", nil, frame)
         v.bag:SetSize(#BAG * 25 - 3, 22)
         for i, icon in ipairs(BAG) do
@@ -1148,6 +1150,10 @@ function U.info.preview(frame)
     local p = U.db.profile
     local scale = U:Active()
     v.label:SetText(scale and scale.name or "Fury")
+    -- The tooltip is as wide as its longest line, as the game's are.
+    local wide = v.label:GetStringWidth() + 12 + v.change:GetStringWidth()
+    for _, text in ipairs(v.texts) do wide = math.max(wide, text:GetStringWidth()) end
+    v.tip:SetWidth(math.min(math.ceil(wide) + 16, W.PREVIEW_WIDTH - 4))
     v.tip:SetShown(p.tooltip)
     v.bag:SetShown(p.bags)
     if p.tooltip and p.bags then W.Column(frame, { v.tip, 10, v.bag })
