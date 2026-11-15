@@ -16,12 +16,13 @@ local UNKNOWN_NAME = UNKNOWNOBJECT or "Unknown"
 -- Sidebar order of the module categories.
 HST.categories = {
     { key = "leveling", name = "Leveling" },
-    { key = "quests", name = "Quests & NPCs" },
+    { key = "quests", name = "Quests" },
+    { key = "combat", name = "Combat" },
+    { key = "gear", name = "Gear & Bags" },
     { key = "loot", name = "Loot & Vendors" },
-    { key = "items", name = "Items & Mail" },
-    { key = "group", name = "Group & PvP" },
-    { key = "social", name = "Social" },
-    { key = "decline", name = "Auto-Decline" },
+    { key = "pvp", name = "Dungeons & PvP" },
+    { key = "accept", name = "Accept & Decline" },
+    { key = "social", name = "Chat, Guild & Mail" },
     { key = "interface", name = "Interface" },
     { key = "sound", name = "Sound" },
 }

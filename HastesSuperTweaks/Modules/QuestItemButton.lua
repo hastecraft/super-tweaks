@@ -11,7 +11,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 
 local Q = HST:NewFeature("QuestItemButton", {
-    name = "Quest Item Button", category = "quests", order = 3.5, enabledByDefault = false,
+    name = "Quest Item Button", category = "quests", order = 4, enabledByDefault = false,
     summary = "One button and key for your current quest's item.",
     examples = { "size", "glow" },
     description = "A button for the usable item of the quest you're on right now: the one whose area you're in, else "

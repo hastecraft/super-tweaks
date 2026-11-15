@@ -9,7 +9,7 @@ local HST = ns.HST
 local IsSecret = ns.IsSecret
 
 local A = HST:NewFeature("Appearances", {
-    name = "Appearance Collector", category = "items", order = 4,
+    name = "Appearance Collector", category = "gear", order = 3,
     summary = "Marks gear whose look you haven't collected yet.",
     examples = { "bags", "vendors", "loot", "tooltip", "alts" },
     description = "Puts a mark on gear in your bags, at vendors and in the Loot Window whose appearance you haven't "

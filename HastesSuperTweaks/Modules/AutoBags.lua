@@ -5,7 +5,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 
 local B = HST:NewFeature("AutoBags", {
-    name = "Auto-Equip Bags", category = "items", order = 3, enabledByDefault = false,
+    name = "Auto-Equip Bags", category = "gear", order = 4, enabledByDefault = false,
     summary = "Equips new bags, replacing your smallest one.", examples = { "boe", "announce" },
     description = "Puts new bags in an empty bag slot, or swaps out your smallest bag if the new one is bigger and moves "
         .. "its contents over.",

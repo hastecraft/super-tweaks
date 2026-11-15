@@ -216,7 +216,7 @@ end
 
 -- Duels, and on Hardcore realms duels to the death, which have their own request.
 Block("BlockDuels", {
-    name = "Auto-Decline Duels", category = "decline", order = 2, enabledByDefault = false,
+    name = "Auto-Decline Duels", category = "accept", order = 4, enabledByDefault = false,
     summary = "Turns down duel requests.", examples = { { "trustFriends", "Let friends through" }, { "trustGuild", "Let guild members through" }, { "trustCommunities", "Let community members through" } },
     description = "Turns down duel requests. You can let friends, guildmates or community members through.",
     preview = Declined("Interface\\Icons\\Ability_DualWield", "Gankalot has challenged you to a duel.", "Declined a duel from Gankalot."),
@@ -229,7 +229,7 @@ Block("BlockDuels", {
 end)
 
 Block("BlockPartyInvites", {
-    name = "Auto-Decline Party Invites", category = "decline", order = 5, enabledByDefault = false,
+    name = "Auto-Decline Party Invites", category = "accept", order = 7, enabledByDefault = false,
     summary = "Turns down group invites.", examples = { { "trustFriends", "Let friends through" }, { "trustGuild", "Let guild members through" }, { "trustCommunities", "Let community members through" } },
     description = "Turns down group invites. You can let friends, guildmates or community members through.",
     preview = Declined("Interface\\Icons\\Spell_Holy_PrayerOfFortitude", "Gankalot invites you to a group.", "Declined a group invite from Gankalot."),
@@ -246,7 +246,7 @@ end)
 -- Join requests wait in a queue, and the game only shows (and tells addons about) the first. The next one comes up
 -- when the first is answered, with no event, so the queue is looked at again then too.
 local J = Block("BlockJoinRequests", {
-    name = "Auto-Decline Join Requests", category = "decline", order = 4, enabledByDefault = false,
+    name = "Auto-Decline Join Requests", category = "accept", order = 6, enabledByDefault = false,
     summary = "Turns down requests to join your group.", examples = { { "trustFriends", "Let friends through" }, { "trustGuild", "Let guild members through" }, { "trustCommunities", "Let community members through" } },
     description = "Turns down requests to join your group, and group members' suggestions to invite someone. You can let friends, guildmates or community members through.",
     preview = Declined("Interface\\Icons\\Spell_Holy_SealOfProtection", "Gankalot is requesting to join your group.",
@@ -279,7 +279,7 @@ function J:OnListen()
 end
 
 Block("DeclineCharters", {
-    name = "Auto-Decline Guild Charters", category = "decline", order = 3, enabledByDefault = false,
+    name = "Auto-Decline Guild Charters", category = "accept", order = 5, enabledByDefault = false,
     summary = "Turns down requests to sign guild charters.", examples = { { "trustFriends", "Let friends through" }, { "trustGuild", "Let guild members through" }, { "trustCommunities", "Let community members through" } },
     description = "Turns down guild charters people ask you to sign. You can let friends, guildmates or community members through.",
     preview = Declined("Interface\\Icons\\INV_Misc_Note_01", "Gankalot asks you to sign a charter for <Gank Squad>.",
@@ -293,7 +293,7 @@ Block("DeclineCharters", {
 end)
 
 local F = Block("BlockFriendRequests", {
-    name = "Auto-Decline Battle.net Friend Requests", category = "decline", order = 1, enabledByDefault = false,
+    name = "Auto-Decline Battle.net Friend Requests", category = "accept", order = 3, enabledByDefault = false,
     summary = "Turns down Battle.net friend requests.",
     description = "Turns down Battle.net friend requests and tells you who sent them.",
     preview = Declined("Interface\\FriendsFrame\\Battlenet-Battleneticon", "Gankalot#1234 wants to be your Battle.net friend.",
@@ -317,7 +317,7 @@ end
 function F:OnListen() self:DeclineAll() end
 
 local Q = Block("BlockSharedQuests", {
-    name = "Auto-Decline Shared Quests", category = "decline", order = 6, enabledByDefault = false,
+    name = "Auto-Decline Shared Quests", category = "accept", order = 8, enabledByDefault = false,
     summary = "Turns down quests your group shares with you.", examples = { { "trustFriends", "Let friends through" }, { "trustGuild", "Let guild members through" }, { "trustCommunities", "Let community members through" } },
     description = "Turns down quests that group members share with you. You can let friends, guildmates or community members through.",
     preview = Declined("Interface\\Icons\\INV_Scroll_03", "Gankalot shares a quest with you: |cffffd100Wanted: Hogger|r",

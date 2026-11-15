@@ -7,7 +7,7 @@
 local ADDON, ns = ...
 local HST = ns.HST
 local M = HST:NewFeature("MailHelper", {
-    name = "Mail Expiry & Alt List", category = "items", order = 2, command = "mail",
+    name = "Mail Expiry & Alt List", category = "social", order = 6, command = "mail",
     summary = "Warns about expiring mail and lists your alts when you send mail.", examples = { "warnLogin", { "days", "Warn within (days)" }, "altButton" },
     description = "Warns at login when mail with items or gold is about to expire on any of your characters, and adds "
         .. "a list of your characters to the To: field.",

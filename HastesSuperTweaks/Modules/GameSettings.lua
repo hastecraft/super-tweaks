@@ -9,7 +9,7 @@ local HST = ns.HST
 local ReadCVar, WriteCVar, Same = ns.ReadCVar, ns.WriteCVar, ns.SameCVar
 
 local G = HST:NewFeature("GameSettings", {
-    name = "Game Settings", category = "interface", order = 3.5, command = "game", enabledByDefault = false,
+    name = "Game Settings", category = "interface", order = 5, command = "game", enabledByDefault = false,
     summary = "Switches for camera distance, threat percentage and other hidden settings, and an Edit Mode backup.",
     examples = { "camera", "nameplates", "threat", "actionCam", "spellQueue", "outline", "weather" },
     description = "Sets console settings players share, such as a farther camera, nameplates from farther away and less "

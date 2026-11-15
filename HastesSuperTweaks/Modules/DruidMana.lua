@@ -13,7 +13,7 @@ local IsSecret = ns.IsSecret
 local floor, min, max = math.floor, math.min, math.max
 
 local D = HST:NewFeature("DruidMana", {
-    name = "Druid Mana in Forms", category = "interface", order = 2.6,
+    name = "Druid Mana in Forms", category = "combat", order = 5,
     summary = "Shows your mana under the player frame in cat and bear form.",
     examples = { "showText", "textFormat", { "width", "Bar width" } },
     description = "Shows your mana in a small bar under the player frame while you're in cat or bear form, where the "

@@ -7,7 +7,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 
 local E = HST:NewFeature("ErrorFilter", {
-    name = "Error Message Filter", category = "interface", order = 2.8, enabledByDefault = false,
+    name = "Error Message Filter", category = "interface", order = 4, enabledByDefault = false,
     summary = "Hides repetitive red error messages like \"Not enough rage\".",
     examples = { "resources", "cooldown", "range", "combatOnly" },
     description = "Hides the red error messages you choose, such as not enough rage, energy or mana, not ready yet and "

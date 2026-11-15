@@ -7,7 +7,7 @@ local IsSecret = ns.IsSecret
 local find, lower = string.find, string.lower
 
 local F = HST:NewFeature("AutoInvite", {
-    name = "Auto-Invite Customers", category = "social", order = 2.6, command = "customers", enabledByDefault = false,
+    name = "Auto-Invite Customers", category = "social", order = 4, command = "customers", enabledByDefault = false,
     summary = "Invites and whispers players who ask in trade chat for what you offer.",
     examples = { "portals", "enchanting", "whisper" },
     description = "Invites players who ask in trade and other public channels for what you offer, such as a portal, "

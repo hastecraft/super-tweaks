@@ -9,7 +9,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 
 local S = HST:NewFeature("SuperAuctionHouse", {
-    name = "Super Auction House", category = "items", order = 3.65, command = "ah", enabledByDefault = false,
+    name = "Super Auction House", category = "loot", order = 8, command = "ah", enabledByDefault = false,
     summary = "Replaces the auction house window and puts prices on item tooltips.",
     examples = { "openOn", "tipAuction", "undercutPercent", "autoScan" },
     description = "Opens its own window at the auction house, with shopping lists, the materials for every recipe and "

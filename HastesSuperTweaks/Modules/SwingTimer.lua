@@ -11,7 +11,7 @@ local HST = ns.HST
 local IsSecret = ns.IsSecret
 
 local S = HST:NewFeature("SwingTimer", {
-    name = "Swing Timer Style", category = "interface", order = 2.6, enabledByDefault = false,
+    name = "Swing Timer Style", category = "combat", order = 2, enabledByDefault = false,
     summary = "Your colors for the game's swing timer, and bars that hide while idle.",
     examples = { { "mainHand", "Main hand color" }, { "texture", "Fill texture" }, "rangeColor", "hideIdle" },
     description = "Gives the game's swing timer bars the colors and texture you choose, and a color while your target is "

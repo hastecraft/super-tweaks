@@ -46,7 +46,7 @@ end
 -- Fast Loot
 ---------------------------------------------------------------------------
 local F = HST:NewFeature("FastLoot", {
-    name = "Fast Loot", category = "loot", order = 2, enabledByDefault = false,
+    name = "Fast Loot", category = "loot", order = 3, enabledByDefault = false,
     summary = "Takes all the loot at once when you auto loot.", examples = { "autoLoot", { "speed", "Looting speed" }, { "soloBind", "Take BoP items when solo" } },
     description = "Takes all the loot at once whenever the game auto loots. "
         .. "Hold the auto loot key (Shift by default) to look first.",

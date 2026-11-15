@@ -6,7 +6,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 
 local R = HST:NewFeature("LootRolls", {
-    name = "Movable Loot Rolls", category = "loot", order = 1.5, command = "rolls", enabledByDefault = false,
+    name = "Movable Loot Rolls", category = "loot", order = 2, command = "rolls", enabledByDefault = false,
     summary = "Move the Need, Greed and Pass rolls in Edit Mode.",
     examples = { "scale" },
     description = "Lets you move the group loot rolls (Need, Greed and Pass) in Edit Mode, where a sample shows, and "
