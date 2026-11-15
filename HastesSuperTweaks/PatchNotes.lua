@@ -16,6 +16,20 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.4.0", date = "2026-11-15",
+        highlights = {
+            { "Item tooltips show how much an item would improve on your gear, scored with stat weights for your talents. Hit, expertise and defense caps are counted from your own stats, and upgrades in your bags and the best quest reward get a green arrow. It starts off.",
+                title = "Gear Upgrades", module = "GearUpgrades" },
+        },
+        new = {
+            { "Built-in stat weights for every spec. Edit them stat by stat, or import and export your own.",
+                title = "Gear Upgrades: Stat Weights", module = "GearUpgrades", path = { "scales" } },
+        },
+        changed = {
+            "The settings window groups tweaks into new categories: Leveling, Quests, Combat, Gear & Bags, Loot & Vendors, Dungeons & PvP, Accept & Decline, Chat, Guild & Mail, Interface and Sound.",
+        },
+    },
+    {
         version = "4.3.2", date = "2026-11-14",
         fixed = {
             { "Super Auction House: Glove Enchants and Gloves show in English in the Recipes list.", module = "SuperAuctionHouse" },
