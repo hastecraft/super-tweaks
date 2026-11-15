@@ -6,7 +6,7 @@
 local ADDON, ns = ...
 local HST = ns.HST
 local B = HST:NewFeature("BreathMeter", {
-    name = "Better Breath Meter", category = "interface", order = 2.5, command = "breath", enabledByDefault = false,
+    name = "Better Breath Meter", category = "interface", order = 2, command = "breath", enabledByDefault = false,
     summary = "A breath bar with a countdown and a low-breath warning.", examples = { "showTime", "warnAt", { "warnSound", "Warning sound" }, { "width", "Bar width" } },
     description = "Replaces the game's breath, fatigue and feign death bars with one that counts down the seconds left "
         .. "and warns you as you run out. Move it in Edit Mode.",

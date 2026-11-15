@@ -7,7 +7,7 @@ local HST = ns.HST
 local IsSecret, Money = ns.IsSecret, ns.Money
 
 local G = HST:NewFeature("MailGuard", {
-    name = "Mail Gold Guard", category = "items", order = 2.5, command = "mailguard",
+    name = "Mail Gold Guard", category = "social", order = 7, command = "mailguard",
     summary = "Keeps Open All from taking gold that strangers mailed you.",
     examples = { "openAll", "items", { "guild", "Trust guild members" }, { "friends", "Trust friends" } },
     description = "Marks mail with gold from players who aren't your characters, friends or guildmates, and makes "

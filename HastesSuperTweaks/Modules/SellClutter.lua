@@ -10,7 +10,7 @@ local HST = ns.HST
 local IsSecret, Money = ns.IsSecret, ns.Money
 
 local S = HST:NewFeature("SellClutter", {
-    name = "Sell Clutter Automatically", category = "loot", order = 3.5, enabledByDefault = false, command = "clutter",
+    name = "Sell Clutter Automatically", category = "loot", order = 5, enabledByDefault = false, command = "clutter",
     summary = "Sells items you won't use, like monster parts and outleveled food, at vendors.", examples = { "cooking", "gear", { "levels", "Outleveled by (levels)" }, { "cloth", "Sell cloth" }, "tooltip" },
     description = "Sells leveling clutter you won't use at vendors: cooking ingredients if you don't cook, monster "
         .. "parts, gear your class can't use, outleveled food and potions, and the materials you choose. Anything your "

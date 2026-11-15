@@ -8,7 +8,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 
 local T = HST:NewFeature("QuestTracker", {
-    name = "Hide Quest Tracker", category = "quests", order = 5, command = "tracker", enabledByDefault = false,
+    name = "Hide Quest Tracker", category = "quests", order = 6, command = "tracker", enabledByDefault = false,
     summary = "Hides the quest tracker in dungeons, in combat, or always.",
     examples = { "instances", "pvp", "combat", "always" },
     description = "Hides the quest tracker where you choose: in dungeons and raids, in battlegrounds and arenas, in "

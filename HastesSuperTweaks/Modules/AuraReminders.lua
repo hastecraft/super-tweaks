@@ -12,7 +12,7 @@ local HST = ns.HST
 local IsSecret = ns.IsSecret
 
 local R = HST:NewFeature("AuraReminders", {
-    name = "Aura Reminders", category = "interface", order = 2.7, enabledByDefault = false,
+    name = "Aura Reminders", category = "combat", order = 3, enabledByDefault = false,
     summary = "Blinks your own text when a buff is missing or running out, or a proc is up.",
     description = "Shows your own text, with the aura's icon, in the middle of the screen when a buff you choose is "
         .. "missing or running out, or while a proc is on you. Each reminder can be for in combat, out of combat or "

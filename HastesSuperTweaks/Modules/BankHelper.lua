@@ -8,7 +8,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 
 local H = HST:NewFeature("BankHelper", {
-    name = "Bank Helper", category = "items", order = 3.7, command = "bank",
+    name = "Bank Helper", category = "gear", order = 7, command = "bank",
     summary = "At the bank, lists what you don't need on you. A click banks it.",
     examples = { "banked", "materials", "laterGear", "leave" },
     description = "At the bank, a list beside the bank window of what you could put away: crafting materials, gear "

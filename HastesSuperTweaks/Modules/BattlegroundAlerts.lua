@@ -14,7 +14,7 @@ local floor, max, min = math.floor, math.max, math.min
 local MATCH_RESULTS = C_PvP ~= nil and C_PvP.GetPostMatchCurrencyRewards ~= nil
 
 local A = HST:NewFeature("BattlegroundAlerts", {
-    name = "Battleground Alerts", category = "group", order = 3.5,
+    name = "Battleground Alerts", category = "pvp", order = 2,
     summary = "Counts down battleground invites and alerts you as the gates open.",
     examples = { "invite", "gates", { "gatesWarning", "Gates: 10 seconds before" }, "result" },
     description = "Shows how long you have left to enter a battleground, and flashes the taskbar as time runs out. Also alerts you as the gates open, and says in chat whether you won"

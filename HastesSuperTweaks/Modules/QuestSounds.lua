@@ -13,7 +13,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 
 local Q = HST:NewFeature("QuestSounds", {
-    name = "Quest Progress Sounds", category = "quests", order = 6, enabledByDefault = false,
+    name = "Quest Progress Sounds", category = "sound", order = 4, enabledByDefault = false,
     summary = "Plays a sound when you finish a quest objective or a whole quest.",
     examples = { { "objectiveSound", "Objective sound" }, { "questSound", "Quest sound" }, "message", "channel" },
     description = "Plays a sound when you finish one of a quest's objectives, and another when the whole quest is ready "

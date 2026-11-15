@@ -4,7 +4,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 local LOGO = "Interface\\AddOns\\HastesSuperTweaks\\Art\\LogoTint"
 local M = HST:NewFeature("MinimapButton", {
-    name = "Minimap Button", category = "interface", order = 3,
+    name = "Minimap Button", category = "interface", order = 6,
     summary = "A minimap button that opens these settings.",
     description = "A button on the edge of your minimap that opens these settings. Drag it to move it.",
 })

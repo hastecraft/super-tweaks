@@ -280,7 +280,7 @@ end)
 -- Auto Accept Summons
 ---------------------------------------------------------------------------
 local S = HST:NewFeature("AutoSummon", {
-    name = "Auto Accept Summons", category = "group", order = 1, enabledByDefault = false,
+    name = "Auto Accept Summons", category = "accept", order = 1, enabledByDefault = false,
     summary = "Accepts summons after a short countdown.", examples = { "delay", "anyone", { "friends", "Accept from friends" }, { "guild", "Accept from guild members" } },
     description = "Accepts summons from warlocks and meeting stones after a short countdown, once you're out of combat. "
         .. "You can limit it to friends, guildmates or community members.",
@@ -369,7 +369,7 @@ function S:OnUnlisten() self.summons = (self.summons or 0) + 1 end
 -- Auto Accept Resurrection
 ---------------------------------------------------------------------------
 local R = HST:NewFeature("AutoResurrect", {
-    name = "Auto Accept Resurrection", category = "group", order = 2, enabledByDefault = false,
+    name = "Auto Accept Resurrection", category = "accept", order = 2, enabledByDefault = false,
     summary = "Accepts resurrections from other players.", examples = { "notInCombat" },
     description = "Accepts resurrections from other players as soon as the game allows. Hold Shift to answer them yourself.",
 })
@@ -426,7 +426,7 @@ function R:OnUnlisten() self.request = (self.request or 0) + 1 end
 -- Auto Release in Battlegrounds
 ---------------------------------------------------------------------------
 local P = HST:NewFeature("AutoReleasePvP", {
-    name = "Auto Release in Battlegrounds", category = "group", order = 3, enabledByDefault = false,
+    name = "Auto Release in Battlegrounds", category = "pvp", order = 3, enabledByDefault = false,
     summary = "Releases your spirit when you die in a battleground.", examples = { { "delay", "Release delay" }, "skipAlterac" },
     description = "Releases your spirit as soon as you die in a battleground. Hold Shift to stay.",
 })
@@ -507,7 +507,7 @@ function P:OnUnlisten() self.death = (self.death or 0) + 1 end
 -- Sell Junk Automatically
 ---------------------------------------------------------------------------
 local J = HST:NewFeature("SellJunk", {
-    name = "Sell Junk Automatically", category = "loot", order = 3, enabledByDefault = false,
+    name = "Sell Junk Automatically", category = "loot", order = 4, enabledByDefault = false,
     summary = "Sells your grey items at vendors.", examples = { "summary", "keepGear" },
     description = "Sells your grey items whenever you visit a vendor. Those a quest needs or an equipment set holds "
         .. "stay. Hold Shift to skip.",
@@ -945,7 +945,7 @@ end
 -- Repair Automatically
 ---------------------------------------------------------------------------
 local A = HST:NewFeature("AutoRepair", {
-    name = "Repair Automatically", category = "loot", order = 4, enabledByDefault = false,
+    name = "Repair Automatically", category = "loot", order = 6, enabledByDefault = false,
     summary = "Repairs your gear at vendors.", examples = { "guildFunds", "summary" },
     description = "Repairs your gear whenever you visit a vendor who can repair. Hold Shift to skip.",
 })
