@@ -391,7 +391,9 @@ local function Members(row, e)
         if i > total then
             slot:Hide()
             slot.role:Hide()
+            slot.empty:Hide()
         elseif m then
+            slot.empty:Hide()
             local atlas = m.class and G.ClassAtlas(m.class)
             if atlas then slot:SetAtlas(atlas) else slot:SetColorTexture(0.5, 0.5, 0.5, 0.6) end
             slot:SetDesaturated(e.delisted)
@@ -407,9 +409,9 @@ local function Members(row, e)
                 slot.role:Hide()
             end
         else
-            slot:SetColorTexture(1, 1, 1, 0.07)
-            slot:Show()
+            slot:Hide()
             slot.role:Hide()
+            slot.empty:Show()
         end
     end
 end
@@ -561,6 +563,9 @@ local function BuildRow(row)
         slot.role = row:CreateTexture(nil, "OVERLAY")
         slot.role:SetSize(14, 14)
         slot.role:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", 4, -4)
+        slot.empty = W.Ring(row, 22, P.line)
+        slot.empty:SetPoint("CENTER", slot)
+        slot.empty:Hide()
         row.slots[i] = slot
     end
     row.whisper = Win.RowButton(row, "Whisper")

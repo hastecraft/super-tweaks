@@ -657,6 +657,16 @@ function W.Dot(parent, size, color, half, layer, sublevel)
     return t
 end
 
+-- An empty circle, a pixel-exact ring the size of W.Dot's.
+function W.Ring(parent, size, color, layer, sublevel)
+    local t = Round(parent, RING, "WHOLE", layer, sublevel)
+    W.Paint(t, color or C.line)
+    t.size = size
+    Track(t)
+    t:Fit()
+    return t
+end
+
 local function Painter(pieces)
     return function(c) for i = 1, #pieces do W.Paint(pieces[i], c) end end
 end
