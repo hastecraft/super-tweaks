@@ -16,7 +16,7 @@ local IsSecret = ns.IsSecret
 local floor = math.floor
 
 local P = HST:NewFeature("FactionTracker", {
-    name = "Faction Tracker", category = "group", order = 0.7, command = "factions", enabledByDefault = false,
+    name = "Faction Tracker", category = "pvp", order = 4, command = "factions", enabledByDefault = false,
     summary = "Counts the Alliance and Horde players you come across in each zone.",
     examples = { "show", "sayEnter" },
     description = "Counts the Alliance and Horde players you come across in each zone: players whose nameplate shows, "

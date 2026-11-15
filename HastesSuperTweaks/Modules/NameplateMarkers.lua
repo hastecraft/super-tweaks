@@ -7,7 +7,7 @@ local HST = ns.HST
 local IsSecret = ns.IsSecret
 
 local N = HST:NewFeature("NameplateMarkers", {
-    name = "Quest Marks & Rare Alerts", category = "interface", order = 2.7,
+    name = "Quest Marks & Rare Alerts", category = "quests", order = 7,
     summary = "Marks quest mobs on nameplates and tells you when a rare is near.",
     examples = { "quest", "alert", "sound" },
     description = "Puts a quest mark beside the mobs your quests need on their nameplates. The first time a rare's "

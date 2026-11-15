@@ -7,7 +7,7 @@ local HST = ns.HST
 local Money = ns.Money
 
 local Q = HST:NewFeature("QuestRewards", {
-    name = "Quest Reward Value", category = "quests", order = 4,
+    name = "Quest Reward Value", category = "quests", order = 5,
     summary = "Marks the quest reward that sells for the most.",
     description = "When a quest lets you choose a reward, the one that sells to a vendor for the most gets a gold coin "
         .. "and its price.",

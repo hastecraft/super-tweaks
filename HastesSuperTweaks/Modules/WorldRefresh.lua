@@ -12,7 +12,7 @@ local floor, ceil, max, min = math.floor, math.ceil, math.max, math.min
 local Confirm = C_PlayerInteractionManager and C_PlayerInteractionManager.ShardTransferConfirm
 
 local R = HST:NewFeature("WorldRefresh", {
-    name = "Better World Refresh", category = "interface", order = 2.6, command = "refresh", enabledByDefault = false,
+    name = "Better World Refresh", category = "interface", order = 3, command = "refresh", enabledByDefault = false,
     summary = "A world refresh countdown you can place, with an automatic refresh at a safe moment.",
     examples = { "autoRefresh", { "warnAt", "Last warning" }, "flash", { "width", "Bar width" } },
     description = "Replaces the game's world refresh notice with a countdown bar you can move in Edit Mode. Click it "

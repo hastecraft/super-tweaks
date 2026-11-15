@@ -15,7 +15,7 @@ local floor, max, min = math.floor, math.max, math.min
 local UNKNOWN_NAME = UNKNOWNOBJECT or "Unknown"
 
 local I = HST:NewFeature("InstanceTracker", {
-    name = "Instance Tracker", category = "group", order = 0.5,
+    name = "Instance Tracker", category = "pvp", order = 1,
     summary = "Keeps a history of your dungeon and raid runs and counts your instances an hour.",
     examples = { "sayEnter", "sayLeave", "limitHour" },
     description = "Records each dungeon and raid run: how long it took, the XP, gold, kills, deaths, reputation and "

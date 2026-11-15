@@ -9,7 +9,7 @@ local find, lower = string.find, string.lower
 local UNKNOWN_NAME = UNKNOWNOBJECT or "Unknown"
 
 local F = HST:NewFeature("ChatFilter", {
-    name = "Chat Spam Filter", category = "social", order = 2.5, command = "spam", enabledByDefault = false,
+    name = "Chat Spam Filter", category = "social", order = 3, command = "spam", enabledByDefault = false,
     summary = "Hides gold selling, boosting, guild recruitment and guilds you mute in public channels.",
     examples = { "gold", "boosting", "recruitment", "guildTags" },
     description = "Hides messages in trade, general and other public channels that match your word lists: gold "

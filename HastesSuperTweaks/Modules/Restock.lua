@@ -7,7 +7,7 @@ local HST = ns.HST
 local IsSecret, Money = ns.IsSecret, ns.Money
 
 local R = HST:NewFeature("Restock", {
-    name = "Restock at Vendors", category = "loot", order = 4.5, command = "restock", enabledByDefault = false,
+    name = "Restock at Vendors", category = "loot", order = 7, command = "restock", enabledByDefault = false,
     summary = "Buys your ammo and reagents back up to the amounts you choose.",
     examples = { "items", "recipes", { "limit", "Spend at most (gold)" }, "ammoWarning" },
     description = "Buys the items on your list (ammo, reagents, poisons and the like) at any vendor that sells them, up "

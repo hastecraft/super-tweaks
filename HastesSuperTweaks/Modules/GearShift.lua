@@ -11,7 +11,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 
 local G = HST:NewFeature("GearShift", {
-    name = "Gear Shift", category = "items", order = 3.4, enabledByDefault = false,
+    name = "Gear Shift", category = "gear", order = 2, enabledByDefault = false,
     summary = "Swap gear from a bar, rotate trinkets, and change gear when you mount.",
     examples = { "size", "menus" },
     description = "A bar of the gear slots you pick. Hover a slot to put on another item from your bags, or the set "

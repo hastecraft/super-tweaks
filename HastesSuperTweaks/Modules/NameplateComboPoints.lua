@@ -10,7 +10,7 @@ local HST = ns.HST
 local IsSecret = ns.IsSecret
 
 local C = HST:NewFeature("NameplateComboPoints", {
-    name = "Combo Points on Nameplates", category = "interface", order = 2.75,
+    name = "Combo Points on Nameplates", category = "combat", order = 4,
     summary = "Shows your combo points on your target's nameplate.",
     examples = { "shape", "size", "position", { "color", "Combo point color" } },
     description = "Puts your combo points in a row on your target's nameplate, for rogues and for druids in Cat Form. "

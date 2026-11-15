@@ -9,7 +9,7 @@ local HST = ns.HST
 local Money = ns.Money
 
 local B = HST:NewFeature("BagCleaner", {
-    name = "Bag Cleaner", category = "items", order = 3.6, command = "cleaner", enabledByDefault = false,
+    name = "Bag Cleaner", category = "gear", order = 6, command = "cleaner", enabledByDefault = false,
     summary = "Shows free bag slots and deletes your cheapest items with one click.",
     examples = { { "count", "Items to show" }, "lowAt", { "quality", "Highest quality" }, "shift" },
     description = "Shows your free bag slots and, once they run low, your cheapest items by vendor price. Click one to "

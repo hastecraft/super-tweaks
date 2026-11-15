@@ -6,7 +6,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 
 local B = HST:NewFeature("BagTweaks", {
-    name = "Bag Tweaks", category = "items", order = 3.5, command = "bags", enabledByDefault = false,
+    name = "Bag Tweaks", category = "gear", order = 5, command = "bags", enabledByDefault = false,
     summary = "Makes the combined bags movable, counts only usable free slots and keeps your Clean Up direction.",
     examples = { "move", "scale", "freeSlots", "sortRight", "insertLeft" },
     description = "Lets you drag the combined bags anywhere and size them, counts only slots any item fits in on the "

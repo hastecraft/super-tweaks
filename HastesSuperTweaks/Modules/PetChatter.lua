@@ -9,7 +9,7 @@ local HST = ns.HST
 local IsSecret = ns.IsSecret
 
 local P = HST:NewFeature("PetChatter", {
-    name = "Hide Warlock Pet Chatter", category = "social", order = 2.6,
+    name = "Hide Warlock Pet Chatter", category = "social", order = 5,
     summary = "Hides what warlock pets say, in chat and over their heads.",
     description = "Hides what warlock demons say, yours and other players', in the chat box and in speech bubbles.",
 })
