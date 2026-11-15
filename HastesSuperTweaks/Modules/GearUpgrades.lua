@@ -13,12 +13,8 @@ local ADDON, ns = ...
 local HST = ns.HST
 local IsSecret = ns.IsSecret
 
-local function HasCategory(key)
-    for _, category in ipairs(HST.categories) do if category.key == key then return true end end
-end
-
 local U = HST:NewFeature("GearUpgrades", {
-    name = "Gear Upgrades", category = HasCategory("gear") and "gear" or "items", order = 0.5, enabledByDefault = false,
+    name = "Gear Upgrades", category = "gear", order = 1, enabledByDefault = false,
     summary = "Shows how much an item would improve on the gear you wear.",
     description = "Item tooltips show how much better or worse an item is than what you wear in its slot, scored "
         .. "with stat weights for your talents. Upgrades in your bags get a green arrow, and so does the best quest "
