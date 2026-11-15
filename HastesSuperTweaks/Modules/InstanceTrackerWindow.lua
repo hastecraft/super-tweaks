@@ -152,6 +152,7 @@ local function Confirm(text, onYes)
         local card = CreateFrame("Frame", nil, veil)
         card:SetSize(380, 110)
         card:SetPoint("CENTER")
+        card:EnableMouse(true)
         K.Box(card, P.window, P.line)
         local label = K.Text(card, "GameFontHighlight", P.text)
         label:SetPoint("TOPLEFT", 16, -16)
@@ -170,6 +171,7 @@ local function Confirm(text, onYes)
             d.onYes = nil
         end)
         no:SetScript("OnClick", function() veil:Hide(); d.onYes = nil end)
+        veil:SetScript("OnMouseDown", function() veil:Hide(); d.onYes = nil end)
         veil:Hide()
         Win.confirm = d
     end
