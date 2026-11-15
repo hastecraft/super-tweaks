@@ -727,7 +727,7 @@ local function LayoutRail()
         y = y - Win.FlowChips(section.chips, rail.child, 12, y, width) - 12
     end
     F.clearActivities:ClearAllPoints()
-    F.clearActivities:SetPoint("RIGHT", F.sections[#F.sections].label, "LEFT", RAIL - 36, 0)
+    F.clearActivities:SetPoint("RIGHT", F.sections[#F.sections].label, "LEFT", RAIL - 26, 0)
     y = y + 6
     local ids = G.Activities(p.category, p.allLevels)
     -- Picked activities stay listed when they're outside your level.
@@ -815,9 +815,9 @@ local function BuildRail(page)
     chips[#chips + 1] = levels
     Section("Activities", { levels })
 
-    F.clearActivities = K.Button(rail.child, "Clear", "ghost")
-    F.clearActivities:SetHeight(18)
-    F.clearActivities:Fit(30, 12)
+    F.clearActivities = K.Close(rail.child)
+    F.clearActivities:HookScript("OnEnter", function(self) W.ShowTooltip(self, "Clear") end)
+    F.clearActivities:HookScript("OnLeave", function(self) W.HideTooltip(self) end)
     F.clearActivities:SetScript("OnClick", function()
         local p = G.db.profile
         p.activities[p.category] = nil
