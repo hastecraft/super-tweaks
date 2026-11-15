@@ -137,18 +137,32 @@ end
 ---------------------------------------------------------------------------
 local ROLE_KEYS = { TANK = "tank", HEALER = "healer", DAMAGER = "dps" }
 
+-- In a group you take one role, the group's (UnitSetRole); alone, any of your class's roles, the listing's own.
+-- The role picked in a group shows at once: the game's answer comes later.
+local pendingRole
+
 local function PaintRoles()
-    local roles = G.MyRoles()
     local can = G.ClassRoles()
+    local group = IsInGroup(LE_PARTY_CATEGORY_HOME)
+    local roles = not group and G.MyRoles()
+    local assigned = group and (pendingRole or UnitGroupRolesAssigned("player"))
+    L.rolesLabel:SetText(group and "Your role" or "Your roles")
     for role, chip in pairs(roleChips) do
         local key = ROLE_KEYS[role]
         chip:SetShown(can[key])
-        chip:SetOn(roles[key])
+        if group then chip:SetOn(assigned == role) else chip:SetOn(roles[key]) end
     end
     Win.FlowChips(L.roleList, side, 16, -34, SIDE - 32)
 end
 
 local function SetRole(role)
+    if IsInGroup(LE_PARTY_CATEGORY_HOME) then
+        if (pendingRole or UnitGroupRolesAssigned("player")) == role then return end
+        pendingRole = role
+        UnitSetRole("player", role)
+        PaintRoles()
+        return
+    end
     local roles = G.MyRoles()
     local key = ROLE_KEYS[role]
     local new = { tank = roles.tank, healer = roles.healer, dps = roles.dps }
@@ -238,8 +252,8 @@ local function BuildSide()
     edge:SetPoint("BOTTOMLEFT")
     W.Line(edge, true)
 
-    local roles = Win.Label(side, "Your roles")
-    roles:SetPoint("TOPLEFT", 16, -14)
+    L.rolesLabel = Win.Label(side, "Your roles")
+    L.rolesLabel:SetPoint("TOPLEFT", 16, -14)
     L.roleList = {}
     for _, role in ipairs(G.ROLE_ORDER) do
         local chip = Win.Chip(side, G.ROLE_NAMES[role], function() SetRole(role) end)
@@ -361,6 +375,17 @@ function L.Refresh()
     L.PaintSide()
 end
 
+-- Listing updates come in bursts too (each role change in a listed group sends one): one refresh for them.
+local refreshQueued = false
+function L.RefreshSoon()
+    if refreshQueued then return end
+    refreshQueued = true
+    C_Timer.After(0, function()
+        refreshQueued = false
+        L.Refresh()
+    end)
+end
+
 function L.Shown()
     category = nil
     L.Refresh()
@@ -379,10 +404,22 @@ function L.Apply()
     if Win.current == "listing" then L.Refresh() end
 end
 
+-- Group changes come in bursts: the side is painted once for them, on the next frame.
+local paintQueued = false
+local function PaintSoon()
+    if paintQueued then return end
+    paintQueued = true
+    C_Timer.After(0, function()
+        paintQueued = false
+        if Win.current == "listing" then L.PaintSide() end
+    end)
+end
+
 function L.OnEvent(event)
+    if event == "PLAYER_ROLES_ASSIGNED" then pendingRole = nil end
     if Win.current ~= "listing" then return end
-    if event == "LFG_LIST_ROLE_UPDATE" or event == "GROUP_ROSTER_UPDATE" then
-        L.PaintSide()
+    if event == "LFG_LIST_ROLE_UPDATE" or event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ROLES_ASSIGNED" then
+        PaintSoon()
     elseif event == "LFG_LIST_ENTRY_CREATION_FAILED" then
         Win.Status("Couldn't list you. Try again in a moment.")
     elseif event == "LFG_LIST_AVAILABILITY_UPDATE" or event == "PLAYER_LEVEL_UP" then

@@ -971,7 +971,7 @@ function F.OnEvent(event, id)
         if e and ReadResult(id, e) and Win.current == "find" then QueueRedraw() end
     elseif event == "LFG_LIST_AVAILABILITY_UPDATE" or event == "PLAYER_LEVEL_UP" then
         if Win.current == "find" then LayoutRail() end
-    elseif event == "GROUP_ROSTER_UPDATE" or event == "LFG_LIST_ROLE_UPDATE" then
+    elseif event == "GROUP_ROSTER_UPDATE" or event == "LFG_LIST_ROLE_UPDATE" or event == "PLAYER_ROLES_ASSIGNED" then
         if Win.current == "find" then QueueRedraw() end
     end
 end

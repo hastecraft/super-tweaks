@@ -321,7 +321,7 @@ end
 local EVENTS = {
     "LFG_LIST_SEARCH_RESULTS_RECEIVED", "LFG_LIST_SEARCH_FAILED", "LFG_LIST_SEARCH_RESULT_UPDATED",
     "LFG_LIST_AVAILABILITY_UPDATE", "LFG_LIST_ROLE_UPDATE", "LFG_LIST_ENTRY_CREATION_FAILED", "GROUP_ROSTER_UPDATE",
-    "WHO_LIST_UPDATE", "PLAYER_LEVEL_UP",
+    "PLAYER_ROLES_ASSIGNED", "WHO_LIST_UPDATE", "PLAYER_LEVEL_UP",
 }
 
 local function OnEvent(_, event, ...)
@@ -617,5 +617,5 @@ end
 function Win.ListingChanged()
     if not Win.frame then return end
     Win.SetBadge("listing", C_LFGList.HasActiveEntryInfo() and "Listed" or nil)
-    if G.Listing.built and G.Listing.Refresh then G.Listing.Refresh() end
+    if G.Listing.built then G.Listing.RefreshSoon() end
 end
