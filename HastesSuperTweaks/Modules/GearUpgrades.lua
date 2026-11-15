@@ -860,66 +860,9 @@ function U:OnUnlisten()
 end
 
 ---------------------------------------------------------------------------
--- Scales as text: the weights editor's lines, and scale strings to copy and paste.
+-- Scale strings to copy and paste.
 ---------------------------------------------------------------------------
 local function Round(n) return (format("%.3f", n):gsub("0+$", ""):gsub("%.$", "")) end
-
--- The editor's lines: "Crit: 3.33", a cap as "Melee hit until 8%: 4.16" and "Melee hit after: 2.59".
-function U.ScaleText(scale)
-    local lines, w = {}, scale.weights
-    for _, kind in ipairs(CAP_ORDER) do
-        local bands = w[kind]
-        if bands then
-            local cap = CAPS[kind]
-            for i = 1, #bands - 1, 2 do
-                lines[#lines + 1] = format("%s until %s%s: %s", cap.name, Round(bands[i]), cap.unit, Round(bands[i + 1]))
-            end
-            lines[#lines + 1] = format("%s after: %s", cap.name, Round(bands[#bands]))
-        end
-    end
-    for _, stat in ipairs(STAT_ORDER) do
-        if type(w[stat]) == "number" then lines[#lines + 1] = STAT_NAMES[stat] .. ": " .. Round(w[stat]) end
-    end
-    return table.concat(lines, "\n")
-end
-
-local BY_NAME, CAP_BY_NAME = {}, {}
-for stat, name in pairs(STAT_NAMES) do BY_NAME[lower(name)] = stat end
-for kind, cap in pairs(CAPS) do CAP_BY_NAME[lower(cap.name)] = kind end
-
--- Reads the editor's lines into weights. Returns the weights, or nil and what's wrong.
-function U.ParseText(text)
-    local weights, bands = {}, {}
-    for raw in (text or ""):gmatch("[^\r\n]+") do
-        local line = lower(strtrim(raw))
-        if line ~= "" then
-            local name, value = match(line, "^(.-)%s*:%s*([%-%d%.]+)$")
-            value = tonumber(value)
-            if not name or not value then return nil, "Can't read \"" .. strtrim(raw) .. "\"." end
-            local capName, at = match(name, "^(.-) until ([%d%.]+)%%?$")
-            local afterName = match(name, "^(.-) after$")
-            if capName or afterName then
-                local kind = CAP_BY_NAME[capName or afterName]
-                if not kind then return nil, "No cap for \"" .. (capName or afterName) .. "\"." end
-                local b = bands[kind] or { list = {} }
-                bands[kind] = b
-                if capName then b.list[#b.list + 1] = { tonumber(at), value } else b.after = value end
-            else
-                local stat = BY_NAME[name]
-                if not stat then return nil, "No stat called \"" .. name .. "\"." end
-                weights[stat] = value
-            end
-        end
-    end
-    for kind, b in pairs(bands) do
-        table.sort(b.list, function(x, y) return x[1] < y[1] end)
-        local list = {}
-        for _, band in ipairs(b.list) do list[#list + 1] = band[1]; list[#list + 1] = band[2] end
-        list[#list + 1] = b.after or 0
-        weights[kind] = list
-    end
-    return weights
-end
 
 -- A scale string: ( Gear Upgrades: v1: "Name": Class=Warrior, Strength=2.2, MeleeHitCap=8/4.16/2.59, Units=Rating ).
 -- Other tools' strings of the same shape read the first band of a cap as the stat's weight.
@@ -1061,6 +1004,110 @@ function U:BuildOptions()
         return text == "" or text:find("Units=Rating", 1, true) ~= nil
     end
 
+    -- The scale to change: yours, or from the first change to a built-in one, your own copy of it.
+    local function writable()
+        local scale = picked()
+        if scale.custom then return scale end
+        local weights = {}
+        for stat, value in pairs(scale.weights) do
+            if type(value) == "table" then
+                local copy = {}
+                for i, n in ipairs(value) do copy[i] = n end
+                value = copy
+            end
+            weights[stat] = value
+        end
+        char().scale = self:AddScale(scale.name .. " (yours)", weights)
+        return self:ScaleByKey(char().scale)
+    end
+    local function changed(scale) compiled[scale] = nil; remark() end
+    local function number(_, text)
+        text = strtrim(text or "")
+        if text == "" or tonumber(text) then return true end
+        return "Type a number, or clear it to remove the stat."
+    end
+    local function weightInput(order, name, desc, hidden, get, set)
+        return { type = "input", order = order, name = name, desc = desc, hidden = hidden, validate = number,
+            get = function() local n = get(); return n and Round(n) or "" end,
+            set = function(_, text) local scale = writable(); set(scale, tonumber(strtrim(text or ""))); changed(scale) end }
+    end
+
+    local weightArgs = {
+        scale = scaleSelect(1),
+        help = { type = "description", order = 2, name = function()
+            if isCustom() then return "Clear a weight to remove it." end
+            return "Clear a weight to remove it. Changing " .. picked().name .. " makes your own copy, "
+                .. picked().name .. " (yours)."
+        end },
+    }
+    -- A capped stat: its cap, its weight below it (twice, when it has a second cap), and its weight past it.
+    for i, kind in ipairs(CAP_ORDER) do
+        local cap = CAPS[kind]
+        local unit = cap.unit == "%" and " (%)" or ""
+        local function bands() return picked().weights[kind] end
+        for j = 1, 2 do
+            local at = j * 2 - 1
+            local function hidden() local b = bands(); return not b or #b < at + 2 end
+            local nth = j == 1 and "cap" or "second cap"
+            weightArgs[kind .. j] = weightInput(i * 10 + j * 2 - 1, cap.name .. " " .. nth .. unit,
+                j == 1 and "Clear it to remove the cap." or nil, hidden,
+                function() local b = bands(); return b and b[at] end,
+                function(scale, n)
+                    local b = scale.weights[kind]
+                    if n then b[at] = n
+                    elseif j == 1 then scale.weights[kind] = nil
+                    else table.remove(b, at); table.remove(b, at) end
+                end)
+            weightArgs[kind .. j .. "Below"] = weightInput(i * 10 + j * 2, cap.name .. " under the " .. nth, nil, hidden,
+                function() local b = bands(); return b and b[at + 1] end,
+                function(scale, n) scale.weights[kind][at + 1] = n or 0 end)
+        end
+        weightArgs[kind .. "Past"] = weightInput(i * 10 + 5, function()
+                local b = bands()
+                return cap.name .. (b and #b >= 5 and " past the second cap" or " past the cap")
+            end, nil, function() return not bands() end,
+            function() local b = bands(); return b and b[#b] end,
+            function(scale, n) local b = scale.weights[kind]; b[#b] = n or 0 end)
+    end
+    for i, stat in ipairs(STAT_ORDER) do
+        local per = PER_PERCENT[stat]
+        weightArgs[stat] = weightInput(100 + i, STAT_NAMES[stat],
+            per and format("Per rating point: %d make 1%%.", per) or nil,
+            function() return type(picked().weights[stat]) ~= "number" end,
+            function() return picked().weights[stat] end,
+            function(scale, n) scale.weights[stat] = n end)
+    end
+    local CAP_AT = { MeleeHitCap = 8, RangedHitCap = 8, SpellHitCap = 16, ExpertiseCap = 6.5, DefenseCap = 440 }
+    weightArgs.add = { type = "select", order = 200, name = "Add a stat",
+        values = function()
+            local w, values = picked().weights, {}
+            for _, stat in ipairs(STAT_ORDER) do if w[stat] == nil then values[stat] = STAT_NAMES[stat] end end
+            for _, kind in ipairs(CAP_ORDER) do if not w[kind] then values[kind] = CAPS[kind].name .. " with a cap" end end
+            return values
+        end,
+        sorting = function()
+            local w, order = picked().weights, {}
+            for _, stat in ipairs(STAT_ORDER) do if w[stat] == nil then order[#order + 1] = stat end end
+            for _, kind in ipairs(CAP_ORDER) do if not w[kind] then order[#order + 1] = kind end end
+            return order
+        end,
+        get = function() return nil end,
+        set = function(_, key)
+            local scale = writable()
+            scale.weights[key] = CAPS[key] and { CAP_AT[key], 1, 0 } or 1
+            changed(scale)
+        end }
+    weightArgs.delete = { type = "execute", order = 201, name = "Delete scale",
+        hidden = function() return not isCustom() end,
+        confirm = function() return "Delete " .. picked().name .. "?" end,
+        func = function()
+            local scale = picked()
+            self.db.global.scales[scale.key] = nil
+            compiled[scale] = nil
+            char().scale = "AUTO"
+            remark()
+        end }
+
     return { name = self.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             weights = ns.Section("Stat weights", 1, {
@@ -1079,40 +1126,7 @@ function U:BuildOptions()
             }),
         } },
         scales = { type = "group", name = "Stat weights", order = 2, args = {
-            edit = ns.Section("Weights", 1, {
-                scale = scaleSelect(1),
-                text = { type = "input", order = 2, multiline = 12, width = "full",
-                    name = function() return picked().name end,
-                    desc = function()
-                        local help = "One stat a line. Hit, crit, haste and expertise are per rating point. Press Enter "
-                            .. "to save, Shift+Enter for a new line."
-                        if isCustom() then return help end
-                        return help .. " Saving makes your own copy, " .. picked().name .. " (yours)."
-                    end,
-                    get = function() return self.ScaleText(picked()) end,
-                    set = function(_, text)
-                        local weights, problem = self.ParseText(text)
-                        if not weights then return HST:Print(problem) end
-                        local scale = picked()
-                        if scale.custom then
-                            scale.weights = weights
-                            compiled[scale] = nil
-                        else
-                            char().scale = self:AddScale(scale.name .. " (yours)", weights)
-                        end
-                        remark()
-                    end },
-                delete = { type = "execute", order = 3, name = "Delete scale",
-                    hidden = function() return not isCustom() end,
-                    confirm = function() return "Delete " .. picked().name .. "?" end,
-                    func = function()
-                        local scale = picked()
-                        self.db.global.scales[scale.key] = nil
-                        compiled[scale] = nil
-                        char().scale = "AUTO"
-                        remark()
-                    end },
-            }),
+            edit = ns.Section("Weights", 1, weightArgs),
             share = ns.Section("Share", 2, {
                 export = { type = "input", order = 1, name = "Copy", width = "full",
                     desc = "Click it, then press Ctrl+C.",
