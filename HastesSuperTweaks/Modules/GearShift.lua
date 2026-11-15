@@ -854,6 +854,11 @@ function G:Apply()
         if not show then return end
         self.bar = CreateFrame("Frame", "HastesSuperTweaksGearShift", UIParent)
         self.bar:SetClampedToScreen(true)
+        -- Above the action bars' own frames (their end caps, paging arrows and holders sit at level 10 and up in
+        -- this strata), so the buttons take the mouse wherever the bar is placed. Set here, out of combat: the
+        -- buttons are secure.
+        self.bar:SetFrameStrata("MEDIUM")
+        self.bar:SetFrameLevel(50)
     end
     local bar = self.bar
     self.shown = self.shown or {}
