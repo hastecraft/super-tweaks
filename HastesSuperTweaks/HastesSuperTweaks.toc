@@ -99,6 +99,11 @@ Modules\Trainer.lua
 Modules\LegacyTracker.lua
 Modules\InstanceTracker.lua
 Modules\InstanceTrackerWindow.lua
+Modules\GroupFinder\Feature.lua
+Modules\GroupFinder\Window.lua
+Modules\GroupFinder\Find.lua
+Modules\GroupFinder\Listing.lua
+Modules\GroupFinder\Who.lua
 Modules\QuestRewards.lua
 Modules\QuestTracker.lua
 Modules\QuestItemButton.lua
