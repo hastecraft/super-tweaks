@@ -245,7 +245,7 @@ function Win.List(parent, spec)
     return list
 end
 
--- A small button shown on a row while it's pointed at. tip: its tooltip title.
+-- A small button on a row. tip: its tooltip title.
 function Win.RowButton(parent, text, tip)
     local b = K.Button(parent, text, "ghost")
     b:SetHeight(20)

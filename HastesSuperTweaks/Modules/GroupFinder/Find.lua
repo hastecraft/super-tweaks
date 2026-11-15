@@ -350,14 +350,21 @@ local function Badge(row, i)
     return b
 end
 
-local function SetBadges(row, e)
+local function SetBadges(row, e, room)
     local n = 0
     local function add(text, color)
+        if room <= 0 then return end
         n = n + 1
         local b = Badge(row, n)
         b.label:SetText(text)
         W.Paint(b.label, color or P.accent)
-        b:SetWidth(floor(b.label:GetStringWidth() + 12))
+        local width = floor(b.label:GetStringWidth() + 12)
+        room = room - width - (n == 1 and 6 or 4)
+        if room < 0 then
+            n = n - 1
+            return
+        end
+        b:SetWidth(width)
         b:ClearAllPoints()
         if n == 1 then
             b:SetPoint("LEFT", row.name, "RIGHT", 6, 0)
@@ -367,11 +374,11 @@ local function SetBadges(row, e)
         b:Show()
     end
     if e.self then add(e.solo and "You" or "Your group") end
+    if e.delisted then add("Delisted", P.muted) end
     if e.isNew and G.db.profile.markNew then add("New") end
     if e.guild > 0 then add(e.guild .. " guild") end
     if e.friends > 0 then add(e.friends == 1 and "Friend" or (e.friends .. " friends")) end
     if e.newPlayers then add("New players welcome", P.muted) end
-    if e.delisted then add("Delisted", P.muted) end
     for i = n + 1, #row.badges do row.badges[i]:Hide() end
 end
 
@@ -420,8 +427,12 @@ local function Paint(row, e)
     local name = row.name
     name:SetWidth(0)
     local room = (list.colW.name or 200) - 16
-    if name:GetStringWidth() > room * 0.6 then name:SetWidth(floor(room * 0.6)) end
-    SetBadges(row, e)
+    local nameWidth = name:GetStringWidth()
+    if nameWidth > room * 0.6 then
+        nameWidth = floor(room * 0.6)
+        name:SetWidth(nameWidth)
+    end
+    SetBadges(row, e, room - nameWidth)
     local parts = {}
     local style = G.PlaystyleName(e.playstyle)
     if style then parts[#parts + 1] = style end
@@ -443,10 +454,10 @@ local function Paint(row, e)
         row.level:SetText("")
     end
     row.seen:SetText(e.age and G.Ago(e.age) or "")
-    if row.over then F.ShowActions(row) end
+    F.ShowActions(row)
 end
 
--- The row's buttons, while it's pointed at: Invite for a player you can invite, else Whisper.
+-- The row's buttons: Whisper, and Invite for a player you can invite.
 function F.ShowActions(row)
     local e = row.entry
     if not e or e.self then
@@ -574,8 +585,6 @@ local function BuildRow(row)
             if not row:IsMouseOver() then
                 row.over = false
                 list:PaintTint(row)
-                row.whisper:Hide()
-                row.invite:Hide()
             end
         end)
     end
@@ -605,10 +614,11 @@ local function PlaceRow(row, l)
     row.level:SetWidth(w.level)
     row.seen:ClearAllPoints()
     row.seen:SetPoint("RIGHT", row, "LEFT", x.seen + w.seen - 8, 0)
+    -- Whisper keeps its place when there's no Invite.
     row.invite:ClearAllPoints()
-    row.invite:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+    row.invite:SetPoint("RIGHT", row, "RIGHT", -8, 0)
     row.whisper:ClearAllPoints()
-    row.whisper:SetPoint("RIGHT", row.invite, "LEFT", -2, 0)
+    row.whisper:SetPoint("RIGHT", row, "RIGHT", -(8 + row.invite:GetWidth() + 4), 0)
 end
 
 ---------------------------------------------------------------------------
@@ -873,24 +883,16 @@ function F.Build(page)
             { key = "activity", title = "Activity", fill = 1 },
             { key = "members", title = "Members", width = 116 },
             { key = "level", title = "Level", width = 64, justify = "CENTER" },
-            { key = "seen", title = "Listed", width = 140, justify = "RIGHT" },
+            { key = "seen", title = "Listed", width = 64, justify = "RIGHT" },
+            { key = "actions", width = 140, noSort = true },
         },
         build = BuildRow,
         place = PlaceRow,
         paint = Paint,
         empty = "Pick what to search for, then Search.",
         dim = function(e) return e.delisted end,
-        onEnter = function(e, row)
-            F.ShowActions(row)
-            Tooltip(row, e)
-        end,
-        onLeave = function(_, row)
-            GameTooltip:Hide()
-            if not (row.whisper:IsMouseOver() or row.invite:IsMouseOver()) then
-                row.whisper:Hide()
-                row.invite:Hide()
-            end
-        end,
+        onEnter = function(e, row) Tooltip(row, e) end,
+        onLeave = function() GameTooltip:Hide() end,
         onClick = function(e, button, row)
             if button == "RightButton" then Menu(row, e) end
         end,

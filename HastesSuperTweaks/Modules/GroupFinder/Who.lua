@@ -163,8 +163,6 @@ local function BuildRow(row)
             if not row:IsMouseOver() then
                 row.over = false
                 list:PaintTint(row)
-                row.whisper:Hide()
-                row.invite:Hide()
             end
         end)
     end
@@ -185,9 +183,9 @@ local function PlaceRow(row, l)
     at(row.guild, "guild")
     at(row.zone, "zone")
     row.invite:ClearAllPoints()
-    row.invite:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+    row.invite:SetPoint("RIGHT", row, "RIGHT", -8, 0)
     row.whisper:ClearAllPoints()
-    row.whisper:SetPoint("RIGHT", row.invite, "LEFT", -2, 0)
+    row.whisper:SetPoint("RIGHT", row, "RIGHT", -(8 + row.invite:GetWidth() + 4), 0)
 end
 
 local function Paint(row, e)
@@ -197,10 +195,8 @@ local function Paint(row, e)
     row.race:SetText(e.race)
     row.guild:SetText(e.guild ~= "" and ("<" .. e.guild .. ">") or "")
     row.zone:SetText(e.zone)
-    if row.over then
-        row.whisper:Show()
-        row.invite:SetShown(G.CanInvite())
-    end
+    row.whisper:Show()
+    row.invite:SetShown(G.CanInvite())
 end
 
 local function QuickChip(key, text, tip)
@@ -261,20 +257,11 @@ function Who.Build(page)
             { key = "race", title = "Race", width = 100 },
             { key = "guild", title = "Guild", fill = 1 },
             { key = "zone", title = "Zone", fill = 1.1 },
+            { key = "actions", width = 140, noSort = true },
         },
         build = BuildRow,
         place = PlaceRow,
         paint = Paint,
-        onEnter = function(_, row)
-            row.whisper:Show()
-            row.invite:SetShown(G.CanInvite())
-        end,
-        onLeave = function(_, row)
-            if not (row.whisper:IsMouseOver() or row.invite:IsMouseOver()) then
-                row.whisper:Hide()
-                row.invite:Hide()
-            end
-        end,
         onClick = function(e, button)
             if button == "RightButton" then G.PlayerMenu(e.name) end
         end,
