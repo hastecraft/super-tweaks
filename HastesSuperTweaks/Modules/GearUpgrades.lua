@@ -517,6 +517,21 @@ local function IsTwoHand(link)
     return equip == "INVTYPE_2HWEAPON"
 end
 
+-- Whether scale c counts anything on an item: a stat it weighs, or weapon damage it weighs. Fishing poles never count.
+local function Counts(c, stats, link, where)
+    local classID, subclassID = select(6, ItemInfoInstant(link))
+    if classID == 2 and subclassID == 20 then return false end
+    local w = c.weights
+    for stat, amount in pairs(stats) do
+        if type(amount) == "number" and amount ~= 0 and stat ~= "dps" and stat ~= "swing" and stat ~= "speed"
+            and (c.caps[stat] or (w[stat] or 0) ~= 0) then
+            return true
+        end
+    end
+    local hand = where == "RANGED" and "RANGED" or where == "OH" and "OH" or "MH"
+    return WeaponValue(stats, w, hand) ~= 0
+end
+
 local function Percent(new, old)
     if old > 0 then return (new - old) / old * 100 end
     if new > 0 then return huge end
@@ -534,6 +549,7 @@ local function Compare(c, link)
     local stats = U.Stats(link)
     if not stats then return nil, WAIT end
     if stats.unusable then return nil end
+    if not U.db.profile.statless and not Counts(c, stats, link, where) then return nil end
     local key = Plain(link)
     if type(where) == "number" or where == "RANGED" then
         local slot = where == "RANGED" and 18 or where
@@ -1007,7 +1023,8 @@ local SOURCES = {
     HJ = "HawsJon's scale for WoW Forever. No guide gives numbers for it yet.",
 }
 
-ns.Configure(U, { tooltip = true, allScales = false, bags = true, quests = true, markFrom = 1, importUnits = "RATING" },
+ns.Configure(U, { tooltip = true, allScales = false, bags = true, quests = true, markFrom = 1, importUnits = "RATING",
+    statless = false },
     function(m) return m:BuildOptions() end, "Changed")
 U.defaults.char = { scale = "AUTO" }
 U.defaults.global = { scales = {} }
@@ -1057,6 +1074,8 @@ function U:BuildOptions()
                 quests = ns.Option(profile, "toggle", "quests", "An arrow on the best quest reward", 3, nil, remark),
                 markFrom = ns.Option(profile, "range", "markFrom", "Arrow from (% better)", 4,
                     { min = 0, max = 20, step = 0.5 }, remark),
+                statless = ns.Option(profile, "toggle", "statless", "Items with none of your stats", 5,
+                    { desc = "Such as Carrot on a Stick or a fishing pole." }, remark),
             }),
         } },
         scales = { type = "group", name = "Stat weights", order = 2, args = {
