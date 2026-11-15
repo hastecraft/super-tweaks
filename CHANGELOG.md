@@ -2,6 +2,21 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.6.0 (2026-11-15)
+
+### Group Finder
+
+A new Looking For Group window. Find groups and players by the role they need, playstyle and activity, see every member's class, role and level, whisper or invite in one click, list yourself or your group, and run /who with quick filters. It starts off.
+
+### Changes
+
+- Super Auction House and Instance Tracker: clicking outside a dialog closes it.
+- Super Auction House, Loot Window and the settings window: every close and clear button uses the same X.
+
+### Bug Fixes
+
+- Gear Shift: its buttons can be pointed at and clicked when the bar sits next to your action bars.
+
 ## 4.5.0 (2026-11-15)
 
 ### New Features
