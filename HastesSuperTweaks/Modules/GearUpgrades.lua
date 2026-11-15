@@ -1102,7 +1102,6 @@ end
 ---------------------------------------------------------------------------
 -- Settings preview: an item's tooltip with its line, and a bag with an upgrade marked.
 ---------------------------------------------------------------------------
-U.info.pagePreview = false
 local BAG = { "INV_Chest_Plate06", "INV_Misc_Food_14", "INV_Sword_04", "INV_Potion_51", "INV_Helmet_03", "INV_Boots_05" }
 local UPGRADES = { [1] = true, [3] = true }
 function U.info.preview(frame)
@@ -1111,44 +1110,47 @@ function U.info.preview(frame)
     if not v then
         v = {}
         frame.hstUpgrades = v
-        local tip = CreateFrame("Frame", nil, frame)
-        tip:SetSize(210, 92)
-        W.Fill(tip, { 0.02, 0.02, 0.02, 0.95 }):SetAllPoints()
+        v.tip = W.Panel(frame, 190, 76)
         local lines = {
             { "Lionheart Breastplate", { 0.12, 1, 0 } }, { "+12 Strength" }, { "+9 Agility" },
             { "Equip: Improves your chance to hit by 1%.", { 0.12, 1, 0 } },
         }
-        local y = -6
+        local y = -7
         for _, line in ipairs(lines) do
-            local text = W.Text(tip, "GameFontHighlightSmall", nil, "LEFT")
+            local text = W.Text(v.tip, "GameFontHighlightSmall", line[2], "LEFT")
             text:SetPoint("TOPLEFT", 8, y)
             text:SetText(line[1])
-            if line[2] then text:SetTextColor(line[2][1], line[2][2], line[2][3]) end
-            y = y - 14
+            y = y - 13
         end
-        local label = W.Text(tip, "GameFontHighlightSmall", nil, "LEFT")
-        label:SetPoint("TOPLEFT", 8, y - 2)
-        label:SetTextColor(LABEL[1], LABEL[2], LABEL[3])
-        v.label = label
-        local change = W.Text(tip, "GameFontHighlightSmall", nil, "RIGHT")
-        change:SetPoint("TOPRIGHT", -8, y - 2)
-        change:SetTextColor(GREEN[1], GREEN[2], GREEN[3])
+        v.label = W.Text(v.tip, "GameFontHighlightSmall", LABEL, "LEFT")
+        v.label:SetPoint("TOPLEFT", 8, y)
+        local change = W.Text(v.tip, "GameFontHighlightSmall", GREEN, "RIGHT")
+        change:SetPoint("TOPRIGHT", -8, y)
         change:SetText("+6.4% upgrade")
-        local row = CreateFrame("Frame", nil, frame)
-        row:SetSize(#BAG * 40 - 4, 36)
+        v.bag = CreateFrame("Frame", nil, frame)
+        v.bag:SetSize(#BAG * 25 - 3, 22)
         for i, icon in ipairs(BAG) do
-            local slot = W.Slot(row, "Interface\\Icons\\" .. icon, 36)
-            slot:SetPoint("TOPLEFT", (i - 1) * 40, 0)
+            local slot = W.Slot(v.bag, "Interface\\Icons\\" .. icon, 22)
+            slot:SetPoint("TOPLEFT", (i - 1) * 25, 0)
             if UPGRADES[i] then
                 local arrow = slot:CreateTexture(nil, "OVERLAY", nil, 4)
-                if HasAtlas and HasAtlas(ARROW_ATLAS) then arrow:SetAtlas(ARROW_ATLAS)
-                else arrow:SetTexture("Interface\\Buttons\\UI-MicroStream-Green"); arrow:SetTexCoord(0, 1, 1, 0) end
-                arrow:SetSize(14, 14)
+                if HasAtlas and HasAtlas(ARROW_ATLAS) then
+                    arrow:SetAtlas(ARROW_ATLAS)
+                else
+                    arrow:SetTexture("Interface\\Buttons\\UI-MicroStream-Green")
+                    arrow:SetTexCoord(0, 1, 1, 0)
+                end
+                arrow:SetSize(11, 11)
                 arrow:SetPoint("TOPLEFT", 1, -1)
             end
         end
-        W.Column(frame, { tip, row })
     end
-    local scale = U:IsEnabled() and U:Active() or U:TalentScale()
+    local p = U.db.profile
+    local scale = U:Active()
     v.label:SetText(scale and scale.name or "Fury")
+    v.tip:SetShown(p.tooltip)
+    v.bag:SetShown(p.bags)
+    if p.tooltip and p.bags then W.Column(frame, { v.tip, 10, v.bag })
+    elseif p.tooltip then W.Column(frame, { v.tip })
+    elseif p.bags then W.Column(frame, { v.bag }) end
 end
