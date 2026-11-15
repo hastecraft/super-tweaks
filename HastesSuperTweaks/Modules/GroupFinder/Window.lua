@@ -15,7 +15,12 @@ local MIN_W, MIN_H, MAX_W, MAX_H = 760, 460, 1500, 1100
 local TAB_ORDER = { "find", "listing", "who" }
 local TAB_NAMES = { find = "Find", listing = "My Listing", who = "Who" }
 
-local function Tabs() return { find = G.Find, listing = G.Listing, who = G.Who } end
+-- Made on first use: the tabs' files load after this one.
+local tabs
+local function Tabs()
+    if not tabs then tabs = { find = G.Find, listing = G.Listing, who = G.Who } end
+    return tabs
+end
 
 function Win.IsOpen() return Win.frame ~= nil and Win.frame:IsShown() end
 

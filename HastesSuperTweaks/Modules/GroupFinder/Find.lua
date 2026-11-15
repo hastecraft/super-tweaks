@@ -10,6 +10,7 @@ local F = {}
 G.Find = F
 
 local Read = G.Read
+local IsSecret = ns.IsSecret
 local floor, max, min = math.floor, math.max, math.min
 local K, P
 local RAIL = 200
@@ -26,6 +27,8 @@ local searchCategory
 local searching, searchedAt, failed = false, nil, false
 local hiddenBySecret = 0
 local redrawQueued = false
+-- Results the game updated, read again on the next redraw.
+local dirty = {}
 local filterText = ""
 
 ---------------------------------------------------------------------------
@@ -56,18 +59,24 @@ local function ReadResult(id, entry)
     local leader = Read(info.leaderName)
     local count = Read(info.numMembers)
     if not leader or not count then return nil end
+    -- Activity IDs are table keys here: a listing whose IDs are hidden is left out.
+    local ids = info.activityIDs
+    if ids == nil or IsSecret(ids) then return nil end
+    for i = 1, #ids do if IsSecret(ids[i]) then return nil end end
     entry = entry or {}
     entry.id = id
     entry.guid = Read(info.partyGUID) or ("id" .. id)
     entry.leader = leader
     entry.solo = count <= 1
     entry.count = count
-    entry.activityIDs = info.activityIDs or {}
+    entry.activityIDs = ids
     entry.activity = ActivityText(entry.activityIDs)
+    entry.leaderLower = leader:lower()
+    entry.activityLower = entry.activity:lower()
     entry.max = max(MaxPlayers(entry.activityIDs), count)
     entry.playstyle = Read(info.generalPlaystyle) or 0
     entry.comment = Read(info.comment) or ""
-    if entry.comment ~= "" and info.censored then entry.comment = "" end
+    if entry.comment ~= "" and Read(info.censored) then entry.comment = "" end
     entry.voice = Read(info.voiceMode) or 0
     entry.newPlayers = Read(info.newPlayerFriendly) and true or false
     entry.guild = Read(info.numGuildMates) or 0
@@ -93,6 +102,7 @@ local function ReadResult(id, entry)
         m.leader = p and Read(p.isLeader) and true or false
         m.leaver = p and Read(p.isLeaver) and true or false
         local roles = p and p.lfgRoles
+        if roles ~= nil and IsSecret(roles) then roles = nil end
         m.tank = roles and Read(roles.tank) and true or false
         m.healer = roles and Read(roles.healer) and true or false
         m.dps = roles and Read(roles.dps) and true or false
@@ -167,10 +177,10 @@ local function RoomForMe(e, roles)
     return (roles.tank and e.needTank) or (roles.healer and e.needHealer) or (roles.dps and e.needDps) or false
 end
 
-local sortKey, sortReverse, myRoles, inGroup
+local sortKey, sortReverse, myRoles, inGroup, myLevel
 local SORTS = {
-    name = function(e) return e.leader:lower() end,
-    activity = function(e) return e.activity:lower() end,
+    name = function(e) return e.leaderLower end,
+    activity = function(e) return e.activityLower end,
     members = function(e) return e.count end,
     level = function(e) return e.avg end,
     seen = function(e) return e.age or 0 end,
@@ -192,8 +202,7 @@ local function Best(a, b)
         if a.needTank ~= b.needTank then return a.needTank end
         if a.needHealer ~= b.needHealer then return a.needHealer end
     end
-    local level = UnitLevel("player")
-    local da, db = math.abs(a.avg - level), math.abs(b.avg - level)
+    local da, db = math.abs(a.avg - myLevel), math.abs(b.avg - myLevel)
     if da ~= db then return da < db end
     if (a.age or 0) ~= (b.age or 0) then return (a.age or 0) < (b.age or 0) end
     return a.id < b.id
@@ -226,8 +235,13 @@ local function Status()
         if hidden > 0 then text = text .. " (" .. hidden .. " hidden by filters)" end
         if hiddenBySecret > 0 then text = text .. ". The game hides " .. hiddenBySecret .. " more right now" end
     end
-    if total == 0 and searchedAt and not searching then
-        list:SetEmpty(failed and "" or "No one is listed for this. Try more activities, or All levels.")
+    if failed or searching then
+        list:SetEmpty("")
+    elseif not searchedAt then
+        list:SetEmpty("Pick what to search for, then Search.")
+    elseif total == 0 then
+        list:SetEmpty(hiddenBySecret > 0 and "The game hides these listings right now."
+            or "No one is listed for this. Try more activities, or All levels.")
     else
         list:SetEmpty("Nothing matches these filters.")
     end
@@ -242,21 +256,33 @@ local function Show(keepScroll)
         if Passes(e) then shown[#shown + 1] = e end
     end
     sortKey, sortReverse = p.sortKey, p.sortReverse
-    myRoles, inGroup = G.MyRoles(), IsInGroup()
+    myRoles, inGroup, myLevel = G.MyRoles(), IsInGroup(), UnitLevel("player")
     table.sort(shown, (sortKey == "best" or not SORTS[sortKey]) and Best or ByColumn)
     list:SetLoading(searching)
     list:SetEntries(shown, keepScroll)
     Status()
-    F.CountActivities()
+end
+
+local function ReadDirty()
+    for id in pairs(dirty) do
+        local e = byID[id]
+        if e then ReadResult(id, e) end
+    end
+    wipe(dirty)
+end
+
+local function Redraw()
+    redrawQueued = false
+    if F.built and Win.current == "find" and Win.IsOpen() then
+        ReadDirty()
+        Show(true)
+    end
 end
 
 local function QueueRedraw()
     if redrawQueued then return end
     redrawQueued = true
-    C_Timer.After(0, function()
-        redrawQueued = false
-        if F.built and Win.current == "find" and Win.IsOpen() then Show(true) end
-    end)
+    C_Timer.After(0, Redraw)
 end
 
 -- Reads every result of the last search again.
@@ -276,6 +302,16 @@ local function ReadAll()
             hiddenBySecret = hiddenBySecret + 1
         end
     end
+    wipe(dirty)
+    if F.built then F.CountActivities() end
+end
+
+-- The search's results, read once they're in (or once the timeout passes with the window closed, its event missed).
+local function Received()
+    searching, failed, searchedAt = false, false, GetTime()
+    F.searchButton:SetDisabled(false)
+    ReadAll()
+    if Win.current == "find" then Show() end
 end
 
 ---------------------------------------------------------------------------
@@ -305,9 +341,9 @@ local function SearchActivities(category)
 end
 
 function F.Search()
-    if searching then return end
     local category = CurrentCategory()
     if category == 0 then return end
+    if searching and searchCategory == category then return end
     local ok = pcall(C_LFGList.Search, category, 0, 0, nil, false, nil, SearchActivities(category))
     if not ok then
         failed = true
@@ -324,9 +360,11 @@ function F.Search()
     F.searchToken = token
     C_Timer.After(SEARCH_TIMEOUT, function()
         if F.searchToken == token and searching then
-            searching = false
+            local _, results = C_LFGList.GetFilteredSearchResults()
+            if results and #results > 0 then return Received() end
+            searching, failed = false, true
             F.searchButton:SetDisabled(false)
-            if F.built then Show(true) end
+            if Win.current == "find" then Show(true) end
         end
     end)
     Show()
@@ -878,7 +916,8 @@ local function BuildToolbar(page)
     F.categories = K.Pills(toolbar, items, function(key)
         G.db.profile.category = key
         LayoutRail()
-        Show()
+        -- Another category's results aren't this one's: search it (this runs inside the click).
+        if searchedAt and key ~= searchCategory then F.Search() else Show() end
     end)
     F.categories:SetPoint("LEFT", 12, 0)
     F.categories:Choose(CurrentCategory())
@@ -948,7 +987,9 @@ function F.Build(page)
 end
 
 function F.Shown()
-    if not entries[1] and searchedAt then ReadAll() end
+    if searchedAt then
+        if not entries[1] then ReadAll() else ReadDirty() end
+    end
     F.categories:Choose(CurrentCategory())
     LayoutRail()
     Show()
@@ -960,18 +1001,19 @@ function F.Apply()
 end
 
 function F.OnEvent(event, id)
+    -- Only this tab's searches: other addons can search too.
     if event == "LFG_LIST_SEARCH_RESULTS_RECEIVED" then
-        searching, failed, searchedAt = false, false, GetTime()
-        F.searchButton:SetDisabled(false)
-        ReadAll()
-        if Win.current == "find" then Show() end
+        if searching then Received() end
     elseif event == "LFG_LIST_SEARCH_FAILED" then
+        if not searching then return end
         searching, failed = false, true
         F.searchButton:SetDisabled(false)
         if Win.current == "find" then Show(true) end
     elseif event == "LFG_LIST_SEARCH_RESULT_UPDATED" then
-        local e = byID[id]
-        if e and ReadResult(id, e) and Win.current == "find" then QueueRedraw() end
+        if byID[id] then
+            dirty[id] = true
+            if Win.current == "find" then QueueRedraw() end
+        end
     elseif event == "LFG_LIST_AVAILABILITY_UPDATE" or event == "PLAYER_LEVEL_UP" then
         if Win.current == "find" then LayoutRail() end
     elseif event == "GROUP_ROSTER_UPDATE" or event == "LFG_LIST_ROLE_UPDATE" or event == "PLAYER_ROLES_ASSIGNED" then

@@ -107,6 +107,8 @@ local function Query()
 end
 
 function Who.Send()
+    -- The game takes one /who at a time.
+    if waiting then return end
     local text = Query()
     local origin = Enum and Enum.SocialWhoOrigin and Enum.SocialWhoOrigin.Social or 1
     C_FriendList.SetWhoToUi(true)

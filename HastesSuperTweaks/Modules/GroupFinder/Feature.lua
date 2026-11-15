@@ -198,10 +198,18 @@ function G.Whisper(name, template, activity)
     local util = ChatFrameUtil
     if text and util and util.SendTellWithMessage then
         util.SendTellWithMessage(name, text)
-    elseif util and util.SendTell then
+        return
+    end
+    if util and util.SendTell then
         util.SendTell(name)
     elseif ChatFrame_SendTell then
         ChatFrame_SendTell(name)
+    end
+    -- The template goes into the chat box the whisper opened.
+    if text then
+        local box = util and util.GetActiveWindow and util.GetActiveWindow()
+            or ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
+        if box and box.Insert then box:Insert(text) end
     end
 end
 
@@ -232,10 +240,11 @@ end
 -- Taking the game's window's place. Its frame comes from a load-on-demand addon, loaded at login. When it shows, this
 -- window opens at once (still inside the key press or click that opened it, so the search it starts counts as yours),
 -- and the game's is closed a frame later; until then it's invisible. Pressing the key again closes this window, as it
--- would the game's. A tab the game asks for (Who, from /who) picks that tab here.
+-- would the game's. A tab the game asks for picks that tab here: Who from /who, My Listing from the eye's Edit.
+-- The game picks its tab after its window shows, so this window opens on its last tab and changes it a frame later.
 ---------------------------------------------------------------------------
-local GAME_TABS = { [2] = "find", [3] = "who" }
-local hooked, showingGame, requestedTab, toggled, wasOpen, pending
+local GAME_TABS = { [1] = "listing", [2] = "find", [3] = "who" }
+local hooked, showingGame, requestedTab, viaShowFrame, toggled, wasOpen, pending
 
 -- Shows the game's own window, once, past this one.
 function G.ShowGameWindow(tab)
@@ -249,33 +258,35 @@ local function Finish()
     pending = false
     local game = LFGParentFrame
     if not game then return end
-    local tab = requestedTab or game.selectedTab
-    requestedTab = nil
+    -- Shown without LFGVanilla_ShowFrame, the game set its tab first (/who does); through it, only a tab it was given
+    -- counts. The key (tab 1, toggled) and the eye's click (no tab) keep this window's tab.
+    local tab
+    if viaShowFrame then tab = requestedTab else tab = game.selectedTab end
+    local wasToggled = toggled
+    requestedTab, viaShowFrame, toggled = nil, false, false
     if game:IsShown() then HideUIPanel(game) end
     game:SetAlpha(1)
     local want = GAME_TABS[tab]
-    if toggled and wasOpen and (not want or want == G.Window.current) then
-        toggled, wasOpen = false, false
+    if wasToggled and want == "listing" then want = nil end
+    if wasToggled and wasOpen and (not want or want == G.Window.current) then
+        wasOpen = false
         G.Window.Close()
         return
     end
-    toggled, wasOpen = false, false
+    wasOpen = false
     if want then G.Window.Select(want) end
 end
 
 local function GameShown(game)
     if showingGame or not G:IsEnabled() or G.info.unavailable then return end
     game:SetAlpha(0)
-    wasOpen = G.Window.IsOpen()
-    if not wasOpen then
-        local want = GAME_TABS[game.selectedTab]
-        if game.selectedTab ~= 3 then want = nil end
-        G.Window.Open(want, true)
-    end
+    -- Finish first: it puts the game's window back even if opening this one fails.
     if not pending then
         pending = true
         C_Timer.After(0, Finish)
     end
+    wasOpen = G.Window.IsOpen()
+    if not wasOpen then G.Window.Open(nil, true) end
 end
 
 local function HookGame()
@@ -285,7 +296,7 @@ local function HookGame()
     LFGParentFrame:HookScript("OnHide", function() showingGame = false end)
     if LFGVanilla_ShowFrame then
         hooksecurefunc("LFGVanilla_ShowFrame", function(tab)
-            if pending then requestedTab = tab or LFGParentFrame.selectedTab end
+            if pending then requestedTab, viaShowFrame = tab, true end
         end)
     end
     if LFGVanilla_ToggleFrame then

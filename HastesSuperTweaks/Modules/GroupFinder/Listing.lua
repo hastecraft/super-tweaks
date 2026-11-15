@@ -31,6 +31,14 @@ local function Active()
     return C_LFGList.GetActiveEntryInfo()
 end
 
+-- The category of your listing's first activity.
+local function ActiveCategory(active)
+    local id = active.activityIDs and active.activityIDs[1]
+    if id == nil or ns.IsSecret(id) then return nil end
+    local info = C_LFGList.GetActivityInfoTable(id)
+    return info and info.categoryID
+end
+
 local function PickedList()
     local ids = {}
     for id, on in pairs(picked) do if on then ids[#ids + 1] = id end end
@@ -208,18 +216,21 @@ function L.PaintSide()
         L.state:SetText("Listed for " .. text)
         L.since:SetText(G.listedAt and ("For " .. Ago(GetTime() - G.listedAt)) or "")
     else
-        L.state:SetText(edit and "Not listed" or "Your group isn't listed")
+        -- Only the leader can see the group's listing.
+        L.state:SetText(edit and "Not listed" or "")
         L.since:SetText("")
     end
     L.locked:SetShown(not edit)
     L.list:SetShown(edit)
     L.delist:SetShown(edit and active ~= nil)
     if edit then
-        local group = IsInGroup()
+        local group = IsInGroup(LE_PARTY_CATEGORY_HOME)
         L.list:SetText(active and "Update" or (group and "List my group" or "List me"))
         L.list:Fit(110)
-        L.list:SetDisabled(count == 0)
-        L.list.tipTitle = count == 0 and "Pick an activity first" or nil
+        local elsewhere = active and ActiveCategory(active) ~= category
+        L.list:SetDisabled(count == 0 or elsewhere)
+        L.list.tipTitle = elsewhere and "Delist first to list in another category"
+            or count == 0 and "Pick an activity first" or nil
     end
     W.Paint(L.state, active and P.accent or P.text)
 end
@@ -230,19 +241,24 @@ local function ListOrUpdate()
     local ids = PickedList()
     if #ids == 0 then return end
     local active = Active()
-    local ok, err
+    if active and ActiveCategory(active) ~= category then return end
+    local ok, result
     if active then
-        ok, err = pcall(C_LFGList.UpdateListing, { activityIDs = ids, newPlayerFriendly = p.newPlayers,
-            voiceMode = active.voiceMode or 0 })
+        ok, result = pcall(C_LFGList.UpdateListing, { activityIDs = ids, newPlayerFriendly = p.newPlayers,
+            voiceMode = G.Read(active.voiceMode) or 0 })
     else
-        ok, err = pcall(C_LFGList.CreateListing, { activityIDs = ids, newPlayerFriendly = p.newPlayers,
+        ok, result = pcall(C_LFGList.CreateListing, { activityIDs = ids, newPlayerFriendly = p.newPlayers,
             generalPlaystyle = p.listPlaystyle, voiceMode = 0 })
     end
-    if not ok then
-        Win.Status("Couldn't list you: " .. tostring(err))
+    if not ok or result == false then
+        Win.Status("Couldn't list you. Try again in a moment.")
         return
     end
-    if draftRoles then C_LFGListRoles.SetRoles(draftRoles) end
+    -- Your listing roles, alone; in a group your role is the group's.
+    if draftRoles and not IsInGroup(LE_PARTY_CATEGORY_HOME) then
+        C_LFGListRoles.SetRoles(draftRoles)
+        draftRoles = nil
+    end
     Win.Status(active and "Listing updated" or "Listing...")
 end
 
@@ -426,7 +442,7 @@ local function PaintSoon()
 end
 
 function L.OnEvent(event)
-    if event == "PLAYER_ROLES_ASSIGNED" then pendingRole = nil end
+    if event == "PLAYER_ROLES_ASSIGNED" or event == "GROUP_ROSTER_UPDATE" then pendingRole = nil end
     if event == "LFG_LIST_ROLE_UPDATE" then draftRoles = nil end
     if Win.current ~= "listing" then return end
     if event == "LFG_LIST_ROLE_UPDATE" or event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ROLES_ASSIGNED" then
