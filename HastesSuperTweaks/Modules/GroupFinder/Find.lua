@@ -557,9 +557,9 @@ local function BuildRow(row)
     row.slots = {}
     for i = 1, 5 do
         local slot = row:CreateTexture(nil, "ARTWORK")
-        slot:SetSize(18, 18)
+        slot:SetSize(22, 22)
         slot.role = row:CreateTexture(nil, "OVERLAY")
-        slot.role:SetSize(11, 11)
+        slot.role:SetSize(14, 14)
         slot.role:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", 4, -4)
         row.slots[i] = slot
     end
@@ -605,7 +605,7 @@ local function PlaceRow(row, l)
     row.zone:SetWidth(max(10, w.activity - 10))
     for i, slot in ipairs(row.slots) do
         slot:ClearAllPoints()
-        slot:SetPoint("LEFT", row, "LEFT", x.members + 6 + (i - 1) * 21, 0)
+        slot:SetPoint("LEFT", row, "LEFT", x.members + 6 + (i - 1) * 26, 0)
     end
     row.more:ClearAllPoints()
     row.more:SetPoint("LEFT", row.slots[5], "RIGHT", 6, 0)
@@ -908,7 +908,7 @@ function F.Build(page)
         columns = {
             { key = "name", title = "Leader", fill = 1.5 },
             { key = "activity", title = "Activity", fill = 1 },
-            { key = "members", title = "Members", width = 116 },
+            { key = "members", title = "Members", width = 140 },
             { key = "level", title = "Level", width = 64, justify = "CENTER" },
             { key = "seen", title = "Listed", width = 64, justify = "RIGHT" },
             { key = "actions", width = 140, noSort = true },
