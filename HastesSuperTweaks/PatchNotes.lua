@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.5.0", date = "2026-11-15",
+        new = {
+            { "Choose which way its menus open, set the bar's opacity, and turn off or restyle the cooldown numbers: font, size, outline and color.",
+                title = "Gear Shift: Menu Direction, Opacity and Cooldown Text", module = "GearShift" },
+        },
+    },
+    {
         version = "4.4.0", date = "2026-11-15",
         highlights = {
             { "Item tooltips show how much an item would improve on your gear, scored with stat weights for your talents. Hit, expertise and defense caps are counted from your own stats, and upgrades in your bags and the best quest reward get a green arrow. It starts off.",

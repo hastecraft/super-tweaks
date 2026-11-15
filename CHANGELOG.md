@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.5.0 (2026-11-15)
+
+### New Features
+
+- Gear Shift: Menu Direction, Opacity and Cooldown Text. Choose which way its menus open, set the bar's opacity, and turn off or restyle the cooldown numbers: font, size, outline and color.
+
 ## 4.4.0 (2026-11-15)
 
 ### Gear Upgrades
