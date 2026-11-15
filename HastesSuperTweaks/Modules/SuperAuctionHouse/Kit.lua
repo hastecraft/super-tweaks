@@ -294,10 +294,10 @@ end
 function K.Close(parent)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(22, 22)
-    local icon = W.CloseIcon(b, 12, P.muted)
+    local icon = W.CloseIcon(b, 10, P.header)
     icon:SetPoint("CENTER")
     b:SetScript("OnEnter", function() W.Paint(icon, P.bright) end)
-    b:SetScript("OnLeave", function() W.Paint(icon, P.muted) end)
+    b:SetScript("OnLeave", function() W.Paint(icon, P.header) end)
     return b
 end
 
