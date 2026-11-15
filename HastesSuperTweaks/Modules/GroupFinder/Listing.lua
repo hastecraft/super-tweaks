@@ -138,13 +138,24 @@ end
 local ROLE_KEYS = { TANK = "tank", HEALER = "healer", DAMAGER = "dps" }
 
 -- In a group you take one role, the group's (UnitSetRole); alone, any of your class's roles, the listing's own.
--- The role picked in a group shows at once: the game's answer comes later.
+-- The role picked in a group shows at once: the game's answer comes later. Listing roles are kept here and given to
+-- the game with List or Update, as the game's window does: each change sent alone updates the listing on the server.
 local pendingRole
+local draftRoles
+
+local function DraftRoles()
+    if not draftRoles then
+        local roles = G.MyRoles()
+        draftRoles = { tank = roles.tank and true or false, healer = roles.healer and true or false,
+            dps = roles.dps and true or false }
+    end
+    return draftRoles
+end
 
 local function PaintRoles()
     local can = G.ClassRoles()
     local group = IsInGroup(LE_PARTY_CATEGORY_HOME)
-    local roles = not group and G.MyRoles()
+    local roles = not group and DraftRoles()
     local assigned = group and (pendingRole or UnitGroupRolesAssigned("player"))
     L.rolesLabel:SetText(group and "Your role" or "Your roles")
     for role, chip in pairs(roleChips) do
@@ -163,12 +174,10 @@ local function SetRole(role)
         PaintRoles()
         return
     end
-    local roles = G.MyRoles()
+    local roles = DraftRoles()
     local key = ROLE_KEYS[role]
-    local new = { tank = roles.tank, healer = roles.healer, dps = roles.dps }
-    new[key] = not new[key]
-    if not (new.tank or new.healer or new.dps) then return end
-    C_LFGListRoles.SetRoles(new)
+    roles[key] = not roles[key]
+    if not (roles.tank or roles.healer or roles.dps) then roles[key] = true end
     PaintRoles()
 end
 
@@ -233,6 +242,7 @@ local function ListOrUpdate()
         Win.Status("Couldn't list you: " .. tostring(err))
         return
     end
+    if draftRoles then C_LFGListRoles.SetRoles(draftRoles) end
     Win.Status(active and "Listing updated" or "Listing...")
 end
 
@@ -417,6 +427,7 @@ end
 
 function L.OnEvent(event)
     if event == "PLAYER_ROLES_ASSIGNED" then pendingRole = nil end
+    if event == "LFG_LIST_ROLE_UPDATE" then draftRoles = nil end
     if Win.current ~= "listing" then return end
     if event == "LFG_LIST_ROLE_UPDATE" or event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ROLES_ASSIGNED" then
         PaintSoon()
