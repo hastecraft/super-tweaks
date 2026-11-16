@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.6.1 (2026-11-15)
+
+### Bug Fixes
+
+- Super Auction House: shift-clicking a saved price links the item in chat instead of typing "item:871".
+
 ## 4.6.0 (2026-11-15)
 
 ### Group Finder
