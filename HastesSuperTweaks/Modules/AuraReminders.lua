@@ -1,5 +1,5 @@
 -- Aura Reminders: your own text, with the aura's icon, in the middle of the screen when a buff you choose is missing or
--- running out, or while a proc is on you, drawn as Better Scrolling Combat Text draws its spell alerts. Each reminder
+-- running out, while a proc is on you, or in combat while your target is out of melee range, drawn as Better Scrolling Combat Text draws its spell alerts. Each reminder
 -- has its own conditions (in or out of combat, in a group or solo), color and sound.
 -- Your auras are read as they change. In combat the game hides them from addons, but its Cooldown Manager still knows:
 -- an aura its buff icons or bars track is read from there. For any other, a buff read on you before it was hidden is
@@ -32,7 +32,7 @@ local defaults = { reminders = {}, font = "", size = 30, outline = "OUTLINE", sl
 -- (%t: seconds left, %n: stacks; empty for the aura's name), color, icon and sound.
 function R.NewReminder()
     return { aura = "", other = false, show = "missing", seconds = 10, combat = "in", group = "any", text = "",
-        color = { GOLD[1], GOLD[2], GOLD[3], GOLD[4] }, icon = true, sound = "" }
+        color = { GOLD[1], GOLD[2], GOLD[3], GOLD[4] }, icon = true, sound = "", delay = 0 }
 end
 
 local SpellName = C_Spell and C_Spell.GetSpellName or function(id) return (GetSpellInfo(id)) end
@@ -98,8 +98,17 @@ function R:Groups()
     return groups, procs
 end
 
+-- Out of melee range: a reminder for no aura, shown in combat while your target is out of reach of your melee attacks,
+-- once it has been for the reminder's delay. Auto Attack's range is asked, and a class's melee attack's too for when
+-- Auto Attack's has no answer. The game says when a spell's range to your target changes, so it's read only then, and
+-- only in combat.
+local MELEE, MELEE_NAME, ATTACK = "melee", "Out of melee range", 6603
+local CLASS_MELEE = { WARRIOR = 78, ROGUE = 1752, HUNTER = 2973, DRUID = 1082 }
+R.MELEE = MELEE
+
 -- A reminder's aura: its name, or nil while none is picked.
 local function AuraName(r)
+    if r.aura == MELEE then return MELEE_NAME end
     local aura = ns.Trim(r.aura or "")
     if aura == "" then return nil end
     local id = tonumber(aura)
@@ -108,6 +117,7 @@ local function AuraName(r)
 end
 
 local function AuraIcon(r)
+    if r.aura == MELEE then return SpellIcon and SpellIcon(ATTACK) or 135274 end
     local id = tonumber(r.aura or "")
     local icon = id and SpellIcon and SpellIcon(id)
     if not icon and r.aura ~= "" and SpellIcon then icon = SpellIcon(r.aura) end
@@ -443,6 +453,48 @@ local function Read(r, now)
     return tracked
 end
 
+-- Melee range to your target, by spell: true, false, or nil when the game has no answer (no target, a friendly one).
+local EnableRange = C_Spell and C_Spell.EnableSpellRangeCheck
+local InRange = C_Spell and C_Spell.IsSpellInRange
+local rangeSpells, isRangeSpell, rangeOf = nil, {}, {}
+local wantRange, rangeOn = false, false
+local farSince -- when your target went out of range, while it is
+
+local function RangeSpells()
+    if rangeSpells then return rangeSpells end
+    rangeSpells = { ATTACK }
+    local extra = CLASS_MELEE[select(2, UnitClass("player"))]
+    local knows = C_SpellBook and C_SpellBook.IsSpellKnown or IsPlayerSpell
+    if extra and knows and knows(extra) then rangeSpells[2] = extra end
+    for _, id in ipairs(rangeSpells) do isRangeSpell[id] = true end
+    return rangeSpells
+end
+
+local function SetRange(id, inRange)
+    if inRange == nil or IsSecret(inRange) then rangeOf[id] = nil else rangeOf[id] = inRange and true or false end
+end
+
+local function Note()
+    local spells = RangeSpells()
+    local v = rangeOf[spells[1]]
+    if v == nil and spells[2] then v = rangeOf[spells[2]] end
+    if v == false then
+        if not farSince then farSince = GetTime() end
+    else
+        farSince = nil
+    end
+end
+
+-- Asks again, for a new target.
+local function Seed()
+    if not InRange then return end
+    for _, id in ipairs(RangeSpells()) do
+        local ok, v = pcall(InRange, id, "target")
+        if ok then SetRange(id, v) else SetRange(id, nil) end
+    end
+    Note()
+end
+
 -- The next moment a reminder could change by itself (an aura running out, a warning's threshold, %t ticking): one timer
 -- at a time, run only if still wanted.
 local Update, dueAt
@@ -459,17 +511,24 @@ function Update()
     local now, soonest = GetTime(), nil
     for i = 1, #list do
         local r = list[i]
-        local state = Read(r, now)
-        if state == nil then
-            -- Hidden: still on until it was to run out; unknown if never read.
-            state = r.has
-            if state and r.ends and r.ends <= now then state = false end
-        end
-        r.has = state
-        if state and r.ends and (inCombat or needOut) then
-            soonest = Sooner(soonest, r.ends, now)
-            if r.show == "expiring" then soonest = Sooner(soonest, r.ends - r.seconds, now) end
-            if r.dynamic then soonest = Sooner(soonest, r.ends - (ceil(r.ends - now) - 1), now) end
+        if r.melee then
+            -- "Has" it while in range; out of range only once it has been for the delay.
+            local due = farSince and farSince + r.delay
+            r.has = not (due and now >= due - 0.01)
+            if due and r.has then soonest = Sooner(soonest, due, now) end
+        else
+            local state = Read(r, now)
+            if state == nil then
+                -- Hidden: still on until it was to run out; unknown if never read.
+                state = r.has
+                if state and r.ends and r.ends <= now then state = false end
+            end
+            r.has = state
+            if state and r.ends and (inCombat or needOut) then
+                soonest = Sooner(soonest, r.ends, now)
+                if r.show == "expiring" then soonest = Sooner(soonest, r.ends - r.seconds, now) end
+                if r.dynamic then soonest = Sooner(soonest, r.ends - (ceil(r.ends - now) - 1), now) end
+            end
         end
     end
     if soonest ~= dueAt then
@@ -563,6 +622,24 @@ end
 -- Events
 ---------------------------------------------------------------------------
 local events
+
+-- Range is asked for only in combat, and only while a reminder is for it.
+local function RangeOn(on)
+    if on == rangeOn or not EnableRange then return end
+    rangeOn = on
+    for _, id in ipairs(RangeSpells()) do pcall(EnableRange, id, on) end
+    if on then
+        events:RegisterEvent("SPELL_RANGE_CHECK_UPDATE")
+        events:RegisterEvent("PLAYER_TARGET_CHANGED")
+        Seed()
+    else
+        events:UnregisterEvent("SPELL_RANGE_CHECK_UPDATE")
+        events:UnregisterEvent("PLAYER_TARGET_CHANGED")
+        wipe(rangeOf)
+        farSince = nil
+    end
+end
+
 local function Listen(combat)
     inCombat = combat
     if combat or needOut then events:RegisterUnitEvent("UNIT_AURA", "player") else events:UnregisterEvent("UNIT_AURA") end
@@ -571,15 +648,23 @@ local function Listen(combat)
     else
         events:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED")
     end
+    RangeOn(combat and wantRange)
 end
 
-local function OnEvent(_, event, unit, _, spellID)
-    if event == "PLAYER_REGEN_DISABLED" then
+local function OnEvent(_, event, a, b, c)
+    if event == "SPELL_RANGE_CHECK_UPDATE" then
+        -- Sent for every spell whose range something asked for (action bars too): only ours count.
+        if IsSecret(a) or not isRangeSpell[a] or IsSecret(c) then return end
+        if c then SetRange(a, b) else SetRange(a, nil) end
+        Note()
+    elseif event == "PLAYER_TARGET_CHANGED" then
+        Seed()
+    elseif event == "PLAYER_REGEN_DISABLED" then
         Listen(true)
     elseif event == "PLAYER_REGEN_ENABLED" then
         Listen(false)
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-        Cast(spellID)
+        Cast(c)
     elseif event == "GROUP_ROSTER_UPDATE" then
         grouped = IsInGroup() and true or false
     elseif event == "PLAYER_DEAD" or event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
@@ -594,16 +679,17 @@ function R:Apply()
     local was = {}
     for i = 1, #list do was[list[i].name] = list[i] end
     wipe(list)
-    needOut = false
+    needOut, wantRange = false, false
     local groupMatters = false
     for _, saved in ipairs(p.reminders) do
         local name = AuraName(saved)
         if name then
             local text = ns.Trim(saved.text or "")
             if text == "" then text = name .. "!" end
-            local combat, group = saved.combat or "in", saved.group or "any"
+            local melee = saved.aura == MELEE
+            local combat, group = melee and "in" or saved.combat or "in", saved.group or "any"
             local r = { name = name, wide = WideName(name), id = tonumber(saved.aura), text = text, dynamic = text:find("%%[tn]") ~= nil,
-                show = saved.show or "missing", seconds = saved.seconds or 10, combat = combat, group = group,
+                melee = melee, delay = saved.delay or 0, show = melee and "missing" or saved.show or "missing", seconds = saved.seconds or 10, combat = combat, group = group,
                 icon = saved.icon ~= false, texture = AuraIcon(saved), color = saved.color or GOLD,
                 sound = saved.sound or "" }
             local old = was[name]
@@ -613,6 +699,7 @@ function R:Apply()
             end
             list[#list + 1] = r
             if combat ~= "in" then needOut = true end
+            if melee then wantRange = true end
             if group ~= "any" then groupMatters = true end
         end
     end
@@ -623,6 +710,7 @@ function R:Apply()
         events:SetScript("OnEvent", OnEvent)
         self.events = events
     end
+    RangeOn(false)
     events:UnregisterAllEvents()
     dueAt = nil
     if #list == 0 then inCombat = false; return Draw() end
@@ -651,7 +739,7 @@ end
 function R:OnEnable() self:Apply() end
 
 function R:OnDisable()
-    if events then events:UnregisterAllEvents() end
+    if events then RangeOn(false); events:UnregisterAllEvents() end
     inCombat, sampleUntil, dueAt = false, 0, nil
     wipe(list)
     Draw()
@@ -697,7 +785,10 @@ R.selected = 1
 function R:Selected()
     local reminders = self.db.profile.reminders
     if not reminders[self.selected] then self.selected = math.max(1, #reminders) end
-    return reminders[self.selected]
+    local r = reminders[self.selected]
+    -- Reminders saved before the delay setting existed have none.
+    if r and r.delay == nil then r.delay = 0 end
+    return r
 end
 
 local SHOW_NAMES = { missing = "When missing", expiring = "Missing or running out", on = "While on you" }
@@ -728,6 +819,8 @@ function R:Pick(key)
     local _, isProc = self:Groups()
     if key == "other" then
         r.other, r.aura = true, ""
+    elseif key == MELEE then
+        r.other, r.aura, r.show, r.combat = false, MELEE, "missing", "in"
     else
         r.other, r.aura = false, key
         if isProc[key] then r.show = "on" elseif r.show == "on" then r.show = "missing" end
@@ -812,7 +905,12 @@ local function ReminderList(parent)
                 local name = AuraName(r)
                 b.icon:SetTexture(AuraIcon(r))
                 b.name:SetText(name or "Pick an aura")
-                b.sub:SetText((SHOW_NAMES[r.show] or "") .. " · " .. (COMBAT_NAMES[r.combat] or ""))
+                if r.aura == MELEE then
+                    local delay = r.delay or 0
+                    b.sub:SetText(delay > 0 and ("In combat · after " .. delay .. " sec") or "In combat")
+                else
+                    b.sub:SetText((SHOW_NAMES[r.show] or "") .. " · " .. (COMBAT_NAMES[r.combat] or ""))
+                end
                 ns.SetFont(b.sample, font, 16, flags)
                 b.sample:SetShadowOffset(flags == "" and 1 or 0, flags == "" and -1 or 0)
                 local text = ns.Trim(r.text or "")
@@ -847,13 +945,18 @@ local function AuraPicker(parent)
         W.Inside(t.icon, t)
         t.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         local id = tonumber(key)
-        t.icon:SetTexture(id and SpellIcon and SpellIcon(id) or 134400)
+        local melee = key == MELEE
+        t.icon:SetTexture(melee and AuraIcon({ aura = MELEE }) or id and SpellIcon and SpellIcon(id) or 134400)
         t:SetScript("OnClick", function(self) if not c.off then R:Pick(self.key) end end)
         t:SetScript("OnEnter", function(self)
             self.SetBorderColor(C.accent)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             if id then
                 GameTooltip:SetSpellByID(id)
+            elseif melee then
+                GameTooltip:SetText(MELEE_NAME, 1, 1, 1, 1, true)
+                GameTooltip:AddLine("Shows in combat while your target is out of reach of your melee attacks.",
+                    C.body[1], C.body[2], C.body[3], true)
             else
                 GameTooltip:SetText("Another aura", 1, 1, 1, 1, true)
                 GameTooltip:AddLine("Type its name or spell ID.", C.body[1], C.body[2], C.body[3], true)
@@ -879,7 +982,7 @@ local function AuraPicker(parent)
         end
         local title = W.Text(c, "GameFontNormalSmall", C.header)
         title:SetText("Other")
-        c.titles[#c.titles + 1] = { title = title, tiles = { tile("other") } }
+        c.titles[#c.titles + 1] = { title = title, tiles = { tile(MELEE), tile("other") } }
     end
     function c:Layout(width)
         if not built then build() end
@@ -940,12 +1043,15 @@ ns.Configure(R, defaults, function(m)
             selected = ns.Section("Selected reminder", 2, {
                 picker = { type = "custom", name = "Aura", order = 1, build = AuraPicker },
                 aura = own("input", "aura", "Name or spell ID", 2, { hidden = function() return not selected().other end }),
-                show = own("select", "show", "Show", 3, {
+                show = own("select", "show", "Show", 3, { hidden = function() return selected().aura == MELEE end,
                     values = { missing = "When it's missing", expiring = "When it's missing or running out",
                         on = "While it's on you" }, sorting = { "missing", "expiring", "on" } }),
                 seconds = own("range", "seconds", "Running out at (seconds left)", 4, { min = 1, max = 120, step = 1,
-                    hidden = function() return selected().show ~= "expiring" end }),
-                combat = own("select", "combat", "When", 5, { values = COMBAT_NAMES, sorting = { "in", "out", "any" } }),
+                    hidden = function() return selected().show ~= "expiring" or selected().aura == MELEE end }),
+                delay = own("range", "delay", "Show after (seconds out of range)", 4.5, { min = 0, max = 10, step = 0.5,
+                    hidden = function() return selected().aura ~= MELEE end }),
+                combat = own("select", "combat", "When", 5, { values = COMBAT_NAMES, sorting = { "in", "out", "any" },
+                    hidden = function() return selected().aura == MELEE end }),
                 group = own("select", "group", "Group", 6, {
                     values = { any = "Solo or in a group", group = "In a group", solo = "Solo" },
                     sorting = { "any", "group", "solo" } }),
