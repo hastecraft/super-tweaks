@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.7.3 (2026-11-16)
+
+### Bug Fixes
+
+- Group Finder: the Who tab shows the players it found.
+
 ## 4.7.2 (2026-11-16)
 
 ### Bug Fixes

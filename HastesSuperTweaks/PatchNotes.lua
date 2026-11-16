@@ -16,6 +16,12 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.7.3", date = "2026-11-16",
+        fixed = {
+            { "Group Finder: the Who tab shows the players it found.", module = "GroupFinder" },
+        },
+    },
+    {
         version = "4.7.2", date = "2026-11-16",
         fixed = {
             { "Group Finder: the Who tab no longer stays empty, and its searches work.", module = "GroupFinder" },
