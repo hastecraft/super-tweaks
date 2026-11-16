@@ -1020,6 +1020,7 @@ local function SideClick(e, button, row)
     if e.kind == "heading" then return end
     if e.kind == "book" then return S.RecipeBook.Toggle(e) end
     if e.kind == "recipe" then return S.RecipeBook.Click(e, button, row) end
+    if e.kind == "plan" then return S.RecipeBook.ClickPlan(e, button, row) end
     if e.kind == "smart" then
         if button == "LeftButton" then RunSmart(e.key, e.name) end
     elseif e.kind == "category" then
@@ -1564,6 +1565,7 @@ function Sh.Build(frame)
               text = function(e)
                   if e.kind == "term" then return e.price and K.ShortMoney(e.price) or "" end
                   if e.kind == "recipe" then return S.RecipeBook.CostText(e) end
+                  if e.steps then return S.RecipeBook.PlanCostText(e) end
                   return e.count or ""
               end,
               color = function(e) return (e.deal or e.done) and K.GAIN or P.muted end },
@@ -1571,13 +1573,14 @@ function Sh.Build(frame)
         isSelected = function(e)
             if e.kind == "category" then return e.path == category end
             if e.kind == "smart" then return e.key == smartKey end
-            if e.kind == "recipe" then return S.RecipeBook.IsSelected(e) end
+            if e.kind == "recipe" or e.kind == "plan" then return S.RecipeBook.IsSelected(e) end
             return e.kind == "list" and e.list == selected
         end,
         onClick = SideClick,
         onEnter = function(e, row)
             if e.kind == "term" and e.link then K.ItemTip(row, e.link) end
             if e.kind == "recipe" then S.RecipeBook.Tip(e, row) end
+            if e.steps then S.RecipeBook.PlanTip(e, row) end
         end,
     })
     Sh.side:SetPoint("TOPLEFT", 6, -42)

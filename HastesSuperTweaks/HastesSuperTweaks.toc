@@ -91,6 +91,7 @@ Modules\SuperAuctionHouse\Window.lua
 Modules\SuperAuctionHouse\Crafting.lua
 Modules\SuperAuctionHouse\Recipes.lua
 Modules\SuperAuctionHouse\RecipeData.lua
+Modules\SuperAuctionHouse\LevelingData.lua
 Modules\SuperAuctionHouse\RecipeBook.lua
 Modules\SuperAuctionHouse\Compat.lua
 Modules\Appearances.lua
