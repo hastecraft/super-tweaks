@@ -1599,7 +1599,8 @@ end)
 # Aura Reminders reads two buffs by name on every aura change in combat, and draws the ones missing.
 REMINDER_MOCKS = r'''
 PERMISSIVE_FRAMES = true
-REMINDER_AURAS = { ['Battle Shout'] = { expirationTime = 200, duration = 120 }, ['Arcane Intellect'] = { expirationTime = 0, duration = 0 } }
+REMINDER_AURAS = { ['Battle Shout'] = { expirationTime = 200, duration = 120, sourceUnit = 'player' },
+    ['Arcane Intellect'] = { expirationTime = 0, duration = 0, sourceUnit = 'player' } }
 C_UnitAuras = C_UnitAuras or {}
 C_UnitAuras.GetAuraDataBySpellName = function(_, name) return REMINDER_AURAS[name] end
 C_Spell = C_Spell or {}

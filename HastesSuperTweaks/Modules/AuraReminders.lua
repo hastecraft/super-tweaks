@@ -394,16 +394,36 @@ local function Readable(r)
     return got and not IsSecret(hidden) and hidden == false
 end
 
--- Whether you have a reminder's aura: true or false when the game says, nil when it hides your auras.
+-- Whether you have a reminder's aura: true or false when the game says, nil when it hides your auras. The Cooldown
+-- Manager only knows your own cast, so when it says the aura is off, the aura is looked up by name too: any rank, from
+-- anyone (another warrior's stronger Battle Shout). One from someone else, read before your auras were hidden, is
+-- taken to last until it was to run out.
 local function Read(r, now)
     local tracked = ReadTracked(r, now)
-    if tracked ~= nil then return tracked end
-    if not GetByName or not Readable(r) then return nil end
-    local ok, aura = pcall(GetByName, "player", r.name, "HELPFUL")
-    if not ok or IsSecret(aura) then return nil end
-    if aura == nil then r.ends, r.stacks = nil, 0; return false end
-    Times(r, aura, now)
-    return true
+    if tracked then r.other = false; return true end
+    if GetByName and Readable(r) then
+        local ok, aura = pcall(GetByName, "player", r.name, "HELPFUL")
+        if ok and not IsSecret(aura) then
+            if aura == nil then
+                if not (inCombat and r.other and r.ends and r.ends > now) then
+                    r.ends, r.stacks, r.other = nil, 0, nil
+                    return false
+                end
+            else
+                -- Whose it is: asked again only when it was cast again (a new end), as aura changes come often.
+                local before = r.ends
+                Times(r, aura, now)
+                if r.other == nil or r.ends ~= before then
+                    local source = aura.sourceUnit
+                    if not IsSecret(source) then r.other = source ~= "player" end
+                end
+                return true
+            end
+        end
+    end
+    if r.other and r.ends and r.ends > now then return nil end
+    if tracked == false then r.ends, r.stacks = nil, 0 end
+    return tracked
 end
 
 -- The next moment a reminder could change by itself (an aura running out, a warning's threshold, %t ticking): one timer
@@ -451,7 +471,7 @@ local function Cast(spellID)
     for i = 1, #list do
         local r = list[i]
         if r.name == name then
-            r.has = true
+            r.has, r.other = true, false
             r.ends = r.lasts and now + r.lasts or nil
         end
     end
@@ -567,7 +587,10 @@ function R:Apply()
                 icon = saved.icon ~= false, texture = AuraIcon(saved), color = saved.color or GOLD,
                 sound = saved.sound or "" }
             local old = was[name]
-            if old then r.has, r.ends, r.lasts, r.stacks, r.visible = old.has, old.ends, old.lasts, old.stacks, old.visible end
+            if old then
+                r.has, r.ends, r.lasts, r.stacks, r.visible, r.other =
+                    old.has, old.ends, old.lasts, old.stacks, old.visible, old.other
+            end
             list[#list + 1] = r
             if combat ~= "in" then needOut = true end
             if group ~= "any" then groupMatters = true end
