@@ -2,6 +2,14 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.7.2 (2026-11-16)
+
+### Bug Fixes
+
+- Group Finder: the Who tab no longer stays empty, and its searches work.
+- Aura Reminders: a buff someone else cast on you, such as a stronger Battle Shout, no longer shows as missing.
+- Aura Reminders: a buff's group version counts, such as Gift of the Wild for a Mark of the Wild reminder.
+
 ## 4.7.1 (2026-11-15)
 
 ### Bug Fixes
