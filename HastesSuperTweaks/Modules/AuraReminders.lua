@@ -58,6 +58,22 @@ R.BUFFS = {
     ALL = { { 1459 }, { 1243 }, { 1126 }, { 19740 }, { 19742 }, { 20217 }, { 19705 } },
 }
 
+-- Buffs with a group version under another name (Gift of the Wild for Mark of the Wild), by the spell IDs of their
+-- first ranks: a reminder for either counts the other. Names are looked up once a reminder needs them.
+local WIDE = { [1126] = 21849, [1459] = 23028, [1243] = 21562, [14752] = 27681, [976] = 27683, [19740] = 25782,
+    [19742] = 25894, [20217] = 25898, [1038] = 25895 }
+local wideNames
+local function WideName(name)
+    if not wideNames then
+        wideNames = {}
+        for single, group in pairs(WIDE) do
+            local a, b = SpellName(single), SpellName(group)
+            if a and b then wideNames[a], wideNames[b] = b, a end
+        end
+    end
+    return wideNames[name]
+end
+
 -- The picker's groups: { title, keys }, keys being spell IDs as strings; procs: the keys that are procs. Built once.
 local groups, procs
 function R:Groups()
@@ -394,16 +410,37 @@ local function Readable(r)
     return got and not IsSecret(hidden) and hidden == false
 end
 
--- Whether you have a reminder's aura: true or false when the game says, nil when it hides your auras.
+-- Whether you have a reminder's aura: true or false when the game says, nil when it hides your auras. The Cooldown
+-- Manager only knows your own cast, so when it says the aura is off, the aura is looked up by name too: any rank, from
+-- anyone (another warrior's stronger Battle Shout). One from someone else, read before your auras were hidden, is
+-- taken to last until it was to run out.
 local function Read(r, now)
     local tracked = ReadTracked(r, now)
-    if tracked ~= nil then return tracked end
-    if not GetByName or not Readable(r) then return nil end
-    local ok, aura = pcall(GetByName, "player", r.name, "HELPFUL")
-    if not ok or IsSecret(aura) then return nil end
-    if aura == nil then r.ends, r.stacks = nil, 0; return false end
-    Times(r, aura, now)
-    return true
+    if tracked then r.other = false; return true end
+    if GetByName and Readable(r) then
+        local ok, aura = pcall(GetByName, "player", r.name, "HELPFUL")
+        if ok and aura == nil and r.wide then ok, aura = pcall(GetByName, "player", r.wide, "HELPFUL") end
+        if ok and not IsSecret(aura) then
+            if aura == nil then
+                if not (inCombat and r.other and r.ends and r.ends > now) then
+                    r.ends, r.stacks, r.other = nil, 0, nil
+                    return false
+                end
+            else
+                -- Whose it is: asked again only when it was cast again (a new end), as aura changes come often.
+                local before = r.ends
+                Times(r, aura, now)
+                if r.other == nil or r.ends ~= before then
+                    local source = aura.sourceUnit
+                    if not IsSecret(source) then r.other = source ~= "player" end
+                end
+                return true
+            end
+        end
+    end
+    if r.other and r.ends and r.ends > now then return nil end
+    if tracked == false then r.ends, r.stacks = nil, 0 end
+    return tracked
 end
 
 -- The next moment a reminder could change by itself (an aura running out, a warning's threshold, %t ticking): one timer
@@ -450,8 +487,8 @@ local function Cast(spellID)
     local now = GetTime()
     for i = 1, #list do
         local r = list[i]
-        if r.name == name then
-            r.has = true
+        if r.name == name or r.wide == name then
+            r.has, r.other = true, false
             r.ends = r.lasts and now + r.lasts or nil
         end
     end
@@ -501,7 +538,10 @@ local function Track()
             end
         end
     end
-    for i = 1, #list do list[i].item = trackedBy[list[i].name] end
+    for i = 1, #list do
+        local r = list[i]
+        r.item = trackedBy[r.name] or (r.wide and trackedBy[r.wide])
+    end
 end
 
 local function Retrack()
@@ -562,12 +602,15 @@ function R:Apply()
             local text = ns.Trim(saved.text or "")
             if text == "" then text = name .. "!" end
             local combat, group = saved.combat or "in", saved.group or "any"
-            local r = { name = name, id = tonumber(saved.aura), text = text, dynamic = text:find("%%[tn]") ~= nil,
+            local r = { name = name, wide = WideName(name), id = tonumber(saved.aura), text = text, dynamic = text:find("%%[tn]") ~= nil,
                 show = saved.show or "missing", seconds = saved.seconds or 10, combat = combat, group = group,
                 icon = saved.icon ~= false, texture = AuraIcon(saved), color = saved.color or GOLD,
                 sound = saved.sound or "" }
             local old = was[name]
-            if old then r.has, r.ends, r.lasts, r.stacks, r.visible = old.has, old.ends, old.lasts, old.stacks, old.visible end
+            if old then
+                r.has, r.ends, r.lasts, r.stacks, r.visible, r.other =
+                    old.has, old.ends, old.lasts, old.stacks, old.visible, old.other
+            end
             list[#list + 1] = r
             if combat ~= "in" then needOut = true end
             if group ~= "any" then groupMatters = true end
