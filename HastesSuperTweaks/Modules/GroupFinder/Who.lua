@@ -63,6 +63,7 @@ local function Show(keepScroll)
         if reverse then return va > vb end
         return va < vb
     end)
+    if not list.laidOut then list:Layout() end
     list:SetLoading(waiting)
     list:SetEntries(shown, keepScroll)
     list:SetEmpty(asked and "No one matches." or "")
