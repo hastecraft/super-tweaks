@@ -80,8 +80,18 @@ function List:PaintTint(row)
     row.tint:SetShown(tint and true or false)
 end
 
+-- The scroll area's size. Right after it's made the game may not have worked it out yet, so it's taken from the
+-- list's own size then (the area fills the list, less the headers and the scroll bar).
+function List:AreaSize()
+    local width, height = self.area:GetWidth() or 0, self.area:GetHeight() or 0
+    if width <= 1 or height <= 1 then
+        width, height = (self:GetWidth() or 0) - 10, (self:GetHeight() or 0) - HEADER_H - 1
+    end
+    return width, height
+end
+
 function List:Layout()
-    local width = self.area:GetWidth() or 0
+    local width = self:AreaSize()
     if width <= 1 then return end
     local used, weight = 0, 0
     for _, c in ipairs(self.columns) do
@@ -129,7 +139,7 @@ end
 
 function List:Render()
     local entries, area = self.entries, self.area
-    local height = area:GetHeight() or 0
+    local width, height = self:AreaSize()
     if not self.laidOut or height <= 1 or self.rendering then return end
     self.rendering = true
     local rowH = self.rowHeight
@@ -143,7 +153,6 @@ function List:Render()
         local row = NewRow(self)
         if self.place then self.place(row, self) end
     end
-    local width = area:GetWidth()
     for i, row in ipairs(self.rows) do
         local entry = entries[first + i]
         if i > count or entry == nil then
