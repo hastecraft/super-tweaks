@@ -2,6 +2,16 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.8.0 (2026-11-16)
+
+### New Features
+
+- Aura Reminders: Out of Melee Range. A reminder that shows in combat while your target is out of reach of your melee attacks, after a wait you choose.
+
+### Bug Fixes
+
+- Guild Message Popup: no longer causes an "Interface action failed" message in combat.
+
 ## 4.7.3 (2026-11-16)
 
 ### Bug Fixes
