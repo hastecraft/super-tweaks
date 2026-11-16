@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.7.0", date = "2026-11-15",
+        new = {
+            { "The Recipes view lists a 1-300 leveling path for each crafting profession, with what each step costs. Click a step, or Everything, to search its materials and buy them with Buy Next.",
+                title = "Super Auction House: Leveling Plans", module = "SuperAuctionHouse" },
+        },
+    },
+    {
         version = "4.6.1", date = "2026-11-15",
         fixed = {
             { "Super Auction House: shift-clicking a saved price links the item in chat instead of typing \"item:871\".", module = "SuperAuctionHouse" },

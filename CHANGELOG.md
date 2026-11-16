@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.7.0 (2026-11-15)
+
+### New Features
+
+- Super Auction House: Leveling Plans. The Recipes view lists a 1-300 leveling path for each crafting profession, with what each step costs. Click a step, or Everything, to search its materials and buy them with Buy Next.
+
 ## 4.6.1 (2026-11-15)
 
 ### Bug Fixes
