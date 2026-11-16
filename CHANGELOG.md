@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.7.1 (2026-11-15)
+
+### Bug Fixes
+
+- Group Finder: the Who tab's searches work again.
+
 ## 4.7.0 (2026-11-15)
 
 ### New Features

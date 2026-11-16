@@ -16,6 +16,12 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.7.1", date = "2026-11-15",
+        fixed = {
+            { "Group Finder: the Who tab's searches work again.", module = "GroupFinder" },
+        },
+    },
+    {
         version = "4.7.0", date = "2026-11-15",
         new = {
             { "The Recipes view lists a 1-300 leveling path for each crafting profession, with what each step costs. Click a step, or Everything, to search its materials and buy them with Buy Next.",
