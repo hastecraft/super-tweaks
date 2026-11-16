@@ -1452,8 +1452,11 @@ end
 -- Whether the key for Buy Next has something to do (Window.lua binds it only then).
 function Sh.WantsBuyKey() return shownBuys or S.Buy.IsOpen() end
 
+-- A saved price keeps only an item string ("item:871"), which chat would send as plain text: it needs the full link.
 local function LinkOf(e)
-    return e.link or (e.itemKey and select(2, C_Item.GetItemInfo(e.itemKey.itemID))) or nil
+    local link = e.link
+    if link and not link:find("|H", 1, true) then link = select(2, C_Item.GetItemInfo(link)) end
+    return link or (e.itemKey and select(2, C_Item.GetItemInfo(e.itemKey.itemID))) or nil
 end
 
 local function ResultMenu(e, row)
