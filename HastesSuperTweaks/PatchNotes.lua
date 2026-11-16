@@ -16,6 +16,16 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.8.0", date = "2026-11-16",
+        new = {
+            { "A reminder that shows in combat while your target is out of reach of your melee attacks, after a wait you choose.",
+                title = "Aura Reminders: Out of Melee Range", module = "AuraReminders" },
+        },
+        fixed = {
+            { "Guild Message Popup: no longer causes an \"Interface action failed\" message in combat.", module = "GuildMOTD" },
+        },
+    },
+    {
         version = "4.7.3", date = "2026-11-16",
         fixed = {
             { "Group Finder: the Who tab shows the players it found.", module = "GroupFinder" },
