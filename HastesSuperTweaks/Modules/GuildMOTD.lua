@@ -10,8 +10,10 @@ local M = HST:NewFeature("GuildMOTD", {
 ns.GuildMOTD = M
 local FADE = 0.4
 -- The guild message; GetGuildRosterMOTD is the older name, kept by the game only as a deprecated fallback.
--- It may be a value the game hides from addons, so it's returned untested.
+-- It may be a value the game hides from addons, so it's returned untested. The game blocks asking for it in combat:
+-- nil then, and the next roster update or GUILD_MOTD after the fight brings it.
 local function GetMOTD()
+    if InCombatLockdown() then return nil end
     local get = C_GuildInfo and C_GuildInfo.GetMOTD or GetGuildRosterMOTD
     if get then return (get()) end
 end
@@ -136,7 +138,7 @@ ns.Listen(M, { "GUILD_MOTD", "PLAYER_ENTERING_WORLD", "GUILD_ROSTER_UPDATE" }, f
         -- The roster is here and the guild has no message: there is nothing to wait for. (While chat is restricted
         -- a message may only look empty.)
         settled = event == "GUILD_ROSTER_UPDATE" and not ns.IsSecret(motd) and (motd == nil or motd == "")
-            and not ns.ChatLockdown()
+            and not ns.ChatLockdown() and not InCombatLockdown()
         if settled then
             local members = GetNumGuildMembers()
             settled = not ns.IsSecret(members) and (members or 0) > 0
