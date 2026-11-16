@@ -58,6 +58,22 @@ R.BUFFS = {
     ALL = { { 1459 }, { 1243 }, { 1126 }, { 19740 }, { 19742 }, { 20217 }, { 19705 } },
 }
 
+-- Buffs with a group version under another name (Gift of the Wild for Mark of the Wild), by the spell IDs of their
+-- first ranks: a reminder for either counts the other. Names are looked up once a reminder needs them.
+local WIDE = { [1126] = 21849, [1459] = 23028, [1243] = 21562, [14752] = 27681, [976] = 27683, [19740] = 25782,
+    [19742] = 25894, [20217] = 25898, [1038] = 25895 }
+local wideNames
+local function WideName(name)
+    if not wideNames then
+        wideNames = {}
+        for single, group in pairs(WIDE) do
+            local a, b = SpellName(single), SpellName(group)
+            if a and b then wideNames[a], wideNames[b] = b, a end
+        end
+    end
+    return wideNames[name]
+end
+
 -- The picker's groups: { title, keys }, keys being spell IDs as strings; procs: the keys that are procs. Built once.
 local groups, procs
 function R:Groups()
@@ -403,6 +419,7 @@ local function Read(r, now)
     if tracked then r.other = false; return true end
     if GetByName and Readable(r) then
         local ok, aura = pcall(GetByName, "player", r.name, "HELPFUL")
+        if ok and aura == nil and r.wide then ok, aura = pcall(GetByName, "player", r.wide, "HELPFUL") end
         if ok and not IsSecret(aura) then
             if aura == nil then
                 if not (inCombat and r.other and r.ends and r.ends > now) then
@@ -470,7 +487,7 @@ local function Cast(spellID)
     local now = GetTime()
     for i = 1, #list do
         local r = list[i]
-        if r.name == name then
+        if r.name == name or r.wide == name then
             r.has, r.other = true, false
             r.ends = r.lasts and now + r.lasts or nil
         end
@@ -521,7 +538,10 @@ local function Track()
             end
         end
     end
-    for i = 1, #list do list[i].item = trackedBy[list[i].name] end
+    for i = 1, #list do
+        local r = list[i]
+        r.item = trackedBy[r.name] or (r.wide and trackedBy[r.wide])
+    end
 end
 
 local function Retrack()
@@ -582,7 +602,7 @@ function R:Apply()
             local text = ns.Trim(saved.text or "")
             if text == "" then text = name .. "!" end
             local combat, group = saved.combat or "in", saved.group or "any"
-            local r = { name = name, id = tonumber(saved.aura), text = text, dynamic = text:find("%%[tn]") ~= nil,
+            local r = { name = name, wide = WideName(name), id = tonumber(saved.aura), text = text, dynamic = text:find("%%[tn]") ~= nil,
                 show = saved.show or "missing", seconds = saved.seconds or 10, combat = combat, group = group,
                 icon = saved.icon ~= false, texture = AuraIcon(saved), color = saved.color or GOLD,
                 sound = saved.sound or "" }
