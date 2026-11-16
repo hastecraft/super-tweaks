@@ -106,17 +106,17 @@ local function Query()
     return table.concat(parts, " ")
 end
 
-function Who.Send()
-    -- The game takes one /who at a time.
-    if waiting then return end
-    local text = Query()
-    local origin = Enum and Enum.SocialWhoOrigin and Enum.SocialWhoOrigin.Social or 1
-    C_FriendList.SetWhoToUi(true)
-    local ok = pcall(C_FriendList.SendWho, text, origin)
-    if not ok then
-        Win.Status("The game didn't take that search. Try again in a moment.")
-        return
-    end
+-- The game blocks /who from addons, so the Who button runs it as a macro: a secure button lies over it and sends the
+-- search. Its macro can't change during combat, so it steps aside then and the Who button says so.
+local secure
+local COMBAT = "Can't search during combat. Try again after the fight."
+local ASK = "Press Who to search."
+
+local function SecureShown(on)
+    if secure and not InCombatLockdown() then secure:SetShown(on) end
+end
+
+local function Sent()
     asked, waiting = true, true
     local token = {}
     Who.token = token
@@ -129,11 +129,37 @@ function Who.Send()
     Show()
 end
 
--- Looks someone up (from the Find tab's menu).
+local function BuildSecure(send)
+    secure = CreateFrame("Button", nil, UIParent, "SecureActionButtonTemplate")
+    secure:SetAllPoints(send)
+    secure:SetFrameStrata(Win.frame:GetFrameStrata())
+    secure:SetFrameLevel(send:GetFrameLevel() + 10)
+    secure:RegisterForClicks("AnyUp", "AnyDown")
+    secure:SetAttribute("type", "macro")
+    secure:SetScript("PreClick", function(self)
+        if InCombatLockdown() then return end
+        C_FriendList.SetWhoToUi(true)
+        local text = Query():gsub("[\r\n]", " ")
+        self:SetAttribute("macrotext", text ~= "" and ("/who " .. text) or "")
+    end)
+    secure:SetScript("PostClick", function(self, _, down)
+        if down then return end
+        if self:GetAttribute("macrotext") == "" then
+            Win.Status("Type a name, guild, zone, class or levels, or pick a filter.")
+        else
+            Sent()
+        end
+    end)
+    secure:SetScript("OnEnter", function() send:GetScript("OnEnter")(send) end)
+    secure:SetScript("OnLeave", function() send:GetScript("OnLeave")(send) end)
+    secure:Hide()
+end
+
+-- Looks someone up (from the Find tab's menu). The search waits for the Who button.
 function Who.Lookup(name)
     Win.Select("who")
     input:SetText('n-"' .. name .. '"')
-    Who.Send()
+    Win.Status(InCombatLockdown() and COMBAT or ASK)
 end
 
 ---------------------------------------------------------------------------
@@ -230,7 +256,9 @@ function Who.Build(page)
     local send = K.Button(toolbar, "Who", "primary")
     send:Fit(70)
     send:SetPoint("RIGHT", -12, 0)
-    send:SetScript("OnClick", function() Who.Send() end)
+    -- Only reached in combat, when the secure button is hidden.
+    send:SetScript("OnClick", function() Win.Status(COMBAT) end)
+    BuildSecure(send)
 
     local guildless = QuickChip("guildless", "No guild")
     guildless:SetPoint("RIGHT", send, "LEFT", -12, 0)
@@ -243,7 +271,7 @@ function Who.Build(page)
 
     input = K.Input(toolbar, {
         placeholder = "Name, guild, zone, class or levels (50-55)", clear = true,
-        onEnter = function() Who.Send() end,
+        onEnter = function() Win.Status(InCombatLockdown() and COMBAT or ASK) end,
     })
     input:SetPoint("LEFT", 12, 0)
     input:SetPoint("RIGHT", near, "LEFT", -12, 0)
@@ -282,6 +310,7 @@ end
 
 function Who.Shown()
     C_FriendList.SetWhoToUi(true)
+    SecureShown(true)
     -- Whatever the last /who found, even one typed in chat.
     ReadResults()
     if #entries > 0 then asked = true end
@@ -290,6 +319,7 @@ end
 
 function Who.Hidden()
     C_FriendList.SetWhoToUi(false)
+    SecureShown(false)
     if input then input.edit:ClearFocus() end
 end
 
@@ -298,5 +328,9 @@ function Who.OnEvent(event)
         waiting, asked = false, true
         ReadResults()
         if Win.current == "who" then Show() end
+    elseif event == "PLAYER_REGEN_DISABLED" then
+        SecureShown(false)
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        SecureShown(Win.current == "who" and Win.IsOpen())
     end
 end
