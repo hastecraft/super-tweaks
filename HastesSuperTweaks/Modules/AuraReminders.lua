@@ -785,7 +785,10 @@ R.selected = 1
 function R:Selected()
     local reminders = self.db.profile.reminders
     if not reminders[self.selected] then self.selected = math.max(1, #reminders) end
-    return reminders[self.selected]
+    local r = reminders[self.selected]
+    -- Reminders saved before the delay setting existed have none.
+    if r and r.delay == nil then r.delay = 0 end
+    return r
 end
 
 local SHOW_NAMES = { missing = "When missing", expiring = "Missing or running out", on = "While on you" }
