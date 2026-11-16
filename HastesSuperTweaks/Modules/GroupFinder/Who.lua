@@ -107,8 +107,10 @@ local function Query()
 end
 
 -- The game blocks /who from addons, so the Who button runs it as a macro: a secure button lies over it and sends the
--- search. Its macro can't change during combat, so it steps aside then and the Who button says so.
-local secure
+-- search. A protected frame can't be anchored to the addon's own frames, so it's placed by screen position each time
+-- the pointer reaches the Who button, and hidden again when it leaves. Its macro can't change during combat, so it
+-- steps aside then and the Who button says so.
+local secure, send, sendEnter, sendLeave
 local COMBAT = "Can't search during combat. Try again after the fight."
 local ASK = "Press Who to search."
 
@@ -129,11 +131,21 @@ local function Sent()
     Show()
 end
 
-local function BuildSecure(send)
-    secure = CreateFrame("Button", nil, UIParent, "SecureActionButtonTemplate")
-    secure:SetAllPoints(send)
+local function Cover()
+    if not secure or InCombatLockdown() or Win.current ~= "who" then return end
+    local left, bottom, width, height = send:GetRect()
+    if not left then return end
+    secure:SetScale(send:GetEffectiveScale() / UIParent:GetEffectiveScale())
+    secure:ClearAllPoints()
+    secure:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left, bottom)
+    secure:SetSize(width, height)
     secure:SetFrameStrata(Win.frame:GetFrameStrata())
     secure:SetFrameLevel(send:GetFrameLevel() + 10)
+    secure:Show()
+end
+
+local function BuildSecure()
+    secure = CreateFrame("Button", nil, UIParent, "SecureActionButtonTemplate")
     secure:RegisterForClicks("AnyUp", "AnyDown")
     secure:SetAttribute("type", "macro")
     secure:SetScript("PreClick", function(self)
@@ -150,9 +162,14 @@ local function BuildSecure(send)
             Sent()
         end
     end)
-    secure:SetScript("OnEnter", function() send:GetScript("OnEnter")(send) end)
-    secure:SetScript("OnLeave", function() send:GetScript("OnLeave")(send) end)
+    secure:SetScript("OnEnter", function() sendEnter(send) end)
+    secure:SetScript("OnLeave", function()
+        sendLeave(send)
+        SecureShown(false)
+    end)
     secure:Hide()
+    sendEnter, sendLeave = send:GetScript("OnEnter"), send:GetScript("OnLeave")
+    send:HookScript("OnEnter", Cover)
 end
 
 -- Looks someone up (from the Find tab's menu). The search waits for the Who button.
@@ -253,12 +270,12 @@ function Who.Build(page)
     rule:SetPoint("BOTTOMRIGHT")
     W.Line(rule)
 
-    local send = K.Button(toolbar, "Who", "primary")
+    send = K.Button(toolbar, "Who", "primary")
     send:Fit(70)
     send:SetPoint("RIGHT", -12, 0)
     -- Only reached in combat, when the secure button is hidden.
     send:SetScript("OnClick", function() Win.Status(COMBAT) end)
-    BuildSecure(send)
+    BuildSecure()
 
     local guildless = QuickChip("guildless", "No guild")
     guildless:SetPoint("RIGHT", send, "LEFT", -12, 0)
@@ -310,7 +327,6 @@ end
 
 function Who.Shown()
     C_FriendList.SetWhoToUi(true)
-    SecureShown(true)
     -- Whatever the last /who found, even one typed in chat.
     ReadResults()
     if #entries > 0 then asked = true end
@@ -331,6 +347,6 @@ function Who.OnEvent(event)
     elseif event == "PLAYER_REGEN_DISABLED" then
         SecureShown(false)
     elseif event == "PLAYER_REGEN_ENABLED" then
-        SecureShown(Win.current == "who" and Win.IsOpen())
+        if send and Win.IsOpen() and send:IsMouseOver() then Cover() end
     end
 end
