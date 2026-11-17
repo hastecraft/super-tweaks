@@ -1605,8 +1605,9 @@ C_UnitAuras = C_UnitAuras or {}
 C_UnitAuras.GetAuraDataBySpellName = function(_, name) return REMINDER_AURAS[name] end
 C_Spell = C_Spell or {}
 C_Spell.GetSpellName = function(id) if id == 6673 then return 'Battle Shout' end end
-C_Spell.EnableSpellRangeCheck = function() end
-C_Spell.IsSpellInRange = function() return true end
+C_SwingTimer = { EnableRangeCheck = function() end, IsTargetWithinSwingRange = function() return true end }
+Enum = Enum or {}
+Enum.PlayerSwingType = Enum.PlayerSwingType or { MainHand = 0, OffHand = 1, Ranged = 2 }
 function UnitIsDeadOrGhost() return false end
 function IsInGroup() return false end
 '''
@@ -1639,7 +1640,7 @@ Section('Aura Reminders', function()
     Send('AuraReminders', 'PLAYER_REGEN_ENABLED')
 end)
 
--- An out of melee range reminder hears when Auto Attack's range to the target changes, and skips other spells'.
+-- An out of melee range reminder hears when the main hand's swing range to the target changes, and skips other hands'.
 Section('Aura Reminders: melee range', function()
     Only({ 'AuraReminders' })
     local R = mod('AuraReminders')
@@ -1649,11 +1650,11 @@ Section('Aura Reminders: melee range', function()
     R:Apply()
     Send('AuraReminders', 'PLAYER_REGEN_DISABLED')
     Measure('Aura reminders: target leaves and comes back into melee range in combat', 300, function()
-        Send('AuraReminders', 'SPELL_RANGE_CHECK_UPDATE', 6603, false, true)
-        Send('AuraReminders', 'SPELL_RANGE_CHECK_UPDATE', 6603, true, true)
+        Send('AuraReminders', 'PLAYER_SWING_RANGE_UPDATE', 0, false, true)
+        Send('AuraReminders', 'PLAYER_SWING_RANGE_UPDATE', 0, true, true)
     end)
-    Measure('Aura reminders: another spell goes out of range in combat', 300, function()
-        Send('AuraReminders', 'SPELL_RANGE_CHECK_UPDATE', 133, false, true)
+    Measure('Aura reminders: ranged swing goes out of range in combat', 300, function()
+        Send('AuraReminders', 'PLAYER_SWING_RANGE_UPDATE', 2, false, true)
     end)
     Measure('Aura reminders: target changed in combat, melee range reminder', 300, function()
         Send('AuraReminders', 'PLAYER_TARGET_CHANGED')

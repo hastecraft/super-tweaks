@@ -98,12 +98,10 @@ function R:Groups()
     return groups, procs
 end
 
--- Out of melee range: a reminder for no aura, shown in combat while your target is out of reach of your melee attacks,
--- once it has been for the reminder's delay. A class's melee attack's range is asked (Auto Attack's has no range on WoW
--- Forever, kept for clients where it has), at the rank you know: a rank you don't know never answers. The game says when
--- a spell's range to your target changes, so it's read only then, and only in combat.
+-- Out of melee range: a reminder for no aura, shown in combat while your target is out of reach of your main hand swings,
+-- once it has been for the reminder's delay. The game's swing timer says when that changes, so it's read only then, and
+-- only in combat.
 local MELEE, MELEE_NAME, ATTACK = "melee", "Out of melee range", 6603
-local CLASS_MELEE = { WARRIOR = 78, ROGUE = 1752, HUNTER = 2973, DRUID = 1082 }
 R.MELEE = MELEE
 
 -- A reminder's aura: its name, or nil while none is picked.
@@ -453,63 +451,21 @@ local function Read(r, now)
     return tracked
 end
 
--- Melee range to your target, by spell: true, false, or nil when the game has no answer (no target, a friendly one).
-local EnableRange = C_Spell and C_Spell.EnableSpellRangeCheck
-local InRange = C_Spell and C_Spell.IsSpellInRange
-local rangeSpells, isRangeSpell, rangeOf, resolved = {}, {}, {}, false
+-- Your main hand's reach to your target: false while out of it, nil when the game has no answer (no target, a friendly one).
+local Swing = C_SwingTimer
+local MAIN_HAND = Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand
 local wantRange, rangeOn = false, false
-local farSince -- when your target went out of range, while it is
+local farSince -- when your target went out of reach, while it is
 
-local HasRange = C_Spell and C_Spell.SpellHasRange
-local SpellInfo = C_Spell and C_Spell.GetSpellInfo
-
-local function AddRangeSpell(id)
-    if HasRange and not HasRange(id) then return end
-    rangeSpells[#rangeSpells + 1] = id
-    isRangeSpell[id] = true
+local function SetFar(far)
+    if not far then farSince = nil elseif not farSince then farSince = GetTime() end
 end
 
--- Looked up again each fight, so a rank learned since counts. The class spell's name finds the rank you know.
-local function RangeSpells()
-    if resolved then return rangeSpells end
-    resolved = true
-    AddRangeSpell(ATTACK)
-    local extra = CLASS_MELEE[select(2, UnitClass("player"))]
-    local name = extra and SpellName(extra)
-    if name then
-        local info = SpellInfo and SpellInfo(name)
-        local known = info and info.spellID
-        local knows = C_SpellBook and C_SpellBook.IsSpellKnown or IsPlayerSpell
-        if known and knows and knows(known) then AddRangeSpell(known) else AddRangeSpell(name) end
-    end
-    return rangeSpells
-end
-
-local function SetRange(id, inRange)
-    if inRange == nil or IsSecret(inRange) then rangeOf[id] = nil else rangeOf[id] = inRange and true or false end
-end
-
-local function Note()
-    local v
-    for _, id in ipairs(RangeSpells()) do
-        v = rangeOf[id]
-        if v ~= nil then break end
-    end
-    if v == false then
-        if not farSince then farSince = GetTime() end
-    else
-        farSince = nil
-    end
-end
-
--- Asks again, for a new target.
+-- Asks again, for a new target. The swing timer's own frame can turn the range check off, so it's turned on again first.
 local function Seed()
-    if not InRange then return end
-    for _, id in ipairs(RangeSpells()) do
-        local ok, v = pcall(InRange, id, "target")
-        if ok then SetRange(id, v) else SetRange(id, nil) end
-    end
-    Note()
+    Swing.EnableRangeCheck(MAIN_HAND, true)
+    local inRange = Swing.IsTargetWithinSwingRange(MAIN_HAND)
+    SetFar(not IsSecret(inRange) and inRange == false)
 end
 
 -- The next moment a reminder could change by itself (an aura running out, a warning's threshold, %t ticking): one timer
@@ -642,20 +598,16 @@ local events
 
 -- Range is asked for only in combat, and only while a reminder is for it.
 local function RangeOn(on)
-    if on == rangeOn or not EnableRange then return end
+    if on == rangeOn or not (Swing and MAIN_HAND) then return end
     rangeOn = on
-    for _, id in ipairs(RangeSpells()) do pcall(EnableRange, id, on) end
     if on then
-        events:RegisterEvent("SPELL_RANGE_CHECK_UPDATE")
+        events:RegisterEvent("PLAYER_SWING_RANGE_UPDATE")
         events:RegisterEvent("PLAYER_TARGET_CHANGED")
         Seed()
     else
-        events:UnregisterEvent("SPELL_RANGE_CHECK_UPDATE")
+        Swing.EnableRangeCheck(MAIN_HAND, false)
+        events:UnregisterEvent("PLAYER_SWING_RANGE_UPDATE")
         events:UnregisterEvent("PLAYER_TARGET_CHANGED")
-        wipe(rangeOf)
-        wipe(isRangeSpell)
-        wipe(rangeSpells)
-        resolved = false
         farSince = nil
     end
 end
@@ -672,11 +624,10 @@ local function Listen(combat)
 end
 
 local function OnEvent(_, event, a, b, c)
-    if event == "SPELL_RANGE_CHECK_UPDATE" then
-        -- Sent for every spell whose range something asked for (action bars too): only ours count.
-        if IsSecret(a) or not isRangeSpell[a] or IsSecret(c) then return end
-        if c then SetRange(a, b) else SetRange(a, nil) end
-        Note()
+    if event == "PLAYER_SWING_RANGE_UPDATE" then
+        -- swing type, in range, could tell
+        if IsSecret(a) or a ~= MAIN_HAND or IsSecret(b) or IsSecret(c) then return end
+        SetFar(c == true and b == false)
     elseif event == "PLAYER_TARGET_CHANGED" then
         Seed()
     elseif event == "PLAYER_REGEN_DISABLED" then
