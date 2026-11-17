@@ -47,6 +47,17 @@ end
 
 local function Clamp(value, low, high) return math.max(low, math.min(high, value)) end
 
+-- Tweaks pinned to the top of the sidebar, by name in the order pinned, saved account-wide.
+local function Pinned()
+    local global = HST.db.global
+    global.pinned = global.pinned or {}
+    return global.pinned
+end
+
+local function PinIndex(key)
+    for i, name in ipairs(Pinned()) do if name == key then return i end end
+end
+
 ---------------------------------------------------------------------------
 -- Options-tree helpers. Like AceConfigDialog, the deepest group or option in
 -- the path that defines `disabled` or `hidden` decides.
@@ -1671,7 +1682,14 @@ local function NavButton(parent)
         self.highlight:Hide()
         self:Paint()
     end)
-    b:SetScript("OnClick", function(self) P:NavClick(self.entry) end)
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            if self.entry.kind == "pinned" then P:TogglePin(self.entry.key) end
+            return
+        end
+        P:NavClick(self.entry)
+    end)
     -- Only what changed is set: every navigation paints every row (a theme change repaints the label itself).
     function b:Paint()
         local entry = self.entry
@@ -2028,6 +2046,7 @@ end
 -- Whether a sidebar row is selected: in the list, the category scrolled to (All tweaks at the top); on a tweak's page,
 -- its category.
 function P:NavSelected(entry)
+    if entry.kind == "pinned" then return self.mode == "page" and self.view == "module" and self.openModule == entry.key end
     if self.mode == "modules" then return entry.key == self.inView end
     if self.mode == "page" and self.view == "module" and entry.key then
         return HST:GetModule(self.openModule).info.category == entry.key
@@ -2043,12 +2062,21 @@ local function NavEntry(entries, n, kind, key, text, count)
     return entry
 end
 
--- The sidebar's rows: All tweaks, then each category.
+-- The sidebar's rows: All tweaks, the pinned tweaks, then each category.
 function P:NavEntries()
     local entries = self.navEntries or {}
     self.navEntries = entries
     local onCount, total, n = 0, 0, 1
     local home = NavEntry(entries, 1, "home", nil, "All tweaks", nil)
+    -- A pinned tweak that's gone (renamed, or from a newer version) is left out, not forgotten.
+    for _, key in ipairs(Pinned()) do
+        local module = HST:GetModule(key, true)
+        if module and module.info then
+            n = n + 1
+            NavEntry(entries, n, "pinned", key, module.info.name, nil)
+        end
+    end
+    self.firstCategory = n + 1
     local features = HST:Features()
     for _, category in ipairs(HST.categories) do
         local on, count = 0, 0
@@ -2081,7 +2109,7 @@ function P:RefreshNav()
             self.nav[i] = b
         end
         b.entry = entry
-        if i == 2 then y = y + 6 end
+        if i == 2 or i == self.firstCategory then y = y + 6 end
         -- A row keeps its place and text while they stay the same (most navigation only moves the selection).
         if b.top ~= y then
             b.top = y
@@ -2111,7 +2139,7 @@ function P:PaintNav()
     local features = HST:Features()
     for _, b in ipairs(self.nav) do
         local entry = b:IsShown() and b.entry
-        if entry then
+        if entry and entry.kind ~= "pinned" then
             local on, count = 0, 0
             for _, module in ipairs(features) do
                 if entry.kind == "home" or module.info.category == entry.key then
@@ -2167,6 +2195,8 @@ function P:NavClick(entry)
         self.inView, self.navPinned = entry.key, true
         self:PaintNavSelection()
         self.list:GlideTo(top or 0)
+    elseif entry.kind == "pinned" then
+        self:OpenModule(entry.key)
     elseif entry.kind == "profiles" then
         self:ShowProfiles()
     elseif entry.kind == "about" then
@@ -2174,6 +2204,14 @@ function P:NavClick(entry)
     elseif entry.kind == "notes" then
         self:ShowNotes()
     end
+end
+
+-- Pins a tweak to the top of the sidebar, or unpins it.
+function P:TogglePin(key)
+    local pinned, index = Pinned(), PinIndex(key)
+    if index then table.remove(pinned, index) else pinned[#pinned + 1] = key end
+    self:RefreshNav()
+    self:RefreshHeader()
 end
 
 -- The version pip: its blinking dot while there are notes to read, and its look while pointed at or open.
@@ -2835,6 +2873,10 @@ function P:CreatePageView(main)
     header.toggle.onClick = function(on) if self.openModule then HST:SetFeatureEnabled(self.openModule, on) end end
     header.state = W.Text(header, "GameFontNormal", C.text, "RIGHT")
     header.state:SetPoint("RIGHT", header.toggle, "LEFT", -8, 0)
+    -- Pins the tweak to the top of the sidebar.
+    header.pin = TextButton(header, "Unpin", "GameFontNormalSmall")
+    header.pin:SetPoint("RIGHT", header.state, "LEFT", -12, 0)
+    header.pin:SetScript("OnClick", function() if self.openModule then self:TogglePin(self.openModule) end end)
     -- On the patch notes, the New Patch Dot switch in its place, level with the line under the title (P:RefreshHeader).
     header.notesDot = NotesDotToggle(header)
     header.notesDot:Hide()
@@ -3018,8 +3060,8 @@ function P:LayoutPageView()
     local view, header = self.pageView, self.pageHeader
     local main, dock, side, content = self:PageGeometry()
     local module = self.view == "module"
-    -- Header: title, where it is, and the module's description beside its switch.
-    local textWidth = main - PAD * 2 - (module and 110 or self.view == "notes" and header.notesDot:GetWidth() + 16 or 0)
+    -- Header: title, where it is, and the module's description beside its switch and Pin.
+    local textWidth = main - PAD * 2 - (module and 110 + header.pin:GetWidth() + 12 or self.view == "notes" and header.notesDot:GetWidth() + 16 or 0)
     header.title:SetWidth(textWidth)
     header.crumb:SetWidth(textWidth)
     local y = header.title:GetStringHeight() + 6 + header.crumb:GetStringHeight()
@@ -3210,6 +3252,7 @@ function P:RefreshHeader()
         header.shownSwitch = switch
         header.toggle:SetShown(switch)
         header.state:SetShown(switch)
+        header.pin:SetShown(switch)
     end
     if notes ~= header.shownNotes then header.shownNotes = notes; header.notesDot:SetShown(notes) end
     if notes then
@@ -3229,6 +3272,11 @@ function P:RefreshHeader()
         header.shownOn = on
         header.state:SetText(on and "On" or "Off")
         W.Paint(header.state, on and C.accent or C.muted)
+    end
+    local pinned = PinIndex(self.openModule) ~= nil
+    if pinned ~= header.pinned then
+        header.pinned = pinned
+        header.pin.label:SetText(pinned and "Unpin" or "Pin")
     end
     header.crumbNote:SetText(info.unavailable or "")
     header.crumbNote:SetShown(info.unavailable ~= nil)
