@@ -983,6 +983,7 @@ end
 local SOURCES = {
     MOB = "Mobalytics' guide by <Progress> Ahlaundoh.",
     MS = "MythicSim's simulations for WoW Forever.",
+    SU = "Sixty Upgrades' Fury EP for WoW Forever.",
     HJ = "HawsJon's scale for WoW Forever. No guide gives numbers for it yet.",
 }
 
