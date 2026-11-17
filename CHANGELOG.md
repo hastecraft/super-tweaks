@@ -2,6 +2,20 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.9.0 (2026-11-17)
+
+### New Features
+
+- Super Auction House: Take Sales and Returns. Buttons above the inbox take your auction sales, your returns, or both. Purchases stay in the mailbox.
+
+### Changes
+
+- Gear Upgrades: the Fury scale uses Sixty Upgrades' Fury weights.
+
+### Bug Fixes
+
+- Gear Upgrades: upgrade arrows show in EllesmereUI Bags, at the bottom right.
+
 ## 4.8.0 (2026-11-16)
 
 ### New Features
