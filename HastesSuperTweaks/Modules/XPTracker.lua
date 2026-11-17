@@ -16,10 +16,12 @@ function X:Print(...) HST:Print(...) end
 local WHITE = ns.WHITE
 local min, max, floor = math.min, math.max, math.floor
 
-local function textDefault(template, point, x, y, size, align)
+-- outside: a label off the bar, in grey with colored numbers.
+local function textDefault(template, point, x, y, size, align, outside)
     return { enabled = true, template = template, point = point, x = x, y = y,
         size = size, align = align, width = 0, font = "", fontPath = "",
-        outline = "INHERIT", shadow = true, color = { 0.93, 0.95, 1, 1 } }
+        outline = "INHERIT", shadow = true, color = outside and { 0.68, 0.70, 0.74, 1 } or { 0.93, 0.95, 1, 1 },
+        colorNumbers = outside or false }
 end
 X.defaults = { profile = {
     locked = true, width = 600, height = 24, scale = 1,
@@ -35,17 +37,18 @@ X.defaults = { profile = {
     backgroundColor = { 0.035, 0.045, 0.06, 0.90 }, borderColor = { 0, 0, 0, 1 },
     border = 1, padding = 1, ticks = 10, tickColor = { 0, 0, 0, 0.32 },
     spark = true, sparkColor = { 1, 1, 1, 0.65 }, sparkWidth = 2,
+    numberColor = { 1, 0.86, 0.45, 1 }, restedNumberColor = { 0.40, 0.70, 1, 1 }, questNumberColor = { 1, 0.62, 0.20, 1 },
     compact = true, decimals = 1, resetOnLogin = true, resetOnReload = false,
     pauseAFK = true, updateInterval = 1, perLayout = true, layouts = {},
     texts = {
         level = textDefault("Lv {level}", "LEFT", 8, 0, 13, "LEFT"),
         progress = textDefault("{xp} / {max}", "CENTER", 0, 0, 13, "CENTER"),
         percent = textDefault("{percent}%", "RIGHT", -8, 0, 13, "RIGHT"),
-        rate = textDefault("{rate} XP/hr  |  Level in {ttl}", "TOPLEFT", 0, 21, 12, "LEFT"),
-        bonus = textDefault("Rested {rested}  |  Quests {quest}", "TOPRIGHT", 0, 21, 12, "RIGHT"),
-        session = textDefault("Session {session}  |  +{gained} XP", "BOTTOMLEFT", 0, -21, 12, "LEFT"),
-        levelTime = textDefault("This level {leveltime}", "BOTTOMRIGHT", 0, -21, 12, "RIGHT"),
-        total = textDefault("Played {played}", "BOTTOM", 0, -41, 12, "CENTER"),
+        rate = textDefault("{rate} XP/hr  |  Level in {ttl}", "TOPLEFT", 0, 21, 12, "LEFT", true),
+        bonus = textDefault("Rested {rested}  |  Quests {quest}", "TOPRIGHT", 0, 21, 12, "RIGHT", true),
+        session = textDefault("Session {session}  |  +{gained} XP", "BOTTOMLEFT", 0, -21, 12, "LEFT", true),
+        levelTime = textDefault("This level {leveltime}", "BOTTOMRIGHT", 0, -21, 12, "RIGHT", true),
+        total = textDefault("Played {played}", "BOTTOM", 0, -41, 12, "CENTER", true),
     },
 }, char = { session = { seconds = 0, gained = 0 }, played = 0, levelTime = 0 } }
 X.defaults.profile.texts.total.enabled = false
@@ -129,6 +132,8 @@ end
 
 -- Reused on every refresh; callers read it immediately.
 local tokens = {}
+-- Colored numbers: the color codes, and each label's template with them, with the template it was made from.
+local hexes, painted, paintedFrom = nil, {}, {}
 local state = {}
 local PERCENT = { [0] = "%.0f", "%.1f", "%.2f" }
 -- Readouts that change with time alone; between XP events the ticker redraws only the labels using them.
@@ -352,6 +357,8 @@ end
 
 function X:Apply()
     if not self.frame or not self:IsEnabled() then return end
+    hexes = nil
+    wipe(paintedFrom)
     if self.ticker and self.tickerInterval ~= self.db.profile.updateInterval then self:StartTicker() end
     local p, f = self.db.profile, self.frame
     f:SetSize(p.width, p.height)
@@ -456,6 +463,37 @@ function X:Render(sameContent)
     if self.hovered and GameTooltip:IsOwned(self.frame) then self:ShowTooltip(true) end
 end
 
+-- Numbers in a label with colorNumbers: rested and quest readouts in their own colors, the rest in the number color.
+local NUMBER_KIND = { rested = "restedNumberColor", restedpercent = "restedNumberColor",
+    quest = "questNumberColor", questpercent = "questNumberColor" }
+
+local function Hex(c)
+    return string.format("|cff%02x%02x%02x", floor(c[1] * 255 + 0.5), floor(c[2] * 255 + 0.5), floor(c[3] * 255 + 0.5))
+end
+
+local function PaintToken(token)
+    if not hexes then
+        local p = X.db.profile
+        hexes = { numberColor = Hex(p.numberColor), restedNumberColor = Hex(p.restedNumberColor),
+            questNumberColor = Hex(p.questNumberColor) }
+    end
+    return hexes[NUMBER_KIND[token] or "numberColor"] .. "{" .. token .. "}|r"
+end
+
+-- A template with each readout in its color; the settings window's preview fills it in too.
+function X:PaintTemplate(template)
+    return (template:gsub("{(%a+)}", PaintToken))
+end
+
+-- Made again only when the label's template or the colors change.
+local function Painted(key, template)
+    if paintedFrom[key] ~= template then
+        paintedFrom[key] = template
+        painted[key] = X:PaintTemplate(template)
+    end
+    return painted[key]
+end
+
 -- Writes the shown labels' text (with timedOnly, only those using a TIMED readout); unchanged text isn't rewritten.
 -- What each label was given is kept here rather than read back from it.
 function X:DrawTexts(timedOnly)
@@ -463,7 +501,7 @@ function X:DrawTexts(timedOnly)
     for key, fontString in pairs(timedOnly and self.timedTexts or self.texts) do
         local t = texts[key]
         if t.enabled then
-            local text = t.template:gsub("{(%a+)}", tokens)
+            local text = (t.colorNumbers and Painted(key, t.template) or t.template):gsub("{(%a+)}", tokens)
             if fontString.hstText ~= text then fontString.hstText = text; fontString:SetText(text) end
         end
     end
