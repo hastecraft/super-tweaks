@@ -16,6 +16,19 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.9.0", date = "2026-11-17",
+        new = {
+            { "Buttons above the inbox take your auction sales, your returns, or both. Purchases stay in the mailbox.",
+                title = "Super Auction House: Take Sales and Returns", module = "SuperAuctionHouse" },
+        },
+        changed = {
+            { "Gear Upgrades: the Fury scale uses Sixty Upgrades' Fury weights.", module = "GearUpgrades", path = { "scales" } },
+        },
+        fixed = {
+            { "Gear Upgrades: upgrade arrows show in EllesmereUI Bags, at the bottom right.", module = "GearUpgrades" },
+        },
+    },
+    {
         version = "4.8.0", date = "2026-11-16",
         new = {
             { "A reminder that shows in combat while your target is out of reach of your melee attacks, after a wait you choose.",
