@@ -87,6 +87,7 @@ Modules\SuperAuctionHouse\Selling.lua
 Modules\SuperAuctionHouse\Auctions.lua
 Modules\SuperAuctionHouse\Bids.lua
 Modules\SuperAuctionHouse\History.lua
+Modules\SuperAuctionHouse\Mail.lua
 Modules\SuperAuctionHouse\Window.lua
 Modules\SuperAuctionHouse\Crafting.lua
 Modules\SuperAuctionHouse\Recipes.lua
