@@ -20,7 +20,7 @@ local min, max, floor = math.min, math.max, math.floor
 local function textDefault(template, point, x, y, size, align, outside)
     return { enabled = true, template = template, point = point, x = x, y = y,
         size = size, align = align, width = 0, font = "", fontPath = "",
-        outline = "INHERIT", shadow = true, color = outside and { 0.68, 0.70, 0.74, 1 } or { 0.93, 0.95, 1, 1 },
+        outline = "INHERIT", shadow = true, color = outside and { 0.80, 0.82, 0.86, 1 } or { 0.93, 0.95, 1, 1 },
         colorNumbers = outside or false }
 end
 X.defaults = { profile = {
@@ -37,7 +37,7 @@ X.defaults = { profile = {
     backgroundColor = { 0.035, 0.045, 0.06, 0.90 }, borderColor = { 0, 0, 0, 1 },
     border = 1, padding = 1, ticks = 10, tickColor = { 0, 0, 0, 0.32 },
     spark = true, sparkColor = { 1, 1, 1, 0.65 }, sparkWidth = 2,
-    numberColor = { 1, 0.86, 0.45, 1 }, restedNumberColor = { 0.40, 0.70, 1, 1 }, questNumberColor = { 1, 0.62, 0.20, 1 },
+    numberClassColor = true, numberColor = { 1, 0.86, 0.45, 1 }, restedNumberColor = { 0.40, 0.70, 1, 1 }, questNumberColor = { 1, 0.62, 0.20, 1 },
     compact = true, decimals = 1, resetOnLogin = true, resetOnReload = false,
     pauseAFK = true, updateInterval = 1, perLayout = true, layouts = {},
     texts = {
@@ -463,7 +463,8 @@ function X:Render(sameContent)
     if self.hovered and GameTooltip:IsOwned(self.frame) then self:ShowTooltip(true) end
 end
 
--- Numbers in a label with colorNumbers: rested and quest readouts in their own colors, the rest in the number color.
+-- Numbers in a label with colorNumbers: rested and quest readouts in their own colors, the rest in your class color or
+-- the number color.
 local NUMBER_KIND = { rested = "restedNumberColor", restedpercent = "restedNumberColor",
     quest = "questNumberColor", questpercent = "questNumberColor" }
 
@@ -474,7 +475,9 @@ end
 local function PaintToken(token)
     if not hexes then
         local p = X.db.profile
-        hexes = { numberColor = Hex(p.numberColor), restedNumberColor = Hex(p.restedNumberColor),
+        local _, class = UnitClass("player")
+        local c = p.numberClassColor and not ns.IsSecret(class) and class and RAID_CLASS_COLORS[class]
+        hexes = { numberColor = Hex(c and { c.r, c.g, c.b } or p.numberColor), restedNumberColor = Hex(p.restedNumberColor),
             questNumberColor = Hex(p.questNumberColor) }
     end
     return hexes[NUMBER_KIND[token] or "numberColor"] .. "{" .. token .. "}|r"

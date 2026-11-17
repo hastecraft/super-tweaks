@@ -195,9 +195,10 @@ function X:BuildOptions()
         numbers = section("Numbers", 2, {
             compact = toggle("compact", "Short numbers", 1, "12.3k and 1.2m instead of full numbers."),
             decimals = range("decimals", "Percent decimals", 2, 0, 2),
-            numberColor = color("numberColor", "Number color", 3),
-            restedNumberColor = color("restedNumberColor", "Rested numbers", 4),
-            questNumberColor = color("questNumberColor", "Quest numbers", 5),
+            numberClassColor = toggle("numberClassColor", "Numbers in class color", 3),
+            numberColor = with(color("numberColor", "Number color", 4), { disabled = whenSet("numberClassColor") }),
+            restedNumberColor = color("restedNumberColor", "Rested numbers", 5),
+            questNumberColor = color("questNumberColor", "Quest numbers", 6),
         }),
     } }
     options.args.texts = { type = "group", name = "Text labels", order = 6, args = {
