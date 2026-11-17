@@ -699,17 +699,17 @@ local function OnTooltip(tip, data)
 end
 
 ---------------------------------------------------------------------------
--- Arrows: on upgrades in your bags and the best quest reward to pick, at the icon's top left (Appearance Collector's
--- mark sits top right).
+-- Arrows: on upgrades in your bags and the best quest reward to pick, at the icon's bottom right (Appearance
+-- Collector's mark sits top right). EllesmereUI Bags draws its own bags: they get the arrow through its overlay API.
 ---------------------------------------------------------------------------
 local arrows, arrowLinks = {}, {}
 local ARROW_ATLAS = "bags-greenarrow"
 local HasAtlas = C_Texture and C_Texture.GetAtlasInfo
 
-local function Arrow(owner)
+local function Arrow(owner, parent)
     local arrow = arrows[owner]
     if arrow then return arrow end
-    arrow = owner:CreateTexture(nil, "OVERLAY", nil, 4)
+    arrow = (parent or owner):CreateTexture(nil, "OVERLAY", nil, 4)
     if HasAtlas and HasAtlas(ARROW_ATLAS) then
         arrow:SetAtlas(ARROW_ATLAS)
     else
@@ -717,15 +717,15 @@ local function Arrow(owner)
         arrow:SetTexCoord(0, 1, 1, 0) -- the stream art points down: turned up
     end
     arrow:SetSize(14, 14)
-    arrow:SetPoint("TOPLEFT", owner, "TOPLEFT", 1, -1)
+    arrow:SetPoint("BOTTOMRIGHT", owner, "BOTTOMRIGHT", -1, 1)
     arrows[owner] = arrow
     return arrow
 end
 
-local function SetArrow(owner, on)
+local function SetArrow(owner, on, parent)
     local arrow = arrows[owner]
     if on then
-        arrow = arrow or Arrow(owner)
+        arrow = arrow or Arrow(owner, parent)
         if not arrow:IsShown() then arrow:Show() end
     elseif arrow and arrow:IsShown() then
         arrow:Hide()
@@ -760,6 +760,23 @@ local function HookBag(frame)
     bags[frame] = true
 end
 
+-- EllesmereUI Bags paints each slot through this while the tweak is on; arrows go on its overlay above the icon.
+local ELLESMERE = "HastesSuperTweaksGearUpgrades"
+local ellesmere = {} -- its slot buttons painted so far, and the overlay each one's arrow is on
+local function PaintEllesmere(button, data)
+    local link = U.db.profile.bags and data and data.itemLink or nil
+    if not ellesmere[button] then ellesmere[button] = button._textOverlay or button end
+    arrowLinks[button] = link
+    SetArrow(button, link and U:IsUpgrade(link), ellesmere[button])
+end
+
+local function Ellesmere(on)
+    local api = _G.EUI_Bags
+    if not (api and api.RegisterItemOverlayIcon and api.UnregisterItemOverlayIcon) then return end
+    if on then api.RegisterItemOverlayIcon(ELLESMERE, PaintEllesmere)
+    else api.UnregisterItemOverlayIcon(ELLESMERE) end
+end
+
 -- Quest rewards: the choice that's the biggest upgrade, when one is.
 local questButtons = {}
 function U:MarkQuest()
@@ -786,6 +803,11 @@ function U:Remark()
     if not self:IsEnabled() then return end
     for frame in pairs(bags) do
         if frame:IsShown() then MarkBag(frame) end
+    end
+    -- EllesmereUI Bags' slots, with the items they had when last painted.
+    for button in pairs(ellesmere) do
+        local link = self.db.profile.bags and arrowLinks[button] or nil
+        SetArrow(button, link and self:IsUpgrade(link) and button:IsVisible(), ellesmere[button])
     end
     self:MarkQuest()
 end
@@ -848,10 +870,12 @@ ns.Listen(U, CHANGES, function(self, event)
 end)
 function U:OnListen()
     self:Hook()
+    Ellesmere(true)
     self:Changed()
 end
 function U:OnUnlisten()
     self.waiting = nil
+    Ellesmere(false)
     HideArrows()
 end
 
@@ -1234,7 +1258,7 @@ function U.info.preview(frame)
                     arrow:SetTexCoord(0, 1, 1, 0)
                 end
                 arrow:SetSize(11, 11)
-                arrow:SetPoint("TOPLEFT", 1, -1)
+                arrow:SetPoint("BOTTOMRIGHT", -1, 1)
             end
         end
     end
