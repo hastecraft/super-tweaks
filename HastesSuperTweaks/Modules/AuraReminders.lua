@@ -99,9 +99,9 @@ function R:Groups()
 end
 
 -- Out of melee range: a reminder for no aura, shown in combat while your target is out of reach of your melee attacks,
--- once it has been for the reminder's delay. Auto Attack's range is asked, and a class's melee attack's too for when
--- Auto Attack's has no answer. The game says when a spell's range to your target changes, so it's read only then, and
--- only in combat.
+-- once it has been for the reminder's delay. A class's melee attack's range is asked (Auto Attack's has no range on WoW
+-- Forever, kept for clients where it has), at the rank you know: a rank you don't know never answers. The game says when
+-- a spell's range to your target changes, so it's read only then, and only in combat.
 local MELEE, MELEE_NAME, ATTACK = "melee", "Out of melee range", 6603
 local CLASS_MELEE = { WARRIOR = 78, ROGUE = 1752, HUNTER = 2973, DRUID = 1082 }
 R.MELEE = MELEE
@@ -456,17 +456,32 @@ end
 -- Melee range to your target, by spell: true, false, or nil when the game has no answer (no target, a friendly one).
 local EnableRange = C_Spell and C_Spell.EnableSpellRangeCheck
 local InRange = C_Spell and C_Spell.IsSpellInRange
-local rangeSpells, isRangeSpell, rangeOf = nil, {}, {}
+local rangeSpells, isRangeSpell, rangeOf, resolved = {}, {}, {}, false
 local wantRange, rangeOn = false, false
 local farSince -- when your target went out of range, while it is
 
+local HasRange = C_Spell and C_Spell.SpellHasRange
+local SpellInfo = C_Spell and C_Spell.GetSpellInfo
+
+local function AddRangeSpell(id)
+    if HasRange and not HasRange(id) then return end
+    rangeSpells[#rangeSpells + 1] = id
+    isRangeSpell[id] = true
+end
+
+-- Looked up again each fight, so a rank learned since counts. The class spell's name finds the rank you know.
 local function RangeSpells()
-    if rangeSpells then return rangeSpells end
-    rangeSpells = { ATTACK }
+    if resolved then return rangeSpells end
+    resolved = true
+    AddRangeSpell(ATTACK)
     local extra = CLASS_MELEE[select(2, UnitClass("player"))]
-    local knows = C_SpellBook and C_SpellBook.IsSpellKnown or IsPlayerSpell
-    if extra and knows and knows(extra) then rangeSpells[2] = extra end
-    for _, id in ipairs(rangeSpells) do isRangeSpell[id] = true end
+    local name = extra and SpellName(extra)
+    if name then
+        local info = SpellInfo and SpellInfo(name)
+        local known = info and info.spellID
+        local knows = C_SpellBook and C_SpellBook.IsSpellKnown or IsPlayerSpell
+        if known and knows and knows(known) then AddRangeSpell(known) else AddRangeSpell(name) end
+    end
     return rangeSpells
 end
 
@@ -475,9 +490,11 @@ local function SetRange(id, inRange)
 end
 
 local function Note()
-    local spells = RangeSpells()
-    local v = rangeOf[spells[1]]
-    if v == nil and spells[2] then v = rangeOf[spells[2]] end
+    local v
+    for _, id in ipairs(RangeSpells()) do
+        v = rangeOf[id]
+        if v ~= nil then break end
+    end
     if v == false then
         if not farSince then farSince = GetTime() end
     else
@@ -636,6 +653,9 @@ local function RangeOn(on)
         events:UnregisterEvent("SPELL_RANGE_CHECK_UPDATE")
         events:UnregisterEvent("PLAYER_TARGET_CHANGED")
         wipe(rangeOf)
+        wipe(isRangeSpell)
+        wipe(rangeSpells)
+        resolved = false
         farSince = nil
     end
 end
