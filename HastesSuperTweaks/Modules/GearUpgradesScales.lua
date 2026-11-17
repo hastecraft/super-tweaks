@@ -10,6 +10,7 @@
 --
 -- Sources, researched 2026-11-15:
 --   MOB  Mobalytics WoW Forever guides by <Progress> Ahlaundoh: Fury (6 Nov 2026) and Arms (12 Nov 2026) EP values.
+--   SU   Sixty Upgrades' Fury EP preset (sixtyupgrades.com/forever), per 1% and turned into per-rating.
 --   MS   MythicSim (mythicsim.com/wow-forever/stat-priority), 10,000-iteration sims on client 1.60.1, 15 Nov 2026.
 --        Hybrids get melee and spell weights added, since Forever has one hit, crit and haste rating for both.
 --        MS's "weapon damage" is per point of average damage per swing.
@@ -25,11 +26,11 @@ ns.GearUpgradeScales = {
         { key = "Arms", name = "Arms", tree = 0, source = "MOB", weights = {
             MainHandDps = 17.69, MeleeHitCap = { 8, 4.59, 0 }, CritRating = 2.36, ExpertiseCap = { 6.5, 2.23, 0 },
             Strength = 2.20, HasteRating = 2.00, Agility = 1.89, Ap = 1, ArmorPenetration = 0.45 } },
-        -- The maintainer's pick: Mobalytics' pre-raid Fury EP, hit 4.16 under 8% and 2.59 past it.
-        { key = "Fury", name = "Fury", tree = 1, source = "MOB", weights = {
-            MainHandDps = 10.66, MeleeHitCap = { 8, 4.16, 2.59 }, CritRating = 3.33, OffHandDps = 3.24,
-            Agility = 2.67, HasteRating = 2.38, Strength = 2.20, ExpertiseCap = { 6.5, 1.75, 0 }, Ap = 1,
-            ArmorPenetration = 0.39 } },
+        -- The maintainer's pick: Sixty Upgrades' Fury EP (20 per 1% hit or crit, 14 per weapon DPS in either hand).
+        -- Its weapon speed weight has no stat here. Haste, expertise and armor penetration (est): Mobalytics' Fury.
+        { key = "Fury", name = "Fury", tree = 1, source = "SU", weights = {
+            MeleeDps = 14, HitRating = 2.00, CritRating = 1.43, Strength = 2, Agility = 1, Ap = 1,
+            HasteRating = 2.38, ExpertiseCap = { 6.5, 1.75, 0 }, ArmorPenetration = 0.39 } },
         { key = "Protection", name = "Protection", tree = 2, source = "HJ", weights = {
             Stamina = 1, DefenseCap = { 440, 1.2, 0.4 }, DodgeRating = 0.55, ParryRating = 0.37, BlockRating = 0.81,
             BlockValue = 0.35, MeleeHitCap = { 8, 0.63, 0.1 }, ExpertiseCap = { 6.5, 0.31, 14, 0.16, 0 },
