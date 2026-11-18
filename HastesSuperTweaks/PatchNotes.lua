@@ -16,6 +16,18 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.10.0", date = "2026-11-17",
+        new = {
+            { "Point at a tweak in the settings window and click the pin beside its switch. Pinned tweaks show first, in their own Pinned category.",
+                title = "Settings: Pinned Tweaks" },
+            { "Text around the bar is grey, with its numbers in your class color, rested numbers in blue and quest numbers in orange. Choose the colors on the Text page.",
+                title = "XP Tracker: Colored Numbers", module = "XPTracker", path = { "fonts" }, setting = "numberClassColor" },
+        },
+        fixed = {
+            { "Aura Reminders: the \"Out of melee range\" reminder now shows when your target is out of melee range.", module = "AuraReminders" },
+        },
+    },
+    {
         version = "4.9.0", date = "2026-11-17",
         new = {
             { "Buttons above the inbox take your auction sales, your returns, or both. Purchases stay in the mailbox.",
