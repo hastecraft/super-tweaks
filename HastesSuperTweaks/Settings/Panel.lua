@@ -47,6 +47,34 @@ end
 
 local function Clamp(value, low, high) return math.max(low, math.min(high, value)) end
 
+-- Tweaks pinned to the top of the sidebar, by name in the order pinned, saved account-wide.
+local function Pinned()
+    local global = HST.db.global
+    global.pinned = global.pinned or {}
+    return global.pinned
+end
+
+local function PinIndex(key)
+    for i, name in ipairs(Pinned()) do if name == key then return i end end
+end
+
+-- The Pinned category's key, beside the categories' (HST.categories).
+local PINNED = "pinned"
+
+-- How many pinned tweaks there are, and how many are on. A pin left by a tweak since renamed or removed is kept,
+-- not counted.
+local function PinnedCount()
+    local on, count = 0, 0
+    for _, key in ipairs(Pinned()) do
+        local module = HST:GetModule(key, true)
+        if module and module.info then
+            count = count + 1
+            if module:IsEnabled() then on = on + 1 end
+        end
+    end
+    return on, count
+end
+
 ---------------------------------------------------------------------------
 -- Options-tree helpers. Like AceConfigDialog, the deepest group or option in
 -- the path that defines `disabled` or `hidden` decides.
@@ -1401,6 +1429,36 @@ local function Chip(parent, text)
     return b
 end
 
+local RowPin
+
+-- A pin: an outline that lights when pointed at, filled in the accent color while its tweak is pinned.
+local function PinButton(parent)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(22, 22)
+    b.open = W.PixelIcon(b, W.ART .. "Pin", 14, C.muted)
+    b.open:SetPoint("CENTER")
+    b.fill = W.PixelIcon(b, W.ART .. "PinFill", 14, C.accent)
+    b.fill:SetPoint("CENTER")
+    b.fill:Hide()
+    function b:SetPinned(pinned)
+        if self.pinned == pinned then return end
+        self.pinned = pinned
+        self.open:SetShown(not pinned)
+        self.fill:SetShown(pinned)
+    end
+    b:SetScript("OnEnter", function(self)
+        W.Paint(self.open, C.bright)
+        W.ShowTooltip(self, self.pinned and "Unpin" or "Pin to the top", nil, "ANCHOR_TOP")
+        if self.onEnter then self.onEnter() end
+    end)
+    b:SetScript("OnLeave", function(self)
+        W.Paint(self.open, C.muted)
+        W.HideTooltip(self)
+        if self.onLeave then self.onLeave() end
+    end)
+    return b
+end
+
 function P:Create()
     local state = State()
     local f = CreateFrame("Frame", "HastesSuperTweaksSettings", UIParent)
@@ -2043,12 +2101,17 @@ local function NavEntry(entries, n, kind, key, text, count)
     return entry
 end
 
--- The sidebar's rows: All tweaks, then each category.
+-- The sidebar's rows: All tweaks, Pinned while a tweak is, then each category.
 function P:NavEntries()
     local entries = self.navEntries or {}
     self.navEntries = entries
     local onCount, total, n = 0, 0, 1
     local home = NavEntry(entries, 1, "home", nil, "All tweaks", nil)
+    local pinnedOn, pinnedCount = PinnedCount()
+    if pinnedCount > 0 then
+        n = n + 1
+        NavEntry(entries, n, "category", PINNED, "Pinned", pinnedOn .. "/" .. pinnedCount)
+    end
     local features = HST:Features()
     for _, category in ipairs(HST.categories) do
         local on, count = 0, 0
@@ -2113,10 +2176,14 @@ function P:PaintNav()
         local entry = b:IsShown() and b.entry
         if entry then
             local on, count = 0, 0
-            for _, module in ipairs(features) do
-                if entry.kind == "home" or module.info.category == entry.key then
-                    count = count + 1
-                    if module:IsEnabled() then on = on + 1 end
+            if entry.key == PINNED then
+                on, count = PinnedCount()
+            else
+                for _, module in ipairs(features) do
+                    if entry.kind == "home" or module.info.category == entry.key then
+                        count = count + 1
+                        if module:IsEnabled() then on = on + 1 end
+                    end
                 end
             end
             local text = on .. "/" .. count
@@ -2173,6 +2240,20 @@ function P:NavClick(entry)
         self:ShowAbout()
     elseif entry.kind == "notes" then
         self:ShowNotes()
+    end
+end
+
+-- Pins a tweak to the top of the list, or unpins it.
+function P:TogglePin(key)
+    local pinned, index = Pinned(), PinIndex(key)
+    if index then table.remove(pinned, index) else pinned[#pinned + 1] = key end
+    if self.mode == "modules" then
+        local scroll = self.list:GetVerticalScroll()
+        self:ShowModules()
+        self.list:SetVerticalScroll(math.min(scroll, math.max(0, self.list.child:GetHeight() - self.list:GetHeight())))
+    else
+        self:RefreshNav()
+        if self.mode == "page" then self:RefreshHeader() end
     end
 end
 
@@ -2547,6 +2628,23 @@ end
 
 -- A module's row: name and description, a switch, and an arrow to its page. Switches line up whether or not the arrow
 -- shows. A module without a page has no arrow, and clicking its row flips its switch.
+-- A list row's pin, left of its switch: made the first time the row is pointed at or shows a pinned tweak, and shown
+-- while it's pointed at or its tweak is pinned.
+function RowPin(row, shown)
+    local pin = row.pin
+    if not pin then
+        pin = PinButton(row)
+        row.pin = pin
+        pin:SetPoint("RIGHT", row.switch, "LEFT", -6, 0)
+        pin:SetScript("OnClick", function() P:TogglePin(row.module:GetName()) end)
+        pin.onEnter = function() row:GetScript("OnEnter")(row) end
+        pin.onLeave = function() row:GetScript("OnLeave")(row) end
+        pin.isShown = true
+    end
+    if pin.isShown ~= shown then pin.isShown = shown; pin:SetShown(shown) end
+    return pin
+end
+
 function P:ModuleRow(index)
     local row = self.rows[index]
     if row then return row end
@@ -2571,12 +2669,14 @@ function P:ModuleRow(index)
     row.arrow = W.Chevron(row, 14, C.header)
     row.arrow:SetPoint("RIGHT", -10, 0)
     row:SetScript("OnEnter", function(r)
+        RowPin(r, true)
         r.highlight:Show()
         W.Paint(r.label, C.bright)
         W.Paint(r.arrow, C.accent)
         self:ShowDetail(r.module)
     end)
     row:SetScript("OnLeave", function(r)
+        if r.pin and not r.pin.pinned and not r:IsMouseOver() then RowPin(r, false) end
         r.highlight:Hide()
         W.Paint(r.label, r.module.info.unavailable and C.disabled or C.text)
         W.Paint(r.arrow, C.header)
@@ -2686,32 +2786,47 @@ function P:LayoutModules(modules, welcome)
     for _, row in ipairs(self.rows) do row.cursor:Hide() end
     self.categoryTop = {}
     local width = self.listWidth
+    local function Place(module)
+        used = used + 1
+        local row = self:ModuleRow(used)
+        row.module = module
+        if row.top ~= y then
+            row.top = y
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", 0, -y)
+        end
+        if row.placedWidth ~= width then row.placedWidth = width; row:SetWidth(width) end
+        if used > shown then row:Show() end
+        y = y + MODULE_ROW
+    end
+    local function Head(key, name)
+        if y > 0 then y = y + 10 end
+        local header = self:ListHeader(key, name)
+        header:ClearAllPoints()
+        header:SetPoint("TOPLEFT", 0, -y)
+        header:SetWidth(width)
+        header:Show()
+        self.categoryTop[key] = y
+        y = y + 30
+    end
+    -- Pinned tweaks first, in the order pinned, and again in their own categories.
+    for _, key in ipairs(Pinned()) do
+        for _, module in ipairs(modules) do
+            if module:GetName() == key then
+                if not self.categoryTop[PINNED] then Head(PINNED, "Pinned") end
+                Place(module)
+            end
+        end
+    end
     for _, category in ipairs(HST.categories) do
         local first = true
         for _, module in ipairs(modules) do
             if module.info.category == category.key then
                 if first then
                     first = false
-                    if y > 0 then y = y + 10 end
-                    local header = self:ListHeader(category.key, category.name)
-                    header:ClearAllPoints()
-                    header:SetPoint("TOPLEFT", 0, -y)
-                    header:SetWidth(width)
-                    header:Show()
-                    self.categoryTop[category.key] = y
-                    y = y + 30
+                    Head(category.key, category.name)
                 end
-                used = used + 1
-                local row = self:ModuleRow(used)
-                row.module = module
-                if row.top ~= y then
-                    row.top = y
-                    row:ClearAllPoints()
-                    row:SetPoint("TOPLEFT", 0, -y)
-                end
-                if row.placedWidth ~= width then row.placedWidth = width; row:SetWidth(width) end
-                if used > shown then row:Show() end
-                y = y + MODULE_ROW
+                Place(module)
             end
         end
     end
@@ -2741,6 +2856,10 @@ function P:RefreshRows(skipResults)
             end
             local on = module:IsEnabled()
             row.switch:SetOn(on, same)
+            local pinned = PinIndex(module:GetName()) ~= nil
+            if pinned or row.pin then
+                RowPin(row, pinned or row:IsMouseOver()):SetPinned(pinned)
+            end
         end
     end
     -- Result rows only show in search mode (P:ShowModules hides them for the list).
@@ -2835,6 +2954,9 @@ function P:CreatePageView(main)
     header.toggle.onClick = function(on) if self.openModule then HST:SetFeatureEnabled(self.openModule, on) end end
     header.state = W.Text(header, "GameFontNormal", C.text, "RIGHT")
     header.state:SetPoint("RIGHT", header.toggle, "LEFT", -8, 0)
+    header.pin = PinButton(header)
+    header.pin:SetPoint("RIGHT", header.state, "LEFT", -8, 0)
+    header.pin:SetScript("OnClick", function() if self.openModule then self:TogglePin(self.openModule) end end)
     -- On the patch notes, the New Patch Dot switch in its place, level with the line under the title (P:RefreshHeader).
     header.notesDot = NotesDotToggle(header)
     header.notesDot:Hide()
@@ -3018,8 +3140,8 @@ function P:LayoutPageView()
     local view, header = self.pageView, self.pageHeader
     local main, dock, side, content = self:PageGeometry()
     local module = self.view == "module"
-    -- Header: title, where it is, and the module's description beside its switch.
-    local textWidth = main - PAD * 2 - (module and 110 or self.view == "notes" and header.notesDot:GetWidth() + 16 or 0)
+    -- Header: title, where it is, and the module's description beside its switch and Pin.
+    local textWidth = main - PAD * 2 - (module and 110 + header.pin:GetWidth() + 12 or self.view == "notes" and header.notesDot:GetWidth() + 16 or 0)
     header.title:SetWidth(textWidth)
     header.crumb:SetWidth(textWidth)
     local y = header.title:GetStringHeight() + 6 + header.crumb:GetStringHeight()
@@ -3210,6 +3332,7 @@ function P:RefreshHeader()
         header.shownSwitch = switch
         header.toggle:SetShown(switch)
         header.state:SetShown(switch)
+        header.pin:SetShown(switch)
     end
     if notes ~= header.shownNotes then header.shownNotes = notes; header.notesDot:SetShown(notes) end
     if notes then
@@ -3230,6 +3353,7 @@ function P:RefreshHeader()
         header.state:SetText(on and "On" or "Off")
         W.Paint(header.state, on and C.accent or C.muted)
     end
+    header.pin:SetPinned(PinIndex(self.openModule) ~= nil)
     header.crumbNote:SetText(info.unavailable or "")
     header.crumbNote:SetShown(info.unavailable ~= nil)
     self:RefreshOffOverlay(module, on)
