@@ -195,6 +195,10 @@ function X:BuildOptions()
         numbers = section("Numbers", 2, {
             compact = toggle("compact", "Short numbers", 1, "12.3k and 1.2m instead of full numbers."),
             decimals = range("decimals", "Percent decimals", 2, 0, 2),
+            numberClassColor = toggle("numberClassColor", "Numbers in class color", 3),
+            numberColor = with(color("numberColor", "Number color", 4), { disabled = whenSet("numberClassColor") }),
+            restedNumberColor = color("restedNumberColor", "Rested numbers", 5),
+            questNumberColor = color("questNumberColor", "Quest numbers", 6),
         }),
     } }
     options.args.texts = { type = "group", name = "Text labels", order = 6, args = {
@@ -219,8 +223,9 @@ function X:BuildOptions()
                 size = with(range("size", "Size", 2, 6, 64, 1, key), { desc = "Scaled by Text size on the Text page." }),
                 outline = dropdown("outline", "Outline", 3, labelOutlines, labelOutlineOrder, key),
                 color = color("color", "Color", 4, key),
-                shadow = toggle("shadow", "Shadow", 5, nil, key),
-                fontPath = path("fontPath", "Custom font", 6, key),
+                colorNumbers = toggle("colorNumbers", "Color numbers", 5, "Uses the colors on the Text page.", key),
+                shadow = toggle("shadow", "Shadow", 6, nil, key),
+                fontPath = path("fontPath", "Custom font", 7, key),
             }, { disabled = hidden }),
             position = section("Position", 5, {
                 point = with(dropdown("point", "Anchor", 1, anchors, anchorOrder, key), { desc = "Point on the bar the label attaches to." }),
@@ -486,7 +491,7 @@ function X:DrawLivePreview(frame, width, height, path)
         fs:SetShown(t.enabled)
         if t.enabled then
             X:StyleLabel(fs, t, p, v.box)
-            fs:SetText((t.template:gsub("{(%a+)}", tokens)))
+            fs:SetText(((t.colorNumbers and X:PaintTemplate(t.template) or t.template):gsub("{(%a+)}", tokens)))
             local lw, lh = t.width > 0 and t.width or fs:GetStringWidth(), fs:GetStringHeight()
             local fx, fy = Along(t.point, "LEFT", "RIGHT"), Along(t.point, "BOTTOM", "TOP")
             local x0, y0 = bw * fx + t.x - lw * fx, bh * fy + t.y - lh * fy
