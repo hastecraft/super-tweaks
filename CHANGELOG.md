@@ -2,6 +2,17 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.10.0 (2026-11-17)
+
+### New Features
+
+- Settings: Pinned Tweaks. Point at a tweak in the settings window and click the pin beside its switch. Pinned tweaks show first, in their own Pinned category.
+- XP Tracker: Colored Numbers. Text around the bar is grey, with its numbers in your class color, rested numbers in blue and quest numbers in orange. Choose the colors on the Text page.
+
+### Bug Fixes
+
+- Aura Reminders: the "Out of melee range" reminder now shows when your target is out of melee range.
+
 ## 4.9.0 (2026-11-17)
 
 ### New Features
