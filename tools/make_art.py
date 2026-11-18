@@ -55,6 +55,19 @@ GITHUB_PATH = (
 )
 
 
+# Octicons pin-16 (MIT): the outline for a tweak you can pin, and its outer shape alone, filled, for a pinned one.
+PIN_PATH = (
+    'm11.294.984 3.722 3.722a1.75 1.75 0 0 1-.504 2.826l-1.327.613a3.089 3.089 0 0 0-1.707 2.084l-.584 2.454c-.317'
+    ' 1.332-1.972 1.8-2.94.832L5.75 11.311 1.78 15.28a.749.749 0 1 1-1.06-1.06l3.969-3.97-2.204-2.204c-.968-.968'
+    '-.5-2.623.832-2.94l2.454-.584a3.08 3.08 0 0 0 2.084-1.707l.613-1.327a1.75 1.75 0 0 1 2.826-.504Z'
+)
+PIN_HOLE = (
+    'M6.283 9.723l2.732 2.731a.25.25 0 0 0 .42-.119l.584-2.454a4.586 4.586 0 0 1 2.537-3.098l1.328-.613a.25.25 0 0 0'
+    ' .072-.404l-3.722-3.722a.25.25 0 0 0-.404.072l-.613 1.328a4.584 4.584 0 0 1-3.098 2.537l-2.454.584a.25.25 0 0 0'
+    '-.119.42l2.731 2.732Z'
+)
+
+
 def path_points(path, steps=16):
     """Flattens an SVG path (M, L, H, V, C, S, A, Z; absolute or relative) into polygons."""
     import re
@@ -810,7 +823,8 @@ if __name__ == '__main__':
               'LogoTint': logo(color=(255, 255, 255)),
               'LogoOff': logo_off(), 'Search': magnifier(),
               'LogoSearch': logo_search(part='logo'), 'LogoSearchGlass': logo_search(part='glass'),
-              'Grip': grip(), 'Lock': padlock(), 'Unlock': padlock(opened=True)}
+              'Grip': grip(), 'Lock': padlock(), 'Unlock': padlock(opened=True),
+              'Pin': svg_icon(PIN_PATH + PIN_HOLE), 'PinFill': svg_icon(PIN_PATH)}
     # Every size drawn on its own pixel grid, with fine supersampling since the pixels are few.
     rounds = {
         'RoundSizes': [lambda n: weighted(disc(n, samples=16))],
@@ -834,6 +848,8 @@ if __name__ == '__main__':
         'GripSizes': grip,
         'LockSizes': lambda n: weighted(padlock(n, samples=16)),
         'UnlockSizes': lambda n: weighted(padlock(n, samples=16, opened=True)),
+        'PinSizes': lambda n: svg_icon(PIN_PATH + PIN_HOLE, size=n, samples=16),
+        'PinFillSizes': lambda n: svg_icon(PIN_PATH, size=n, samples=16),
     }
     for name, draw in atlases.items():
         sizes_atlas(draw).save(ART / f'{name}.tga')
