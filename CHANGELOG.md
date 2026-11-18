@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.11.0 (2026-11-17)
+
+### New Features
+
+- Gear Shift: Spec Button. A button on the bar switches to your other talent spec. Name each spec and pick its icon on the Specs page.
+
 ## 4.10.0 (2026-11-17)
 
 ### New Features

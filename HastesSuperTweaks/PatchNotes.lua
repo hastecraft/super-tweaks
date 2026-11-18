@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.11.0", date = "2026-11-17",
+        new = {
+            { "A button on the bar switches to your other talent spec. Name each spec and pick its icon on the Specs page.",
+                title = "Gear Shift: Spec Button", module = "GearShift", path = { "specs" } },
+        },
+    },
+    {
         version = "4.10.0", date = "2026-11-17",
         new = {
             { "Point at a tweak in the settings window and click the pin beside its switch. Pinned tweaks show first, in their own Pinned category.",
