@@ -98,12 +98,18 @@ function R:Groups()
     return groups, procs
 end
 
--- Out of melee range: a reminder for no aura, shown in combat while your target is out of reach of your melee attacks,
--- once it has been for the reminder's delay. Auto Attack's range is asked, and a class's melee attack's too for when
--- Auto Attack's has no answer. The game says when a spell's range to your target changes, so it's read only then, and
--- only in combat.
+-- Out of melee range: a reminder for no aura, shown in combat while your target is out of reach of your melee swings,
+-- once it has been for the reminder's delay. Neither Auto Attack nor the swing timer says its range on WoW Forever, so
+-- your class's melee attacks are asked: they reach as far as your swings. Matched by name, so any rank counts. The game
+-- says when a spell's range to your target changes, so it's read only then, and only in combat.
 local MELEE, MELEE_NAME, ATTACK = "melee", "Out of melee range", 6603
-local CLASS_MELEE = { WARRIOR = 78, ROGUE = 1752, HUNTER = 2973, DRUID = 1082 }
+local CLASS_MELEE = {
+    WARRIOR = { 78, 772, 7386, 1715, 23881, 12294, 5308, 7384, 6572, 72, 676, 845, 694, 20243 },
+    ROGUE = { 1752, 53, 2098, 1776, 1766, 703, 1943, 8647, 6770 },
+    HUNTER = { 2973, 2974, 1495 },
+    DRUID = { 1082, 6807, 5221, 1822, 1079, 22568, 6785, 779 },
+    SHAMAN = { 17364 },
+}
 R.MELEE = MELEE
 
 -- A reminder's aura: its name, or nil while none is picked.
@@ -453,46 +459,53 @@ local function Read(r, now)
     return tracked
 end
 
--- Melee range to your target, by spell: true, false, or nil when the game has no answer (no target, a friendly one).
+-- Your reach to your target: farSince is when it went out of reach, while it is.
 local EnableRange = C_Spell and C_Spell.EnableSpellRangeCheck
 local InRange = C_Spell and C_Spell.IsSpellInRange
-local rangeSpells, isRangeSpell, rangeOf = nil, {}, {}
+local meleeNames, isMeleeName, isMelee = nil, {}, { [ATTACK] = true }
 local wantRange, rangeOn = false, false
-local farSince -- when your target went out of range, while it is
+local farSince
 
-local function RangeSpells()
-    if rangeSpells then return rangeSpells end
-    rangeSpells = { ATTACK }
-    local extra = CLASS_MELEE[select(2, UnitClass("player"))]
-    local knows = C_SpellBook and C_SpellBook.IsSpellKnown or IsPlayerSpell
-    if extra and knows and knows(extra) then rangeSpells[2] = extra end
-    for _, id in ipairs(rangeSpells) do isRangeSpell[id] = true end
-    return rangeSpells
-end
-
-local function SetRange(id, inRange)
-    if inRange == nil or IsSecret(inRange) then rangeOf[id] = nil else rangeOf[id] = inRange and true or false end
-end
-
-local function Note()
-    local spells = RangeSpells()
-    local v = rangeOf[spells[1]]
-    if v == nil and spells[2] then v = rangeOf[spells[2]] end
-    if v == false then
-        if not farSince then farSince = GetTime() end
-    else
-        farSince = nil
+local function MeleeNames()
+    if meleeNames then return meleeNames end
+    meleeNames = {}
+    for _, id in ipairs(CLASS_MELEE[select(2, UnitClass("player"))] or meleeNames) do
+        local name = SpellName(id)
+        if name and not isMeleeName[name] then
+            isMeleeName[name] = true
+            meleeNames[#meleeNames + 1] = name
+            -- Asked by name, so the rank you know answers. Never turned off: action bars may be asking too.
+            if EnableRange then pcall(EnableRange, name, true) end
+        end
     end
+    return meleeNames
 end
 
--- Asks again, for a new target.
+-- Whether a spell the game sent range for is one of your melee attacks (or Auto Attack): by name, kept per ID.
+local function IsMelee(id)
+    local known = isMelee[id]
+    if known == nil then
+        local name = type(id) == "number" and SpellName(id) or id
+        known = name and isMeleeName[name] or false
+        isMelee[id] = known
+    end
+    return known
+end
+
+local function SetFar(far)
+    if not far then farSince = nil elseif not farSince then farSince = GetTime() end
+end
+
+-- Asks again, for a new target: the first of your melee attacks with an answer.
 local function Seed()
-    if not InRange then return end
-    for _, id in ipairs(RangeSpells()) do
-        local ok, v = pcall(InRange, id, "target")
-        if ok then SetRange(id, v) else SetRange(id, nil) end
+    local far = false
+    if InRange then
+        for _, name in ipairs(MeleeNames()) do
+            local ok, v = pcall(InRange, name, "target")
+            if ok and v ~= nil and not IsSecret(v) then far = not v; break end
+        end
     end
-    Note()
+    SetFar(far)
 end
 
 -- The next moment a reminder could change by itself (an aura running out, a warning's threshold, %t ticking): one timer
@@ -625,17 +638,16 @@ local events
 
 -- Range is asked for only in combat, and only while a reminder is for it.
 local function RangeOn(on)
-    if on == rangeOn or not EnableRange then return end
+    if on == rangeOn or not InRange then return end
     rangeOn = on
-    for _, id in ipairs(RangeSpells()) do pcall(EnableRange, id, on) end
     if on then
+        MeleeNames()
         events:RegisterEvent("SPELL_RANGE_CHECK_UPDATE")
         events:RegisterEvent("PLAYER_TARGET_CHANGED")
         Seed()
     else
         events:UnregisterEvent("SPELL_RANGE_CHECK_UPDATE")
         events:UnregisterEvent("PLAYER_TARGET_CHANGED")
-        wipe(rangeOf)
         farSince = nil
     end
 end
@@ -653,10 +665,9 @@ end
 
 local function OnEvent(_, event, a, b, c)
     if event == "SPELL_RANGE_CHECK_UPDATE" then
-        -- Sent for every spell whose range something asked for (action bars too): only ours count.
-        if IsSecret(a) or not isRangeSpell[a] or IsSecret(c) then return end
-        if c then SetRange(a, b) else SetRange(a, nil) end
-        Note()
+        -- spell, in range, could tell: sent for every spell whose range something asks for (action bars too).
+        if IsSecret(a) or not IsMelee(a) or IsSecret(b) or IsSecret(c) then return end
+        SetFar(c == true and b == false)
     elseif event == "PLAYER_TARGET_CHANGED" then
         Seed()
     elseif event == "PLAYER_REGEN_DISABLED" then

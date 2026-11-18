@@ -1604,7 +1604,7 @@ REMINDER_AURAS = { ['Battle Shout'] = { expirationTime = 200, duration = 120, so
 C_UnitAuras = C_UnitAuras or {}
 C_UnitAuras.GetAuraDataBySpellName = function(_, name) return REMINDER_AURAS[name] end
 C_Spell = C_Spell or {}
-C_Spell.GetSpellName = function(id) if id == 6673 then return 'Battle Shout' end end
+C_Spell.GetSpellName = function(id) if id == 6673 then return 'Battle Shout' elseif id == 78 then return 'Heroic Strike' end end
 C_Spell.EnableSpellRangeCheck = function() end
 C_Spell.IsSpellInRange = function() return true end
 function UnitIsDeadOrGhost() return false end
