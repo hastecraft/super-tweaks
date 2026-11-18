@@ -26,11 +26,13 @@ local Sets = C_EquipmentSet
 local ItemInfoInstant = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
 local SpellName = C_Spell and C_Spell.GetSpellName or function(id) return (GetSpellInfo(id)) end
 local AuraByName = C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName
+local Spec = C_SpecializationInfo
+local NumSpecGroups = GetNumSpecGroups or function() return 1 end
 local DualWield = CanDualWield or function() return true end
 local GetTime, max, min = GetTime, math.max, math.min
 local LAST_BAG = NUM_BAG_SLOTS or 4
 
-local defaults = { slots = { [13] = true, [14] = true }, setButton = true, size = 36, spacing = 2, vertical = false,
+local defaults = { slots = { [13] = true, [14] = true }, setButton = true, specButton = true, size = 36, spacing = 2, vertical = false,
     menus = "hover", flyout = "AUTO", alpha = 1, cdText = true, cdFont = "Inter Semi Bold", cdSize = 14,
     cdOutline = "OUTLINE", cdColor = { 1, 1, 1, 1 }, x = 0, y = -180 }
 ns.Configure(G, defaults, function(m) return m:BuildOptions() end, "Apply")
@@ -39,9 +41,10 @@ ns.Configure(G, defaults, function(m) return m:BuildOptions() end, "Apply")
 -- situationItems[key]: item IDs in order, each put on in its own slot (over the set's); helm[name], cloak[name]: "show"
 -- or "hide" when that set goes on; restore[slot]: the item link a situation's gear replaced (false: the slot was
 -- empty), put[slot]: the item ID it put there (false: none), so a slot you changed since is left alone; situation: the
--- key of the situation whose gear is on (false: put it on again, after its settings changed).
+-- key of the situation whose gear is on (false: put it on again, after its settings changed). specNames[group],
+-- specIcons[group]: the spec button's name and icon for your first and second talent specs.
 G.defaults.char = { queues = {}, queueOn = {}, situations = {}, situationItems = {}, zones = "", helm = {}, cloak = {},
-    restore = {}, put = {} }
+    restore = {}, put = {}, specNames = {}, specIcons = {} }
 
 -- Slots in the order the bar shows them: inventory slot, name, the game's slot name (for its empty-slot art).
 local SLOTS = {
@@ -575,6 +578,9 @@ function G:Watch()
     Want(self, "BAG_UPDATE_COOLDOWN", bar or self.queuing)
     Want(self, "BAG_UPDATE_DELAYED", self.queuing)
     Want(self, "PLAYER_EQUIPMENT_CHANGED", on)
+    local spec = on and self.db.profile.specButton and Spec ~= nil
+    Want(self, "ACTIVE_TALENT_GROUP_CHANGED", spec)
+    Want(self, "PLAYER_TALENT_UPDATE", spec)
     Want(self, "PLAYER_MOUNT_DISPLAY_CHANGED", picked.mounted ~= nil)
     Want(self, "UNIT_SPELLCAST_SENT", picked.mounted ~= nil and not combat, "player")
     Want(self, "UPDATE_SHAPESHIFT_FORM", picked.form ~= nil and select(2, Class()) ~= false)
@@ -606,6 +612,9 @@ ns.Listen(G, { "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_E
             if not IsSecret(a) and type(a) == "number" then self:ShowSlot(a) end
             self:ShowSetSoon()
             if self.queuing and not self.combat then self:QueueSoon(0.5) end
+        elseif event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
+            -- The spec button shows once dual spec is learned.
+            if NumSpecGroups() ~= self.specGroups then self:Apply() else self:ShowSpec() end
         elseif event == "BAG_UPDATE_DELAYED" then
             wipe(taken)
             if self.queuing and not self.combat then self:QueueSoon(0.5) end
@@ -693,9 +702,65 @@ end
 ---------------------------------------------------------------------------
 -- The bar: a secure button per slot (its left click uses the item worn there, as /use does) and the set button.
 ---------------------------------------------------------------------------
-local SET_KEY = 0
-local EMPTY_SET_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+local SET_KEY, SPEC_KEY = 0, -1
+local ICONS = "Interface\\Icons\\"
+local EMPTY_SET_ICON = ICONS .. "INV_Misc_QuestionMark"
 local QUEUE_COLOR, EDGE_COLOR = { 0.25, 0.85, 0.35 }, { 0, 0, 0 }
+
+-- The spec button switches to your other talent spec, as the talent window's Activate button does. Each class's
+-- talent trees' icons, in the talent window's order, are offered for it, then icons for tank, healer, damage and PvP.
+local CLASS_TREES = {
+    WARRIOR = { "Ability_Rogue_Eviscerate", "Ability_Warrior_InnerRage", "INV_Shield_06" },
+    PALADIN = { "Spell_Holy_HolyBolt", "Spell_Holy_DevotionAura", "Spell_Holy_AuraOfLight" },
+    HUNTER = { "Ability_Hunter_BeastTaming", "Ability_Marksmanship", "Ability_Hunter_SwiftStrike" },
+    ROGUE = { "Ability_Rogue_Eviscerate", "Ability_BackStab", "Ability_Stealth" },
+    PRIEST = { "Spell_Holy_WordFortitude", "Spell_Holy_HolyBolt", "Spell_Shadow_ShadowWordPain" },
+    SHAMAN = { "Spell_Nature_Lightning", "Spell_Nature_LightningShield", "Spell_Nature_MagicImmunity" },
+    MAGE = { "Spell_Holy_MagicalSentry", "Spell_Fire_FireBolt02", "Spell_Frost_FrostBolt02" },
+    WARLOCK = { "Spell_Shadow_DeathCoil", "Spell_Shadow_Metamorphosis", "Spell_Shadow_RainOfFire" },
+    DRUID = { "Spell_Nature_StarFall", "Ability_Racial_BearForm", "Spell_Nature_HealingTouch" },
+}
+local ROLE_ICONS = { "INV_Shield_06", "Spell_Holy_FlashHeal", "INV_Sword_04", "INV_BannerPVP_02" }
+
+local function SpecsUsable() return Spec ~= nil and Spec.SetActiveSpecGroup ~= nil and NumSpecGroups() > 1 end
+
+-- The icons the settings offer (made the first time they're asked for).
+local specChoices
+function G.SpecChoices()
+    if not specChoices then
+        specChoices = {}
+        local seen = {}
+        local function add(name)
+            local path = ICONS .. name
+            if not seen[path] then seen[path] = true; specChoices[#specChoices + 1] = path end
+        end
+        for _, name in ipairs(CLASS_TREES[(Class())] or {}) do add(name) end
+        for _, name in ipairs(ROLE_ICONS) do add(name) end
+    end
+    return specChoices
+end
+
+-- The talent spec you're in: 1 or 2.
+function G:ActiveSpec()
+    local group = Spec and Spec.GetActiveSpecGroup and Spec.GetActiveSpecGroup()
+    if IsSecret(group) or group ~= 2 then return 1 end
+    return 2
+end
+
+function G:SpecName(group)
+    local name = self.db.char.specNames[group]
+    if name and name ~= "" then return name end
+    if group == 1 then return DUAL_SPEC_PRIMARY or "Primary" end
+    return DUAL_SPEC_SECONDARY or "Secondary"
+end
+
+function G:SpecIcon(group)
+    return self.db.char.specIcons[group] or G.SpecChoices()[group] or EMPTY_SET_ICON
+end
+
+function G:SwitchSpec()
+    if SpecsUsable() then Spec.SetActiveSpecGroup(3 - self:ActiveSpec()) end
+end
 
 -- Dresses a frame as a bar button: its icon in a thin frame, cooldown, and a small icon of what waits to go on.
 local function Dress(f, size)
@@ -765,7 +830,16 @@ local function SetTooltip(b)
     GameTooltip:Show()
 end
 
+local function SpecTooltip(b)
+    GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
+    local active = G:ActiveSpec()
+    GameTooltip:SetText(G:SpecName(active), 1, 1, 1)
+    GameTooltip:AddLine("Click to switch to " .. G:SpecName(3 - active) .. ".", 0.7, 0.7, 0.7, true)
+    GameTooltip:Show()
+end
+
 local function Enter(b)
+    if b.slot == SPEC_KEY then return SpecTooltip(b) end
     if b.slot == SET_KEY then SetTooltip(b) else SlotTooltip(b) end
     G.hovered = b
     local p = G.db.profile
@@ -792,6 +866,10 @@ function G:Button(key)
         b = CreateFrame("Button", nil, self.bar)
         b:RegisterForClicks("LeftButtonUp")
         b:SetScript("OnClick", function(button) G:OpenMenu(button) end)
+    elseif key == SPEC_KEY then
+        b = CreateFrame("Button", nil, self.bar)
+        b:RegisterForClicks("LeftButtonUp")
+        b:SetScript("OnClick", function() G:SwitchSpec() end)
     else
         b = CreateFrame("Button", nil, self.bar, "SecureActionButtonTemplate")
         b:RegisterForClicks("AnyUp", "AnyDown")
@@ -817,6 +895,7 @@ function G:Order()
     wipe(order)
     local p = self.db.profile
     if p.setButton and SetsUsable() then order[1] = SET_KEY end
+    if p.specButton and SpecsUsable() then order[#order + 1] = SPEC_KEY end
     for _, s in ipairs(SLOTS) do
         if p.slots[s[1]] then order[#order + 1] = s[1] end
     end
@@ -849,6 +928,7 @@ function G:Apply()
     end
     self.relayout = nil
     local show = on and not editing and #keys > 0
+    self.specGroups = NumSpecGroups()
     self.cdLook = self.cdLook + 1
     if not self.bar then
         if not show then return end
@@ -891,7 +971,7 @@ end
 function G:ShowAll()
     if not self.shown then return end
     for key in pairs(self.shown) do
-        if key == SET_KEY then self:ShowSet() else self:ShowSlot(key) end
+        if key == SET_KEY then self:ShowSet() elseif key == SPEC_KEY then self:ShowSpec() else self:ShowSlot(key) end
     end
     self:ShowCooldowns()
 end
@@ -948,6 +1028,17 @@ function G:ShowSet()
     end
 end
 
+-- The spec button: the icon picked for the talent spec you're in.
+function G:ShowSpec()
+    local b = self.shown and self.shown[SPEC_KEY]
+    if not b then return end
+    local icon = self:SpecIcon(self:ActiveSpec())
+    if b.shownIcon ~= icon then
+        b.shownIcon = icon
+        b.icon:SetTexture(icon)
+    end
+end
+
 -- Equipment changes come in bursts; the set button is drawn once, after them.
 function G:ShowSetSoon()
     if self.setSoon or not (self.shown and self.shown[SET_KEY]) then return end
@@ -959,7 +1050,7 @@ G.showSet = function() G.setSoon = false; G:ShowSet() end
 function G:ShowCooldowns()
     if not self.shown then return end
     for slot, b in pairs(self.shown) do
-        if slot ~= SET_KEY then
+        if slot > 0 then
             local start, duration, enable = GetInventoryItemCooldown("player", slot)
             if IsSecret(start) or IsSecret(duration) or IsSecret(enable) then start, duration, enable = 0, 0, 1 end
             local running = type(start) == "number" and type(duration) == "number" and start > 0 and duration > 0
@@ -1161,7 +1252,6 @@ end
 ---------------------------------------------------------------------------
 -- Settings preview: the set button and two trinkets; a trinket's menu opens and another trinket goes on.
 ---------------------------------------------------------------------------
-local ICONS = "Interface\\Icons\\"
 local SAMPLE_SET = ICONS .. "INV_Helmet_03"
 local SAMPLE_WORN = { ICONS .. "INV_Jewelry_Talisman_01", ICONS .. "INV_Misc_Bone_ElfSkull_01" }
 local SAMPLE_BAG = { ICONS .. "INV_Misc_Orb_03", ICONS .. "INV_Misc_Rune_01" }
@@ -1328,6 +1418,55 @@ local function SlotPicker(parent)
     return c
 end
 
+-- The spec button's icon for one spec: a tile per icon offered, the one picked rimmed in the accent.
+local ICON_TILE, ICON_GAP = 36, 8
+local function SpecIconPicker(parent, group)
+    local W = ns.Widgets
+    local C = W.C
+    local c = CreateFrame("Frame", nil, parent)
+    c.tiles = {}
+    local function paint(b)
+        local picked = G:SpecIcon(group) == b.path
+        b.SetBorderColor(picked and C.accent or (b.hovered and C.line or C.border))
+        b.icon:SetDesaturated(not picked and not b.hovered)
+    end
+    for i, path in ipairs(G.SpecChoices()) do
+        local b = CreateFrame("Button", nil, c)
+        b.path = path
+        b:SetSize(ICON_TILE + 8, ICON_TILE + 8)
+        b.SetBorderColor = W.Outline(b, 6, C.border, C.field)
+        b.icon = b:CreateTexture(nil, "ARTWORK")
+        b.icon:SetSize(ICON_TILE, ICON_TILE)
+        b.icon:SetPoint("CENTER")
+        b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        b.icon:SetTexture(path)
+        b:SetScript("OnClick", function(self)
+            if c.off then return end
+            G.db.char.specIcons[group] = self.path
+            G:ShowSpec()
+            HST:RefreshSettings()
+        end)
+        b:SetScript("OnEnter", function(self) self.hovered = true; paint(self) end)
+        b:SetScript("OnLeave", function(self) self.hovered = false; paint(self) end)
+        c.tiles[i] = b
+    end
+    function c:Layout(width)
+        local step = ICON_TILE + 8 + ICON_GAP
+        local across = math.max(1, math.floor((width + ICON_GAP) / step))
+        for i, b in ipairs(self.tiles) do
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", ((i - 1) % across) * step, -math.floor((i - 1) / across) * step)
+        end
+        return math.ceil(#self.tiles / across) * step - ICON_GAP
+    end
+    function c:Refresh(off)
+        self.off = off
+        self:SetAlpha(off and 0.5 or 1)
+        for _, b in ipairs(self.tiles) do paint(b) end
+    end
+    return c
+end
+
 function G:BuildOptions()
     local function profile() return self.db.profile end
     local function char() return self.db.char end
@@ -1459,12 +1598,47 @@ function G:BuildOptions()
             { hidden = function() return NthSet(i) == nil end })
     end
 
+    local specArgs = {
+        help = { type = "description", order = 0, name = "Learn dual spec from your class trainer to use the spec button.",
+            hidden = SpecsUsable },
+    }
+    for group = 1, 2 do
+        local choices = G.SpecChoices
+        local function offered(icon)
+            for _, path in ipairs(choices()) do if path == icon then return true end end
+        end
+        specArgs["spec" .. group] = ns.Section(group == 1 and "First spec" or "Second spec", group, {
+            name = { type = "input", name = "Name", order = 1,
+                get = function() return char().specNames[group] or "" end,
+                set = function(_, value)
+                    value = strtrim(value or "")
+                    char().specNames[group] = value ~= "" and value or nil
+                end },
+            icon = { type = "custom", name = "Icon", order = 2, build = function(parent)
+                return SpecIconPicker(parent, group) end },
+            other = { type = "input", name = "Other icon", order = 3,
+                desc = "An icon's file name or ID, such as INV_Misc_Book_09.",
+                get = function()
+                    local icon = char().specIcons[group]
+                    if not icon or offered(icon) then return "" end
+                    return (tostring(icon):gsub("^Interface\\Icons\\", ""))
+                end,
+                set = function(_, value)
+                    value = strtrim(value or "")
+                    char().specIcons[group] = value == "" and nil or tonumber(value) or ICONS .. value
+                    self:ShowSpec()
+                end },
+        })
+    end
+
     local function noCdText() return not profile().cdText end
     return { name = self.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
             bar = ns.Section("Bar", 1, {
                 setButton = ns.Option(profile, "toggle", "setButton", "Set button", 1,
                     { desc = "Hover it for your gear sets from the game's Equipment Manager." }, apply),
+                specButton = ns.Option(profile, "toggle", "specButton", "Spec button", 1.5,
+                    { desc = "Switches to your other talent spec. Shows once you've learned dual spec." }, apply),
                 size = ns.Option(profile, "range", "size", "Size", 2, { min = 24, max = 56, step = 1 }, apply),
                 spacing = ns.Option(profile, "range", "spacing", "Gap", 3, { min = 0, max = 12, step = 1 }, apply),
                 vertical = ns.Option(profile, "toggle", "vertical", "Vertical", 4, nil, apply),
@@ -1494,6 +1668,7 @@ function G:BuildOptions()
             }),
         } },
         slots = { type = "group", name = "Slots", order = 2, args = { slots = ns.Section("Slots", 1, slotArgs) } },
+        specs = { type = "group", name = "Specs", order = 2.5, args = specArgs },
         queues = { type = "group", name = "Queues", order = 3, args = queueArgs },
         situations = { type = "group", name = "Situations", order = 4, args = situationArgs },
         sets = { type = "group", name = "Helm and cloak", order = 5, args = setArgs },
