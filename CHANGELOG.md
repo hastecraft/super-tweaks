@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.11.1 (2026-11-19)
+
+### Bug Fixes
+
+- Gear Shift: gear the game refuses to swap, such as a mount's trinket when a fight starts as you dismount, now swaps once it can.
+
 ## 4.11.0 (2026-11-17)
 
 ### New Features
