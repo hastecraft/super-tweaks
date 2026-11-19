@@ -41,7 +41,8 @@ ns.Configure(G, defaults, function(m) return m:BuildOptions() end, "Apply")
 -- situationItems[key]: item IDs in order, each put on in its own slot (over the set's); helm[name], cloak[name]: "show"
 -- or "hide" when that set goes on; restore[slot]: the item link a situation's gear replaced (false: the slot was
 -- empty), put[slot]: the item ID it put there (false: none), so a slot you changed since is left alone; situation: the
--- key of the situation whose gear is on (false: put it on again, after its settings changed). specNames[group],
+-- key of the situation whose gear is on (false: put it on again, after its settings changed); owed: a swap the game
+-- refused (a fight that started first) is tried again until it goes through. specNames[group],
 -- specIcons[group]: the spec button's name and icon for your first and second talent specs.
 G.defaults.char = { queues = {}, queueOn = {}, situations = {}, situationItems = {}, zones = "", helm = {}, cloak = {},
     restore = {}, put = {}, specNames = {}, specIcons = {} }
@@ -231,6 +232,7 @@ function G:Flush()
     end
     if self.pendingSet then self:WearSet(self.pendingSet) end
     for slot, itemID in pairs(self.pending) do self:Put(slot, itemID, self.pendingLink[slot]) end
+    self.owedTries = 0
     self:UpdateSituation()
     self:RunQueues()
 end
@@ -441,13 +443,20 @@ function G:Plan(key, setID)
     return plan
 end
 
--- Puts back what a situation's set replaced in this slot, unless you changed the slot since.
+-- Puts back what a situation's set replaced in this slot, unless you changed the slot since. What it replaced is kept
+-- until the slot no longer wears the situation's item: the game can refuse a swap (a fight that started first), and
+-- then it's tried again. Dropped when the swap can't even start (the item's gone, no room in your bags).
 function G:Restore(slot)
     local c = self.db.char
     local was, put = c.restore[slot], c.put[slot]
-    c.restore[slot], c.put[slot] = nil, nil
-    if (GetInventoryItemID("player", slot) or false) ~= put then return end
-    if was then self:Put(slot, LinkItemID(was), was) else self:Put(slot, false) end
+    local worn = GetInventoryItemID("player", slot) or false
+    if worn ~= put or worn == (LinkItemID(was) or false) then
+        c.restore[slot], c.put[slot] = nil, nil
+        return
+    end
+    local started
+    if was then started = self:Put(slot, LinkItemID(was), was) else started = self:Put(slot, false) end
+    if not (started or self.pending[slot] ~= nil or CursorHasItem()) then c.restore[slot], c.put[slot] = nil, nil end
 end
 
 -- A swap still on its way would read as a slot you changed, so the change waits for it.
@@ -456,6 +465,8 @@ G.retrySituation = function()
     G:UpdateSituation()
 end
 
+-- wasWorn[slot]: the item ID (false: none) a slot wore when the situation's gear was sent to it, until it's on.
+local wasWorn = {}
 function G:UpdateSituation()
     if not self:IsEnabled() then return end
     if Busy() then return self:Wait() end
@@ -470,7 +481,8 @@ function G:UpdateSituation()
         end
     end
     local key, setID = self:Situation()
-    if key == c.situation and setID == c.situationSet then return end
+    local same = key == c.situation and setID == c.situationSet
+    if same and not c.owed then return end
     -- A swap would cut a cast short (gathering, opening a chest): it waits for the cast to end.
     if UnitCastingInfo("player") or UnitChannelInfo("player") then
         if not self.situationRetry then
@@ -481,63 +493,60 @@ function G:UpdateSituation()
     end
     wipe(taken)
     local want = key and self:Plan(key, setID) or NONE
-    -- What only the old situation's gear held goes back, checked a moment later in case the game refused the swap.
+    -- What only the old situation's gear held goes back. Until the slot shows it, it's owed (see Restore).
+    local owed = false
     for slot in pairs(c.restore) do
         if want[slot] == nil then
-            if c.put[slot] ~= nil then self:CheckRestore(slot, c.restore[slot], c.put[slot]) end
             self:Restore(slot)
+            if c.restore[slot] ~= nil then owed = true end
         end
     end
-    -- A set alone goes on as the game puts sets on (it knows which copy of an item); with items, slot by slot.
-    local items = key and c.situationItems[key]
-    local bySlot = items ~= nil and #items > 0
-    for slot, itemID in pairs(want) do
-        if c.restore[slot] == nil then c.restore[slot] = GetInventoryItemLink("player", slot) or false end
-        c.put[slot] = itemID
-        if bySlot then self:Put(slot, itemID) end
+    if not same then
+        -- A set alone goes on as the game puts sets on (it knows which copy of an item); with items, slot by slot.
+        local items = key and c.situationItems[key]
+        local bySlot = items ~= nil and #items > 0
+        wipe(wasWorn)
+        for slot, itemID in pairs(want) do
+            local worn = GetInventoryItemID("player", slot) or false
+            if c.restore[slot] == nil then c.restore[slot] = GetInventoryItemLink("player", slot) or false end
+            c.put[slot] = itemID
+            if worn ~= itemID then
+                wasWorn[slot] = worn
+                owed = true
+            end
+            if bySlot then self:Put(slot, itemID) end
+        end
+        if setID and not bySlot then Sets.UseEquipmentSet(setID) end
+        c.situation, c.situationSet = key, setID
+    else
+        -- The situation's gear the game refused (the slot still wears what it did) is put on again. A slot that
+        -- wears something else, you changed: it's left alone.
+        for slot, itemID in pairs(want) do
+            local before = wasWorn[slot]
+            if before ~= nil then
+                local worn = GetInventoryItemID("player", slot) or false
+                if worn == before and (self:Put(slot, itemID) or self.pending[slot] ~= nil or CursorHasItem()) then
+                    owed = true
+                else
+                    wasWorn[slot] = nil
+                end
+            end
+        end
     end
-    if setID and not bySlot then Sets.UseEquipmentSet(setID) end
-    c.situation, c.situationSet = key, setID
+    -- Gear that hasn't changed yet is looked at again, soon at first and then less often (at most every OWED_WAIT
+    -- seconds), until it has; and again whenever combat ends or your gear changes.
+    c.owed = owed or nil
+    if not owed then
+        self.owedTries = 0
+    elseif not self.situationRetry then
+        self.owedTries = (self.owedTries or 0) + 1
+        self.situationRetry = true
+        C_Timer.After(min(2 ^ (self.owedTries - 1), self.OWED_WAIT), self.retrySituation)
+    end
     self:ShowSet()
 end
+G.OWED_WAIT = 30
 G.updateSituation = function() G:UpdateSituation() end
--- Gear going back, checked a moment after the swap: what the slot held before and what the situation had put on.
--- The game can refuse a swap (a fight that started first, a cast, a busy slot): then what goes back is kept and
--- tried again, a few times.
-local CHECK_AFTER, CHECK_TRIES = 1, 5
-local checkWas, checkPut, checkTries = {}, {}, {}
-local checking = false
-function G:CheckRestore(slot, was, put)
-    checkWas[slot], checkPut[slot] = was, put
-    checkTries[slot] = checkTries[slot] or 0
-    if not checking then
-        checking = true
-        C_Timer.After(CHECK_AFTER, self.checkRestores)
-    end
-end
-
-G.checkRestores = function()
-    checking = false
-    local c = G.db.char
-    if not G:IsEnabled() then
-        wipe(checkWas); wipe(checkPut); wipe(checkTries)
-        return
-    end
-    for slot, put in pairs(checkPut) do
-        local was, tries = checkWas[slot], checkTries[slot]
-        checkWas[slot], checkPut[slot] = nil, nil
-        if c.put[slot] == nil and c.restore[slot] == nil and G.pending[slot] == nil
-            and (GetInventoryItemID("player", slot) or false) == put and tries < CHECK_TRIES then
-            -- Still on: it's owed back again.
-            c.restore[slot], c.put[slot] = was, put
-            checkTries[slot] = tries + 1
-            c.situation, c.situationSet = "owed", nil
-        else
-            checkTries[slot] = nil
-        end
-    end
-    G:UpdateSituation()
-end
 
 -- A cast from the saddle ended its moment of grace: still mounted, the mount's gear goes back on.
 G.leftMount = function()
@@ -612,6 +621,11 @@ ns.Listen(G, { "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_E
             if not IsSecret(a) and type(a) == "number" then self:ShowSlot(a) end
             self:ShowSetSoon()
             if self.queuing and not self.combat then self:QueueSoon(0.5) end
+            -- Gear that was waiting may have just changed: looked at again.
+            if self.db.char.owed and not self.combat and not self.situationRetry then
+                self.situationRetry = true
+                C_Timer.After(0.5, self.retrySituation)
+            end
         elseif event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
             -- The spec button shows once dual spec is learned.
             if NumSpecGroups() ~= self.specGroups then self:Apply() else self:ShowSpec() end
