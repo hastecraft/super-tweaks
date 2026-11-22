@@ -1341,7 +1341,7 @@ Section('Auto-Decline', function()
         Dispatch('DUEL_REQUESTED', 'Gankalot')
     end)
     Measure('Party invite from a guildmate: let through by GUID', 100, function()
-        Dispatch('PARTY_INVITE_REQUEST', 'Member150', false, false, false, true, false, 'Player-5150', false)
+        Dispatch('PARTY_INVITE_REQUEST', 'Member150', false, false, false, true, false, false, 'Player-5150', false)
     end)
     PENDING = 1
     Measure('Join request from a stranger: declined', 100, function()
