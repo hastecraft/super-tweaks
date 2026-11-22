@@ -234,7 +234,11 @@ Block("BlockPartyInvites", {
     description = "Turns down group invites. You can let friends, guildmates or community members through.",
     preview = Declined("Interface\\Icons\\Spell_Holy_PrayerOfFortitude", "Gankalot invites you to a group.", "Declined a group invite from Gankalot."),
     pagePreview = false,
-}, { "PARTY_INVITE_REQUEST" }, function(_, _, name, _, _, _, _, _, guid)
+}, { "PARTY_INVITE_REQUEST" }, function(_, _, name, _, _, _, _, _, arg7, arg8)
+    -- WoW Forever (since a build after 70862) adds a cross-shard flag before the inviter's GUID (now arg8); Classic Era sends it as arg7.
+    local guid = arg8
+    if not IsSecret(guid) and type(guid) ~= "string" then guid = arg7 end
+    if not IsSecret(guid) and type(guid) ~= "string" then guid = nil end
     if ns.IsTrusted(name, guid) then return end
     DeclineGroup()
     -- Every popup the game may show for an invite: a plain one (cross-realm invites too), or one with roles to choose.
