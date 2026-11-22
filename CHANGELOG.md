@@ -2,6 +2,13 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.11.2 (2026-11-22)
+
+### Bug Fixes
+
+- Group Finder: the Find tab lists every group again, not only a couple.
+- Auto-Decline Party Invites: friends and guildmates are let through by character again, not only by name.
+
 ## 4.11.1 (2026-11-19)
 
 ### Bug Fixes
