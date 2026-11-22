@@ -148,6 +148,24 @@ end
 ---------------------------------------------------------------------------
 -- Filters and sorting.
 ---------------------------------------------------------------------------
+-- The activities for your level in the shown category, as a set (nil with All levels). Rebuilt when any of them changes.
+local levelActivities, levelKey = nil, nil
+
+local function LevelActivities()
+    local p = G.db.profile
+    if p.allLevels then
+        levelActivities, levelKey = nil, nil
+        return
+    end
+    local key = p.category * 1000 + UnitLevel("player")
+    if key == levelKey then return end
+    levelKey = key
+    levelActivities = {}
+    for _, id in ipairs(G.Activities(p.category, false)) do levelActivities[id] = true end
+    -- A category with nothing for your level shows every level, as the search used to.
+    if not next(levelActivities) then levelActivities = nil end
+end
+
 local function Passes(e)
     local p = G.db.profile
     if e.self then return true end
@@ -162,8 +180,10 @@ local function Passes(e)
     end
     local styles = p.playstyles
     if next(styles) and not styles[e.playstyle] then return false end
+    -- The search asks for the whole category: the activities picked, else the ones for your level, are matched here.
     local chosen = p.activities[p.category]
-    if chosen and next(chosen) then
+    if not (chosen and next(chosen)) then chosen = levelActivities end
+    if chosen then
         local any = false
         for _, id in ipairs(e.activityIDs) do any = any or chosen[id] == true end
         if not any then return false end
@@ -252,6 +272,7 @@ end
 local function Show(keepScroll)
     local p = G.db.profile
     wipe(shown)
+    LevelActivities()
     for _, e in ipairs(entries) do
         if Passes(e) then shown[#shown + 1] = e end
     end
@@ -327,24 +348,13 @@ local function CurrentCategory()
     return p.category
 end
 
--- What a search asks for: the activities picked, else every one in the category for your level (or every level).
-local function SearchActivities(category)
-    local p = G.db.profile
-    local chosen = p.activities[category]
-    local ids = {}
-    if chosen then
-        for id, on in pairs(chosen) do if on then ids[#ids + 1] = id end end
-    end
-    if #ids == 0 then ids = G.Activities(category, p.allLevels) end
-    if #ids == 0 then ids = G.Activities(category, true) end
-    return ids
-end
-
+-- A search asks for the whole category, as the game's own window does: given a list of activities, the server
+-- returns only a couple of listings. Show() matches the activities.
 function F.Search()
     local category = CurrentCategory()
     if category == 0 then return end
     if searching and searchCategory == category then return end
-    local ok = pcall(C_LFGList.Search, category, 0, 0, nil, false, nil, SearchActivities(category))
+    local ok = pcall(C_LFGList.Search, category, 0, 0)
     if not ok then
         failed = true
         Status()
