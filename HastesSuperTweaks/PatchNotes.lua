@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.11.2", date = "2026-11-22",
+        fixed = {
+            { "Group Finder: the Find tab lists every group again, not only a couple.", module = "GroupFinder" },
+            { "Auto-Decline Party Invites: friends and guildmates are let through by character again, not only by name.", module = "BlockPartyInvites" },
+        },
+    },
+    {
         version = "4.11.1", date = "2026-11-19",
         fixed = {
             { "Gear Shift: gear the game refuses to swap, such as a mount's trinket when a fight starts as you dismount, now swaps once it can.", module = "GearShift" },
