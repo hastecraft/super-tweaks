@@ -53,6 +53,7 @@ Modules\MuteSounds.lua
 Modules\AuraSounds.lua
 Modules\Loot.lua
 Modules\LootRolls.lua
+Modules\LootRollTracker.lua
 Modules\SpellRanks.lua
 Modules\ConsumableMacros.lua
 Modules\AutoBags.lua
