@@ -1717,6 +1717,57 @@ end)
 '''
 
 
+# Loot Roll Tracker redraws an item's box each time the game's loot history says someone chose or rolled on it.
+ROLL_TRACKER_MOCKS = r'''
+PERMISSIVE_FRAMES = true
+RAID_CLASS_COLORS.PRIEST = { r = 1, g = 1, b = 1, colorStr = 'ffffffff' }
+RAID_CLASS_COLORS.WARRIOR.colorStr = 'ffc69b6d'
+local function Player(name, class, state) return { playerName = name, playerClass = class, state = state, isWinner = false } end
+DROP = { lootListKey = 1, itemHyperlink = '|cff0070dd|Hitem:7909::::::::60:::::|h[Aquamarine]|h|r', playerRollState = 4,
+    isTied = false, allPassed = false, startTime = 0, duration = 60,
+    rollInfos = { Player('Brakka', 'WARRIOR', 4), Player('Elowen', 'PRIEST', 4), Player('Tamsin', 'MAGE', 4),
+        Player('Dorn', 'PALADIN', 4), Player('Sef', 'ROGUE', 4) } }
+C_LootHistory = {
+    GetSortedInfoForDrop = function() return DROP end,
+    GetSortedDropsForEncounter = function() return { DROP } end,
+    GetAllEncounterInfos = function() return { { encounterID = 1, encounterName = '', startTime = 0, duration = 60 } } end,
+}
+C_Item = C_Item or {}
+C_Item.GetItemInfoInstant = function() return 7909, '', '', '', 134400 end
+GroupLootContainer = CreateFrame('Frame', 'GroupLootContainer')
+'''
+
+ROLL_TRACKER = r'''
+Only({ 'LootRollTracker' })
+local rolls = DROP.rollInfos
+local function Reset(key)
+    DROP.lootListKey, DROP.winner, DROP.currentLeader = key, nil, nil
+    for _, r in ipairs(rolls) do r.state, r.roll, r.isWinner = 4, nil, false end
+end
+local function Update() Send('LootRollTracker', 'LOOT_HISTORY_UPDATE_DROP', 1, DROP.lootListKey) end
+Reset(1)
+Send('LootRollTracker', 'START_LOOT_ROLL', 1, 60000, 1)
+Section('Loot Roll Tracker', function()
+    Measure('Loot roll tracker: someone chose Greed (drop update)', 300, function()
+        rolls[2].state = rolls[2].state == 4 and 3 or 4
+        Update()
+    end)
+    local key = 1
+    Measure('Loot roll tracker: a roll from start to end (5 players)', 50, function()
+        key = key + 1
+        Reset(key)
+        Send('LootRollTracker', 'START_LOOT_ROLL', key, 60000, key)
+        for i, state in ipairs({ 0, 3, 0, 5, 5 }) do rolls[i].state = state; Update() end
+        rolls[1].roll, rolls[3].roll = 42, 87
+        DROP.currentLeader = rolls[3]; Update()
+        rolls[3].isWinner, DROP.winner = true, rolls[3]; Update()
+        AdvanceTime(11)
+    end)
+    Measure('Loot roll tracker idle: one second of frames (64 fps)', 100, function() Seconds(1) end)
+end)
+'''
+
+
 SUPER_AH_MOCKS = TOOLTIP_MOCKS + r'''
 C_AuctionHouse = { SendBrowseQuery = function() end }
 Enum.TooltipDataType.Item = 0
@@ -1832,6 +1883,7 @@ def main():
     runtime(REMINDER_MOCKS, REMINDERS)
     runtime(DRUID_MOCKS, DRUID)
     runtime(SUPER_AH_MOCKS, SUPER_AH)
+    runtime(ROLL_TRACKER_MOCKS, ROLL_TRACKER)
     if JSON:
         json.dump(REPORT.results, sys.stdout, indent=1)
         print()
