@@ -2,6 +2,12 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.12.0 (2026-11-22)
+
+### Loot Roll Tracker
+
+A box beside the group loot rolls lists who chose Need, Greed or Pass on each item as they choose, then their rolls and the winner. Move it in Edit Mode. It starts off.
+
 ## 4.11.2 (2026-11-22)
 
 ### Bug Fixes
