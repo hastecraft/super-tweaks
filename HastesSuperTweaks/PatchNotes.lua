@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.12.0", date = "2026-11-22",
+        highlights = {
+            { "A box beside the group loot rolls lists who chose Need, Greed or Pass on each item as they choose, then their rolls and the winner. Move it in Edit Mode. It starts off.",
+                title = "Loot Roll Tracker", module = "LootRollTracker" },
+        },
+    },
+    {
         version = "4.11.2", date = "2026-11-22",
         fixed = {
             { "Group Finder: the Find tab lists every group again, not only a couple.", module = "GroupFinder" },
