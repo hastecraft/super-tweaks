@@ -2,6 +2,13 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.14.0 (2026-11-24)
+
+### Changes
+
+- Dungeon Timer: new "Width", "Height" and "Align the name and clock" settings. With a height, bosses already killed make room first.
+- Dungeon Timer: click a boss's name to target it.
+
 ## 4.13.0 (2026-11-24)
 
 ### Rep Tracker

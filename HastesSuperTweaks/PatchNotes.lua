@@ -16,6 +16,13 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.14.0", date = "2026-11-24",
+        changed = {
+            { "Dungeon Timer: new \"Width\", \"Height\" and \"Align the name and clock\" settings. With a height, bosses already killed make room first.", module = "DungeonTimer" },
+            { "Dungeon Timer: click a boss's name to target it.", module = "DungeonTimer" },
+        },
+    },
+    {
         version = "4.13.0", date = "2026-11-24",
         highlights = {
             { "A reputation bar for the faction you track, with what you've gained this session and the time to your next standing. Move it in Edit Mode. It starts off.",
