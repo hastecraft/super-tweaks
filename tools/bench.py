@@ -236,6 +236,44 @@ Section('Instance Tracker', function()
     for i = 1, 4 do UNITS['party' .. i] = nil end
 end)
 
+Section('Dungeon Timer', function()
+    Enable({ 'DungeonTimer' }, true)
+    local T = mod('DungeonTimer')
+    Measure('Dungeon Timer: zone change outside an instance', 100, function() Send('DungeonTimer', 'ZONE_CHANGED_NEW_AREA') end)
+    state.money = 50000
+    state.instanceType, state.instanceName, state.instanceID = 'party', 'The Deadmines', 36
+    Send('DungeonTimer', 'PLAYER_ENTERING_WORLD', false, false)
+    Measure('Dungeon Timer: one-second tick', 300, function() AdvanceTime(1) end)
+    Measure('Dungeon Timer: money looted', 100, function()
+        state.money = state.money + 50; Send('DungeonTimer', 'PLAYER_MONEY')
+    end)
+    Measure('Dungeon Timer: a loot message', 100, function()
+        Send('DungeonTimer', 'CHAT_MSG_LOOT', Chat('You receive loot: |cff1eff00|Hitem:2169::::::::30:::::|h[Buzzer Blade]|h|r.'))
+    end)
+    Measure('Dungeon Timer: a death', 100, function() Send('DungeonTimer', 'PLAYER_DEAD') end)
+    Measure('Dungeon Timer: money and loot, then a tick', 100, function()
+        state.money = state.money + 50; Send('DungeonTimer', 'PLAYER_MONEY')
+        Send('DungeonTimer', 'CHAT_MSG_LOOT', Chat('You receive loot: |cff1eff00|Hitem:2169::::::::30:::::|h[Buzzer Blade]|h|r.'))
+        AdvanceTime(1)
+    end)
+    -- Every boss of the instance once, the last ending the run; the game sends both events for a kill.
+    local bosses, killed = { 2741, 2742, 3676, 2743, 2744, 2745, 2746, 2747 }, 0
+    Measure('Dungeon Timer: a boss kill (both events)', #bosses, function()
+        killed = killed + 1
+        AdvanceTime(30)
+        Send('DungeonTimer', 'BOSS_KILL', bosses[killed], 'Boss')
+        Send('DungeonTimer', 'ENCOUNTER_END', bosses[killed], 'Boss', 1, 5, 1)
+    end)
+    assert(T.run.done and T.db.global.best[36].total == T.run.done, 'the run ends with its last boss')
+    Measure('Dungeon Timer: a wipe (encounter ended, boss alive)', 100, function()
+        Send('DungeonTimer', 'ENCOUNTER_END', 2747, 'Edwin VanCleef', 1, 5, 0)
+    end)
+    Measure('Dungeon Timer: one-second tick, run done', 100, function() AdvanceTime(1) end)
+    state.instanceType, state.instanceName, state.instanceID = 'none', nil, nil
+    Send('DungeonTimer', 'PLAYER_ENTERING_WORLD', false, false)
+    Enable({ 'DungeonTimer' }, false)
+end)
+
 local tip = GameTooltip
 -- The game redrawing its tooltip for a unit: cleared, filled in (the post-call hooks), shown.
 local function hover(unit, lines)

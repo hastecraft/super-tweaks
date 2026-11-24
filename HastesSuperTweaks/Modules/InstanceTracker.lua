@@ -285,6 +285,7 @@ local REP_UP = Pattern((FACTION_STANDING_INCREASED or "Reputation with %s increa
 local REP_DOWN = Pattern((FACTION_STANDING_DECREASED or "Reputation with %s decreased by %d."):gsub("%.$", ""))
 local LOOT_PREFIXES = { Prefix(LOOT_ITEM_SELF or "You receive loot: %s."), Prefix(LOOT_ITEM_PUSHED_SELF or "You receive item: %s."),
     Prefix(LOOT_ITEM_CREATED_SELF or "You create: %s.") }
+I.LOOT_PREFIXES = LOOT_PREFIXES -- Dungeon Timer reads loot the same way
 
 -- Adds the time since the last look to the run, and notes it was seen now, so a crash loses little.
 function I:Touch()
@@ -606,6 +607,7 @@ end
 local function LootCount(message)
     return tonumber(message:match("|h|rx(%d+)")) or tonumber(message:match("|hx(%d+)")) or 1
 end
+I.LootCount = LootCount
 
 -- An item you looted, by the link in the game's message, kept from the chosen quality up (and while its quality isn't
 -- known yet). Whatever its quality, what it sells for at auction right now is added to the run's auction value, when

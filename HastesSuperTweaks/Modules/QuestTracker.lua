@@ -3,6 +3,7 @@
 -- The tracker is moved under a hidden frame rather than hidden or collapsed by the game's own code, which would lay
 -- it (and the frames beside it) out again from this addon; that's done out of combat only, since frames beside it
 -- (boss frames) are protected in combat.
+-- Other tweaks can hide it too, with this tweak off (Dungeon Timer while its timer runs): T:Request(owner, on).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -73,9 +74,15 @@ end
 -- Hiding: the tracker goes under a hidden frame, and back under the frame it had.
 ---------------------------------------------------------------------------
 local hidden -- made the first time the tracker hides
+local requests = {} -- [tweak] = true while another tweak wants the tracker hidden
+
+-- Whether this tweak hides or gives back the tracker: on, or asked by another tweak.
+function T:Managing() return self:IsEnabled() or next(requests) ~= nil end
 
 function T:ShouldHide()
-    if not self:IsEnabled() or (ns.EditMode.IsOpen and ns.EditMode.IsOpen()) then return false end
+    if ns.EditMode.IsOpen and ns.EditMode.IsOpen() then return false end
+    if next(requests) then return true end
+    if not self:IsEnabled() then return false end
     local p = self.db.profile
     if p.always or (p.combat and self.fighting) then return true end
     local _, kind = IsInInstance()
@@ -93,8 +100,8 @@ function T:Hook(tracker)
         self:Update()
     end)
     if EventRegistry and EventRegistry.RegisterCallback then
-        EventRegistry:RegisterCallback("EditMode.Enter", function() if self:IsEnabled() then self:Update() end end, self)
-        EventRegistry:RegisterCallback("EditMode.Exit", function() if self:IsEnabled() then self:Update() end end, self)
+        EventRegistry:RegisterCallback("EditMode.Enter", function() if self:Managing() then self:Update() end end, self)
+        EventRegistry:RegisterCallback("EditMode.Exit", function() if self:Managing() then self:Update() end end, self)
     end
 end
 
@@ -103,7 +110,7 @@ function T:Update()
     local tracker = ObjectiveTrackerFrame
     if not tracker then return end
     -- Hooked once it's on: turned off, it only gives the tracker back.
-    if self:IsEnabled() then self:Hook(tracker) end
+    if self:Managing() then self:Hook(tracker) end
     if self.events then self:WatchCombat() end
     local hide = self:ShouldHide()
     local isHidden = hidden ~= nil and tracker:GetParent() == hidden
@@ -111,7 +118,7 @@ function T:Update()
     if hide == isHidden then return end
     if InCombatLockdown() then
         self.waiting = true
-        return self.events:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return self:Events():RegisterEvent("PLAYER_REGEN_ENABLED")
     end
     if hide then
         if not hidden then hidden = CreateFrame("Frame"); hidden:Hide() end
@@ -138,15 +145,36 @@ function T:WatchCombat()
     self.watching = watch and true or nil
 end
 
-ns.Listen(T, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self, event)
+local function OnEvent(self, event)
     if event == "PLAYER_REGEN_DISABLED" then
         -- Before the game's combat lockdown starts, so the tracker can still be hidden.
         self.fighting = true
     elseif event == "PLAYER_REGEN_ENABLED" then
         self.fighting, self.waiting = false, nil
+        if not self:IsEnabled() then self.events:UnregisterEvent("PLAYER_REGEN_ENABLED") end
     end
     self:Update()
-end)
+end
+ns.Listen(T, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, OnEvent)
+
+-- The events frame, made here when another tweak's request comes while this tweak has never been on.
+function T:Events()
+    local events = self.events
+    if not events then
+        events = CreateFrame("Frame")
+        events:SetScript("OnEvent", function(_, event, ...) OnEvent(self, event, ...) end)
+        self.events = events
+    end
+    return events
+end
+
+-- Another tweak (owner) wants the tracker hidden (on) or no longer does.
+function T:Request(owner, on)
+    on = on and true or nil
+    if requests[owner] == on then return end
+    requests[owner] = on
+    self:Update()
+end
 
 function T:OnListen()
     self.fighting = InCombatLockdown()

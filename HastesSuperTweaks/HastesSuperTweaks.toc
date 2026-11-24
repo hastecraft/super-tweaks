@@ -110,6 +110,8 @@ Modules\Trainer.lua
 Modules\LegacyTracker.lua
 Modules\InstanceTracker.lua
 Modules\InstanceTrackerWindow.lua
+Modules\DungeonTimerData.lua
+Modules\DungeonTimer.lua
 Modules\GroupFinder\Feature.lua
 Modules\GroupFinder\Window.lua
 Modules\GroupFinder\Find.lua
