@@ -554,10 +554,11 @@ function T.Install()
     if S.Owned and S.Owned.Listen then S.Owned.Listen("tooltip", T.Forget) end
 end
 
-S.Extend(function(args, option)
+S.Extend(function(args, option, profile)
     local lines = args.tooltips.args.lines.args
     lines.tipTrend = option("toggle", "tipTrend", "Change from the usual price", 1.5,
-        { desc = "Shown beside the auction price when it's 10% or more." })
+        { desc = "Shown beside the auction price when it's 10% or more.",
+          disabled = function() return not profile().tipAuction end })
     lines.tipBest = option("toggle", "tipBest", "Best of vendor, auction and disenchant", 6.2,
         { desc = "The auction price counts after the 5% cut." })
     lines.tipPosted = option("toggle", "tipPosted", "What you last posted it at", 6.6)
