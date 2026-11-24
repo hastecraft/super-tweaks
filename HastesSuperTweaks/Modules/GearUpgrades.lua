@@ -196,8 +196,10 @@ local function ReadLine(stats, text)
         if a then
             local stat, number, percent = line[2], a, b
             if stat == "School" or stat == "Resist" then
+                -- The school comes before the number ("increases fire damage done by up to 20") or after it
+                -- ("+20 fire spell damage", "+10 fire resistance").
                 local map = stat == "School" and SCHOOL or RESIST
-                stat, number, percent = map[a], b, c
+                if map[a] then stat, number, percent = map[a], b, c else stat, number, percent = map[c], a, b end
                 if not stat then return false end -- physical damage and the like
             end
             local amount = Number(number)
