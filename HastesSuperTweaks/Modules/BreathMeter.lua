@@ -263,8 +263,14 @@ end
 function B:ReadTimers()
     if not GetMirrorTimerInfo then return end
     for i = 1, 3 do
+        -- The second return is the value the timer started at: one under way is read where it is now, which a paused
+        -- one would otherwise never show.
         local name, value, maxValue, scale, paused, label = GetMirrorTimerInfo(i)
-        if name and name ~= "UNKNOWN" then self:Start(name, value, maxValue, scale, paused, label) end
+        if name and name ~= "UNKNOWN" then
+            local progress = GetMirrorTimerProgress and GetMirrorTimerProgress(name)
+            if type(progress) == "number" and progress > 0 then value = progress end
+            self:Start(name, value, maxValue, scale, paused, label)
+        end
     end
 end
 
