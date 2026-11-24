@@ -476,10 +476,8 @@ end
 function P.Listen(id, fn) listeners[id] = fn end
 function P.Fire()
     if seriesCount > 0 then series, seriesCount = {}, 0 end
-    for id, fn in pairs(listeners) do
-        local ok = pcall(fn)
-        if not ok then listeners[id] = nil end
-    end
+    -- One listener's error shows, and the others still hear the change.
+    for _, fn in pairs(listeners) do securecallfunction(fn) end
 end
 
 ---------------------------------------------------------------------------
