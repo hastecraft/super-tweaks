@@ -316,8 +316,10 @@ function F:Apply()
     me = UnitGUID("player")
     if IsSecret(me) then me = nil end
     local on, p = self:IsEnabled(), self.db.profile
+    -- With every list off and no guild muted nothing can match: chat isn't filtered at all.
+    local armed = #active > 0 or tags or muting
     for _, event in ipairs(EVENTS) do
-        local wanted = on and (event == "CHAT_MSG_CHANNEL" or p.sayYell)
+        local wanted = on and armed and (event == "CHAT_MSG_CHANNEL" or p.sayYell)
         RemoveFilter(event, Filter)
         if wanted then AddFilter(event, Filter) end
     end
