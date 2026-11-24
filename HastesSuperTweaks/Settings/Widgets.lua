@@ -215,10 +215,16 @@ end
 -- What each region was last painted with, when that was a palette color.
 local painted = setmetatable({}, { __mode = "k" })
 
+-- A fading line's two ends, used again for every one painted: the game copies what they hold.
+local fadeFrom, fadeTo
+
 local function Apply(region, color)
     local r, g, b, a = color[1], color[2], color[3], color[4] or 1
     if region.hstFade then
-        region:SetGradient("HORIZONTAL", CreateColor(r, g, b, region.hstFade), CreateColor(r, g, b, 0))
+        if not fadeFrom then fadeFrom, fadeTo = CreateColor(0, 0, 0, 0), CreateColor(0, 0, 0, 0) end
+        fadeFrom.r, fadeFrom.g, fadeFrom.b, fadeFrom.a = r, g, b, region.hstFade
+        fadeTo.r, fadeTo.g, fadeTo.b = r, g, b
+        region:SetGradient("HORIZONTAL", fadeFrom, fadeTo)
     elseif region.SetTextColor then
         region:SetTextColor(r, g, b, a)
     elseif region.hstFlat then
@@ -332,7 +338,7 @@ end
 -- side by side a pixel apart (tools/make_art.py draws them); Fit shows the one that maps texel for texel onto the
 -- screen at the texture's current scale, snapped to the pixel grid, so it stays sharp at any UI scale. Past 32 pixels
 -- it scales down the 64-pixel Art/<name>, or with none, shows the 32. Fit runs again when the parent shows and when
--- the UI scale or the resolution changes; call W.FitIcons after changing a frame's scale.
+-- the UI scale or the resolution changes; call W.FitIcons(frame) after changing a frame's scale.
 local SIZES_MIN, SIZES_MAX, SIZES_WIDTH, SIZES_HEIGHT = 2, 32, 1024, 32
 -- The art points right; the other ways swap its corners' texture coordinates (UL, LL, UR, LR), so they stay exact.
 local TURNS = {
@@ -383,9 +389,16 @@ local function FitIcon(t, screen)
     t:SetTexCoord(TURNS[t.direction or "RIGHT"](l, r, top, bottom))
 end
 
+-- Fits every pixel-exact region again. frame: the frame whose scale the caller may have changed; while that frame's
+-- scale and the screen are what they were at its last call, nothing has moved and nothing is looked at.
 local icons = setmetatable({}, { __mode = "k" })
-function W.FitIcons()
+function W.FitIcons(frame)
     local screen = ScreenHeight()
+    if frame then
+        local scale = frame:GetEffectiveScale()
+        if scale == frame.hstFitScale and screen == frame.hstFitScreen then return end
+        frame.hstFitScale, frame.hstFitScreen = scale, screen
+    end
     for t in pairs(icons) do t:Fit(screen) end
 end
 -- A pixel-exact texture, fitted again when its parent shows (one OnShow hook per parent) and, with `sized`, when its
@@ -1290,9 +1303,13 @@ local menu
 
 local function PaintSelect(s)
     local open = menu and menu:IsShown() and menu.owner == s
-    s.SetRim(s.off and C.border or (open or s.lit) and C.accent or C.border)
+    -- A select can have a look of its own (source.look: rim, fill, lit, open, chevron), for a window where the
+    -- settings window's quiet field would be lost among other parts.
+    local look = s.source.look
+    s.SetRim(s.off and C.border or (open or s.lit) and C.accent or look and look.rim or C.border)
+    if look then s.SetFill(s.off and C.field or open and look.open or s.lit and look.lit or look.fill) end
     W.Paint(s.label, s.off and C.disabled or C.bright)
-    W.Paint(s.chevron, s.off and C.disabled or (open or s.lit) and C.accent or C.header)
+    W.Paint(s.chevron, s.off and C.disabled or (open or s.lit) and C.accent or look and look.chevron or C.header)
     s.chevron:Point(open and "UP" or "DOWN")
 end
 
@@ -1430,6 +1447,7 @@ local function OpenMenu(s)
     -- As big as the select, wherever the window is scaled; under it, or over it when there's no room below.
     local scale = s:GetEffectiveScale() / UIParent:GetEffectiveScale()
     menu:SetScale(scale)
+    W.FitIcons(menu)
     local height = math.max(1, menu.shown) * MENU_ROW + MENU_PAD * 2
     menu:SetSize(s:GetWidth(), height)
     menu:ClearAllPoints()
@@ -1449,12 +1467,13 @@ function W.Select(parent, source)
     local s = CreateFrame("Button", nil, parent)
     s.source = source
     s:SetHeight(SELECT_H)
-    s.SetRim = W.Outline(s, nil, C.border, C.field)
+    local look = source.look
+    s.SetRim, s.SetFill = W.Outline(s, nil, look and look.rim or C.border, look and look.fill or C.field)
     s.label = W.Text(s, "GameFontHighlight", C.bright)
     s.label:SetPoint("LEFT", 12, 0)
     s.label:SetPoint("RIGHT", -28, 0)
     s.label:SetWordWrap(false)
-    s.chevron = W.Chevron(s, 12, C.header)
+    s.chevron = W.Chevron(s, 12, look and look.chevron or C.header)
     s.chevron:SetPoint("RIGHT", -10, 0)
     s:SetMotionScriptsWhileDisabled(true)
     s:SetScript("OnEnter", function(self) self.lit = true; PaintSelect(self) end)
@@ -1732,6 +1751,20 @@ function W.TextAreaRow(parent, lines, onEdit)
     return c
 end
 
+-- A filled button's text is set again a frame after it's made (see W.Button): one timer does it for every button made
+-- in that frame.
+local relabel, relabelQueued = {}, false
+local function Relabel()
+    relabelQueued = false
+    for i = 1, #relabel do
+        local label = relabel[i]
+        relabel[i] = nil
+        local shown = label:GetText()
+        label:SetText("")
+        label:SetText(shown)
+    end
+end
+
 -- A flat button; "primary" ones are filled with the accent color. In `colors` (W.C unless given, W.INGAME in windows
 -- shown in play).
 function W.Button(parent, text, style, colors)
@@ -1758,11 +1791,11 @@ function W.Button(parent, text, style, colors)
     -- After the font: text set before a font change can stay blank until it's set again.
     b.label:SetText(text or "")
     if primary then
-        C_Timer.After(0, function()
-            local shown = b.label:GetText()
-            b.label:SetText("")
-            b.label:SetText(shown)
-        end)
+        relabel[#relabel + 1] = b.label
+        if not relabelQueued then
+            relabelQueued = true
+            C_Timer.After(0, Relabel)
+        end
     end
     b:SetMotionScriptsWhileDisabled(true)
     b:SetScript("OnEnter", function(self)
@@ -2184,18 +2217,21 @@ end
 -- t: what the game itself would move (a cooldown's sweep) stands still too.
 local animate = true
 function W.SetAnimate(on) animate = on end
+-- Every loop's frame runs this one step: where it is, how long it is and what it draws are kept on the frame.
+local function LoopStep(frame, delta)
+    local elapsed = (frame.hstLoopAt + delta) % frame.hstLoopPeriod
+    frame.hstLoopAt = elapsed
+    frame.hstLoopUpdate(elapsed)
+end
 function W.Loop(frame, period, update, still)
     if not animate then
         frame:SetScript("OnUpdate", nil)
         update(still or period / 2, true)
         return
     end
-    local elapsed = 0
+    frame.hstLoopAt, frame.hstLoopPeriod, frame.hstLoopUpdate = 0, period, update
     update(0)
-    frame:SetScript("OnUpdate", function(_, delta)
-        elapsed = (elapsed + delta) % period
-        update(elapsed)
-    end)
+    frame:SetScript("OnUpdate", LoopStep)
 end
 
 -- For a W.Loop step: 0 before time a, 1 after b, easing in and out between.

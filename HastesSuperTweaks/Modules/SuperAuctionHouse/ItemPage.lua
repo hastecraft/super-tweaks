@@ -401,12 +401,18 @@ end
 ---------------------------------------------------------------------------
 -- Building it
 ---------------------------------------------------------------------------
-local function Card(parent, title)
+local function Card(parent, title, spark)
     local card = K.Card(parent, title, nil, 72)
     -- The line under the figure, along the card's bottom.
     card.note:ClearAllPoints()
     card.note:SetPoint("BOTTOMLEFT", 12, 9)
     card.note:SetPoint("BOTTOMRIGHT", -12, 9)
+    if spark then
+        -- At the bottom right, where a long price doesn't reach.
+        card:SetSpark(nil)
+        card.spark:ClearAllPoints()
+        card.spark:SetPoint("BOTTOMRIGHT", -12, 10)
+    end
     return card
 end
 
@@ -418,6 +424,12 @@ local function PlaceCards(row, width)
         card:SetPoint("TOPLEFT", row, "TOPLEFT", (i - 1) * (each + CARD_GAP), 0)
         card:SetPoint("BOTTOM", row, "BOTTOM")
         card:SetWidth(each)
+        if card.spark then
+            -- A narrow card's line is shorter, and its note stops before it.
+            local sparkWidth = each >= 190 and 64 or 40
+            card.spark:Resize(sparkWidth, 18)
+            card.note:SetPoint("BOTTOMRIGHT", -(sparkWidth + 18), 9)
+        end
     end
 end
 
@@ -478,7 +490,7 @@ local function Build()
     cards:SetPoint("TOPLEFT", back, "BOTTOMLEFT", 0, -10)
     cards:SetPoint("RIGHT", -10, 0)
     cards:SetHeight(72)
-    page.lowest = Card(cards, "Lowest")
+    page.lowest = Card(cards, "Lowest", true)
     page.usual = Card(cards, "Usual")
     page.change = Card(cards, "Vs usual")
     page.available = Card(cards, "Available")

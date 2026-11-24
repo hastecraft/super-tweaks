@@ -129,6 +129,7 @@ end
 C_Container.PickupContainerItem = function() end
 function GetInventoryItemID(_, slot) return WIELDED[slot] end
 function PutItemInBag() end
+C_Item.GetItemQualityByID = function(id) local i = ITEMS[id]; return i and (i.quality or 1) or nil end
 C_Item.GetItemInfoInstant = function(id)
     if type(id) == 'string' then id = tonumber(id:match('item:(%d+)')) end -- a link, as the game takes
     local i = ITEMS[id]
@@ -197,6 +198,13 @@ function GetInstanceInfo()
     return state.instanceName or 'Elwynn Forest', state.instanceType or 'none', 0, state.difficultyName or '', 0, 0, false,
         state.instanceID or 0
 end
+-- Reputations: REP.watched is the watched faction's ID (nil for none) and REP[id] a faction's data. One table per
+-- faction is handed back; the game makes a new one per call.
+REP = { watched = 72, [72] = { factionID = 72, name = 'Stormwind', reaction = 6, currentReactionThreshold = 9000,
+    nextReactionThreshold = 21000, currentStanding = 15000 } }
+C_Reputation = { GetWatchedFactionData = function() return REP[REP.watched] end,
+    GetFactionDataByID = function(id) return REP[id] end }
+FACTION_STANDING_LABEL6, FACTION_STANDING_LABEL7 = 'Honored', 'Revered'
 function ResurrectGetOfferer() return nil end
 function PlayerCanTeleport() return true end
 function GetCorpseRecoveryDelay() return 0 end

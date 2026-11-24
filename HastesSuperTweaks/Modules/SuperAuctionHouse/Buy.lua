@@ -709,6 +709,7 @@ end
 function B.Open(result, back, key)
     DropPurchase()
     entry, onBack, byKey = result, back, key
+    B.buy:SetKey(S.db.profile.keyBuy)
     boughtSome, filled = false, false
     listing = {}
     priceKey = S.ItemPage.KeyOf(result)

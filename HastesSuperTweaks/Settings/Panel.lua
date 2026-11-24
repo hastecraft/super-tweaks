@@ -3770,7 +3770,7 @@ function P:Search(text, again)
     local modules = {}
     for _, module in ipairs(HST:Features()) do
         local info = module.info
-        local haystack = (info.name .. "\n" .. (info.summary or "") .. "\n" .. info.description .. "\n"
+        local haystack = (info.name .. "\n" .. (info.summary or "") .. "\n" .. (info.description or "") .. "\n"
             .. CategoryName(info.category)):lower()
         if All(haystack, words) then modules[#modules + 1] = module end
     end

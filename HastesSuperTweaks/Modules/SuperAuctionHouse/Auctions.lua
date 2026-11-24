@@ -1,6 +1,6 @@
 -- The Auctions tab: everything you have on sale, grouped by item, with what's sold and on its way, who has bid, and a
 -- check of where each auction stands among its item's prices. The check runs one item at a time through the queue.
--- Cancelling needs a click or a key press, so the check only marks auctions and Cancel next takes them one per press;
+-- Cancelling needs a click or a key press, so the check only marks auctions and Cancel Next takes them one per press;
 -- "Cancel all of this item" points the same button at one item. Away from an auction house the tab shows every
 -- character's auctions as last seen there (Owned.lua reads and keeps them). Bids.lua adds the Bids view.
 -- SPDX-License-Identifier: MPL-2.0
@@ -21,16 +21,20 @@ local floor, max, min = math.floor, math.max, math.min
 S.defaults.profile.undercutOnOpen = true
 S.defaults.profile.undercutBy = 0
 S.defaults.profile.auctionsGroup = true
+S.defaults.profile.repostPercent = 0
 
 local CANCEL_WAIT = 30
 local EXPIRING = 2 * 3600 -- seconds left under which an auction counts as expiring
 local LONGEST = 48 * 3600 -- the longest an auction lasts: a full time bar
 local RECHECK = 300 -- seconds a check's answer for an item stands, before the tab asks again as it opens
 local TICK = 60 -- seconds between redraws of the time left, while the list shows
-local PILLS = { { "all", "All" }, { "undercut", "Undercut" }, { "expiring", "Expiring" }, { "sold", "Sold" }, { "bids", "With bids" } }
+local NARROW = 990 -- a list narrower than this drops the Total column while "Could post at" shows
+local PILLS = { { "all", "All" }, { "undercut", "Undercut" }, { "low", "Priced low" }, { "expiring", "Expiring" },
+    { "sold", "Sold" }, { "bids", "With bids" } }
 local PILL_NAMES = {}
 for _, item in ipairs(PILLS) do PILL_NAMES[item[1]] = item[2] end
-local EMPTY = { all = "Nothing on sale.", undercut = "No auctions undercut.", expiring = "Nothing ends within 2 hours.",
+local EMPTY = { all = "Nothing on sale.", undercut = "No auctions undercut.", low = "Nothing priced low.",
+    expiring = "Nothing ends within 2 hours.",
     sold = "Nothing sold and on its way.", bids = "No bids on your auctions." }
 local NONE = {}
 
@@ -45,7 +49,7 @@ local savedEntries = {}
 -- The table's top rows (a group or a lone auction), the groups by item, and which groups are open.
 local shown, groups, open = {}, {}, {}
 local grouped = true
--- The item Cancel next is pointed at by "Cancel all of this item": { key = , name = }.
+-- The item Cancel Next is pointed at by "Cancel all of this item": { key = , name = }.
 local scope
 -- A check to start once your auctions have been read this visit: true for the ones not checked lately, "all" for all.
 local wantCheck = false
@@ -82,6 +86,7 @@ local function InPill(e)
     if pill == "sold" then return e.sold and true or false end
     if e.sold or e.left <= 0 then return false end
     if pill == "undercut" then return e.row.undercut == true end
+    if pill == "low" then return e.row.low ~= nil end
     if pill == "expiring" then return e.left < EXPIRING end
     return e.hasBid == true
 end
@@ -101,7 +106,7 @@ local function Summarize(g)
     local first = kids[1]
     local quantity, total, bids, soonest, each, last = 0, 0, 0, nil, nil, nil
     local marks = g.row
-    marks.lowest, marks.place, marks.of, marks.ahead, marks.undercut = nil, nil, nil, nil, nil
+    marks.lowest, marks.place, marks.of, marks.ahead, marks.undercut, marks.low = nil, nil, nil, nil, nil, nil
     for i = 1, #kids do
         local e = kids[i]
         e.child = true
@@ -116,6 +121,7 @@ local function Summarize(g)
         if place and (not last or place > last) then last = place end
         if row.ahead and (not marks.ahead or row.ahead < marks.ahead) then marks.ahead = row.ahead end
         if row.undercut then marks.undercut = true end
+        if row.low and (not marks.low or row.low > marks.low) then marks.low = row.low end
     end
     g.name, g.icon, g.quality, g.character, g.auctionID = first.name, first.icon, first.quality, first.character, first.auctionID
     g.link, g.itemKey, g.itemID = first.link, first.itemKey, first.itemID
@@ -158,13 +164,13 @@ local function ReadSaved()
 end
 
 -- A pill's name, with how many auctions it holds when it holds any.
-local function PillCounts(undercut, expiring, sold, bids)
+local function PillCounts(undercut, expiring, sold, bids, low)
     local pills = A.pills
     local changed = false
     for _, b in ipairs(pills.buttons) do
         local key = b.key
         local count = key == "undercut" and undercut or key == "expiring" and expiring or key == "sold" and sold
-            or key == "bids" and bids or 0
+            or key == "bids" and bids or key == "low" and low or 0
         if b.count ~= count then
             b.count = count
             b.label:SetText(count > 0 and (PILL_NAMES[key] .. " " .. count) or PILL_NAMES[key])
@@ -190,7 +196,7 @@ function A.Fill()
     end
     for _, g in pairs(groups) do wipe(g.children) end
     wipe(shown)
-    local undercut, expiring, sold, bids, onSale, pending = 0, 0, 0, 0, 0, 0
+    local undercut, expiring, sold, bids, onSale, pending, low = 0, 0, 0, 0, 0, 0, 0
     for i = 1, #list do
         local e = list[i]
         local left = (e.ends or now) - now
@@ -209,6 +215,7 @@ function A.Fill()
         elseif left > 0 then
             onSale = onSale + e.total
             if e.row.undercut then undercut = undercut + 1 end
+            if e.row.low then low = low + 1 end
             if left < EXPIRING then expiring = expiring + 1 end
             if e.hasBid then bids = bids + 1 end
         end
@@ -244,8 +251,13 @@ function A.Fill()
         A.emptyText = empty
         A.table:SetEmpty(empty)
     end
+    -- The column for what a low-priced auction could go up for shows only while one is.
+    if (low > 0) ~= A.anyLow then
+        A.anyLow = low > 0
+        A.table:Layout()
+    end
     A.table:SetEntries(shown, true)
-    PillCounts(undercut, expiring, sold, bids)
+    PillCounts(undercut, expiring, sold, bids, low)
     A.onSale, A.pending = onSale, pending
     A.onSaleField:SetMoney(onSale)
     A.pendingField:SetMoney(pending)
@@ -340,10 +352,13 @@ local function Checkable(e) return not e.hasBid and Looked(e) end
 -- Where each of your auctions of one item stands among everyone's: the lowest price someone else asks, its place
 -- among the prices, how many items are cheaper, and whether that counts as undercut.
 local seenPrice = {}
+local ruleItem = {} -- the auction being judged, as the rules read an item
 local function Judge(list, results)
     local profile = S.db.profile
-    local needAhead, by = profile.undercutAhead, profile.undercutBy
+    local needAhead, by, repost = profile.undercutAhead, profile.undercutBy, profile.repostPercent
     local now = GetServerTime()
+    -- An item's rules are read once for all its auctions: the key they were last read for, in this call.
+    local readKey, readString
     for i = 1, #list do
         local e = list[i]
         local mine = e.buyout
@@ -375,6 +390,17 @@ local function Judge(list, results)
             local row = e.row
             row.lowest, row.ahead, row.place, row.of = lowest, ahead, place, levels + (seenPrice[mine] and 0 or 1)
             row.undercut = (Checkable(e) and counted > 0 and counted > needAhead) or nil
+            -- Yours is the cheapest, by a long way: cancelled and posted again it would go for more.
+            row.low = nil
+            if repost > 0 and not row.undercut and Checkable(e) and (not lowest or lowest > mine) then
+                local priceKey = e.link and S.Prices.KeyForLink(e.link) or row.key
+                local read = readKey ~= nil and priceKey == readKey and e.keyString == readString
+                if not read then
+                    readKey, readString = priceKey, e.keyString
+                    ruleItem.priceKey, ruleItem.key = priceKey, e.keyString
+                end
+                row.low = S.Rules.RepostPrice(ruleItem, mine, lowest, repost, e.isCommodity, read)
+            end
             row.checked = now
         end
     end
@@ -395,7 +421,10 @@ local function ScanNext()
     if not key then
         StopScan()
         local undercut = O.Attention()
-        Status(undercut .. K.Plural(undercut, " auction undercut", " auctions undercut"))
+        local low = 0
+        for _, e in ipairs(O.Live()) do if e.row.low and not e.sold then low = low + 1 end end
+        Status(undercut .. K.Plural(undercut, " auction undercut", " auctions undercut")
+            .. (low > 0 and (", " .. low .. " priced low") or ""))
         -- The badge, and the list through its listener.
         O.Changed()
         return
@@ -428,7 +457,7 @@ local function StartCheck(all)
                 if all or not checked or now - checked >= RECHECK then wanted = true end
             end
             -- One that took a bid since it was last checked no longer counts.
-            if not Checkable(e) then e.row.undercut = nil end
+            if not Checkable(e) then e.row.undercut, e.row.low = nil, nil end
         end
         if wanted then keys[#keys + 1] = key end
     end
@@ -466,9 +495,11 @@ end
 ---------------------------------------------------------------------------
 -- Cancelling
 ---------------------------------------------------------------------------
+-- Whether an auction that isn't sold is on its way out: its cancel was sent, or the game has said it's cancelled and
+-- the list hasn't been read again since.
 local function Cancelling(auctionID)
     local at = cancelling[auctionID]
-    return at ~= nil and GetTime() - at < CANCEL_WAIT
+    return (at ~= nil and GetTime() - at < CANCEL_WAIT) or not O.Active(auctionID)
 end
 
 -- An item's auctions that are still up: how many are left to cancel, and how many there are (the rest are being
@@ -486,7 +517,7 @@ local function Targets(key)
     return left, up
 end
 
--- The line beside the filters: what Cancel next is pointed at, or how old the saved copy is.
+-- The line beside the filters: what Cancel Next is pointed at, or how old the saved copy is.
 local function PaintNote()
     if not A.note then return end
     local text = ""
@@ -504,7 +535,7 @@ local function PaintNote()
     A.stopButton:SetShown(scope ~= nil)
 end
 
--- The auction Cancel next takes: the next of the item it's pointed at, or else the next one undercut.
+-- The auction Cancel Next takes: the next of the item it's pointed at, or else the next one undercut or priced low.
 function A.NextUndercut()
     if saved then return nil end
     local list = O.Live()
@@ -513,7 +544,7 @@ function A.NextUndercut()
         if not e.sold and not Cancelling(e.auctionID) then
             if scope then
                 if e.keyString == scope.key then return e end
-            elseif e.row.undercut then
+            elseif e.row.undercut or e.row.low then
                 return e
             end
         end
@@ -549,7 +580,7 @@ local function DoCancel(e)
     end
 end
 
--- Cancel next asks only when cancelling costs something; a click on a row always asks.
+-- Cancel Next asks only when cancelling costs something; a click on a row always asks.
 local function AskCancel(e, always)
     if e.sold or saved then return end
     if not AH.CanCancelAuction(e.auctionID) then
@@ -573,13 +604,13 @@ local function EndScope()
     A.UpdateNext()
 end
 
--- "Cancel all of this item": the game takes one cancel per click or key press, so Cancel next is pointed at the item
+-- "Cancel all of this item": the game takes one cancel per click or key press, so Cancel Next is pointed at the item
 -- and takes one of its auctions per press. It stays pointed there, with nothing to take, until the game has taken the
 -- last of them away: a press too many doesn't cancel some other auction.
 local function StartScope(e)
     scope = { key = e.keyString, name = e.name or "" }
     local key = S.db.profile.keyCancel
-    Status("Press Cancel next" .. ((key and key ~= "") and (" (" .. key .. ")") or "") .. " once for each auction.")
+    Status("Press Cancel Next" .. ((key and key ~= "") and (" (" .. key .. ")") or "") .. " once for each auction.")
     PaintNote()
     A.UpdateNext()
 end
@@ -597,6 +628,10 @@ local function BindKey()
     if not A.frame or InCombatLockdown() then return end
     ClearOverrideBindings(A.frame)
     local key = S.db.profile.keyCancel
+    if A.nextButton then
+        A.nextButton:SetKey(key)
+        A.nextButton:Fit(90)
+    end
     if key and key ~= "" and not saved and A.list and A.list:IsVisible() then
         SetOverrideBinding(A.frame, true, key, "CLICK HSTSuperAHCancelNext:LeftButton")
     end
@@ -606,8 +641,33 @@ local function UnbindKey()
     if A.frame and not InCombatLockdown() then ClearOverrideBindings(A.frame) end
 end
 
+-- What's marked "Priced low" was worked out from the rules and the setting as they were: the marks go, and the next
+-- check looks every item up again.
+local function ForgetLow()
+    local list = O.Live()
+    for i = 1, #list do
+        local row = list[i].row
+        if row then row.low, row.checked = nil, nil end
+    end
+    if saved or not (A.list and A.list:IsVisible()) then return end
+    A.Fill()
+    A.UpdateNext()
+    if S.db.profile.repostPercent > 0 and O.IsFresh() then StartCheck(false) end
+end
+
+-- An item's rules or a group's changed (Rules.lua): they set what an auction could be posted at.
+function A.RulesChanged()
+    if S.db.profile.repostPercent > 0 then ForgetLow() end
+end
+
 -- Settings changed: a new key takes over at once.
-function A.Apply() BindKey() end
+local shownRepost
+function A.Apply()
+    BindKey()
+    local repost = S.db.profile.repostPercent
+    if shownRepost ~= nil and repost ~= shownRepost then ForgetLow() end
+    shownRepost = repost
+end
 
 ---------------------------------------------------------------------------
 -- The list
@@ -713,7 +773,7 @@ end
 local function BuildList(frame)
     A.list = frame
     -- The first line, right of the pills that pick the view.
-    A.nextButton = K.Button(frame, "Cancel next", "primary", "HSTSuperAHCancelNext")
+    A.nextButton = K.Button(frame, "Cancel Next", "primary", "HSTSuperAHCancelNext")
     A.nextButton:Fit(90)
     A.nextButton:SetPoint("TOPRIGHT", -10, -12)
     A.nextButton:SetScript("OnClick", CancelNext)
@@ -765,7 +825,9 @@ local function BuildList(frame)
               text = function(e) return e.label end },
             { key = "quantity", title = "Quantity", width = 62, justify = "RIGHT" },
             { key = "buyout", title = "Price each", width = 104, justify = "RIGHT", money = function(e) return e.buyout end },
-            { key = "total", title = "Total", width = 104, justify = "RIGHT", money = function(e) return e.total end },
+            -- A narrow window hasn't room for it beside what a low-priced auction could go up for.
+            { key = "total", title = "Total", width = 104, justify = "RIGHT", money = function(e) return e.total end,
+              hide = function() return A.anyLow and A.table ~= nil and A.table:GetWidth() < NARROW end },
             -- Before anyone bids it's what the bidding starts at, shown faint as the game shows it.
             { key = "bid", title = "Bid", width = 92, justify = "RIGHT", money = function(e) return e.bid end,
               color = function(e) return e.hasBid and K.GAIN or P.muted end },
@@ -783,6 +845,10 @@ local function BuildList(frame)
             { key = "lowest", title = "Lowest other", width = 104, justify = "RIGHT", sort = function(e) return e.row.lowest end,
               money = function(e) return e.row.lowest end,
               color = function(e) return e.row.undercut and P.warning or P.text end },
+            -- What an auction priced low would go up for, cancelled and posted again.
+            { key = "low", title = "Could post at", width = 104, justify = "RIGHT", sort = function(e) return e.row.low end,
+              money = function(e) return e.row.low end, color = function() return K.GAIN end,
+              hide = function() return not A.anyLow end },
             -- The bar is how near the front of the item's prices the auction stands.
             { key = "place", title = "Place", width = 68, justify = "CENTER", sort = function(e) return e.row.place end,
               text = function(e) return e.placeText end, color = PlaceColor, barColor = PlaceColor,
@@ -795,7 +861,7 @@ local function BuildList(frame)
               text = function(e) return e.row.ahead or "" end },
             { key = "character", title = "Character", width = 100, hide = function() return not saved end },
         },
-        dim = function(e) return e.sold or e.left <= 0 or (not e.group and Cancelling(e.auctionID)) end,
+        dim = function(e) return e.sold or e.left <= 0 or (not e.group and not saved and Cancelling(e.auctionID)) end,
         onClick = function(e, button, row)
             if e.group then
                 if button == "RightButton" then RowMenu(e, row) else Toggle(e) end
@@ -823,6 +889,7 @@ end
 
 function A.Build(frame)
     P = K.Palette()
+    shownRepost = S.db.profile.repostPercent
     -- The views fill the tab: each leaves the top left to the pills that pick it.
     A.views = K.Views(frame, "auctions", { key = "auctions", name = "Auctions", build = BuildList, show = ShowList,
         hide = HideList }, 0)
@@ -865,6 +932,9 @@ end
 S.Extend(function(args, option)
     local page = args.auctions.args.auctions.args
     page.undercutOnOpen = option("toggle", "undercutOnOpen", "Check for undercuts when the tab opens", 0.5)
-    page.undercutBy = option("range", "undercutBy", "Undercut by at least (percent)", 1.5,
+    page.undercutBy = option("range", "undercutBy", "Undercut by at least (%)", 1.5,
         { min = 0, max = 50, step = 1, desc = "0: any cheaper price counts." })
+    page.repostPercent = option("range", "repostPercent", "Priced low from (% under the next price)", 1.7,
+        { min = 0, max = 90, step = 5,
+          desc = "Cancel Next takes these too, so you can post them again for more. 0: never." })
 end)

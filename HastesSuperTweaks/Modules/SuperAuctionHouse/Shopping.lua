@@ -137,16 +137,35 @@ local function TermEntry(list, index, text)
     return entry
 end
 
+-- The side panel shows one view at a time, picked from the dropdown over it. Other files add theirs:
+-- Sh.AddView({ key = , name = , entries = function() return rows end, click = function(e, button, row) end,
+-- show = function() end, hide = function() end }). A view's rows carry view = the view, and can have name, count,
+-- icon and deal as the other rows do. covers: the view draws over the search row and the results, so a search from
+-- the box leaves it. changed(): the auction house opened or closed.
+Sh.sideViews, Sh.sideViewOrder = {}, {}
+function Sh.AddView(view)
+    Sh.sideViews[view.key] = view
+    Sh.sideViewOrder[#Sh.sideViewOrder + 1] = view.key
+end
+
 local function SideEntries()
     local entries = {}
-    if S.db.profile.shoppingView == "categories" then
+    local shown = S.db.profile.shoppingView
+    local extra = Sh.sideViews[shown]
+    if extra then return extra.entries() end
+    if shown == "categories" then
         local categories = Categories()
         if categories then AddCategories(entries, categories, nil, 0) end
-    elseif S.db.profile.shoppingView == "recipes" then
+    elseif shown == "recipes" then
         return S.RecipeBook.Entries()
-    elseif S.db.profile.shoppingView == "recents" then
+    elseif shown == "recents" then
         for i, text in ipairs(Recents()) do
             entries[i] = { kind = "recent", text = text, name = T.Pretty(text) }
+        end
+    elseif shown == "smart" then
+        local smart = S.Smart and S.Smart.LISTS
+        for i = 1, smart and #smart or 0 do
+            entries[i] = { kind = "smart", key = smart[i].key, name = smart[i].name }
         end
     else
         for _, list in ipairs(Lists()) do
@@ -157,13 +176,6 @@ local function SideEntries()
                 count = wanted > 0 and (have .. "/" .. wanted) or #list.terms, done = wanted > 0 and have >= wanted }
             if expanded[list] then
                 for i, text in ipairs(list.terms) do entries[#entries + 1] = TermEntry(list, i, text) end
-            end
-        end
-        local smart = S.Smart and S.Smart.LISTS
-        if smart and #smart > 0 then
-            entries[#entries + 1] = { kind = "heading", name = "Smart lists" }
-            for _, list in ipairs(smart) do
-                entries[#entries + 1] = { kind = "smart", key = list.key, name = list.name }
             end
         end
     end
@@ -402,6 +414,35 @@ local function SavedMatches(term, entry)
     return true
 end
 
+-- The saved prices a term with a name finds, as a search away from an auction house would: fn(key, name, price,
+-- most, formula) for each, most being the most you'd pay for that item (the term's amount, or its formula worked out
+-- for it).
+-- For the check after a scan (Lists.lua); a category the game hasn't loaded yet finds nothing.
+local probe = {}
+function Sh.EachSaved(term, fn)
+    if term.query == "" then return end
+    local filters
+    if term.category then
+        filters = select(2, T.Categories())[term.category]
+        if not filters then return end
+    end
+    local keys = term.exact and { S.Prices.KeyByName(term.query) }
+        or S.Prices.FindNames(term.query, filters and 100000 or SAVED_LIMIT)
+    for i = 1, #keys do
+        local key = keys[i]
+        local price = S.Prices.Get(key)
+        if price and (not filters or InCategory(filters, key)) then
+            probe.key, probe.price = key, price
+            probe.name, probe.quality = S.Prices.NameOf(key)
+            if probe.name and SavedMatches(term, probe) then
+                local most = term.maxPrice
+                if term.maxFormula then most = S.Formula.Eval(term.maxFormula, key) end
+                if most and most > 0 then fn(key, probe.name, price, most, term.maxFormula) end
+            end
+        end
+    end
+end
+
 local function SavedDone(run)
     walk = nil
     Sh.results:SetLoading(false)
@@ -431,7 +472,8 @@ local function WalkStep()
             if entry and SavedMatches(term, entry) then
                 found = found + 1
                 if not known then
-                    entry.at, entry.purchase, entry.most = at, term.quantity, term.maxPrice
+                    entry.at, entry.purchase = at, term.quantity
+                    entry.most = term.maxFormula and S.Formula.Eval(term.maxFormula, key) or term.maxPrice
                     byKey[key] = entry
                     results[#results + 1] = entry
                 end
@@ -489,6 +531,9 @@ local skipped = {}
 -- Runs a list of terms. Results replace what's showing, and the buy screen closes.
 function Sh.Run(terms)
     if #terms == 0 then return end
+    -- A view that draws over the results (the Sniper) gives way to them.
+    local shown = Sh.sideViews[S.db.profile.shoppingView]
+    if shown and shown.covers and Sh.SetView then Sh.SetView("lists") end
     if S.Smart and S.Smart.Stop then S.Smart.Stop() end
     local wasSmart = smartKey ~= nil
     smartKey = nil
@@ -760,8 +805,9 @@ PaintChips = function()
         x = x + width + 4
     end
     for i = count + 1, #row.chips do row.chips[i]:Hide() end
-    local key = S.db.profile.keyBuy
-    row.buyNext.tipText = "Opens the next item you still need. Press it again to buy." .. (key ~= "" and ("\nKey: " .. key) or "")
+    row.buyNext.tipText = "Opens the next item you still need. Press it again to buy."
+    row.buyNext:SetKey(S.db.profile.keyBuy)
+    row.buyNext:Fit(76)
     row.buyNext:SetShown(shownBuys)
     if row.beside ~= shownBuys then
         row.beside = shownBuys
@@ -954,13 +1000,14 @@ end
 -- against it after every scan (Lists.lua).
 local function AskMost(list, index)
     local term = T.Parse(list.terms[index])
-    K.Dialog({ title = "Most you'd pay for each", text = "Like 80s or 1g 20s. Empty: no limit.", input = true,
-        inputText = term.maxPrice and T.MoneyText(term.maxPrice) or "", confirm = "Save",
+    K.Dialog({ title = "Most you'd pay for each",
+        text = "Like 80s or 1g 20s, or a formula like usual * 80%. Empty: no limit.", input = true,
+        inputText = term.maxFormula or term.maxPrice and T.MoneyText(term.maxPrice) or "", confirm = "Save",
         onConfirm = function(_, typed)
-            typed = strtrim(typed or "")
-            local copper = typed ~= "" and T.Money(typed) or nil
-            if typed ~= "" and not copper then return Status("That isn't an amount of money.") end
-            term.maxPrice = copper and copper > 0 and copper or nil
+            local spec, problem = S.Formula.Read(typed)
+            if problem then return Status(problem) end
+            term.maxPrice = type(spec) == "number" and spec or nil
+            term.maxFormula = type(spec) == "string" and spec or nil
             list.terms[index] = T.Compose(term)
             RefreshSide()
         end })
@@ -1017,6 +1064,7 @@ local function CategoryMenu(owner, path)
 end
 
 local function SideClick(e, button, row)
+    if e.view then return e.view.click(e, button, row) end
     if e.kind == "heading" then return end
     if e.kind == "book" then return S.RecipeBook.Toggle(e) end
     if e.kind == "recipe" then return S.RecipeBook.Click(e, button, row) end
@@ -1293,7 +1341,7 @@ local function BuildFilters()
     v.quantity:SetPoint("TOPLEFT", FILTER_LEFT, y)
     y = y - 30
     caption("Most you'd pay for each")
-    v.most = K.MoneyInput(card)
+    v.most = K.PriceInput(card, nil, 178 + 26 + 178 - 260)
     v.most:SetPoint("TOPLEFT", FILTER_LEFT, y)
 
     local function compose()
@@ -1311,8 +1359,8 @@ local function BuildFilters()
         if high > 0 then term.maxGold = high / 10000 end
         local quantity = tonumber(v.quantity:GetText())
         if quantity and quantity > 0 then term.quantity = quantity end
-        local most = v.most:GetValue()
-        if most > 0 then term.maxPrice = most end
+        local most = v.most:GetSpec()
+        if type(most) == "number" then term.maxPrice = most else term.maxFormula = most end
         term.tier = draft.tier
         return T.Compose(term)
     end
@@ -1324,6 +1372,7 @@ local function BuildFilters()
     go:SetWidth(90)
     go:SetPoint("BOTTOMRIGHT", -16, 14)
     go:SetScript("OnClick", function()
+        if v.most:HasProblem() then return Status("The formula can't be read.") end
         local text = compose()
         if v.editList then
             v.editList.terms[v.editIndex] = text
@@ -1337,6 +1386,7 @@ local function BuildFilters()
     add:Fit(90)
     add:SetPoint("RIGHT", go, "LEFT", -6, 0)
     add:SetScript("OnClick", function(self)
+        if v.most:HasProblem() then return Status("The formula can't be read.") end
         local text = compose()
         if v.editList then
             v.editList.terms[v.editIndex] = text
@@ -1375,7 +1425,7 @@ function Sh.FillFilters(text)
     for key, input in pairs(v.ranges) do input:SetText(term[key] or "") end
     v.minPrice:SetValue(term.minGold and T.Copper(term.minGold) or 0)
     v.maxPrice:SetValue(term.maxGold and T.Copper(term.maxGold) or 0)
-    v.most:SetValue(term.maxPrice or 0)
+    v.most:SetSpec(term.maxFormula or term.maxPrice)
     v.quantity:SetText(term.quantity or "")
     v.category:Refresh()
     v.quality:Refresh()
@@ -1429,6 +1479,7 @@ end
 function Sh.BuyNext()
     if K.ConfirmDialog("buy") then return end
     if S.Buy.IsOpen() then return S.Buy.Press() end
+    if S.Sniper.IsUp() then return S.Sniper.BuyNext() end
     if not (S.Window.IsLive() and Sh.results) then return end
     local over, gone = false, false
     for _, e in ipairs(Sh.results.entries) do
@@ -1451,7 +1502,11 @@ function Sh.BuyNext()
 end
 
 -- Whether the key for Buy Next has something to do (Window.lua binds it only then).
-function Sh.WantsBuyKey() return shownBuys or S.Buy.IsOpen() end
+function Sh.WantsBuyKey()
+    if S.Buy.IsOpen() then return true end
+    if S.Sniper.IsUp() then return S.Sniper.WantsKey() end
+    return shownBuys
+end
 
 -- A saved price keeps only an item string ("item:871"), which chat would send as plain text: it needs the full link.
 local function LinkOf(e)
@@ -1512,45 +1567,60 @@ function Sh.Build(frame)
     side:SetPoint("BOTTOMLEFT", 10, 10)
     side:SetWidth(SIDE_WIDTH)
     K.Box(side, P.card, P.border)
-    local views = { { "lists", "Lists" }, { "recents", "Recent" }, { "categories", "Categories" },
-        { "recipes", "Recipes" } }
-    local ShowViewParts
-    local view = K.Pills(side, views, function(key)
-        S.db.profile.shoppingView = key
-        ShowViewParts()
-        RefreshSide()
-    end, 26, true)
+    -- One dropdown picks what the panel lists, so the list under it has the panel's whole height.
+    local names = { lists = "Lists", smart = "Smart lists", recents = "Recent", categories = "Categories",
+        recipes = "Recipes" }
+    local order = { "lists", "smart", "recents", "categories", "recipes" }
+    for _, key in ipairs(Sh.sideViewOrder) do
+        names[key] = Sh.sideViews[key].name
+        order[#order + 1] = key
+    end
+    if not names[S.db.profile.shoppingView] then S.db.profile.shoppingView = "lists" end
+    local view = K.Select(side, function() return names, order end, function() return S.db.profile.shoppingView end,
+        function(key) Sh.SetView(key) end)
+    view:SetHeight(26)
     view:SetPoint("TOPLEFT", 8, -8)
     view:SetPoint("TOPRIGHT", -8, -8)
-    view:Choose(S.db.profile.shoppingView)
     Sh.view = view
-    local newList = K.Button(side, "New")
+    -- Under the list: what the view can add to. Only your lists and the recipes have something there.
+    local newList = K.Button(side, "New list")
     newList:SetPoint("BOTTOMLEFT", 8, 8)
-    newList:SetWidth(70)
+    newList:SetPoint("BOTTOMRIGHT", side, "BOTTOM", -2, 8)
     newList:SetScript("OnClick", function() NewListWith() end)
-    local import = K.Button(side, "Import")
-    import:SetPoint("LEFT", newList, "RIGHT", 4, 0)
-    import:SetWidth(76)
-    import:SetScript("OnClick", ShowImport)
-    local export = K.Button(side, "Export")
-    export:SetPoint("LEFT", import, "RIGHT", 4, 0)
-    export:SetWidth(76)
-    export:SetScript("OnClick", function() ShowExport(selected and { selected } or Lists()) end)
-    export.tipText = "The selected list, or all lists when none is selected."
-    -- The Recipes view has a filter where the list buttons are.
+    local listsMore = K.Button(side, "Import and export")
+    listsMore:SetPoint("BOTTOMLEFT", side, "BOTTOM", 2, 8)
+    listsMore:SetPoint("BOTTOMRIGHT", -8, 8)
+    listsMore:SetScript("OnClick", function(self)
+        K.Menu(self, function(root)
+            root:CreateButton("Import lists", ShowImport)
+            if selected then
+                root:CreateButton("Export " .. selected.name, function() ShowExport({ selected }) end)
+            end
+            root:CreateButton("Export all lists", function() ShowExport(Lists()) end)
+        end)
+    end)
     local recipeFilter = K.Input(side, { placeholder = "Filter recipes", clear = true,
         onChange = function(text) S.RecipeBook.SetFilter(text) end })
     recipeFilter:SetPoint("BOTTOMLEFT", 8, 8)
     recipeFilter:SetPoint("BOTTOMRIGHT", -8, 8)
-    ShowViewParts = function()
-        local recipes = S.db.profile.shoppingView == "recipes"
-        recipeFilter:SetShown(recipes)
-        newList:SetShown(not recipes)
-        import:SetShown(not recipes)
-        export:SetShown(not recipes)
+    Sh.ShowViewParts = function()
+        local shown = S.db.profile.shoppingView
+        recipeFilter:SetShown(shown == "recipes")
+        newList:SetShown(shown == "lists")
+        listsMore:SetShown(shown == "lists")
+        Sh.side:SetPoint("BOTTOMRIGHT", -6, (shown == "lists" or shown == "recipes") and 38 or 6)
     end
-    Sh.ShowViewParts = ShowViewParts
-    ShowViewParts()
+    -- Shows a view of the panel. A view from another file hears that it came up or went away.
+    function Sh.SetView(key)
+        if not names[key] then key = "lists" end
+        local leaving, coming = Sh.sideViews[S.db.profile.shoppingView], Sh.sideViews[key]
+        S.db.profile.shoppingView = key
+        if leaving and leaving ~= coming and leaving.hide then leaving.hide() end
+        view:Refresh()
+        Sh.ShowViewParts()
+        RefreshSide()
+        if coming and coming.show then coming.show() end
+    end
     Sh.side = K.Table(side, { rowHeight = 24, empty = "Nothing here yet.", noHeader = true,
         columns = {
             { key = "name", title = "", fill = 1, noSort = true, icon = function(e) return e.icon end,
@@ -1563,7 +1633,7 @@ function Sh.Build(frame)
             -- A list's count or progress; for one of its items, the saved price.
             { key = "count", title = "", width = 62, justify = "RIGHT", noSort = true,
               text = function(e)
-                  if e.kind == "term" then return e.price and K.ShortMoney(e.price) or "" end
+                  if e.kind == "term" or e.view then return e.price and K.ShortMoney(e.price) or e.count or "" end
                   if e.kind == "recipe" then return S.RecipeBook.CostText(e) end
                   if e.steps then return S.RecipeBook.PlanCostText(e) end
                   return e.count or ""
@@ -1571,6 +1641,7 @@ function Sh.Build(frame)
               color = function(e) return (e.deal or e.done) and K.GAIN or P.muted end },
         },
         isSelected = function(e)
+            if e.view then return e.view.isSelected ~= nil and e.view.isSelected(e) end
             if e.kind == "category" then return e.path == category end
             if e.kind == "smart" then return e.key == smartKey end
             if e.kind == "recipe" or e.kind == "plan" then return S.RecipeBook.IsSelected(e) end
@@ -1578,13 +1649,13 @@ function Sh.Build(frame)
         end,
         onClick = SideClick,
         onEnter = function(e, row)
-            if e.kind == "term" and e.link then K.ItemTip(row, e.link) end
+            if e.link and (e.kind == "term" or e.view) then K.ItemTip(row, e.link) end
             if e.kind == "recipe" then S.RecipeBook.Tip(e, row) end
             if e.steps then S.RecipeBook.PlanTip(e, row) end
         end,
     })
     Sh.side:SetPoint("TOPLEFT", 6, -42)
-    Sh.side:SetPoint("BOTTOMRIGHT", -6, 38)
+    Sh.ShowViewParts()
 
     -- Search row
     local main = CreateFrame("Frame", nil, frame)
@@ -1761,6 +1832,9 @@ function Sh.Build(frame)
     end
     ShowHome(true)
     RefreshSide()
+    -- The view the panel was left on comes up as it did then.
+    local shown = Sh.sideViews[S.db.profile.shoppingView]
+    if shown and shown.show then shown.show() end
 end
 
 function Sh.OnShow()
@@ -1770,6 +1844,8 @@ end
 -- The key for the search box.
 function Sh.Find()
     if not Sh.box then return end
+    local shown = Sh.sideViews[S.db.profile.shoppingView]
+    if shown and shown.covers then Sh.SetView("lists") end
     if S.Buy.IsOpen() then S.Buy.Close() end
     if Sh.filters and Sh.filters:IsShown() then Sh.filters:Hide() end
     Sh.box:Focus()
@@ -1779,6 +1855,8 @@ end
 function Sh.ModeChanged()
     RefreshSide() -- the categories come and go with the auction house
     if not Sh.results then return end
+    local shown = Sh.sideViews[S.db.profile.shoppingView]
+    if shown and shown.changed then shown.changed() end
     if S.Buy.IsOpen() then S.Buy.Close() end
     Sh.Clear()
     Sh.results:Layout()
@@ -1803,11 +1881,7 @@ function Sh.External(name, terms, stay)
         if previous and previous ~= list and previous.temporary then DeleteList(previous) end
         Sh.bookList = list
     end
-    if not stay then
-        S.db.profile.shoppingView = "lists"
-        Sh.view:Choose("lists")
-        Sh.ShowViewParts()
-    end
+    if not stay then Sh.SetView("lists") end
     SearchList(list)
 end
 

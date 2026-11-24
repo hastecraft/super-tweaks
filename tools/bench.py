@@ -148,6 +148,15 @@ Section('XP Tracker', function()
     Measure('XP bar: quest log update, then a tick (20 quests)', 100, function()
         Send('XPTracker', 'QUEST_LOG_UPDATE'); AdvanceTime(1)
     end)
+    -- Nothing on the bar shows completed quests' XP: no shading, no label with it.
+    local bonus = X.db.profile.texts.bonus.template
+    X.db.profile.showQuests, X.db.profile.texts.bonus.template = false, 'Rested {rested}'
+    X:Apply()
+    Measure('XP bar: quest log update, then a tick, quest XP not shown', 100, function()
+        Send('XPTracker', 'QUEST_LOG_UPDATE'); AdvanceTime(1)
+    end)
+    X.db.profile.showQuests, X.db.profile.texts.bonus.template = true, bonus
+    X:Apply()
     Script(X.frame, 'OnEnter')
     Measure('XP bar: one-second tick while hovered', 100, function() AdvanceTime(1) end)
     Script(X.frame, 'OnLeave')
@@ -162,6 +171,38 @@ end)
 -- The XP bar's ticker would run in every later scenario that lets time pass; those measure other tweaks.
 HST:SetFeatureEnabled('XPTracker', false)
 
+-- The watched faction is the mocks' (REP in full_mocks.lua): Stormwind, Honored.
+Section('Rep Tracker', function()
+    Enable({ 'RepTracker' }, true)
+    local R, watched = mod('RepTracker'), REP[REP.watched]
+    R.db.char.session.seconds, R.db.char.session.gained = 4000, 5000
+    AdvanceTime(1)
+    assert(R.frame:IsShown(), 'the bar shows the watched faction')
+    Measure('Rep bar: one-second tick, nothing changed', 300, function() AdvanceTime(1) end)
+    Measure('Rep bar: rep gain (event + 0.1 s settle)', 100, function()
+        watched.currentStanding = watched.currentStanding + 5; Send('RepTracker', 'UPDATE_FACTION'); AdvanceTime(0.1)
+    end)
+    Measure('Rep bar: another faction\'s rep changed (event + 0.1 s settle)', 100, function()
+        Send('RepTracker', 'UPDATE_FACTION'); AdvanceTime(0.1)
+    end)
+    Measure('Rep bar: combat start + end', 100, function()
+        Send('RepTracker', 'PLAYER_REGEN_DISABLED'); Send('RepTracker', 'PLAYER_REGEN_ENABLED')
+    end)
+    Measure('Rep bar: zone change', 100, function() Send('RepTracker', 'ZONE_CHANGED_NEW_AREA') end)
+    Script(R.frame, 'OnEnter')
+    Measure('Rep bar: one-second tick while hovered', 100, function() AdvanceTime(1) end)
+    Script(R.frame, 'OnLeave')
+    REP.watched = nil; Send('RepTracker', 'UPDATE_FACTION'); AdvanceTime(1)
+    assert(not R.frame:IsShown(), 'no faction to track hides the bar')
+    Measure('Rep bar hidden with no faction: one-second tick', 300, function() AdvanceTime(1) end)
+    Measure('Rep bar hidden with no faction: combat start + end', 100, function()
+        Send('RepTracker', 'PLAYER_REGEN_DISABLED'); Send('RepTracker', 'PLAYER_REGEN_ENABLED')
+    end)
+    REP.watched = 72; Send('RepTracker', 'UPDATE_FACTION'); AdvanceTime(1)
+    -- Its ticker would run in every later scenario that lets time pass.
+    Enable({ 'RepTracker' }, false)
+end)
+
 Section('Instance Tracker', function()
     state.money, state.groupSize = 50000, 5
     -- The party's members, with GUIDs as the game gives them.
@@ -170,6 +211,8 @@ Section('Instance Tracker', function()
         state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
     end)
     state.instanceType, state.instanceName, state.instanceID = 'party', 'The Deadmines', 36
+    -- The item looted below: the game knows an item you've just looted, its quality too.
+    ITEMS[2169] = { name = 'Buzzer Blade', quality = 2 }
     Send('InstanceTracker', 'PLAYER_ENTERING_WORLD', false, false)
     Measure('Instance Tracker: XP gain inside an instance', 100, function()
         state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
@@ -188,11 +231,73 @@ Section('Instance Tracker', function()
     end)
     Measure('Instance Tracker: group roster update (5 players)', 100, function() Send('InstanceTracker', 'GROUP_ROSTER_UPDATE') end)
     Measure('Instance Tracker: target changed, instance ID unknown', 100, function() Send('InstanceTracker', 'PLAYER_TARGET_CHANGED') end)
+    -- With its window open: the run's events are drawn at the window's next look, a second apart.
+    local I = mod('InstanceTracker')
+    I:Toggle()
+    AdvanceTime(1)
+    Measure('Instance Tracker window open: a kill and its XP, then the one-second look', 100, function()
+        Send('InstanceTracker', 'CHAT_MSG_COMBAT_XP_GAIN', Chat('Defias Pillager dies, you gain 120 experience.'))
+        state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
+        AdvanceTime(1)
+    end)
+    Measure('Instance Tracker window open: one-second look, nothing happened', 100, function() AdvanceTime(1) end)
+    I.Window.Close()
     state.instanceType, state.instanceName, state.instanceID = 'none', nil, nil
     Send('InstanceTracker', 'PLAYER_ENTERING_WORLD', false, false)
     Measure('Instance Tracker: zone change outside an instance', 100, function() Send('InstanceTracker', 'ZONE_CHANGED_NEW_AREA') end)
     state.groupSize = 0
+    ITEMS[2169] = nil
     for i = 1, 4 do UNITS['party' .. i] = nil end
+end)
+
+Section('Dungeon Timer', function()
+    Enable({ 'DungeonTimer' }, true)
+    local T = mod('DungeonTimer')
+    Measure('Dungeon Timer: zone change outside an instance', 100, function() Send('DungeonTimer', 'ZONE_CHANGED_NEW_AREA') end)
+    state.money = 50000
+    state.instanceType, state.instanceName, state.instanceID = 'party', 'The Deadmines', 36
+    -- The item looted below: the game knows an item you've just looted. The one after it isn't loaded yet.
+    local blade = { name = 'Buzzer Blade' }
+    ITEMS[2169], ITEMS[2170] = blade, nil
+    Send('DungeonTimer', 'PLAYER_ENTERING_WORLD', false, false)
+    assert(T.live and T.frame:IsShown(), 'the timer shows inside the instance')
+    Measure('Dungeon Timer: one-second tick', 300, function() AdvanceTime(1) end)
+    Measure('Dungeon Timer: zone change inside the instance', 100, function() Send('DungeonTimer', 'ZONE_CHANGED_NEW_AREA') end)
+    Measure('Dungeon Timer: money looted', 100, function()
+        state.money = state.money + 50; Send('DungeonTimer', 'PLAYER_MONEY')
+    end)
+    Measure('Dungeon Timer: a loot message', 100, function()
+        Send('DungeonTimer', 'CHAT_MSG_LOOT', Chat('You receive loot: |cff1eff00|Hitem:2169::::::::30:::::|h[Buzzer Blade]|h|r.'))
+    end)
+    Measure('Dungeon Timer: loot the game hasn\'t loaded, then has', 100, function()
+        ITEMS[2170] = nil
+        Send('DungeonTimer', 'CHAT_MSG_LOOT', Chat('You receive loot: |cff1eff00|Hitem:2170::::::::30:::::|h[Buzzer Blade]|h|r.'))
+        ITEMS[2170] = blade
+        Send('DungeonTimer', 'GET_ITEM_INFO_RECEIVED', 2170, true)
+    end)
+    Measure('Dungeon Timer: a death', 100, function() Send('DungeonTimer', 'PLAYER_DEAD') end)
+    Measure('Dungeon Timer: money and loot, then a tick', 100, function()
+        state.money = state.money + 50; Send('DungeonTimer', 'PLAYER_MONEY')
+        Send('DungeonTimer', 'CHAT_MSG_LOOT', Chat('You receive loot: |cff1eff00|Hitem:2169::::::::30:::::|h[Buzzer Blade]|h|r.'))
+        AdvanceTime(1)
+    end)
+    -- Every boss of the instance once (so no warm-up kills), the last ending the run; the game sends both events for
+    -- a kill.
+    local bosses, killed = { 2741, 2742, 3676, 2743, 2744, 2745, 2746, 2747 }, 0
+    Measure('Dungeon Timer: a boss kill (both events)', #bosses, function()
+        killed = killed + 1
+        Send('DungeonTimer', 'BOSS_KILL', bosses[killed], 'Boss')
+        Send('DungeonTimer', 'ENCOUNTER_END', bosses[killed], 'Boss', 1, 5, 1)
+    end, 0)
+    assert(T.run.done and T.db.global.best[36].total == T.run.done, 'the run ends with its last boss')
+    Measure('Dungeon Timer: a wipe (encounter ended, boss alive)', 100, function()
+        Send('DungeonTimer', 'ENCOUNTER_END', 2747, 'Edwin VanCleef', 1, 5, 0)
+    end)
+    Measure('Dungeon Timer: one-second tick, run done', 100, function() AdvanceTime(1) end)
+    state.instanceType, state.instanceName, state.instanceID = 'none', nil, nil
+    Send('DungeonTimer', 'PLAYER_ENTERING_WORLD', false, false)
+    ITEMS[2169], ITEMS[2170] = nil, nil
+    Enable({ 'DungeonTimer' }, false)
 end)
 
 local tip = GameTooltip
@@ -641,6 +746,11 @@ Section('Mail Expiry & Alt List', function()
     end)
     Send('MailHelper', 'MAIL_SHOW')
     Measure('Mailbox open: inbox update (50 mails)', 300, function() Send('MailHelper', 'MAIL_INBOX_UPDATE') end)
+    -- Open All: an update for each letter taken, then the one read that follows them.
+    Measure('Mailbox open: 20 inbox updates in a row, and the moment after (50 mails)', 100, function()
+        for _ = 1, 20 do Send('MailHelper', 'MAIL_INBOX_UPDATE') end
+        AdvanceTime(0.4)
+    end)
     local n = 0
     Measure('Mail sent: recipient remembered', 100, function()
         n = n % 30 + 1
@@ -1815,6 +1925,113 @@ Section('Super Auction House: item tooltips', function()
         end)
     end
 end)
+
+-- What your other characters have (older bases lack it): the tooltip's line per character, a bag change, which
+-- nothing here hears, and the count of this character's bags as it logs out.
+if S.Alts then
+    Section('Super Auction House: other characters', function()
+        -- Off and on again: what the others have is added up at the first ask after the tweak turns on.
+        Only({})
+        S.db.global.alts.TestRealm = {
+            ['Alt One'] = { bags = { [2447] = 12 }, bank = { [2447] = 40 } },
+            ['Alt Two'] = { mail = { [2447] = 5 } },
+        }
+        Only({ 'SuperAuctionHouse' })
+        S.db.profile.tipAlts = true
+        S:Apply()
+        fill(GameTooltip, data)
+        Measure("Item tooltip: other characters' counts on, redraw", 300, function() fill(GameTooltip, data) end)
+        Measure("Item tooltip: other characters' counts on, first draw", 100, function()
+            S.Tooltip.Forget()
+            fill(GameTooltip, data)
+        end)
+        Measure("Bag change, other characters' items saved", 300, function() Send('SuperAuctionHouse', 'BAG_UPDATE_DELAYED') end)
+        -- One bag of 16 stacks.
+        C_Container = C_Container or {
+            GetContainerNumSlots = function(bag) return bag == 0 and 16 or 0 end,
+            GetContainerItemInfo = function(_, slot) return { itemID = 2400 + slot, stackCount = 5 } end,
+        }
+        Measure("Logout: this character's bags counted", 50, function() Send('SuperAuctionHouse', 'PLAYER_LOGOUT') end)
+        S.db.profile.tipAlts = false
+        S:Apply()
+    end)
+end
+
+-- The crafting queue (older bases lack it) hears bags only while the professions window is open with a recipe
+-- queued: a bag change then, with 60 recipes saved and 5 of them queued, and one with the window closed.
+if S.Queue then
+    Section('Super Auction House: crafting queue', function()
+        Only({ 'SuperAuctionHouse' })
+        local key = S.Recipes.CharacterKey()
+        local saved = { name = 'Alchemy' }
+        for i = 1, 60 do saved[2330 + i] = (118 + i) .. '*1:2447*1,765*2=Potion ' .. i end
+        S.db.global.recipes[key] = { [171] = saved }
+        S.Recipes.Changed()
+        for i = 1, 5 do S.Queue.Set(2330 + i, 20) end
+        local skills, window, permissive = C_TradeSkillUI, ProfessionsFrame, PERMISSIVE_FRAMES
+        PERMISSIVE_FRAMES = true -- the craft button is one of the game's own
+        C_Item.GetItemQualityByID = C_Item.GetItemQualityByID or function() return 1 end
+        C_Item.GetItemNameByID = C_Item.GetItemNameByID or function(id) return 'Item ' .. id end
+        C_Item.GetItemCount = C_Item.GetItemCount or function() return 4 end
+        local alchemy = { professionID = 171 }
+        C_TradeSkillUI = {
+            IsTradeSkillReady = function() return true end,
+            GetChildProfessionInfo = function() return alchemy end,
+            GetCraftableCount = function() return 3 end,
+        }
+        ProfessionsFrame = CreateFrame('Frame')
+        S.Crafting.panel = S.Crafting.panel or CreateFrame('Frame', nil, CreateFrame('Frame'))
+        Dispatch('TRADE_SKILL_LIST_UPDATE')
+        RunTimers() -- the recipes' own read of the list
+        Measure('Bag change, professions window open with recipes queued', 200, function() Dispatch('BAG_UPDATE_DELAYED') end)
+        Dispatch('TRADE_SKILL_CLOSE')
+        Measure('Bag change, recipes queued, professions window closed', 300, function() Dispatch('BAG_UPDATE_DELAYED') end)
+        for i = 1, 5 do S.Queue.Set(2330 + i, 0) end
+        S.db.global.recipes[key] = nil
+        S.Recipes.Changed()
+        C_TradeSkillUI, ProfessionsFrame, PERMISSIVE_FRAMES = skills, window, permissive
+    end)
+end
+
+-- An item's auctions arrive a page at a time: with 500 read, the page that brings 50 more.
+if S.Net and S.Net.Listings then
+    Section('Super Auction House: auction listings', function()
+        Only({ 'SuperAuctionHouse' })
+        local AH = C_AuctionHouse
+        local key = { itemID = 2589, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }
+        local rows = {}
+        for i = 1, 550 do
+            rows[i] = { auctionID = i, buyoutAmount = 1000 + i, quantity = 1, owners = {}, totalNumberOfOwners = 1,
+                timeLeft = 2, itemKey = key, itemLink = 'link' }
+        end
+        local count = 500
+        local info = { isCommodity = false, isEquipment = false, itemName = 'Linen Cloth', quality = 1 }
+        AH.IsThrottledMessageSystemReady = function() return true end
+        AH.GetItemKeyInfo = function() return info end
+        AH.MakeItemKey = function(itemID) return { itemID = itemID } end
+        AH.SendSearchQuery = function() end
+        AH.SendSellSearchQuery = function() end
+        AH.RequestMoreItemSearchResults = function() return false end
+        AH.GetNumItemSearchResults = function() return count end
+        AH.GetItemSearchResultInfo = function(_, i) return rows[i] end
+        AH.HasFullItemSearchResults = function() return false end
+        S.Net.Start()
+        local request = S.Net.Listings(key, nil, function() end)
+        Dispatch('ITEM_SEARCH_RESULTS_UPDATED', key)
+        count = 550
+        Measure('Auction listing: a page of 50 more auctions, 500 already read', 50, function()
+            -- Back to 500 read, for a page to add to.
+            local entries = request.entries
+            if request.read then
+                request.read = 500
+                for i = #entries, 501, -1 do entries[i] = nil end
+            end
+            Dispatch('ITEM_SEARCH_RESULTS_ADDED', key)
+        end)
+        S.Net.CancelListings(request)
+        S.Net.Stop()
+    end)
+end
 
 -- History reads auction mail as the inbox changes: a mailbox of sale letters over a long history.
 Section('Super Auction House: auction mail', function()

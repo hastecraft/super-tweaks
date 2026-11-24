@@ -1,0 +1,487 @@
+-- Rep Tracker settings and previews, laid out as the XP Tracker's (see XPTrackerOptions.lua).
+-- SPDX-License-Identifier: MPL-2.0
+local ADDON, ns = ...
+local R = ns.RepTracker
+local min, max = math.min, math.max
+
+local function choices(list)
+    local result, order = {}, {}
+    for i = 1, #list, 2 do result[list[i]] = list[i + 1]; order[#order + 1] = list[i] end
+    return result, order
+end
+local TOKENS = "Tokens:\n{name}  {standing}  {next}  faction, standing and the next one\n"
+    .. "{rep}  {max}  {remaining}  {percent}  {remainingpercent}\n{rate} rep per hour,  {ttl} time to the next standing\n"
+    .. "{session}  {gained}  session time and rep\n\n||n starts a new line."
+
+function R:BuildOptions()
+    local with, section = ns.With, ns.Section
+    local anchors, anchorOrder = choices({ "TOPLEFT", "Top left", "TOP", "Top", "TOPRIGHT", "Top right",
+        "LEFT", "Left", "CENTER", "Center", "RIGHT", "Right",
+        "BOTTOMLEFT", "Bottom left", "BOTTOM", "Bottom", "BOTTOMRIGHT", "Bottom right" })
+    local aligns, alignOrder = choices({ "LEFT", "Left", "CENTER", "Center", "RIGHT", "Right" })
+    local stratas, strataOrder = choices({ "BACKGROUND", "Background", "LOW", "Low", "MEDIUM", "Medium", "HIGH", "High", "DIALOG", "Dialog" })
+    local OUTLINES = { "", "None", "OUTLINE", "Outline", "THICKOUTLINE", "Thick outline",
+        "MONOCHROME", "Monochrome", "MONOCHROME,OUTLINE", "Monochrome outline" }
+    local outlines, outlineOrder = choices(OUTLINES)
+    local labelOutlines, labelOutlineOrder = choices({ "INHERIT", "Global outline", unpack(OUTLINES) })
+    local HIDDEN = { none = "hidden: no faction to track", max = "hidden at Exalted", dungeon = "hidden in a dungeon",
+        raid = "hidden in a raid", combat = "hidden in combat" }
+    if ns.AddOnLoaded("EllesmereUI") then
+        outlines.EUI, labelOutlines.EUI = "Match EllesmereUI", "Match EllesmereUI"
+        table.insert(outlineOrder, 1, "EUI")
+        table.insert(labelOutlineOrder, 2, "EUI")
+    end
+    local function apply() R:Apply() end
+    local function target(textKey)
+        if textKey then return function() return R.db.profile.texts[textKey] end end
+        return function() return R.db.profile end
+    end
+    local function option(kind, key, name, order, extra, textKey)
+        return ns.Option(target(textKey), kind, key, name, order, extra, apply)
+    end
+    local function range(key, name, order, low, high, step, textKey)
+        return option("range", key, name, order, { min = low, max = high, step = step or 1 }, textKey)
+    end
+    local function toggle(key, name, order, desc, textKey)
+        return option("toggle", key, name, order, { desc = desc }, textKey)
+    end
+    local function position(axis, name, order, low, high)
+        return { type = "range", name = name, order = order, min = low, max = high, step = 1,
+            get = function() return (select(axis, R:GetPosition())) end,
+            set = function(_, value)
+                local x, y = R:GetPosition()
+                if axis == 1 then x = value else y = value end
+                R:SetPosition(x, y); R:Apply()
+            end }
+    end
+    local function color(key, name, order, textKey)
+        return option("color", key, name, order, nil, textKey)
+    end
+    local function dropdown(key, name, order, list, sorting, textKey)
+        return option("select", key, name, order, { values = list, sorting = sorting }, textKey)
+    end
+    local function media(kind, key, name, order, pathKey, textKey)
+        local settings = target(textKey)
+        return ns.MediaOption(settings, kind, key, name, order, { disabled = function() return settings()[pathKey] ~= "" end },
+            apply, textKey and "Global font")
+    end
+    local function path(key, name, order, textKey)
+        return option("input", key, name, order, { width = "full",
+            desc = "A file in the WoW folder, such as Interface\\AddOns\\MyMedia\\MyFile.ttf or .tga. Used instead of "
+                .. "the menu. New files need a game restart." }, textKey)
+    end
+    local function whenSet(key) return function() return R.db.profile[key] end end
+    local function whenUnset(key) return function() return not R.db.profile[key] end end
+
+    local options = { name = "Rep Tracker", type = "group", args = {} }
+    options.args.general = { type = "group", name = "General", order = 1, args = {
+        bar = section("Tracker", 1, {
+            -- Also in the bar's right-click menu, which a hidden bar (no faction to track) can't open.
+            faction = { type = "select", name = "Faction", order = 0,
+                desc = "Watched faction follows the one the game's reputation bar shows.",
+                values = function() return R:FactionChoices().values end,
+                sorting = function() return R:FactionChoices().order end,
+                get = function() return R.db.char.factionID end,
+                set = function(_, id) R:Track(id) end },
+            preview = { type = "toggle", name = "Preview", order = 1,
+                desc = "Shows sample data. Turns off on /reload.",
+                get = function() return R.preview end, set = function(_, v) R.preview = v; R:Render() end },
+            hideBlizzard = toggle("hideBlizzard", "Hide the game's reputation bar", 2),
+        }),
+        mouse = section("Mouse", 2, {
+            locked = toggle("locked", "Lock position", 1,
+                "Unlock to drag the bar anywhere."),
+            clickThrough = option("toggle", "clickThrough", "Click-through", 2, {
+                desc = "While locked, the bar ignores the mouse: clicks and camera drags reach the world behind it, and it "
+                    .. "shows no tooltip or right-click menu. Not available with Mouseover only.",
+                disabled = whenSet("mouseover") }),
+            tooltip = toggle("tooltip", "Tooltip", 3),
+            ignoreMouseInCombat = toggle("ignoreMouseInCombat", "Ignore mouse in combat", 4,
+                "In combat, the bar shows no tooltip, stays faded with Mouseover only, and lets clicks pass through."),
+        }),
+    } }
+    options.args.visibility = { type = "group", name = "Visibility", order = 2, args = {
+        status = { type = "description", order = 0, fontSize = "medium", name = function()
+            if R.preview then return "Status: |cffffd100preview on, rules ignored|r" end
+            local reason = R:HiddenReason()
+            return "Status: " .. (reason and HIDDEN[reason] or "shown")
+        end },
+        hide = section("Hide", 1, {
+            hideMax = toggle("hideMax", "At Exalted", 1),
+            hideDungeon = toggle("hideDungeon", "In dungeons", 2, "Battlegrounds and arenas don't count."),
+            hideRaid = toggle("hideRaid", "In raids", 3, "Only inside raid instances, not in a raid group elsewhere."),
+            hideCombat = toggle("hideCombat", "In combat", 4),
+        }),
+        fade = section("Opacity", 2, {
+            alpha = range("alpha", "Opacity", 1, 0.05, 1, 0.01),
+            combatAlpha = with(range("combatAlpha", "Combat opacity", 2, 0, 1, 0.01), {
+                disabled = whenSet("hideCombat") }),
+            mouseover = toggle("mouseover", "Mouseover only", 3,
+                "While locked, the bar shows only when you point at it."),
+        }),
+    } }
+    options.args.layout = { type = "group", name = "Size & position", order = 3, args = {
+        size = section("Size", 1, {
+            width = range("width", "Width", 1, 20, 2400), height = range("height", "Height", 2, 6, 600),
+            scale = with(range("scale", "Scale", 3, 0.25, 3, 0.01), {
+                desc = "Other than 100% can blur the bar. Width, Height and Text size keep it sharp." }),
+        }),
+        position = section("Position", 2, {
+            x = position(1, "Horizontal", 1, -4000, 4000), y = position(2, "Vertical", 2, -2400, 2400),
+            strata = with(dropdown("strata", "Layer", 3, stratas, strataOrder), { desc = "Raise this if other frames cover the bar." }),
+            center = { type = "execute", name = "Center", order = 4,
+                func = function() R:SetPosition(0, 0); R:Apply() end },
+            perLayout = toggle("perLayout", "Position per Edit Mode layout", 5),
+            forgetLayouts = { type = "execute", name = "Forget layout positions", order = 6, confirm = true,
+                confirmText = "Forget the bar's position in every Edit Mode layout? Each layout goes back to the shared position.",
+                disabled = function() return next(R.db.profile.layouts) == nil end,
+                func = function() wipe(R.db.profile.layouts); R:Apply() end },
+        }),
+        fill = section("Fill", 3, {
+            orientation = dropdown("orientation", "Orientation", 1, { HORIZONTAL = "Horizontal", VERTICAL = "Vertical" }, { "HORIZONTAL", "VERTICAL" }),
+            reverse = toggle("reverse", "Reverse fill", 2, "Fills from right to left, or top to bottom when vertical."),
+        }),
+    } }
+    options.args.style = { type = "group", name = "Bar", order = 4, args = {
+        textures = section("Textures", 1, {
+            texture = media("statusbar", "texture", "Bar", 1, "texturePath"),
+            backgroundTexture = media("statusbar", "backgroundTexture", "Background", 2, "backgroundPath"),
+            texturePath = path("texturePath", "Custom bar texture", 3),
+            backgroundPath = path("backgroundPath", "Custom background texture", 4),
+        }),
+        colors = section("Colors", 2, {
+            standingColor = toggle("standingColor", "Standing color", 1, "Red when hostile, green when friendly, as the game colors it."),
+            repColor = with(color("repColor", "Reputation", 2), { disabled = whenSet("standingColor") }),
+            backgroundColor = color("backgroundColor", "Background", 3),
+        }),
+        border = section("Border", 3, {
+            border = range("border", "Border size", 1, 0, 12),
+            borderColor = with(color("borderColor", "Border color", 2), { disabled = function() return R.db.profile.border == 0 end }),
+            padding = with(range("padding", "Padding", 3, 0, 20), { desc = "Space between the border and the fill." }),
+        }),
+        details = section("Divisions & spark", 4, {
+            ticks = with(range("ticks", "Divisions", 1, 0, 40), { desc = "Splits the bar into this many parts. 0 or 1: none." }),
+            tickColor = with(color("tickColor", "Division color", 2), { disabled = function() return R.db.profile.ticks < 2 end }),
+            spark = toggle("spark", "Spark", 3),
+            sparkWidth = with(range("sparkWidth", "Spark width", 4, 1, 8), { disabled = whenUnset("spark") }),
+            sparkColor = with(color("sparkColor", "Spark color", 5), { disabled = whenUnset("spark") }),
+        }),
+    } }
+    options.args.fonts = { type = "group", name = "Text", order = 5, args = {
+        font = section("Font", 1, {
+            font = with(media("font", "font", "Font", 1, "fontPath"), { desc = "Used by every label without its own font." }),
+            outline = with(dropdown("outline", "Outline", 2, outlines, outlineOrder), {
+                desc = ns.OutlineDesc(true) }),
+            textScale = with(range("textScale", "Text size", 3, 0.5, 3, 0.05), { isPercent = true,
+                desc = "Resizes every label." }),
+            fontPath = path("fontPath", "Custom font", 4),
+        }),
+        numbers = section("Numbers", 2, {
+            compact = toggle("compact", "Short numbers", 1, "12.3k and 1.2m instead of full numbers."),
+            decimals = range("decimals", "Percent decimals", 2, 0, 2),
+            numberClassColor = toggle("numberClassColor", "Numbers in class color", 3),
+            numberColor = with(color("numberColor", "Number color", 4), { disabled = whenSet("numberClassColor") }),
+        }),
+    } }
+    options.args.texts = { type = "group", name = "Text labels", order = 6, args = {
+        help = { type = "description", order = 0, name = "Each label has its own text, font and position.\n\n" .. TOKENS },
+    } }
+    local labels = { { "name", "Faction" }, { "progress", "Rep progress" }, { "percent", "Percentage" },
+        { "rate", "Rep/hour" }, { "standing", "Standing" }, { "session", "Session" },
+        { "next", "Time to next standing" } }
+    for index, label in ipairs(labels) do
+        local key = label[1]
+        local function hidden() return not R.db.profile.texts[key].enabled end
+        options.args.texts.args[key] = { type = "group", name = label[2], order = index, args = {
+            enabled = toggle("enabled", "Show", 1, nil, key),
+            reset = { type = "execute", name = "Reset label", order = 2, confirm = true,
+                confirmText = "Restore this label's default text, font and position?",
+                func = function() R.db.profile.texts[key] = CopyTable(R.defaults.profile.texts[key]); R:Apply() end },
+            template = option("input", "template", "Text", 3, { width = "full", desc = TOKENS, disabled = hidden }, key),
+            font = section("Font", 4, {
+                font = with(media("font", "font", "Font", 1, "fontPath", key),
+                    { disabled = function() return hidden() or R.db.profile.texts[key].fontPath ~= "" end }),
+                size = with(range("size", "Size", 2, 6, 64, 1, key), { desc = "Scaled by Text size on the Text page." }),
+                outline = dropdown("outline", "Outline", 3, labelOutlines, labelOutlineOrder, key),
+                color = color("color", "Color", 4, key),
+                colorNumbers = toggle("colorNumbers", "Color numbers", 5, "Uses the colors on the Text page.", key),
+                shadow = toggle("shadow", "Shadow", 6, nil, key),
+                fontPath = path("fontPath", "Custom font", 7, key),
+            }, { disabled = hidden }),
+            position = section("Position", 5, {
+                point = with(dropdown("point", "Anchor", 1, anchors, anchorOrder, key), { desc = "Point on the bar the label attaches to." }),
+                align = dropdown("align", "Alignment", 2, aligns, alignOrder, key),
+                width = with(range("width", "Width", 3, 0, 2400, 1, key), { desc = "0 fits the text." }),
+                x = range("x", "Horizontal offset", 4, -2000, 2000, 1, key),
+                y = range("y", "Vertical offset", 5, -1000, 1000, 1, key),
+            }, { disabled = hidden }),
+        } }
+    end
+    options.args.stats = { type = "group", name = "Session", order = 7, args = {
+        session = section("Session", 1, {
+            resetOnLogin = toggle("resetOnLogin", "New session on login", 1),
+            resetOnReload = toggle("resetOnReload", "New session on /reload", 2),
+            pauseAFK = toggle("pauseAFK", "Pause while AFK", 3, "AFK time doesn't count toward rep per hour."),
+            updateInterval = with(range("updateInterval", "Refresh every (seconds)", 4, 1, 10), {
+                desc = "How often rep per hour and the times update." }),
+            resetStats = { type = "execute", name = "Reset session", order = 5, confirm = true,
+                confirmText = "Reset this character's session rep and time?", func = function() R:ResetSession() end },
+        }),
+    } }
+    return options
+end
+
+-- The tweak list's small sample of the bar.
+local PREVIEW_FILL = 0.54
+function R:DrawPreview(frame)
+    local v = frame.hstRep
+    if not v then
+        v = {}
+        frame.hstRep = v
+        v.bar = CreateFrame("Frame", nil, frame)
+        v.bar:SetPoint("CENTER", 0, 4)
+        v.background = v.bar:CreateTexture(nil, "BACKGROUND")
+        v.background:SetAllPoints()
+        v.border = ns.CreateEdges(v.bar, "BORDER")
+        v.fill = v.bar:CreateTexture(nil, "ARTWORK")
+        v.ticks = {}
+        v.spark = v.bar:CreateTexture(nil, "OVERLAY", nil, 1)
+        v.spark:SetTexture(ns.WHITE)
+        v.name = v.bar:CreateFontString(nil, "OVERLAY")
+        v.percent = v.bar:CreateFontString(nil, "OVERLAY")
+        v.labels = { v.name, v.percent }
+    end
+    local p = self.db.profile
+    local horizontal = p.orientation == "HORIZONTAL"
+    local available = frame:GetWidth()
+    local length = horizontal and min((available and available > 100 and available or 256) - 32, 200) or 96
+    local thickness = max(8, min(horizontal and p.height or p.width, 22))
+    local inset = min(ns.Pixels(v.bar, p.padding) + ns.Border(v.bar, p.border), thickness / 2 - 1)
+    local thin = ns.Pixels(v.bar, 1)
+    local width, height = horizontal and length or thickness, horizontal and thickness or length
+    v.bar:SetSize(width, height)
+    v.border:Layout(v.bar, p.border, false)
+    v.border:SetColor(unpack(p.borderColor))
+    v.border:SetShown(p.border > 0)
+    v.background:SetTexture(ns.Media("statusbar", p.backgroundTexture, p.backgroundPath))
+    v.background:SetVertexColor(unpack(p.backgroundColor))
+    local inner, across = length - inset * 2, thickness - inset * 2
+    local first, second
+    if horizontal then first, second = p.reverse and "TOPRIGHT" or "TOPLEFT", p.reverse and "BOTTOMRIGHT" or "BOTTOMLEFT"
+    else first, second = p.reverse and "TOPLEFT" or "BOTTOMLEFT", p.reverse and "TOPRIGHT" or "BOTTOMRIGHT" end
+    local step = p.reverse and -1 or 1
+    local fill = v.fill
+    fill:SetTexture(ns.Media("statusbar", p.texture, p.texturePath))
+    fill:SetVertexColor(unpack(self:BarColor(6)))
+    fill:ClearAllPoints()
+    if horizontal then
+        fill:SetPoint(first, inset * step, -inset)
+        fill:SetPoint(second, inset * step, inset)
+        fill:SetWidth(inner * PREVIEW_FILL)
+    else
+        fill:SetPoint(first, inset, inset * step)
+        fill:SetPoint(second, -inset, inset * step)
+        fill:SetHeight(inner * PREVIEW_FILL)
+    end
+    v.spark:SetShown(p.spark)
+    if p.spark then
+        local edge = inset + inner * PREVIEW_FILL
+        if p.reverse then edge = length - edge end
+        v.spark:SetVertexColor(unpack(p.sparkColor))
+        v.spark:ClearAllPoints()
+        if horizontal then
+            v.spark:SetSize(p.sparkWidth, across)
+            v.spark:SetPoint("CENTER", v.bar, "BOTTOMLEFT", edge, thickness / 2)
+        else
+            v.spark:SetSize(across, p.sparkWidth)
+            v.spark:SetPoint("CENTER", v.bar, "BOTTOMLEFT", thickness / 2, edge)
+        end
+    end
+    for i = 1, 39 do
+        local tick = v.ticks[i]
+        if i < p.ticks then
+            if not tick then tick = v.bar:CreateTexture(nil, "OVERLAY"); v.ticks[i] = tick end
+            tick:SetColorTexture(unpack(p.tickColor))
+            tick:ClearAllPoints()
+            if horizontal then
+                tick:SetSize(thin, across)
+                tick:SetPoint("BOTTOMLEFT", inset + inner * i / p.ticks, inset)
+            else
+                tick:SetSize(across, thin)
+                tick:SetPoint("BOTTOMLEFT", inset, inset + inner * i / p.ticks)
+            end
+            tick:Show()
+        elseif tick then tick:Hide() end
+    end
+    local font = ns.Media("font", p.font, p.fontPath)
+    for _, fs in ipairs(v.labels) do
+        ns.SetFont(fs, font, 11, ns.OutlineFlags(p.outline))
+        fs:SetTextColor(0.93, 0.95, 1)
+        fs:ClearAllPoints()
+    end
+    if horizontal then
+        v.name:SetPoint("LEFT", 6, 0)
+        v.percent:SetPoint("RIGHT", -6, 0)
+    else
+        v.name:SetPoint("BOTTOMLEFT", v.bar, "TOPRIGHT", 6, -12)
+        v.percent:SetPoint("TOPLEFT", v.bar, "BOTTOMRIGHT", 6, 12)
+    end
+    v.name:SetText("Stormwind")
+    v.percent:SetText(string.format("%." .. p.decimals .. "f%%", PREVIEW_FILL * 100))
+end
+
+-- The settings window's live preview: the whole bar at its own size, every shown label reading sample numbers.
+local SAMPLE = { name = "Stormwind", standing = 6, rep = 6500, cap = 12000, seconds = 1800, gained = 1400 }
+local sampleTokens = {}
+local function SampleTokens(p)
+    local t, s = sampleTokens, SAMPLE
+    local percent = "%." .. p.decimals .. "f"
+    local rate = s.gained / s.seconds * 3600
+    t.name, t.standing, t.next = s.name, _G["FACTION_STANDING_LABEL" .. s.standing] or "Honored",
+        _G["FACTION_STANDING_LABEL" .. (s.standing + 1)] or "Revered"
+    t.rep, t.max, t.remaining = R:FormatNumber(s.rep), R:FormatNumber(s.cap), R:FormatNumber(s.cap - s.rep)
+    t.gained = R:FormatNumber(s.gained)
+    t.percent, t.remainingpercent = percent:format(s.rep / s.cap * 100), percent:format((s.cap - s.rep) / s.cap * 100)
+    t.rate, t.ttl = R:FormatNumber(rate), R:FormatTime((s.cap - s.rep) / rate * 3600)
+    t.session = R:FormatTime(s.seconds)
+    return t
+end
+
+local function Along(point, low, high)
+    if point:find(low, 1, true) then return 0 end
+    if point:find(high, 1, true) then return 1 end
+    return 0.5
+end
+
+function R:DrawLivePreview(frame, width, height, path)
+    local p = self.db.profile
+    local v = frame.hstLive
+    if not v then
+        v = { ticks = {}, labels = {} }
+        frame.hstLive = v
+        v.box = CreateFrame("Frame", nil, frame)
+        v.background = v.box:CreateTexture(nil, "BACKGROUND")
+        v.background:SetAllPoints()
+        v.border = ns.CreateEdges(v.box, "BORDER")
+        v.fill = v.box:CreateTexture(nil, "ARTWORK")
+        v.overlay = CreateFrame("Frame", nil, v.box)
+        v.overlay:SetAllPoints()
+        v.overlay:SetFrameLevel(v.box:GetFrameLevel() + 2)
+        v.spark = v.overlay:CreateTexture(nil, "ARTWORK")
+        v.spark:SetTexture(ns.WHITE)
+        for key in pairs(self.defaults.profile.texts) do v.labels[key] = v.overlay:CreateFontString(nil, "OVERLAY") end
+        local W = ns.Widgets
+        v.focus = CreateFrame("Frame", nil, v.overlay)
+        W.Fill(v.focus, W.C.accentWash):SetAllPoints()
+        W.Border(v.focus, W.C.accent)
+    end
+    local bw, bh = p.width, p.height
+    v.box:SetSize(bw, bh)
+    v.box:SetAlpha(p.alpha)
+    v.border:Layout(v.box, p.border, false)
+    v.border:SetColor(unpack(p.borderColor))
+    v.border:SetShown(p.border > 0)
+    v.background:SetTexture(ns.Media("statusbar", p.backgroundTexture, p.backgroundPath))
+    v.background:SetVertexColor(unpack(p.backgroundColor))
+    local inset = min(ns.Pixels(v.box, p.padding) + ns.Border(v.box, p.border), min(bw, bh) / 2 - 1)
+    local thin = ns.Pixels(v.box, 1)
+    local iw, ih = bw - inset * 2, bh - inset * 2
+    local horizontal = p.orientation == "HORIZONTAL"
+    local s = SAMPLE
+    local size = s.rep / s.cap
+    local from = p.reverse and 1 - size or 0
+    local fill = v.fill
+    fill:SetTexture(ns.Media("statusbar", p.texture, p.texturePath))
+    fill:SetVertexColor(unpack(self:BarColor(s.standing)))
+    fill:ClearAllPoints()
+    if horizontal then
+        fill:SetPoint("BOTTOMLEFT", v.box, "BOTTOMLEFT", inset + iw * from, inset)
+        fill:SetSize(iw * size, ih)
+        fill:SetTexCoord(from, from + size, 0, 1)
+    else
+        fill:SetPoint("BOTTOMLEFT", v.box, "BOTTOMLEFT", inset, inset + ih * from)
+        fill:SetSize(iw, ih * size)
+        fill:SetTexCoord(0, 1, 1 - from - size, 1 - from)
+    end
+    v.spark:SetShown(p.spark)
+    if p.spark then
+        local edge = p.reverse and 1 - size or size
+        v.spark:SetVertexColor(unpack(p.sparkColor))
+        v.spark:ClearAllPoints()
+        if horizontal then
+            v.spark:SetSize(p.sparkWidth, ih)
+            v.spark:SetPoint("CENTER", v.box, "BOTTOMLEFT", inset + iw * edge, inset + ih / 2)
+        else
+            v.spark:SetSize(iw, p.sparkWidth)
+            v.spark:SetPoint("CENTER", v.box, "BOTTOMLEFT", inset + iw / 2, inset + ih * edge)
+        end
+    end
+    for i = 1, 39 do
+        local tick = v.ticks[i]
+        if i < p.ticks then
+            if not tick then
+                tick = v.overlay:CreateTexture(nil, "ARTWORK")
+                tick:SetTexture(ns.WHITE)
+                v.ticks[i] = tick
+            end
+            tick:SetVertexColor(unpack(p.tickColor))
+            tick:ClearAllPoints()
+            if horizontal then
+                tick:SetSize(thin, ih); tick:SetPoint("BOTTOMLEFT", v.box, "BOTTOMLEFT", inset + iw * i / p.ticks, inset)
+            else
+                tick:SetSize(iw, thin); tick:SetPoint("BOTTOMLEFT", v.box, "BOTTOMLEFT", inset, inset + ih * i / p.ticks)
+            end
+            tick:Show()
+        elseif tick then tick:Hide() end
+    end
+    local tokens = SampleTokens(p)
+    local left, right, bottom, top = 0, bw, 0, bh
+    local focus = path and path[1] == "texts" and path[2]
+    v.focus:Hide()
+    for key, fs in pairs(v.labels) do
+        local t = p.texts[key]
+        fs:SetShown(t.enabled)
+        if t.enabled then
+            R:StyleLabel(fs, t, p, v.box)
+            fs:SetText(((t.colorNumbers and R:PaintTemplate(t.template) or t.template):gsub("{(%a+)}", tokens)))
+            local lw, lh = t.width > 0 and t.width or fs:GetStringWidth(), fs:GetStringHeight()
+            local fx, fy = Along(t.point, "LEFT", "RIGHT"), Along(t.point, "BOTTOM", "TOP")
+            local x0, y0 = bw * fx + t.x - lw * fx, bh * fy + t.y - lh * fy
+            left, right = min(left, x0), max(right, x0 + lw)
+            bottom, top = min(bottom, y0), max(top, y0 + lh)
+            if key == focus then
+                v.focus:ClearAllPoints()
+                v.focus:SetPoint("BOTTOMLEFT", v.box, "BOTTOMLEFT", x0 - 4, y0 - 2)
+                v.focus:SetSize(lw + 8, lh + 4)
+                v.focus:Show()
+            end
+        end
+    end
+    local note = path and path[1] == "visibility" and self:PreviewVisibility(p)
+    local fit = min((width - 24) / (right - left), (height - 20) / (top - bottom))
+    local room = 0
+    if note or fit < p.scale then
+        room = 14
+        fit = min(fit, (height - 20 - room) / (top - bottom))
+        if fit < p.scale then note = note and note .. ". Shown smaller to fit" or "Shown smaller to fit" end
+    end
+    if note then
+        if not v.note then
+            v.note = ns.Widgets.Text(frame, "GameFontDisableSmall", ns.Widgets.C.muted, "CENTER")
+            v.note:SetPoint("BOTTOM", 0, 4)
+        end
+        v.note:SetText(note)
+        if not v.noteShown then v.noteShown = true; v.note:Show() end
+    elseif v.noteShown then
+        v.noteShown = false
+        v.note:Hide()
+    end
+    local scale = max(0.2, min(p.scale, fit))
+    v.box:SetScale(scale)
+    v.box:ClearAllPoints()
+    v.box:SetPoint("BOTTOMLEFT", frame, "CENTER", -(left + right) / 2, (room / 2) / scale - (bottom + top) / 2)
+end
+
+R.PreviewVisibility = ns.XPTracker.PreviewVisibility
+R.info.livePreview = function(frame, width, height, path) return R:DrawLivePreview(frame, width, height, path) end
+R.info.previewDock = "top"

@@ -363,6 +363,8 @@ local function Build(itemID, link, count, stack, made, data, detail, own)
             lines[#lines + 1] = selling .. " on sale"
         end
     end
+    -- A line per other character of yours that has some (Alts.lua).
+    if detail or p.tipAlts then S.Alts.AddLines(lines, itemID) end
     return #lines > 0 and lines or NONE, loading
 end
 
@@ -458,7 +460,8 @@ local function Hook(tooltip, data)
     local itemID = data and data.id
     if IsSecret(itemID) or not itemID then return end
     local p = S.db.profile
-    local info = tooltip.info
+    -- How the tooltip was asked for, while it's being filled (what its GetProcessingTooltipInfo returns).
+    local info = tooltip.processingInfo
     local getter = info and info.getterName
     if getter == "GetMerchantItem" and not p.tipMerchant then return end
     if not p.tipListings then
@@ -470,7 +473,11 @@ local function Hook(tooltip, data)
     local count = 1
     if getter then
         local read = COUNT[getter]
-        if read and StackWanted(p.tipStack) then count = read(info.getterArgs) or 1 end
+        local args = info.getterArgs
+        if read and args and StackWanted(p.tipStack) then
+            count = read(args)
+            if IsSecret(count) or type(count) ~= "number" then count = 1 end
+        end
     end
     local detail = p.tipDetail and Shift() or false
     -- Whether an item of yours can still be sold at auction depends on that one item, so the best place to sell it is
@@ -547,10 +554,11 @@ function T.Install()
     if S.Owned and S.Owned.Listen then S.Owned.Listen("tooltip", T.Forget) end
 end
 
-S.Extend(function(args, option)
+S.Extend(function(args, option, profile)
     local lines = args.tooltips.args.lines.args
     lines.tipTrend = option("toggle", "tipTrend", "Change from the usual price", 1.5,
-        { desc = "Shown beside the auction price when it's 10% or more." })
+        { desc = "Shown beside the auction price when it's 10% or more.",
+          disabled = function() return not profile().tipAuction end })
     lines.tipBest = option("toggle", "tipBest", "Best of vendor, auction and disenchant", 6.2,
         { desc = "The auction price counts after the 5% cut." })
     lines.tipPosted = option("toggle", "tipPosted", "What you last posted it at", 6.6)

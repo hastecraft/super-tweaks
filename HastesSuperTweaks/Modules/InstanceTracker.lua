@@ -267,6 +267,7 @@ local TRACKED = { party = true, raid = true }
 local LIVE_EVENTS = { "PLAYER_LEVEL_UP", "CHAT_MSG_COMBAT_XP_GAIN", "CHAT_MSG_COMBAT_FACTION_CHANGE", "CHAT_MSG_LOOT",
     "PLAYER_MONEY", "PLAYER_DEAD", "GROUP_ROSTER_UPDATE", "PLAYER_LOGOUT", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS" }
 local TOUCH_EVERY = 60 -- seconds between looks at a quiet run, so a crash or reload loses little of it
+local ROSTER_LOOKS = 5 -- looks, one at each of those, for a member's name the game hasn't sent
 local ID_EVENTS = { "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT" }
 local ID_UNITS = { PLAYER_TARGET_CHANGED = "target", UPDATE_MOUSEOVER_UNIT = "mouseover" }
 local PARTY, RAID = {}, {}
@@ -285,6 +286,7 @@ local REP_UP = Pattern((FACTION_STANDING_INCREASED or "Reputation with %s increa
 local REP_DOWN = Pattern((FACTION_STANDING_DECREASED or "Reputation with %s decreased by %d."):gsub("%.$", ""))
 local LOOT_PREFIXES = { Prefix(LOOT_ITEM_SELF or "You receive loot: %s."), Prefix(LOOT_ITEM_PUSHED_SELF or "You receive item: %s."),
     Prefix(LOOT_ITEM_CREATED_SELF or "You create: %s.") }
+I.LOOT_PREFIXES = LOOT_PREFIXES -- Dungeon Timer reads loot the same way
 
 -- Adds the time since the last look to the run, and notes it was seen now, so a crash loses little.
 function I:Touch()
@@ -335,6 +337,8 @@ function I:CheckZone(login)
             if login then self:CloseStale() end
             return
         end
+        -- Still inside, though the game wouldn't say which instance just now: the run goes on.
+        if self.run then return end
     end
     self:Leave()
     if login then self:CloseStale() end
@@ -416,7 +420,7 @@ function I:Enter(name, kind, difficulty, mapID, login)
             if self.run then
                 self:Touch()
                 SeeMap(self.run, MapHere())
-                if self.rosterOpen then self:Roster() end
+                if self.rosterOpen then self:Roster(true) end
             end
         end)
     end
@@ -514,8 +518,9 @@ local function Slot(run, index, unit, me)
 end
 
 -- Adds the group's members to the run. A name that hasn't arrived yet (rosterOpen) is asked for again at the next
--- roster event, and each minute until then.
-function I:Roster()
+-- roster event, and each minute until then (`again`) a few times: a name that never comes (a member who stays
+-- offline, names the game hides inside) isn't asked for all run long.
+function I:Roster(again)
     local run = self.run
     if not run then return end
     local count = Number(GetNumGroupMembers()) or 0
@@ -528,7 +533,9 @@ function I:Roster()
             for i = 1, min(count - 1, 4) do if not Slot(run, i, PARTY[i], me) then open = true end end
         end
     end
-    self.rosterOpen = open
+    local looks = again and open and (self.rosterLooks or 0) + 1 or 0
+    self.rosterLooks = looks
+    self.rosterOpen = open and looks < ROSTER_LOOKS
 end
 
 -- Whether one of the day's earlier runs in this instance was in this copy of it.
@@ -606,6 +613,7 @@ end
 local function LootCount(message)
     return tonumber(message:match("|h|rx(%d+)")) or tonumber(message:match("|hx(%d+)")) or 1
 end
+I.LootCount = LootCount
 
 -- An item you looted, by the link in the game's message, kept from the chosen quality up (and while its quality isn't
 -- known yet). Whatever its quality, what it sells for at auction right now is added to the run's auction value, when
@@ -614,9 +622,13 @@ function I:Loot(message)
     local run = self.run
     local id = tonumber(message:match("item:(%d+)"))
     if not id then return end
+    -- Asked whether it's hidden before anything else: a hidden value can't even be compared with nil.
     local quality = C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(id)
-    if quality == nil and GetItemInfo then quality = select(3, GetItemInfo(id)) end
-    local hidden = quality ~= nil and IsSecret(quality)
+    local hidden = IsSecret(quality)
+    if not hidden and quality == nil and GetItemInfo then
+        quality = select(3, GetItemInfo(id))
+        hidden = IsSecret(quality)
+    end
     local count
     local value = self.db.profile.auction and ns.AuctionValue(id)
     if value then
@@ -628,7 +640,7 @@ function I:Loot(message)
         end
         run.av = (run.av or 0) + value * count
     end
-    if quality ~= nil and (hidden or quality < self.db.profile.lootQuality) then return end
+    if hidden or (quality ~= nil and quality < self.db.profile.lootQuality) then return end
     count = count or LootCount(message)
     local items = run.items
     if items then
@@ -674,7 +686,8 @@ ns.Listen(I, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
         self:SampleXP()
         self:Refresh(true)
     elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
-        if not IsSecret(a) and type(a) == "string" and a:match(KILL) then
+        -- Text the game hides can't be read for what gave the XP: inside an instance that's a kill, nearly always.
+        if IsSecret(a) or (type(a) == "string" and a:match(KILL)) then
             self:Touch()
             run.k = run.k + 1
             self:Refresh(true)

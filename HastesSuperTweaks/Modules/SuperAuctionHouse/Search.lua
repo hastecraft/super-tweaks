@@ -1,9 +1,11 @@
 -- Search terms and the search that runs them. A term is text, so lists can be saved, exported and imported:
---   query;category;minItemLevel;maxItemLevel;minLevel;maxLevel;minCrafted;maxCrafted;minGold;maxGold;quality;tier;expansion;quantity;maxPrice;usable;uncollected
+--   query;category;minItemLevel;maxItemLevel;minLevel;maxLevel;minCrafted;maxCrafted;minGold;maxGold;quality;tier;expansion;quantity;maxPrice;usable;uncollected;maxFormula
 -- A query in double quotes matches the whole name. Plain text with no semicolons is a plain search. minGold and maxGold
 -- are in gold and can have a fraction (0.5 is 50 silver). maxPrice, in copper, is the most you'd pay for each: it
--- filters nothing, and marks the results at or under it. usable and uncollected are "1" when set. What's typed in the
--- search box can also name limits in short (T.Quick).
+-- filters nothing, and marks the results at or under it. maxFormula is a price formula (Formula.lua) in its place:
+-- a whole-name term's maxPrice is then what the formula comes to for the named item, each time the term is read,
+-- and a search works it out for each item it finds. usable and
+-- uncollected are "1" when set. What's typed in the search box can also name limits in short (T.Quick).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local S = ns.SuperAuctionHouse
@@ -13,7 +15,7 @@ S.Terms, S.Search = T, Q
 local AH = C_AuctionHouse
 local N = S.Net
 local FIELDS = { "query", "category", "minItemLevel", "maxItemLevel", "minLevel", "maxLevel", "minCrafted", "maxCrafted",
-    "minGold", "maxGold", "quality", "tier", "expansion", "quantity", "maxPrice", "usable", "uncollected" }
+    "minGold", "maxGold", "quality", "tier", "expansion", "quantity", "maxPrice", "usable", "uncollected", "maxFormula" }
 local NUMERIC = { minItemLevel = true, maxItemLevel = true, minLevel = true, maxLevel = true, minCrafted = true,
     maxCrafted = true, minGold = true, maxGold = true, quality = true, tier = true, expansion = true, quantity = true,
     maxPrice = true }
@@ -83,6 +85,10 @@ function T.Parse(text)
     local query = term.query or ""
     local exact = query:match('^"(.*)"$')
     if exact then term.query, term.exact = exact, true else term.query = query end
+    if term.maxFormula then
+        local key = term.exact and S.Prices.KeyByName(term.query)
+        term.maxPrice = key and S.Formula.Eval(term.maxFormula, key) or nil
+    end
     return term
 end
 
@@ -98,6 +104,8 @@ function T.Compose(term)
         local value = term[name]
         if FLAGS[name] then
             parts[i] = value and "1" or ""
+        elseif name == "maxPrice" and term.maxFormula then
+            parts[i] = ""
         else
             parts[i] = value ~= nil and tostring(value) or ""
         end
@@ -133,7 +141,8 @@ function T.Limits(term)
     add(term.usable and "usable", "usable")
     add(term.uncollected and "not collected", "uncollected")
     add(term.quantity and ("buy " .. term.quantity), "quantity")
-    add(term.maxPrice and ("at most " .. S.Kit.ShortMoney(term.maxPrice)), "maxPrice")
+    add(term.maxPrice and ("at most " .. S.Kit.ShortMoney(term.maxPrice)) or term.maxFormula and ("at most " .. term.maxFormula),
+        "maxPrice", "maxFormula")
     return limits
 end
 
@@ -222,7 +231,7 @@ end
 -- A term as it would be typed in the search box, in the quick syntax. What that can't say (a category, crafted
 -- levels, an expansion, the most you'd pay) comes back as a second value: a table of those fields, with the term's
 -- name in lower case as its query, or nil.
-local UNTYPED = { "category", "minCrafted", "maxCrafted", "tier", "expansion", "maxPrice" }
+local UNTYPED = { "category", "minCrafted", "maxCrafted", "tier", "expansion", "maxPrice", "maxFormula" }
 function T.Typed(text)
     if not text:find(";", 1, true) then return text end
     local term = T.Parse(text)
@@ -406,6 +415,8 @@ local function AddResult(r, term, result)
                     icon = info.iconFileID, level = result.itemKey.itemLevel, price = result.minPrice,
                     available = result.totalQuantity, owned = result.containsOwnerItem, isCommodity = info.isCommodity,
                     isPet = info.isPet, link = info.battlePetLink, purchase = term.quantity, at = at, most = term.maxPrice }
+                -- A formula comes to a price of its own for each item found.
+                if term.maxFormula then entry.most = S.Formula.Eval(term.maxFormula, S.ItemPage.KeyOf(entry)) end
                 r.byKey[keyString] = entry
                 r.results[#r.results + 1] = entry
                 if r.onResults then r.onResults(r) end
@@ -425,7 +436,7 @@ end
 local function Ask(r, ask, send)
     r.ask = ask
     local token = r.token
-    send(function() if r == run and r.token == token then ask() end end)
+    send(function() if r == run and r.token == token then ask() end end, "search")
 end
 
 -- Only the term's own query's results count: a scan's late page, or a search in the game's window, aren't its.
@@ -442,7 +453,7 @@ end
 N.On("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", function(event) BrowseUpdated(event) end)
 N.On("AUCTION_HOUSE_BROWSE_RESULTS_ADDED", BrowseUpdated)
 N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED", function()
-    if run and run.ask and not run.browseFull then Ask(run, run.ask, N.Send) end
+    if run and run.ask and not run.browseFull and N.WasDropped("search") then Ask(run, run.ask, N.Send) end
 end)
 N.On("AUCTION_HOUSE_BROWSE_FAILURE", function(event)
     if run and N.OwnsBrowse(run.token, event) then
@@ -469,13 +480,15 @@ NextTerm = function(r)
     Ask(r, function() N.SendBrowse(token, query) end, N.Send)
 end
 
--- Starts a search over a list of term strings. Callbacks in `handlers`: onResults(run), onProgress(done, total), onDone(run).
+-- Starts a search over a list of term strings. Callbacks in `handlers`: onResults(run), onProgress(done, total), onDone(run),
+-- onStop(run) when it's stopped, and onReplaced(run) when another search starts in its place.
 -- run.results holds the entries, run.missing the terms that found nothing, and run.found how many each term found, by
 -- its place in the list (an item two terms find is listed under the first).
 function Q.Start(terms, handlers)
     Q.Stop(true)
     local r = { terms = terms, at = 0, results = {}, byKey = {}, missing = {}, found = {}, onResults = handlers.onResults,
-        onProgress = handlers.onProgress, onDone = handlers.onDone, onStop = handlers.onStop }
+        onProgress = handlers.onProgress, onDone = handlers.onDone, onStop = handlers.onStop,
+        onReplaced = handlers.onReplaced }
     run = r
     NextTerm(r)
     return r
@@ -485,7 +498,11 @@ function Q.Stop(replaced)
     if not run then return end
     local stopped = run
     run = nil
-    if not replaced and stopped.onStop then stopped.onStop(stopped) end
+    if replaced then
+        if stopped.onReplaced then stopped.onReplaced(stopped) end
+    elseif stopped.onStop then
+        stopped.onStop(stopped)
+    end
 end
 
 function Q.IsRunning() return run ~= nil end

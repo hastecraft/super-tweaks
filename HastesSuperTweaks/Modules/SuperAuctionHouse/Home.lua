@@ -61,8 +61,9 @@ local function NewCard(parent, title, none, run)
     return card
 end
 
--- items: { label, value, color, data, series } each; a row with a series draws it as a sparkline before its value.
-local SPARK_W, VALUE_W = 44, 104
+-- items: { label, value, color, data, series } each; a row with a series draws it as a sparkline before its value,
+-- on a card with room for it (card.narrow: the names come first).
+local SPARK_W, VALUE_W, NARROW = 44, 104, 300
 local function Fill(card, items)
     local count = min(#items, ROWS)
     for i = 1, count do
@@ -72,7 +73,7 @@ local function Fill(card, items)
         row.label:SetText(item.label)
         row.value:SetText(item.value or "")
         W.Paint(row.value, item.color or P.muted)
-        local series = item.series
+        local series = not card.narrow and item.series or nil
         if series and not row.spark then
             row.spark = K.Spark(row, SPARK_W, ROW_H - 8)
             row.spark:SetPoint("RIGHT", row, "RIGHT", -(VALUE_W + 12), 0)
@@ -82,7 +83,7 @@ local function Fill(card, items)
             if series then row.spark:SetValues(series, item.sparkColor) end
         end
         -- The label ends before what's on the row's right.
-        local right = item.wide and -(VALUE_W + SPARK_W + 20) or -70
+        local right = item.wide and (card.narrow and -(VALUE_W + 12) or -(VALUE_W + SPARK_W + 20)) or -70
         if row.labelRight ~= right then
             row.labelRight = right
             row.label:SetPoint("RIGHT", row, "RIGHT", right, 0)
@@ -91,6 +92,7 @@ local function Fill(card, items)
     end
     for i = count + 1, #card.rows do card.rows[i]:Hide() end
     card.none:SetShown(count == 0)
+    card.filled = true
 end
 
 ---------------------------------------------------------------------------
@@ -165,11 +167,19 @@ end
 local function Layout()
     local width = frame:GetWidth() or 0
     if width <= 1 then return end
-    local each = floor((width - 24 - GAP * 2) / 3)
+    -- What you watch has the most on each row, so it gets the most room.
+    local room = width - 24 - GAP * 2
+    local last = floor(room * 0.4)
+    local each = floor((room - last) / 2)
     for i, card in ipairs(cards) do
         card:ClearAllPoints()
         card:SetPoint("TOPLEFT", 12 + (i - 1) * (each + GAP), -12)
-        card:SetWidth(each)
+        card:SetWidth(i == 3 and last or each)
+    end
+    local narrow = last < NARROW
+    if cards[3].narrow ~= narrow then
+        cards[3].narrow = narrow
+        if cards[3].filled then M.Refresh() end
     end
 end
 
@@ -178,7 +188,7 @@ local function Build(parent)
     frame = CreateFrame("Frame", nil, parent)
     frame:SetAllPoints()
     NewCard(frame, "Recent searches", "None yet.", function(text) S.Shopping.RunTerm(text) end)
-    NewCard(frame, "Your lists", "Make one with New, on the left.", function(list) S.Shopping.SearchList(list) end)
+    NewCard(frame, "Your lists", "Make one with New list, under Lists on the left.", function(list) S.Shopping.SearchList(list) end)
     -- At an auction house a watched item's auctions are a search away; anywhere else its price history is.
     NewCard(frame, "Watching", "Right-click an item and pick Watch.", function(item)
         if S.Window.IsLive() then return S.Shopping.SearchExact(item.name) end

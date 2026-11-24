@@ -108,18 +108,19 @@ ns.LazyOptions(M, function(self)
                 warnLogin = ns.Option(profile, "toggle", "warnLogin", "Warn when you log in", 1),
                 days = ns.Option(profile, "range", "days", "Warn within (days)", 2, { min = 1, max = 30, step = 1,
                     desc = "Mail stays in a mailbox for up to 30 days; cash on delivery mail for 3." }),
-                check = { type = "execute", name = "Check now", order = 3,
-                    desc = "Lists mail expiring soon on all your characters.", func = function() self:Warn(true) end },
+                check = { type = "execute", name = "Check now", order = 3, func = function() self:Warn(true) end },
                 note = { type = "description", order = 4,
                     name = "A character's mail is known once you've opened its mailbox, and updated each time you do." },
             }),
             recipients = ns.Section("Character list", 2, {
-                altButton = ns.Option(profile, "toggle", "altButton", "Button beside the To: field", 1,
-                    { desc = "Click it to fill in one of your characters on this realm and faction." }, function() self:UpdateButton() end),
+                altButton = ns.Option(profile, "toggle", "altButton", "Button beside the To: field", 1, nil,
+                    function() self:UpdateButton() end),
                 recent = ns.Option(profile, "toggle", "recent", "Include people you mailed recently", 2,
-                    { desc = "Also lists the last " .. self.RECENT .. " other players you sent mail to." }),
+                    { desc = "Also lists the last " .. self.RECENT .. " other players you sent mail to.",
+                      disabled = function() return not profile().altButton end }),
                 groups = ns.Option(profile, "toggle", "groups", "Include your Selling groups", 3,
-                    { desc = "Needs Super Auction House on.", disabled = function() return not Selling() end }),
+                    { desc = "Needs Super Auction House on.",
+                      disabled = function() return not profile().altButton or not Selling() end }),
                 forget = { type = "select", name = "Forget a character", order = 4,
                     desc = "Removes a deleted or renamed character from the list and the warnings. Logging in on it adds it again.",
                     values = others, disabled = function() return next(others()) == nil end,
@@ -329,7 +330,8 @@ end
 
 -- Adds the groups with something to mail, each opening onto who can get it: the name in the To: field, your
 -- characters and, when listed, the people you mailed recently. With nobody to list, picking the group fills the
--- letter and leaves the To: field to you.
+-- letter and leaves the To: field to you. A group whose rules name a character (Super Auction House's "Mail to")
+-- goes to that character at once.
 function M:AddGroups(root, alts, recent)
     local selling = Selling()
     local names = selling and selling.GroupNames()
@@ -347,7 +349,11 @@ function M:AddGroups(root, alts, recent)
                 root:CreateTitle("Send a Selling group")
             end
             local label = group .. "  |cff808080" .. stacks[group] .. "|r"
-            if not typedKey and #alts == 0 and #recent == 0 then
+            local to = selling.MailTo and selling.MailTo(group)
+            if to then
+                root:CreateButton(group .. " to " .. to .. "  |cff808080" .. stacks[group] .. "|r",
+                    function() self:AttachGroup(group, to) end)
+            elseif not typedKey and #alts == 0 and #recent == 0 then
                 root:CreateButton(label, function() self:AttachGroup(group) end)
             else
                 local entry = root:CreateButton(label)
@@ -427,6 +433,15 @@ if SendMail then
     hooksecurefunc("SendMail", function(recipient) if M:IsEnabled() then M.sending = recipient end end)
 end
 
+-- The inbox updates many times in a row at a mailbox (once for each letter taken): it's read once, a moment after
+-- the first of them, by one timer. A read still waiting when the mailbox closes is done then.
+local SCAN_AFTER = 0.3
+local scanQueued = false
+local function ScanQueued()
+    scanQueued = false
+    if M:IsEnabled() and M.atMailbox then M:ScanInbox() end
+end
+
 ns.Listen(M, { "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "MAIL_SHOW", "MAIL_INBOX_UPDATE", "MAIL_CLOSED", "MAIL_SEND_SUCCESS", "MAIL_FAILED" },
     function(self, event, ...)
         if event == "PLAYER_ENTERING_WORLD" then
@@ -443,9 +458,13 @@ ns.Listen(M, { "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "MAIL_SHOW", "MAIL_IN
             self.atMailbox = true
             self:UpdateButton()
         elseif event == "MAIL_CLOSED" then
+            if scanQueued and self.atMailbox then self:ScanInbox() end
             self.atMailbox = false
         elseif event == "MAIL_INBOX_UPDATE" then
-            if self.atMailbox then self:ScanInbox() end
+            if self.atMailbox and not scanQueued then
+                scanQueued = true
+                C_Timer.After(SCAN_AFTER, ScanQueued)
+            end
         elseif event == "MAIL_SEND_SUCCESS" then
             if self.sending then self:AddRecent(self.sending) end
             self.sending = nil
