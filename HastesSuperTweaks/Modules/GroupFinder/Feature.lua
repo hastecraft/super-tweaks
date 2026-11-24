@@ -58,7 +58,7 @@ end
 -- A class's color code, by its file name ("WARRIOR"); white for none.
 local classCodes = {}
 function G.ClassCode(classFile)
-    if not classFile or IsSecret(classFile) then return "|cffffffff" end
+    if IsSecret(classFile) or not classFile then return "|cffffffff" end
     local code = classCodes[classFile]
     if not code then
         local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
@@ -69,14 +69,14 @@ function G.ClassCode(classFile)
 end
 
 function G.ClassColor(classFile)
-    local color = classFile and not IsSecret(classFile) and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
+    local color = not IsSecret(classFile) and classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
     if color then return color.r, color.g, color.b end
     return 0.85, 0.85, 0.85
 end
 
 -- The game's icons for classes and roles in its group finder.
 function G.ClassAtlas(classFile)
-    return classFile and ("groupfinder-icon-class-" .. classFile:lower()) or nil
+    return not IsSecret(classFile) and classFile and ("groupfinder-icon-class-" .. classFile:lower()) or nil
 end
 G.ROLE_ATLAS = { TANK = "groupfinder-icon-role-micro-tank", HEALER = "groupfinder-icon-role-micro-heal",
     DAMAGER = "groupfinder-icon-role-micro-dps" }
@@ -188,7 +188,7 @@ end
 
 -- Whispers someone: opens the chat box with the template filled in, or sends it with "Send whispers without editing".
 function G.Whisper(name, template, activity)
-    if not name or IsSecret(name) or name == "" then return end
+    if IsSecret(name) or not name or name == "" then return end
     local text = template and template ~= "" and G.FillWhisper(template, activity, name) or nil
     if text and G.db.profile.sendWhispers then
         local first = name:match("^(%S+)") or name
@@ -219,13 +219,13 @@ function G.CanInvite()
 end
 
 function G.Invite(name)
-    if not name or IsSecret(name) or name == "" then return end
+    if IsSecret(name) or not name or name == "" then return end
     if C_PartyInfo and C_PartyInfo.InviteUnit then C_PartyInfo.InviteUnit(name) else InviteUnit(name) end
 end
 
 -- The game's own menu for a player (whisper, invite, add friend, ignore and the rest).
 function G.PlayerMenu(name)
-    if not name or IsSecret(name) or name == "" then return end
+    if IsSecret(name) or not name or name == "" then return end
     if FriendsFrame_ShowDropdown then FriendsFrame_ShowDropdown(name, 1) end
 end
 
