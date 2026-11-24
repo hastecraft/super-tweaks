@@ -428,7 +428,11 @@ function D:RegisterRun()
     pcall(events.RegisterEvent, events, "BOSS_KILL")
     pcall(events.RegisterEvent, events, "ENCOUNTER_END")
     if p.showDeaths then events:RegisterEvent("PLAYER_DEAD") end
-    if p.showGold then events:RegisterEvent("PLAYER_MONEY") end
+    if p.showGold then
+        -- From what you have now: what changed while this wasn't heard isn't the run's.
+        self.money = Number(GetMoney())
+        events:RegisterEvent("PLAYER_MONEY")
+    end
     if p.showVendor or p.showAuction then events:RegisterEvent("CHAT_MSG_LOOT") end
 end
 
@@ -520,7 +524,6 @@ function D:Enter(name, map)
         self:NewRun(name, map, theirs and theirs.t or now)
     end
     self.live = true
-    self.money = Number(GetMoney()) or 0
     self:ReadBosses(map)
     self:BuildList()
     self:AwaitGroup(false)
@@ -687,11 +690,11 @@ ns.Listen(D, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
     elseif event == "PLAYER_MONEY" then
         local money = Number(GetMoney())
         if not money then return end
-        local change = money - self.money
+        local before = self.money
         self.money = money
         -- Looted, not earned selling: gains with a vendor open aren't counted.
-        if change > 0 and not (MerchantFrame and MerchantFrame:IsShown()) then
-            run.gold = run.gold + change
+        if before and money > before and not (MerchantFrame and MerchantFrame:IsShown()) then
+            run.gold = run.gold + (money - before)
             self.dirty = true
         end
     elseif event == "CHAT_MSG_LOOT" then
