@@ -446,17 +446,28 @@ end
 
 -- Once a second while a run shows, on the second: the clock, and the rest when an event changed it. While Instance
 -- Tracker has a run of this instance, the run starts when its run did: a later start is a new run there (a reset
--- instance), so it's one here too.
+-- instance), so it's one here too. An earlier start is the run before, which it went on with: so does this, with the
+-- bosses it had, if that's the run Enter put aside.
 function D:Tick()
     local run = self.run
     if not self.live then return end
     local tracker = ns.InstanceTracker
     local theirs = tracker and tracker.run
-    if theirs and theirs.map == run.map and theirs.t ~= run.t then
+    if theirs and theirs.map == run.map then
+        local replaced = self.replaced
+        self.replaced = nil
         if theirs.t > run.t then
             self:NewRun(run.name, run.map, theirs.t)
             run = self.run
-        else
+        elseif theirs.t < run.t then
+            if replaced and replaced.t == theirs.t then
+                replaced.left, replaced.gh, replaced.name = nil, nil, run.name
+                run = replaced
+                self.db.char.run, self.run = run, run
+                self:BuildList()
+                self.dirty = true
+                self:QuestTracker()
+            end
             self:SetStart(theirs.t)
         end
     end
@@ -496,6 +507,8 @@ function D:NewRun(name, map, t)
     if self.live then
         self:BuildList()
         self.dirty = true
+        -- The run before may have been done, with the quest tracker back.
+        self:QuestTracker()
     end
 end
 
@@ -511,12 +524,14 @@ function D:Enter(name, map)
         self:Leave()
     end
     local now = time()
+    HST:EnsureCharacterKey()
     local run = self.db.char.run
     local tracker = ns.InstanceTracker
     local theirs = tracker and tracker:IsEnabled() and tracker.run
     if theirs and theirs.map ~= map then theirs = nil end
     local continue = false
-    if run and run.map == map and type(run.kills) == "table" and type(run.order) == "table" then
+    local saved = run and run.map == map and type(run.kills) == "table" and type(run.order) == "table"
+    if saved then
         if theirs then
             continue = theirs.t == run.t
         else
@@ -530,6 +545,9 @@ function D:Enter(name, map)
         self:SetStart(run.t)
     else
         self:NewRun(name, map, theirs and theirs.t or now)
+        -- Instance Tracker hears of the instance too, before this or after, and may go on with the run before, which
+        -- only the mobs can tell from a new one: Tick takes that run back then.
+        self.replaced = saved and not theirs and tracker and tracker:IsEnabled() and run or nil
     end
     self.live = true
     self:ReadBosses(map)
@@ -551,7 +569,7 @@ function D:Leave(turnedOff)
     self:AwaitGroup(false)
     if not self.live then return end
     local run = self.run
-    self.live = false
+    self.live, self.replaced = false, nil
     run.left = time()
     local ghost = UnitIsDeadOrGhost("player")
     if IsSecret(ghost) then ghost = false end
