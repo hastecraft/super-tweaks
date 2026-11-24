@@ -55,6 +55,7 @@ end
 -- A result as a row's entry; or nil and true when the game hides it, nil alone when it isn't ready to read yet.
 local function ReadResult(id, entry)
     local info = C_LFGList.GetSearchResultInfo(id)
+    if IsSecret(info) then return nil, true end
     if not info then return nil end
     -- The leader's name can come later (the game's own window lists the group without it).
     local leader = info.leaderName
