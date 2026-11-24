@@ -240,7 +240,8 @@ ns.Configure(F, defaults, function(m)
             words = ns.Option(profile, "input", key .. "Words", "Words", 1,
                 { width = "full", multiline = true, disabled = off, desc = INPUT_HELP }, apply),
             whisper = ns.Option(profile, "input", key .. "Whisper", "Whisper", 2,
-                { width = "full", disabled = off, desc = "{word} is the word that matched." }),
+                { width = "full", desc = "{word} is the word that matched.",
+                    disabled = function() return off() or not m.db.profile.whisper end }),
         })
     end
     keywords.reset = { type = "execute", name = "Reset words and whispers", order = #m.SERVICES + 1, confirm = true,

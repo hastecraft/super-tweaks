@@ -435,7 +435,7 @@ local function Read(r, now)
     if tracked then r.other = false; return true end
     if GetByName and Readable(r) then
         local ok, aura = pcall(GetByName, "player", r.name, "HELPFUL")
-        if ok and not IsSecret(aura) and aura == nil and r.wide then ok, aura = pcall(GetByName, "player", r.wide, "HELPFUL") end
+        if ok and aura == nil and r.wide then ok, aura = pcall(GetByName, "player", r.wide, "HELPFUL") end
         if ok and not IsSecret(aura) then
             if aura == nil then
                 if not (inCombat and r.other and r.ends and r.ends > now) then

@@ -131,9 +131,9 @@ function S:BuildOptions()
             }),
             filters = Section("Filters", 2, {
                 inDamageMin = option("range", "inDamageMin", "Hide damage under", 1, { min = 0, max = 2000, step = 5,
-                    desc = "0 shows every hit." }),
+                    desc = "0 shows every hit.", disabled = function() return not S.db.profile.inDamage end }),
                 inHealMin = option("range", "inHealMin", "Hide healing under", 2, { min = 0, max = 2000, step = 5,
-                    desc = "0 shows every heal." }),
+                    desc = "0 shows every heal.", disabled = function() return not S.db.profile.inHeals end }),
             }),
             colors = Section("Colors", 3, {
                 damageColor = option("color", "damageColor", "Damage", 1, {

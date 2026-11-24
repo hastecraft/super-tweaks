@@ -321,7 +321,7 @@ Configure(L, defaults, function(m)
                 takeBackground = option("toggle", "takeBackground", "Loot background", 1,
                     { desc = "When you loot by hand, and for what auto looting leaves behind." }),
                 noticeAlpha = option("range", "noticeAlpha", "Auto loot list background", 2, { min = 0, max = 1, step = 0.05,
-                    isPercent = true,
+                    isPercent = true, disabled = quiet,
                     desc = "At 0% the list has no background." }),
                 backgroundStyle = option("select", "backgroundStyle", "Style", 3, { disabled = noBackground,
                     values = { SOLID = "Solid color", PAGE = "Burnt page" }, sorting = { "SOLID", "PAGE" } }),

@@ -1198,7 +1198,8 @@ function U:BuildOptions()
         general = { type = "group", name = "General", order = 1, args = {
             weights = ns.Section("Stat weights", 1, {
                 scale = scaleSelect(1),
-                allScales = ns.Option(profile, "toggle", "allScales", "Show every scale on tooltips", 2, nil, remark),
+                allScales = ns.Option(profile, "toggle", "allScales", "Show every scale on tooltips", 2,
+                    { disabled = function() return not profile().tooltip end }, remark),
             }),
             show = ns.Section("Show", 2, {
                 tooltip = ns.Option(profile, "toggle", "tooltip", "In item tooltips", 1, nil, remark),
@@ -1206,7 +1207,8 @@ function U:BuildOptions()
                     { desc = "The game's bags. Bag addons that replace them draw their own." }, remark),
                 quests = ns.Option(profile, "toggle", "quests", "An arrow on the best quest reward", 3, nil, remark),
                 markFrom = ns.Option(profile, "range", "markFrom", "Arrow from (% better)", 4,
-                    { min = 0, max = 20, step = 0.5 }, remark),
+                    { min = 0, max = 20, step = 0.5,
+                        disabled = function() local p = profile(); return not (p.bags or p.quests) end }, remark),
                 statless = ns.Option(profile, "toggle", "statless", "Items with none of your stats", 5,
                     { desc = "Such as Carrot on a Stick or a fishing pole." }, remark),
             }),
