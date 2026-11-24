@@ -3971,7 +3971,11 @@ end
 ---------------------------------------------------------------------------
 -- Entry points
 ---------------------------------------------------------------------------
+-- Whether a tweak has asked for a refresh that hasn't happened yet (see HST:RefreshSettings).
+local refreshWanted, refreshQueued = false, false
+
 function P:Refresh()
+    refreshWanted = false
     if not (self.frame and self.frame:IsShown()) then return end
     if self.mode == "modules" or self.mode == "search" then
         self:RefreshRows()
@@ -4014,8 +4018,18 @@ function HST:CanShowCpuGraph()
     return CpuProfiler() ~= nil
 end
 
+-- Asked for by tweaks as their state changes, often several times in a frame: the window is refreshed once, at the
+-- next frame, unless it refreshed itself meanwhile (see P:Refresh).
+local function RefreshWanted()
+    refreshQueued = false
+    if refreshWanted then P:Refresh() end
+end
 function HST:RefreshSettings()
-    P:Refresh()
+    if not (P.frame and P.frame:IsShown()) then return end
+    refreshWanted = true
+    if refreshQueued then return end
+    refreshQueued = true
+    C_Timer.After(0, RefreshWanted)
 end
 
 function HST:ToggleSettings()
