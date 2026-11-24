@@ -229,7 +229,9 @@ function K.Button(parent, text, style, name)
         PaintButton(self)
     end
     function b:SetText(value)
-        self.text = value or ""
+        value = value or ""
+        if value == self.text then return end
+        self.text = value
         self.label:SetText(ButtonText(self))
     end
     function b:SetKey(key)
@@ -239,8 +241,10 @@ function K.Button(parent, text, style, name)
         self.label:SetText(ButtonText(self))
     end
     function b:SetStyle(value)
+        if value == self.style then return end
         self.style = value
-        self.label:SetText(ButtonText(self))
+        -- A key shows on the label of a main action only.
+        if self.keyName then self.label:SetText(ButtonText(self)) end
         PaintButton(self)
     end
     function b:Fit(least, padding)
