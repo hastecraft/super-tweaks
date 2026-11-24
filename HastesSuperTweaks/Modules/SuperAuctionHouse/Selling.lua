@@ -573,7 +573,10 @@ local function BagTip(owner, item)
         c = K.GAIN
         if item.onSale > 0 then tip:AddLine("On sale: " .. item.onSale, c[1], c[2], c[3]) end
         c = P.accent
-        if item.floor then tip:AddLine("Never post below " .. K.Money(item.floor), c[1], c[2], c[3]) end
+        if item.floor then
+            -- A minimum from the item's rules is named as the rules name it.
+            tip:AddLine((item.floorIsRule and "Minimum price " or "Never post below ") .. K.Money(item.floor), c[1], c[2], c[3])
+        end
         if item.keep then tip:AddLine("Keep " .. item.keep .. " on sale", c[1], c[2], c[3]) end
         c = P.muted
         if not item.saved then tip:AddLine("No saved price", c[1], c[2], c[3]) end
