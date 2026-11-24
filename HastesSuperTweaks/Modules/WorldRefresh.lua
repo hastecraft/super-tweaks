@@ -13,7 +13,7 @@ local Confirm = C_PlayerInteractionManager and C_PlayerInteractionManager.ShardT
 
 local R = HST:NewFeature("WorldRefresh", {
     name = "Better World Refresh", category = "interface", order = 3, command = "refresh", enabledByDefault = false,
-    summary = "A world refresh countdown you can place, with an automatic refresh at a safe moment.",
+    summary = "Counts down to the world refresh and can refresh at a safe moment.",
     examples = { "autoRefresh", { "warnAt", "Last warning" }, "flash", { "width", "Bar width" } },
     description = "Replaces the game's world refresh notice with a countdown bar you can move in Edit Mode. Click it "
         .. "(or press its key) to refresh now, or let it refresh for you once you're out of combat and somewhere "

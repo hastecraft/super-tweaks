@@ -12,7 +12,7 @@ local IsSecret = ns.IsSecret
 
 local G = HST:NewFeature("GroupFinder", {
     name = "Group Finder", category = "pvp", order = 0, command = "lfg", enabledByDefault = false,
-    summary = "Replaces the Looking For Group window with one that sorts and filters groups.",
+    summary = "A Looking For Group window that sorts and filters groups.",
     examples = { "searchOnOpen", "groupWhisper", "sendWhispers" },
     description = "Opens its own window in place of the Looking For Group window. Find shows each group's members "
         .. "with their classes, levels and roles, filters by the role they need, playstyle and level, and marks new "

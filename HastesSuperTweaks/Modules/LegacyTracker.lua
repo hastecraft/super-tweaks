@@ -11,7 +11,7 @@ local IsSecret = ns.IsSecret
 
 local L = HST:NewFeature("LegacyTracker", {
     name = "Legacy Tracker", category = "leveling", order = 8,
-    summary = "Says what each challenge earns and reminds you to spend your Legacy points.",
+    summary = "Says what each challenge earns and reminds you to spend Legacy points.",
     examples = { "announce", "remind" },
     description = "When a challenge completes, says how many Legacy points it gave and how many you have to spend. "
         .. "Can also remind you at login when you have points to spend. Links in these lines, and /hst legacy, open "

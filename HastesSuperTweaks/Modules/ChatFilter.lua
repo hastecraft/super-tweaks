@@ -10,7 +10,7 @@ local UNKNOWN_NAME = UNKNOWNOBJECT or "Unknown"
 
 local F = HST:NewFeature("ChatFilter", {
     name = "Chat Spam Filter", category = "social", order = 3, command = "spam", enabledByDefault = false,
-    summary = "Hides gold selling, boosting, guild recruitment and guilds you mute in public channels.",
+    summary = "Hides gold selling, boosting and guild recruitment in public channels.",
     examples = { "gold", "boosting", "recruitment", "guildTags" },
     description = "Hides messages in trade, general and other public channels that match your word lists: gold "
         .. "selling, boosting, guild recruitment and words of your own, and everything from guilds you mute.",

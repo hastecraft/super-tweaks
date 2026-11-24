@@ -7,7 +7,7 @@ local HST = ns.HST
 
 local B = HST:NewFeature("BagTweaks", {
     name = "Bag Tweaks", category = "gear", order = 5, command = "bags", enabledByDefault = false,
-    summary = "Makes the combined bags movable, counts only usable free slots and keeps your Clean Up direction.",
+    summary = "Lets you move the combined bags and counts only usable free slots.",
     examples = { "move", "scale", "freeSlots", "sortRight", "insertLeft" },
     description = "Lets you drag the combined bags anywhere and size them, counts only slots any item fits in on the "
         .. "backpack button (not quivers or soul bags), keeps the Clean Up and new-item directions you choose, and "
