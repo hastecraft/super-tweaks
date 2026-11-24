@@ -25,8 +25,10 @@ S.defaults.profile.altStock = false
 
 local function Me() return ns.PlayerName() or UnitName("player") end
 
+local realmName
 local function Realm(make)
-    local name = S.Prices.RealmName()
+    realmName = realmName or S.Prices.RealmName()
+    local name = realmName
     if not name then return nil end
     local all = S.db.global.alts
     if not all then

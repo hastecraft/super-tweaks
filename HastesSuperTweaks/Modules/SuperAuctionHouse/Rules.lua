@@ -30,14 +30,16 @@ S.defaults.global.itemRules = {}
 ---------------------------------------------------------------------------
 -- Saved rules
 ---------------------------------------------------------------------------
+-- The realm's name is asked for once: the Selling tab reads every bag item's rules on each bag change.
+local realmName
 local function ItemRules(make)
-    local realm = S.Prices.RealmName()
-    if not realm then return nil end
+    realmName = realmName or S.Prices.RealmName()
+    if not realmName then return nil end
     local all = S.db.global.itemRules
-    local mine = all[realm]
+    local mine = all[realmName]
     if not mine and make then
         mine = {}
-        all[realm] = mine
+        all[realmName] = mine
     end
     return mine
 end
