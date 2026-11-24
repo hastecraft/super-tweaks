@@ -179,16 +179,31 @@ function R.Price(item, rows, final, same, undercut)
     return true, price
 end
 
--- Whether one of your auctions is priced well under what its rules and the market would give it now: its price is
--- more than `percent` under the next price up (or under your normal price with nobody else selling), so cancelling
--- and posting again earns more. Returns the price it would go up for, or nil.
--- row: the auction (price, and next = the cheapest auction that isn't yours, or nil with none).
-function R.RepostPrice(item, price, nextPrice, percent, undercut)
+-- What undercutting a price comes to by the Selling settings, away from the Selling tab's own item (Selling.lua's
+-- Undercut is the same sum for the item being posted).
+function R.Undercut(price, commodity)
+    local p = S.db.profile
+    local cut
+    if p.undercutMode == "static" then
+        cut = p.undercutStatic * 100
+        if cut > 0 and cut * 2 >= price then cut = commodity and 1 or 100 end
+    else
+        cut = price * p.undercutPercent / 100
+    end
+    return Round(price - cut, commodity)
+end
+
+-- Whether one of your auctions is priced well under what it could go for now: more than `percent` under what the
+-- cheapest auction that isn't yours would be undercut to (or under what its rules post it for with nobody else
+-- selling), so cancelling it and posting again earns more. Returns the price it would go up for, or nil.
+-- item: { priceKey = , key = } of the auction; price: yours, each; nextPrice: the cheapest that isn't yours, or nil.
+function R.RepostPrice(item, price, nextPrice, percent, commodity)
+    item.floor, item.keep = nil, nil
     R.Read(item)
     local rule = item.rule
     local target
     if nextPrice then
-        target = undercut(nextPrice)
+        target = R.Undercut(nextPrice, commodity)
         if rule and rule.max and target > rule.max then target = rule.max end
     elseif rule then
         target = rule[rule.alone or "normal"]
