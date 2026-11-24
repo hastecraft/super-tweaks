@@ -234,7 +234,7 @@ local function StatsOf(item)
             local last = read.lastSold
             known = { sold = read.sold or 0, expired = read.expired or 0, soldQuantity = read.soldQuantity or 0,
                 expiredAt = read.expiredAt, lastGold = last and last.g, lastQuantity = last and last.q,
-                lastTime = last and last.t }
+                lastTime = last and last.t, expiredSince = read.expiredSince }
         end
         stats[item.key or id] = known
     end
@@ -307,12 +307,13 @@ local function Describe(items)
         item.onSale = up
         -- An auction of it expired lately and none is up again: it's back in your bags to post.
         local record = StatsOf(item)
+        S.Rules.Read(item, record)
         local expiredAt = record and record.expiredAt
         item.expiredAt = expiredAt and up == 0 and now - expiredAt <= EXPIRED_DAYS * 86400 and expiredAt or nil
         local vendor = item.vendor
         item.vendorMore = price ~= nil and vendor ~= nil and vendor > floor(price * AH_CUT)
         item.mark = item.expiredAt and "expired" or item.vendorMore and "vendor" or up > 0 and "onSale"
-            or item.floor and "floor" or not price and "noPrice" or nil
+            or item.floor and not item.floorIsRule and "floor" or not price and "noPrice" or nil
     end
 end
 
@@ -492,6 +493,7 @@ local function BagMenu(owner, item)
             end)
             root:CreateButton("Never post below", function() AskFloor(item) end)
             root:CreateButton("Keep on sale", function() AskKeep(item) end)
+            root:CreateButton("Rules", function() S.Rules.EditItem(item) end)
             root:CreateButton("Hide", function()
                 g.hidden[item.key] = true
                 Se.Refresh()
@@ -509,6 +511,7 @@ local function HeaderMenu(owner, section)
     if section.kind ~= "custom" then return end
     local g = Global()
     K.Menu(owner, function(root)
+        root:CreateButton("Rules", function() S.Rules.EditGroup(section.group) end)
         root:CreateButton("Rename", function()
             K.Dialog({ title = "Rename group", input = true, inputText = section.group.name, confirm = "Save",
                 onConfirm = function(_, text)
@@ -1051,6 +1054,11 @@ end
 -- Why the post can't go: nil when it can, a line to show, or "" when the boxes say it themselves.
 local function Blocked()
     if not cur or post then return "" end
+    -- The item's rules say not to post it, until you set a price yourself.
+    if not priceTouched then
+        local stop = cur.ruleStop or hint.stop
+        if stop then return stop end
+    end
     local quantity = Se.quantity:GetNumber()
     if quantity <= 0 then
         local keep = cur.keep
@@ -1067,7 +1075,7 @@ local function Blocked()
     local least = Least()
     -- With a buyout the floor is for the buyout; a starting bid alone has to keep to it.
     if least and ((price > 0 and price < least) or (price <= 0 and bid > 0 and bid < least)) then
-        return "Under your Never post below."
+        return cur.floorIsRule and "Under your minimum." or "Under your Never post below."
     end
     local deposit = Deposit()
     if deposit and deposit > GetMoney() then return "Not enough money for the deposit." end
@@ -1131,8 +1139,10 @@ function paint.Reason(blocked, price)
             text, color, vendor = "A vendor pays more: " .. K.Money(pays) .. " each.", P.warning, true
         elseif priceTouched then
             text = cur.keep and KeepLine(cur.keep, OnSale(cur.itemID)) or ""
+        elseif hint.rule then
+            text = hint.rule
         elseif hint.raised then
-            text = "Raised to your Never post below."
+            text = cur.floorIsRule and "Raised to your minimum." or "Raised to your Never post below."
         elseif hint.bait then
             text = "Ignored " .. hint.bait .. " at " .. K.Money(hint.baitPrice) .. ", far below the rest."
         elseif hint.none then
@@ -1171,14 +1181,15 @@ local function FillSummary()
 end
 
 local function BidShown()
-    return Profile().showBid and cur ~= nil and not cur.commodity
+    if cur == nil or cur.commodity then return false end
+    return Profile().showBid or (cur.rule ~= nil and cur.rule.bid ~= nil)
 end
 
 -- The starting bid that goes with a price, by "Starting bid (% of buyout)", until you type one. It stays under the
 -- buyout, as the game asks.
 local function FillBid(price)
     if bidTouched or not BidShown() then return end
-    local percent = Profile().bidPercent
+    local percent = cur.rule and cur.rule.bid or Profile().bidPercent
     if percent <= 0 then return end
     local bid = price > 0 and RoundForGame(price * percent / 100) or 0
     Se.bid:SetValue(bid < price and bid or 0)
@@ -1214,15 +1225,19 @@ local function Lifted(price)
 end
 
 local function DefaultQuantity(item)
+    -- What the item's rules keep in your bags isn't posted.
+    local most = item.max or 1
+    local held = item.rule and item.rule.keep
+    if held then most = max(0, most - held) end
     -- "Keep on sale" fills up to its number.
-    if item.keep then return max(0, min(item.max or 1, item.keep - OnSale(item.itemID))) end
+    if item.keep then return max(0, min(most, item.keep - OnSale(item.itemID))) end
     for _, c in ipairs(S.QUANTITY_CLASSES) do
         if c.class == item.classID then
             local wanted = Profile()[c.key]
-            if wanted and wanted > 0 then return math.min(wanted, item.max or wanted) end
+            if wanted and wanted > 0 then return math.min(wanted, item.max and most or wanted) end
         end
     end
-    return item.max or 1
+    return most
 end
 
 -- The price for one row's click, or for the best row.
@@ -1303,15 +1318,21 @@ local function FillListing(entries, isCommodity, final)
     FindThreshold()
     -- The cheapest come first, so the first page has the price: the rest of a long list needn't be waited for.
     local row = PricingRow()
-    hint.none = nil
+    hint.none, hint.rule, hint.stop = nil, nil, nil
     if not priceTouched then
-        local price = PriceFromRow(row)
-        if not price and final then
-            -- Nothing to undercut: the average, times "With no auctions, post at (% of average)".
-            local average = AveragePrice()
-            if average then
-                price = RoundForGame(average * Profile().emptyPercent / 100)
-                hint.none = #entries == 0 or nil
+        -- The item's rules price it when it has any; else the cheapest auction that counts is undercut.
+        local ruled, price, why, stop = S.Rules.Price(cur, entries, final, SameItem, Undercut)
+        if ruled then
+            hint.rule, hint.stop, hint.bait = why, stop, nil
+        else
+            price = PriceFromRow(row)
+            if not price and final then
+                -- Nothing to undercut: the average, times "With no auctions, post at (% of average)".
+                local average = AveragePrice()
+                if average then
+                    price = RoundForGame(average * Profile().emptyPercent / 100)
+                    hint.none = #entries == 0 or nil
+                end
             end
         end
         if price then
@@ -1344,6 +1365,7 @@ end
 -- Your rules for an item: the least it's posted for, and how many to keep on sale.
 local function ReadRules(item)
     item.floor, item.keep = Saved("floors", item.priceKey), Saved("keepOnSale", item.priceKey)
+    S.Rules.Read(item, StatsOf(item))
 end
 
 -- The buttons for the item's rules and its last post.
@@ -1357,6 +1379,9 @@ function paint.Rules()
     b:SetText(keep and ("Keep " .. keep .. " on sale") or "Keep on sale")
     b:SetStyle(keep and "primary" or nil)
     b:Fit(60, 22)
+    b = Se.rulesButton
+    b:SetStyle(cur.rule and "primary" or nil)
+    b.tipText = cur.ruleFrom and ("From the group " .. cur.ruleFrom .. ".") or nil
     local last = Saved("lastPost", cur.priceKey)
     cur.last = last
     b = Se.lastButton
@@ -1465,7 +1490,12 @@ function Se.Select(item)
         if not hi or low > hi then hi = low end
     end
     cur.rangeLow, cur.rangeHigh = lo, hi
-    if not duration or not Profile().saveDuration then duration = Profile().duration end
+    -- A duration from the item's rules is this item's alone: it isn't remembered as the last one you picked.
+    if cur.rule and cur.rule.duration then
+        duration, Se.ruleDuration = cur.rule.duration, true
+    elseif not duration or Se.ruleDuration or not Profile().saveDuration then
+        duration, Se.ruleDuration = Profile().duration, nil
+    end
     Lock()
     Se.emptyState:Hide()
     Se.form:Show()
@@ -1513,6 +1543,11 @@ RuleChanged = function(key)
     if priceTouched then return FillSummary() end
     SetPrice(Lifted(StartingPrice()))
     if listing then FillListing(listing, cur.commodity, listingFinal) end
+end
+
+-- Rules.lua changed a group's rules (no key) or an item's.
+function Se.RulesChanged(key)
+    if Se.frame then RuleChanged(key or (cur and cur.priceKey)) end
 end
 
 -- The "Never post below" button: the price in the box, a typed one, or none.
@@ -1653,7 +1688,7 @@ local function DoPost()
     local deposit = Deposit()
     Unlock()
     local game = AuctionHouseFrame
-    if Profile().saveDuration then Profile().duration = duration end
+    if Profile().saveDuration and not Se.ruleDuration then Profile().duration = duration end
     local job = { key = cur.key, item = cur, commodity = cur.commodity, at = Se.OrderIndex(), link = cur.link,
         priceKey = cur.priceKey, price = price, bid = bid, quantity = quantity, asked = quantity, name = cur.name,
         itemID = cur.itemID, deposit = deposit, duration = duration, upBefore = OnSale(cur.itemID), state = "posting" }
@@ -2327,7 +2362,7 @@ function build.Inputs(form, slotFrame)
     local durationLabel = label("Duration", Se.reason, 0, -8)
     local names = S.DurationNames()
     Se.durations = K.Pills(form, { { 1, names[1] }, { 2, names[2] }, { 3, names[3] } }, function(key)
-        duration = key
+        duration, Se.ruleDuration = key, nil
         if Profile().saveDuration then Profile().duration = key end
         FillSummary()
     end)
@@ -2365,6 +2400,12 @@ function build.Rules(form)
     last:SetPoint("LEFT", keep, "RIGHT", 6, 0)
     last:SetScript("OnClick", LikeLastTime)
     Se.lastButton = last
+    local rules = K.Button(form, "Rules")
+    rules:SetHeight(22)
+    rules:Fit(50, 22)
+    rules:SetPoint("LEFT", last, "RIGHT", 6, 0)
+    rules:SetScript("OnClick", function() if cur then S.Rules.EditItem(cur) end end)
+    Se.rulesButton = rules
 end
 
 -- The panel for the item being posted: its slot and the buttons that post, and between them the item's form, or what

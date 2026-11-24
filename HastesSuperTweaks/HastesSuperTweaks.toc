@@ -75,6 +75,7 @@ Modules\SuperAuctionHouse\Kit.lua
 Modules\SuperAuctionHouse\Chart.lua
 Modules\SuperAuctionHouse\Parts.lua
 Modules\SuperAuctionHouse\Formula.lua
+Modules\SuperAuctionHouse\Rules.lua
 Modules\SuperAuctionHouse\Watch.lua
 Modules\SuperAuctionHouse\Owned.lua
 Modules\SuperAuctionHouse\Alerts.lua
