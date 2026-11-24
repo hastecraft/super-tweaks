@@ -414,6 +414,35 @@ local function SavedMatches(term, entry)
     return true
 end
 
+-- The saved prices a term with a name finds, as a search away from an auction house would: fn(key, name, price,
+-- most, formula) for each, most being the most you'd pay for that item (the term's amount, or its formula worked out
+-- for it).
+-- For the check after a scan (Lists.lua); a category the game hasn't loaded yet finds nothing.
+local probe = {}
+function Sh.EachSaved(term, fn)
+    if term.query == "" then return end
+    local filters
+    if term.category then
+        filters = select(2, T.Categories())[term.category]
+        if not filters then return end
+    end
+    local keys = term.exact and { S.Prices.KeyByName(term.query) }
+        or S.Prices.FindNames(term.query, filters and 100000 or SAVED_LIMIT)
+    for i = 1, #keys do
+        local key = keys[i]
+        local price = S.Prices.Get(key)
+        if price and (not filters or InCategory(filters, key)) then
+            probe.key, probe.price = key, price
+            probe.name, probe.quality = S.Prices.NameOf(key)
+            if probe.name and SavedMatches(term, probe) then
+                local most = term.maxPrice
+                if term.maxFormula then most = S.Formula.Eval(term.maxFormula, key) end
+                if most and most > 0 then fn(key, probe.name, price, most, term.maxFormula) end
+            end
+        end
+    end
+end
+
 local function SavedDone(run)
     walk = nil
     Sh.results:SetLoading(false)

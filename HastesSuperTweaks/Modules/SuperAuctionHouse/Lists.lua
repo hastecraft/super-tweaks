@@ -101,17 +101,16 @@ function L.Progress(list)
     return have, wanted
 end
 
--- Every item a list names exactly with a most you'd pay for it: rows of { list = its name, name, most = copper,
--- quantity }, for the check after a scan.
+-- Every search on a list with a most you'd pay, an amount or a formula: rows of { list = its name, term = the search,
+-- parsed }, for the check after a scan.
 function L.Targets()
     local targets = {}
     for _, list in ipairs(S.db.global.lists) do
         if not list.temporary then
             for _, text in ipairs(list.terms) do
                 local term = S.Terms.Parse(text)
-                if term.exact and term.maxPrice and term.maxPrice > 0 then
-                    targets[#targets + 1] = { list = list.name, name = term.query, most = term.maxPrice,
-                        quantity = term.quantity }
+                if term.query ~= "" and (term.maxFormula or (term.maxPrice and term.maxPrice > 0)) then
+                    targets[#targets + 1] = { list = list.name, term = term }
                 end
             end
         end
@@ -126,22 +125,38 @@ end
 local told = {}
 local checking = false
 local CHECK_AFTER = 2 -- seconds after the last price change: a scan changes thousands
+local MOST_LINES = 8 -- a search by part of a name can find a lot at once: the rest are counted in one line
+local listName, lines, more = nil, 0, 0
+
+-- A formula's price moves with the prices it's made of, so it's the formula that's remembered as told.
+local function Check(key, name, price, most, formula)
+    if price <= most then
+        local mark = formula or most
+        if told[key] ~= mark then
+            told[key] = mark
+            if lines < MOST_LINES then
+                lines = lines + 1
+                ns.HST:Print(name .. " is at " .. ns.Money(price) .. ", at or under your " .. ns.Money(most)
+                    .. " (" .. listName .. ").")
+            else
+                more = more + 1
+            end
+        end
+    else
+        told[key] = nil
+    end
+end
 
 local function CheckTargets()
     checking = false
-    if not (S:IsEnabled() and S.db.profile.listAlerts) then return end
+    if not (S:IsEnabled() and S.db.profile.listAlerts and S.Shopping.EachSaved) then return end
+    lines, more = 0, 0
     for _, target in ipairs(L.Targets()) do
-        local key = S.Prices.KeyByName(target.name)
-        local price = key and S.Prices.Get(key)
-        if price and price <= target.most then
-            if told[key] ~= target.most then
-                told[key] = target.most
-                ns.HST:Print(target.name .. " is at " .. ns.Money(price) .. ", at or under your " .. ns.Money(target.most)
-                    .. " (" .. target.list .. ").")
-            end
-        elseif key then
-            told[key] = nil
-        end
+        listName = target.list
+        S.Shopping.EachSaved(target.term, Check)
+    end
+    if more > 0 then
+        ns.HST:Print(more .. (more == 1 and " more item is" or " more items are") .. " at or under what you'd pay.")
     end
 end
 

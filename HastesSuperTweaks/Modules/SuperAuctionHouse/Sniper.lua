@@ -96,8 +96,9 @@ local function Targets(source, where)
             if not list.temporary and (not only or list.name == only) then
                 for _, text in ipairs(list.terms) do
                     local term = T.Parse(text)
-                    if term.exact and (term.maxFormula or (term.maxPrice and term.maxPrice > 0)) then
-                        add(text, term.query, list.name)
+                    -- A search by part of a name is its own target: every item it finds has its own price.
+                    if term.maxFormula or (term.maxPrice and term.maxPrice > 0) then
+                        add(text, term.exact and term.query or text, list.name)
                     end
                 end
             end
