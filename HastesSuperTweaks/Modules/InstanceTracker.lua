@@ -680,7 +680,8 @@ ns.Listen(I, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
         self:SampleXP()
         self:Refresh(true)
     elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
-        if not IsSecret(a) and type(a) == "string" and a:match(KILL) then
+        -- Text the game hides can't be read for what gave the XP: inside an instance that's a kill, nearly always.
+        if IsSecret(a) or (type(a) == "string" and a:match(KILL)) then
             self:Touch()
             run.k = run.k + 1
             self:Refresh(true)
