@@ -616,9 +616,13 @@ function I:Loot(message)
     local run = self.run
     local id = tonumber(message:match("item:(%d+)"))
     if not id then return end
+    -- Asked whether it's hidden before anything else: a hidden value can't even be compared with nil.
     local quality = C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(id)
-    if quality == nil and GetItemInfo then quality = select(3, GetItemInfo(id)) end
-    local hidden = quality ~= nil and IsSecret(quality)
+    local hidden = IsSecret(quality)
+    if not hidden and quality == nil and GetItemInfo then
+        quality = select(3, GetItemInfo(id))
+        hidden = IsSecret(quality)
+    end
     local count
     local value = self.db.profile.auction and ns.AuctionValue(id)
     if value then
@@ -630,7 +634,7 @@ function I:Loot(message)
         end
         run.av = (run.av or 0) + value * count
     end
-    if quality ~= nil and (hidden or quality < self.db.profile.lootQuality) then return end
+    if hidden or (quality ~= nil and quality < self.db.profile.lootQuality) then return end
     count = count or LootCount(message)
     local items = run.items
     if items then
