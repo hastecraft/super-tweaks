@@ -16,6 +16,17 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.15.0", date = "2026-11-24",
+        changed = {
+            { "Dungeon Timer: killed bosses are greyed out.", module = "DungeonTimer" },
+        },
+        fixed = {
+            { "Instance Tracker: coming back into an instance alive continues the run on WoW Forever, unless it was reset.", module = "InstanceTracker" },
+            { "Dungeon Timer: coming back into an instance continues the run, unless it was reset.", module = "DungeonTimer" },
+            { "Dungeon Timer: \"Align the name and clock\" now moves the instance name too.", module = "DungeonTimer" },
+        },
+    },
+    {
         version = "4.14.0", date = "2026-11-24",
         changed = {
             { "Dungeon Timer: new \"Width\", \"Height\" and \"Align the name and clock\" settings. With a height, bosses already killed make room first.", module = "DungeonTimer" },
