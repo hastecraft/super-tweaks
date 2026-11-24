@@ -6,7 +6,8 @@
 -- inside. A run ends as Instance Tracker's does (coming back as a ghost continues it, coming back alive starts another),
 -- and while Instance Tracker has a run of this instance, its start time is used, so both show the same.
 -- Away from instances this costs two events (entering the world, a new zone). Inside, the run's events add numbers
--- and the panel is drawn once a second, by a ticker that runs only while the panel shows a run.
+-- and the panel is drawn once a second, by a ticker that runs only while the panel shows a run: the clock each second,
+-- and a row only when its number changed.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -84,13 +85,6 @@ local RESUME = 30 -- minutes a corpse run may take, when Instance Tracker's sett
 local RETRIES = 5 -- looks, a second apart, for the price of an item the game hasn't loaded yet
 local pending = {} -- [itemID] = count looted, waiting for that price
 
--- "12:34", "1:02:03".
-local function Clock(seconds)
-    seconds = max(0, floor(seconds))
-    if seconds >= 3600 then return string.format("%d:%02d:%02d", floor(seconds / 3600), floor(seconds / 60) % 60, seconds % 60) end
-    return string.format("%d:%02d", floor(seconds / 60), seconds % 60)
-end
-
 local function Number(value)
     if IsSecret(value) or type(value) ~= "number" then return nil end
     return value
@@ -122,10 +116,38 @@ function D:ReadBosses(map)
     self.open = not text or WINGS[map] or false
 end
 
--- The rows the panel lists: every boss of the instance in order, then those killed that the table doesn't have; in
--- an instance of wings (or one the table doesn't have), the bosses killed, as they died.
+-- "12:34", "1:02:03".
+local function Clock(seconds)
+    seconds = max(0, floor(seconds))
+    if seconds >= 3600 then return string.format("%d:%02d:%02d", floor(seconds / 3600), floor(seconds / 60) % 60, seconds % 60) end
+    return string.format("%d:%02d", floor(seconds / 60), seconds % 60)
+end
+
+local GREEN, RED, GREY, LABEL = "|cff40e040", "|cffff4d4d", "|cff9d9d9d", "|cffffd100"
+
+-- "-0:12" in green for faster than the best, "+0:30" in red for slower.
+local function Diff(seconds)
+    return (seconds <= 0 and GREEN .. "-" or RED .. "+") .. Clock(abs(seconds)) .. "|r"
+end
+
+-- What a boss's row says on the right: its kill time, after how much faster or slower that was than the best there
+-- was; while it lives, your best.
+local function BossText(key, run, best)
+    local at = run.kills[key]
+    if at then
+        local diff = run.diff and run.diff[key]
+        return (diff and Diff(diff) .. "  " or "") .. GREEN .. Clock(at) .. "|r"
+    end
+    local time = best and best[key]
+    return time and GREY .. Clock(time) .. "|r" or ""
+end
+
+-- The rows the panel lists, { name, key, right }: every boss of the instance in order, then those killed that the
+-- table doesn't have; in an instance of wings (or one the table doesn't have), the bosses killed, as they died.
+-- Their text is made here, when a run starts and when a boss dies, so a redraw only compares it.
 function D:BuildList()
     local run, list = self.run, {}
+    local best = self.db.global.best[run.map]
     if not self.open then
         for i, boss in ipairs(self.bosses) do list[i] = boss end
     end
@@ -134,6 +156,7 @@ function D:BuildList()
             list[#list + 1] = { name = self.names[key] or (run.extra and run.extra[key]) or tostring(key), key = key }
         end
     end
+    for i = 1, #list do list[i].right = BossText(list[i].key, run, best) end
     self.list = list
 end
 
@@ -150,8 +173,11 @@ end
 -- The panel: the instance, the time, the bosses, then what the run gave. Text is set only when it changed.
 ---------------------------------------------------------------------------
 local WIDTH, PAD, TITLE, CLOCK, ROW, GAP = 220, 2, 13, 28, 15, 6
-local GREEN, RED, GREY, LABEL = "|cff40e040", "|cffff4d4d", "|cff9d9d9d", "|cffffd100"
 local GOLD, WHITE = { 1, 0.82, 0 }, { 1, 1, 1 }
+local BOSSES, BEST, DEATHS = LABEL .. "Bosses|r", LABEL .. "Best|r", LABEL .. "Deaths|r"
+local GOLD_LOOTED, VENDOR, AUCTION = LABEL .. "Gold|r", LABEL .. "Vendor value|r", LABEL .. "Auction value|r"
+-- Goes up when money changes between coins and letters, so every panel writes its money again.
+local moneyStyle = 0
 
 local function Set(fontString, text)
     if fontString.hstText == text then return end
@@ -178,6 +204,8 @@ local function NewPanel(parent, name)
     v.clock = NewText(v, v.font, CLOCK, "RIGHT")
     v.clock:SetPoint("TOPRIGHT", -PAD, -(PAD + TITLE + 3))
     v.rows = {}
+    -- What each stat row last showed, and from which number (see StatText).
+    v.statValue, v.statText = {}, {}
     return v
 end
 
@@ -217,48 +245,51 @@ local function PaintClock(v, seconds, done)
     end
 end
 
--- "-0:12" in green for faster than the best, "+0:30" in red for slower.
-local function Diff(seconds)
-    return (seconds <= 0 and GREEN .. "-" or RED .. "+") .. Clock(abs(seconds)) .. "|r"
+-- A stat's text, made again only when its number changed: as money, as a difference to the best ("diff"), as a
+-- time ("time"), or as it is.
+local function StatText(v, key, value, kind)
+    if v.statValue[key] ~= value then
+        v.statValue[key] = value
+        v.statText[key] = kind == "money" and ns.Money(value, 12) or kind == "diff" and Diff(value)
+            or kind == "time" and GREY .. Clock(value) .. "|r" or tostring(value)
+    end
+    return v.statText[key]
 end
 
--- Draws a run: p the settings, list the boss rows, best the instance's bests (or nil), open whether the list is only
--- the bosses killed. Returns the panel's height.
+-- The next row, for a stat; returns the rows so far and where the next goes.
+local function Stat(v, n, y, label, text)
+    Row(v, n + 1, y, label, text)
+    return n + 1, y - ROW
+end
+
+-- Draws a run: p the settings, list the boss rows (see BuildList), best the instance's bests (or nil), open whether
+-- the list is only the bosses killed. Returns the panel's height.
 local function Paint(v, p, name, list, run, best, open, seconds)
+    if v.moneyStyle ~= moneyStyle then
+        v.moneyStyle = moneyStyle
+        wipe(v.statValue)
+    end
     Set(v.title, name)
     PaintClock(v, run.done or seconds, run.done ~= nil)
-    local kills, diffs = run.kills, run.diff
-    local y, n = -(PAD + TITLE + 3 + CLOCK + GAP), 0
-    for i = 1, #list do
-        local key = list[i].key
-        local at, right = kills[key], ""
-        if at then
-            local diff = diffs and diffs[key]
-            right = (diff and Diff(diff) .. "  " or "") .. GREEN .. Clock(at) .. "|r"
-        elseif best and best[key] then
-            right = GREY .. Clock(best[key]) .. "|r"
-        end
-        n = n + 1
-        Row(v, n, y, list[i].name, right)
+    local y, n = -(PAD + TITLE + 3 + CLOCK + GAP), #list
+    for i = 1, n do
+        Row(v, i, y, list[i].name, list[i].right)
         y = y - ROW
     end
-    if #list > 0 then y = y - GAP end
-    local function stat(label, value)
-        n = n + 1
-        Row(v, n, y, LABEL .. label .. "|r", value)
-        y = y - ROW
-    end
+    if n > 0 then y = y - GAP end
     if open then
-        stat("Bosses", tostring(#list))
+        n, y = Stat(v, n, y, BOSSES, StatText(v, "bosses", n))
     elseif run.total then
-        stat("Best", Diff(run.total))
+        n, y = Stat(v, n, y, BEST, StatText(v, "total", run.total, "diff"))
     elseif best and best.total then
-        stat("Best", GREY .. Clock(best.total) .. "|r")
+        n, y = Stat(v, n, y, BEST, StatText(v, "best", best.total, "time"))
     end
-    if p.showDeaths then stat("Deaths", tostring(run.deaths)) end
-    if p.showGold then stat("Gold", ns.Money(run.gold, 12)) end
-    if p.showVendor then stat("Vendor value", ns.Money(run.vendor, 12)) end
-    if p.showAuction and not ns.AuctionPricesOff() then stat("Auction value", ns.Money(run.av or 0, 12)) end
+    if p.showDeaths then n, y = Stat(v, n, y, DEATHS, StatText(v, "deaths", run.deaths)) end
+    if p.showGold then n, y = Stat(v, n, y, GOLD_LOOTED, StatText(v, "gold", run.gold, "money")) end
+    if p.showVendor then n, y = Stat(v, n, y, VENDOR, StatText(v, "vendor", run.vendor, "money")) end
+    if p.showAuction and not ns.AuctionPricesOff() then
+        n, y = Stat(v, n, y, AUCTION, StatText(v, "av", run.av or 0, "money"))
+    end
     for i = n + 1, #v.rows do
         local row = v.rows[i]
         if row.shown then
@@ -281,6 +312,14 @@ local SAMPLE_LIST = { { name = "Rhahk'Zor", key = 1 }, { name = "Sneed", key = 2
 local SAMPLE_RUN = { kills = { 252, 561, 803 }, diff = { -14, 9, -21 }, deaths = 1, gold = 21400, vendor = 8650, av = 152000 }
 local SAMPLE_BEST = { 266, 552, 824, 1210, 1655, total = 1655 }
 local SAMPLE_NAME, SAMPLE_SECONDS = "The Deadmines", 872
+
+-- The sample's rows, their text made the first time they're shown.
+local function SampleList()
+    if not SAMPLE_LIST[1].right then
+        for _, boss in ipairs(SAMPLE_LIST) do boss.right = BossText(boss.key, SAMPLE_RUN, SAMPLE_BEST) end
+    end
+    return SAMPLE_LIST
+end
 
 function D:CreateFrame()
     local f = NewPanel(UIParent, "HastesSuperTweaksDungeonTimer")
@@ -327,16 +366,22 @@ function D:Place()
     end
 end
 
--- Draws the run, or the sample while there is none.
-function D:Paint()
+-- Draws the run (seconds into it, when the caller has just read that), or the sample while there is none.
+function D:Paint(seconds)
     local f, p = self.frame, self.db.profile
     self.dirty = false
     if self.live then
-        Paint(f, p, self.run.name, self.list, self.run, self.db.global.best[self.run.map], self.open, self:Elapsed())
+        Paint(f, p, self.run.name, self.list, self.run, self.db.global.best[self.run.map], self.open,
+            seconds or self:Elapsed())
     else
-        Paint(f, p, SAMPLE_NAME, SAMPLE_LIST, SAMPLE_RUN, SAMPLE_BEST, false, SAMPLE_SECONDS)
+        Paint(f, p, SAMPLE_NAME, SampleList(), SAMPLE_RUN, SAMPLE_BEST, false, SAMPLE_SECONDS)
     end
 end
+
+ns.OnMoneyStyle(function()
+    moneyStyle = moneyStyle + 1
+    if D.frame and D.frame.visible then D:Paint() end
+end)
 
 -- Shows the panel inside a run; with no run, in Edit Mode and while unlocked, with a sample to drag.
 -- The quest tracker hides while the clock runs, through Hide Quest Tracker (which works for this with it off).
@@ -404,13 +449,16 @@ function D:Tick()
         end
     end
     run.seen = time()
-    if self.dirty then
-        self:Paint()
-    elseif not run.done then
-        PaintClock(self.frame, self:Elapsed(), false)
+    -- A finished run's clock stands still: only what was looted since is drawn.
+    if run.done then
+        if self.dirty then self:Paint(run.done) end
+        return
     end
+    local now = GetTime() - self.base
+    local seconds = max(0, floor(now))
+    if self.dirty then self:Paint(seconds) else PaintClock(self.frame, seconds, false) end
     -- The ticker runs a little late each time: once it has slipped half a second, it starts over on the second.
-    if (GetTime() - self.base) % 1 > 0.5 then
+    if now % 1 > 0.5 then
         self:StopClock()
         self:Schedule()
     end
@@ -475,14 +523,21 @@ function D:Enter(name, map)
     self.money = Number(GetMoney()) or 0
     self:ReadBosses(map)
     self:BuildList()
-    self.events:UnregisterEvent("GROUP_ROSTER_UPDATE")
+    self:AwaitGroup(false)
     self:RegisterRun()
     self:Update()
     self:Schedule()
 end
 
+-- With "Only in a group", a run waits for a group: its roster is heard only meanwhile.
+function D:AwaitGroup(on)
+    if (self.awaiting or false) == on then return end
+    self.awaiting = on
+    if on then self.events:RegisterEvent("GROUP_ROSTER_UPDATE") else self.events:UnregisterEvent("GROUP_ROSTER_UPDATE") end
+end
+
 function D:Leave(turnedOff)
-    self.events:UnregisterEvent("GROUP_ROSTER_UPDATE")
+    self:AwaitGroup(false)
     if not self.live then return end
     local run = self.run
     self.live = false
@@ -504,11 +559,10 @@ function D:CheckZone()
         local name, _, _, _, _, _, _, map = GetInstanceInfo()
         name, map = Text(name), Number(map)
         if name and map then
-            local grouped = IsInGroup()
-            if self.db.profile.onlyGroup and not self.live and (IsSecret(grouped) or not grouped) then
+            if self.db.profile.onlyGroup and not self.live then
+                local grouped = IsInGroup()
                 -- Alone: the run starts when you're in a group.
-                self.events:RegisterEvent("GROUP_ROSTER_UPDATE")
-                return
+                if IsSecret(grouped) or not grouped then return self:AwaitGroup(true) end
             end
             return self:Enter(name, map)
         end
@@ -558,7 +612,7 @@ function D:Kill(id, name)
         end
     end
     self:BuildList()
-    self:Paint()
+    self:Paint(at)
 end
 
 -- What a vendor pays for an item, or nil while the game hasn't loaded the item.
@@ -660,6 +714,8 @@ function D:OnListen()
         end
         self.onRetry = function() self:RetryPrices() end
     end
+    -- Joined the first time this is turned on: off, it doesn't follow Edit Mode.
+    if not self.UpdateEditMode then ns.EditMode.Add(self) end
     -- Turned on after logging in: there's no entering the world to hear.
     if HST.worldEntry then self:CheckZone() end
     self:Update()
@@ -682,8 +738,8 @@ function D:Apply()
 end
 
 ---------------------------------------------------------------------------
--- Edit Mode: while it's open the panel shows (a sample, with no run) and can be dragged (see EditMode.lua). Edit Mode
--- places a frame by its middle; the panel keeps its top.
+-- Edit Mode, joined in OnListen: while it's open the panel shows (a sample, with no run) and can be dragged (see
+-- EditMode.lua). Edit Mode places a frame by its middle; the panel keeps its top.
 ---------------------------------------------------------------------------
 function D:EditFrame() return self.frame or self:CreateFrame() end
 
@@ -716,7 +772,6 @@ function D:EditPlace(x, y)
 end
 
 function D:ApplyEditMode() self:Update() end
-ns.EditMode.Add(D)
 
 ---------------------------------------------------------------------------
 -- Settings preview: a run of the Deadmines three bosses in, its clock running.
@@ -729,7 +784,7 @@ function D.info.preview(frame)
         frame.hstDungeonTimer = v
         v:SetPoint("CENTER")
     end
-    local height = Paint(v, D.db.profile, SAMPLE_NAME, SAMPLE_LIST, SAMPLE_RUN, SAMPLE_BEST, false, SAMPLE_SECONDS)
+    local height = Paint(v, D.db.profile, SAMPLE_NAME, SampleList(), SAMPLE_RUN, SAMPLE_BEST, false, SAMPLE_SECONDS)
     v:SetScale(min(1, (W.PREVIEW_HEIGHT - 8) / height))
     W.Loop(frame, 60, function(t) PaintClock(v, SAMPLE_SECONDS + floor(t), false) end, 0)
 end
