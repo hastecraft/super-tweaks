@@ -1,6 +1,7 @@
 -- Recipes by what they'd earn: what each one's result sells for against what its materials cost, at saved prices. The
 -- game lists a profession's recipes only while its window is open, so they're saved then, a line each, and priced in
--- the Prices tab's Recipes view anywhere.
+-- the Crafting tab's Recipes view anywhere. The tab itself is here too: this view, and the ones other files add with
+-- S.AddView("crafting", ...).
 --   recipes[character][professionID] = { name = "Alchemy", [recipeID] = "13512*1:13463*30,13465*10=Flask of Supreme Power" }
 -- A recipe's line: the item it makes and how many a craft gives, each material and how many, then the recipe's name.
 -- SPDX-License-Identifier: MPL-2.0
@@ -60,6 +61,8 @@ local function OwnList()
     return Is("IsTradeSkillReady") and not (Is("IsTradeSkillLinked") or Is("IsTradeSkillGuild")
         or Is("IsTradeSkillGuildMember") or Is("IsNPCCrafting") or Is("IsRuneforging"))
 end
+
+M.CharacterKey, M.OwnList = CharacterKey, OwnList
 
 local StartRead
 
@@ -176,12 +179,13 @@ end)
 S.On("TRADE_SKILL_CLOSE", function() Finish(); seenFor = nil end)
 
 ---------------------------------------------------------------------------
--- The Recipes view of the Prices tab: a row per saved recipe.
+-- The Recipes view of the Crafting tab: a row per saved recipe.
 ---------------------------------------------------------------------------
 local ALL = 0
 local P
 local view = {}
 local rows, shown, stale = {}, {}, true
+local byOutput -- the rows by the item they make, for M.CostOf
 local professions, professionOrder = {}, {}
 local filterText, filterProfession, profitOnly = "", ALL, false
 
@@ -251,9 +255,11 @@ end
 local function Fill(keepScroll)
     if not view.table then return end
     local columns = false
-    if stale then
-        stale = false
-        BuildRows()
+    if stale or view.several == nil then
+        if stale then
+            stale = false
+            BuildRows()
+        end
         -- The professions to pick from, and their column, show with more than one.
         local several = #professionOrder > 2
         view.professions:Refresh()
@@ -283,9 +289,17 @@ end
 
 -- The saved recipes changed.
 function M.Changed()
-    stale = true
+    stale, byOutput = true, nil
     if S.RecipeBook then S.RecipeBook.Reset() end
+    if S.Queue then S.Queue.RecipesChanged() end
     if view.frame and view.frame:IsVisible() then Fill(true) end
+end
+
+-- A recipe's target stock changed (Queue.lua): its column comes and goes with the first and the last.
+function M.TargetsChanged()
+    if not (view.frame and view.frame:IsVisible()) then return end
+    view.table:Layout()
+    view.table:Redraw()
 end
 
 -- A recipe's materials as the searches and lists take them, with its result ahead of them when asked.
@@ -324,6 +338,7 @@ local function RowMenu(row, owner)
                 input = "Crafts", inputText = "1", inputNumeric = true, confirm = "Add",
                 onConfirm = function(_, text) S.Crafting.AddMissing(Ids(row), math.max(1, tonumber(text) or 1)) end })
         end)
+        root:CreateButton("Set target stock", function() S.Queue.Ask(row.recipeID, row.name) end)
     end)
 end
 
@@ -337,6 +352,10 @@ local function RowClick(row, button, owner)
 end
 
 local function Unknown(value) return value or "Unknown" end
+local function TargetOf(row)
+    local target = S.Queue.Target(row.recipeID)
+    return target and target.stock or nil
+end
 local function ProfitColor(row)
     if not row.profit then return P.text end
     return row.profit >= 0 and K.GAIN or K.LOSS
@@ -361,7 +380,6 @@ local function Build(frame)
     view.professions:SetWidth(170)
     view.professions:SetPoint("LEFT", view.filter, "RIGHT", 6, 0)
     view.professions:Hide()
-    view.several = false
     view.profit = K.Toggle(top, "Profit only", function() return profitOnly end, function(on) profitOnly = on; Fill() end)
     view.profit:SetPoint("LEFT", view.filter, "RIGHT", 6, 0)
     view.table = K.Table(frame, {
@@ -380,6 +398,10 @@ local function Build(frame)
               text = function(e) return e.percent and K.Percent(e.percent) or "" end, color = ProfitColor },
             { key = "history", title = "Price history", width = 100, noSort = true,
               spark = function(e) return S.Prices.Series(e.itemID) end },
+            -- The stock the crafting queue keeps of it.
+            { key = "target", title = "Target stock", width = 84, justify = "RIGHT",
+              hide = function() return not S.Queue.HasTargets() end,
+              sort = function(e) return TargetOf(e) or 0 end, text = function(e) return TargetOf(e) or "" end },
         },
         onClick = RowClick, onEnter = RowTip,
     })
@@ -392,11 +414,71 @@ local function Build(frame)
     S.Prices.Listen("recipes", function() if frame:IsVisible() then Fill(true) end end)
 end
 
-S.AddView("prices", {
-    key = "recipes", name = "Recipes", order = 4, build = Build,
-    show = function() Fill() end,
-    hide = function() K.HideItemTip() end,
-})
+-- The saved recipes as rows (recipeID, itemID, quantity, name, reagents as id, count pairs, profession), for the
+-- crafting queue. M.Price(row) fills a row's cost, sale and profit at the prices of the moment.
+function M.Rows()
+    if stale then
+        stale = false
+        BuildRows()
+        if view.professions then view.professions:Refresh() end
+    end
+    return rows
+end
+M.Price = Price
+
+-- What one of an item costs to craft at the prices of the moment, by the cheapest of your recipes that make it. Nil
+-- when none does, or a material has no price.
+function M.CostOf(itemID)
+    if not byOutput then
+        byOutput = {}
+        for _, row in ipairs(M.Rows()) do
+            local list = byOutput[row.itemID]
+            if not list then
+                list = {}
+                byOutput[row.itemID] = list
+            end
+            list[#list + 1] = row
+        end
+    end
+    local list = byOutput[itemID]
+    if not list then return nil end
+    local best
+    for i = 1, #list do
+        local row = list[i]
+        Price(row)
+        local each = row.cost and row.quantity > 0 and row.cost / row.quantity
+        if each and (not best or each < best) then best = each end
+    end
+    return best and floor(best + 0.5) or nil
+end
+
+---------------------------------------------------------------------------
+-- The Crafting tab
+---------------------------------------------------------------------------
+local Tab = {}
+S.CraftTab = Tab
+
+function Tab.Build(frame)
+    Tab.views = K.Views(frame, "crafting", { key = "recipes", name = "Recipes", build = Build,
+        show = function() Fill() end, hide = function() K.HideItemTip() end })
+end
+
+function Tab.OnShow()
+    local views = Tab.views
+    if views then views:Show(views.current or "recipes") end
+end
+
+function Tab.OnHide()
+    local views = Tab.views
+    local shown = views and views.current and views.byKey[views.current]
+    if shown and shown.hide then shown.hide() end
+end
+
+-- Shows one of the tab's views, from anywhere.
+function Tab.Show(key)
+    S.Window.Select("crafting")
+    if Tab.views then Tab.views:Show(key) end
+end
 
 -- The game's own word that a profession was unlearned: its recipes go.
 local hooked = false

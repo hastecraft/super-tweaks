@@ -641,6 +641,11 @@ Section('Mail Expiry & Alt List', function()
     end)
     Send('MailHelper', 'MAIL_SHOW')
     Measure('Mailbox open: inbox update (50 mails)', 300, function() Send('MailHelper', 'MAIL_INBOX_UPDATE') end)
+    -- Open All: an update for each letter taken, then the one read that follows them.
+    Measure('Mailbox open: 20 inbox updates in a row, and the moment after (50 mails)', 100, function()
+        for _ = 1, 20 do Send('MailHelper', 'MAIL_INBOX_UPDATE') end
+        AdvanceTime(0.4)
+    end)
     local n = 0
     Measure('Mail sent: recipient remembered', 100, function()
         n = n % 30 + 1
@@ -1815,6 +1820,113 @@ Section('Super Auction House: item tooltips', function()
         end)
     end
 end)
+
+-- What your other characters have (older bases lack it): the tooltip's line per character, a bag change, which
+-- nothing here hears, and the count of this character's bags as it logs out.
+if S.Alts then
+    Section('Super Auction House: other characters', function()
+        -- Off and on again: what the others have is added up at the first ask after the tweak turns on.
+        Only({})
+        S.db.global.alts.TestRealm = {
+            ['Alt One'] = { bags = { [2447] = 12 }, bank = { [2447] = 40 } },
+            ['Alt Two'] = { mail = { [2447] = 5 } },
+        }
+        Only({ 'SuperAuctionHouse' })
+        S.db.profile.tipAlts = true
+        S:Apply()
+        fill(GameTooltip, data)
+        Measure("Item tooltip: other characters' counts on, redraw", 300, function() fill(GameTooltip, data) end)
+        Measure("Item tooltip: other characters' counts on, first draw", 100, function()
+            S.Tooltip.Forget()
+            fill(GameTooltip, data)
+        end)
+        Measure("Bag change, other characters' items saved", 300, function() Send('SuperAuctionHouse', 'BAG_UPDATE_DELAYED') end)
+        -- One bag of 16 stacks.
+        C_Container = C_Container or {
+            GetContainerNumSlots = function(bag) return bag == 0 and 16 or 0 end,
+            GetContainerItemInfo = function(_, slot) return { itemID = 2400 + slot, stackCount = 5 } end,
+        }
+        Measure("Logout: this character's bags counted", 50, function() Send('SuperAuctionHouse', 'PLAYER_LOGOUT') end)
+        S.db.profile.tipAlts = false
+        S:Apply()
+    end)
+end
+
+-- The crafting queue (older bases lack it) hears bags only while the professions window is open with a recipe
+-- queued: a bag change then, with 60 recipes saved and 5 of them queued, and one with the window closed.
+if S.Queue then
+    Section('Super Auction House: crafting queue', function()
+        Only({ 'SuperAuctionHouse' })
+        local key = S.Recipes.CharacterKey()
+        local saved = { name = 'Alchemy' }
+        for i = 1, 60 do saved[2330 + i] = (118 + i) .. '*1:2447*1,765*2=Potion ' .. i end
+        S.db.global.recipes[key] = { [171] = saved }
+        S.Recipes.Changed()
+        for i = 1, 5 do S.Queue.Set(2330 + i, 20) end
+        local skills, window, permissive = C_TradeSkillUI, ProfessionsFrame, PERMISSIVE_FRAMES
+        PERMISSIVE_FRAMES = true -- the craft button is one of the game's own
+        C_Item.GetItemQualityByID = C_Item.GetItemQualityByID or function() return 1 end
+        C_Item.GetItemNameByID = C_Item.GetItemNameByID or function(id) return 'Item ' .. id end
+        C_Item.GetItemCount = C_Item.GetItemCount or function() return 4 end
+        local alchemy = { professionID = 171 }
+        C_TradeSkillUI = {
+            IsTradeSkillReady = function() return true end,
+            GetChildProfessionInfo = function() return alchemy end,
+            GetCraftableCount = function() return 3 end,
+        }
+        ProfessionsFrame = CreateFrame('Frame')
+        S.Crafting.panel = S.Crafting.panel or CreateFrame('Frame', nil, CreateFrame('Frame'))
+        Dispatch('TRADE_SKILL_LIST_UPDATE')
+        RunTimers() -- the recipes' own read of the list
+        Measure('Bag change, professions window open with recipes queued', 200, function() Dispatch('BAG_UPDATE_DELAYED') end)
+        Dispatch('TRADE_SKILL_CLOSE')
+        Measure('Bag change, recipes queued, professions window closed', 300, function() Dispatch('BAG_UPDATE_DELAYED') end)
+        for i = 1, 5 do S.Queue.Set(2330 + i, 0) end
+        S.db.global.recipes[key] = nil
+        S.Recipes.Changed()
+        C_TradeSkillUI, ProfessionsFrame, PERMISSIVE_FRAMES = skills, window, permissive
+    end)
+end
+
+-- An item's auctions arrive a page at a time: with 500 read, the page that brings 50 more.
+if S.Net and S.Net.Listings then
+    Section('Super Auction House: auction listings', function()
+        Only({ 'SuperAuctionHouse' })
+        local AH = C_AuctionHouse
+        local key = { itemID = 2589, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }
+        local rows = {}
+        for i = 1, 550 do
+            rows[i] = { auctionID = i, buyoutAmount = 1000 + i, quantity = 1, owners = {}, totalNumberOfOwners = 1,
+                timeLeft = 2, itemKey = key, itemLink = 'link' }
+        end
+        local count = 500
+        local info = { isCommodity = false, isEquipment = false, itemName = 'Linen Cloth', quality = 1 }
+        AH.IsThrottledMessageSystemReady = function() return true end
+        AH.GetItemKeyInfo = function() return info end
+        AH.MakeItemKey = function(itemID) return { itemID = itemID } end
+        AH.SendSearchQuery = function() end
+        AH.SendSellSearchQuery = function() end
+        AH.RequestMoreItemSearchResults = function() return false end
+        AH.GetNumItemSearchResults = function() return count end
+        AH.GetItemSearchResultInfo = function(_, i) return rows[i] end
+        AH.HasFullItemSearchResults = function() return false end
+        S.Net.Start()
+        local request = S.Net.Listings(key, nil, function() end)
+        Dispatch('ITEM_SEARCH_RESULTS_UPDATED', key)
+        count = 550
+        Measure('Auction listing: a page of 50 more auctions, 500 already read', 50, function()
+            -- Back to 500 read, for a page to add to.
+            local entries = request.entries
+            if request.read then
+                request.read = 500
+                for i = #entries, 501, -1 do entries[i] = nil end
+            end
+            Dispatch('ITEM_SEARCH_RESULTS_ADDED', key)
+        end)
+        S.Net.CancelListings(request)
+        S.Net.Stop()
+    end)
+end
 
 -- History reads auction mail as the inbox changes: a mailbox of sale letters over a long history.
 Section('Super Auction House: auction mail', function()

@@ -64,6 +64,8 @@ local want -- the kind being taken, while a button's run is under way
 local failed = {} -- items the game wouldn't hand over on this run, by item ID
 local waitFor = 0 -- seconds until the next take
 local moneyBefore
+local TRIES = 4 -- takes of one thing that leave it where it was, before the run gives up
+local lastLetter, lastAttachment, lastLetters, tries
 
 -- The next thing to take for this run: the letter's index and, for an item, its attachment. Nil when there's none.
 local function Next()
@@ -108,6 +110,14 @@ end
 local function Step()
     local i, attachment = Next()
     if not i then return Stop() end
+    -- The same thing in the same mailbox as the last take: the game didn't hand it over, and may never.
+    local letters = GetInboxNumItems()
+    if i == lastLetter and attachment == lastAttachment and letters == lastLetters then
+        tries = tries + 1
+        if tries >= TRIES then return Stop("Couldn't take everything.") end
+    else
+        lastLetter, lastAttachment, lastLetters, tries = i, attachment, letters, 0
+    end
     if attachment then
         if C_Container.CalculateTotalNumberOfFreeBagSlots() == 0 then return Stop("Your bags are full.") end
         TakeInboxItem(i, attachment)
@@ -134,6 +144,7 @@ local function Start(key)
         if same then return end
     end
     want = key
+    lastLetter, tries = nil, 0
     moneyBefore = GetMoney()
     if C_Mail and C_Mail.SetOpeningAll then C_Mail.SetOpeningAll(true) end
     frame:RegisterEvent("MAIL_FAILED")

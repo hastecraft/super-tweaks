@@ -531,7 +531,7 @@ function O.MarkSold(row, each)
     row.sold = true
     if each and each > 0 then row.buyout = each end
     -- What the last check found was about an auction on sale.
-    row.undercut, row.checked, row.lowest, row.place, row.of, row.ahead = nil, nil, nil, nil, nil, nil
+    row.undercut, row.checked, row.lowest, row.place, row.of, row.ahead, row.low = nil, nil, nil, nil, nil, nil, nil
     row.ends = GetServerTime() + SOLD_WAIT
     -- At an auction house the list shows it sold at once; the game's own word follows when the list is read again.
     local e = active[row.id]

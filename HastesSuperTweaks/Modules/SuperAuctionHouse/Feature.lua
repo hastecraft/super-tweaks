@@ -3,7 +3,7 @@
 -- Nothing is built until the auction house first opens. While it's closed this tweak costs five events and one tooltip
 -- hook that stops at its first line once the tweak is off. Other files in this folder hang their parts off this module:
 -- S.Prices, S.Tooltip, S.Net, S.Kit, S.Terms, S.Search, S.Window, S.Shopping, S.Buy, S.Selling, S.Auctions, S.History,
--- S.Scan, S.Crafting and S.Compat.
+-- S.Scan, S.Crafting, S.CraftTab and S.Compat.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -13,8 +13,12 @@ local S = HST:NewFeature("SuperAuctionHouse", {
     summary = "Replaces the auction house window and puts prices on item tooltips.",
     examples = { "openOn", "tipAuction", "undercutPercent", "autoScan" },
     description = "Opens its own window at the auction house, with shopping lists, the materials for every recipe and "
-        .. "enchant to buy, a selling screen that undercuts for you, a check for undercut auctions and a history of what you've made and spent. Scan the auction house to fill "
-        .. "its price database, which item tooltips read anywhere in the game. Prices stay on your computer, per realm.",
+        .. "enchant to buy, a selling screen that undercuts for you, a check for undercut auctions and a history of what you've made and spent. "
+        .. "Groups of items can have rules for how they're posted, mailed and sold to vendors, with prices typed as "
+        .. "amounts or formulas. The Sniper lists auctions at or under your prices, the crafting queue keeps recipes in "
+        .. "stock and the Disenchant view lists gear worth more as materials. Scan the auction house to fill "
+        .. "its price database, which item tooltips read anywhere in the game. Tooltips can also count what your other "
+        .. "characters have. Prices stay on your computer, per realm.",
 })
 ns.SuperAuctionHouse = S
 
@@ -75,9 +79,12 @@ end
 
 local function Word(rest) return (rest or ""):lower():match("^%s*(%S*)") end
 
--- How many of an item you have: bags, bank and the account's bank.
+-- How many of an item you have: bags, bank and the account's bank, and with "Count your other characters' items as
+-- yours" what they have too (Alts.lua).
 function S.Have(itemID)
-    return C_Item.GetItemCount(itemID, true, false, true, true) or 0
+    local have = C_Item.GetItemCount(itemID, true, false, true, true) or 0
+    if S.db.profile.altStock then have = have + S.Alts.Others(itemID) end
+    return have
 end
 
 ---------------------------------------------------------------------------
@@ -259,9 +266,9 @@ end
 ---------------------------------------------------------------------------
 -- Settings
 ---------------------------------------------------------------------------
-local OPEN_ON = { shopping = "Shopping", selling = "Selling", auctions = "Auctions", prices = "Prices",
+local OPEN_ON = { shopping = "Shopping", selling = "Selling", auctions = "Auctions", crafting = "Crafting", prices = "Prices",
     last = "The last tab you used", game = "The game's window" }
-local OPEN_ON_ORDER = { "shopping", "selling", "auctions", "prices", "last", "game" }
+local OPEN_ON_ORDER = { "shopping", "selling", "auctions", "crafting", "prices", "last", "game" }
 local STACK = { always = "Always", shift = "While holding Shift", invert = "Unless holding Shift", off = "Never" }
 local STACK_ORDER = { "always", "shift", "invert", "off" }
 local UNDERCUT = { percent = "A percentage", static = "A set amount" }
@@ -356,7 +363,7 @@ function S:BuildOptions()
                 undercutMode = option("select", "undercutMode", "Undercut by", 1,
                     { values = UNDERCUT, sorting = UNDERCUT_ORDER,
                       desc = "Your price matches the lowest auction when that auction is yours." }),
-                undercutPercent = option("range", "undercutPercent", "Undercut (percent)", 2, { min = 0, max = 100, step = 1,
+                undercutPercent = option("range", "undercutPercent", "Undercut (%)", 2, { min = 0, max = 100, step = 1,
                     disabled = function() return profile().undercutMode ~= "percent" end }),
                 undercutStatic = option("range", "undercutStatic", "Undercut (silver)", 3, { min = 0, max = 10000, step = 1,
                     desc = "An item listed for less than twice this is undercut by 1 copper instead, or 1 silver for gear.",

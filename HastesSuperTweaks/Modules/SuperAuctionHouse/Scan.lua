@@ -102,7 +102,7 @@ end
 local function AskBrowse(ask)
     browseAsk = ask
     local token = scan
-    N.WhenIdle(function() if (phase == "browse" or phase == "quick") and scan == token then ask() end end)
+    N.WhenIdle(function() if (phase == "browse" or phase == "quick") and scan == token then ask() end end, "scan")
 end
 
 local function SendQuery() N.SendBrowse(scan, BROWSE_ALL) end
@@ -412,7 +412,7 @@ end
 N.On("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", function(event) Record(AH.GetBrowseResults(), event) end)
 N.On("AUCTION_HOUSE_BROWSE_RESULTS_ADDED", function(event, added) Record(added, event) end)
 N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED", function()
-    if (phase == "browse" or phase == "quick") and browseAsk then AskBrowse(browseAsk) end
+    if (phase == "browse" or phase == "quick") and browseAsk and N.WasDropped("scan") then AskBrowse(browseAsk) end
 end)
 N.On("AUCTION_HOUSE_BROWSE_FAILURE", function(event)
     if not N.OwnsBrowse(scan, event) then return end

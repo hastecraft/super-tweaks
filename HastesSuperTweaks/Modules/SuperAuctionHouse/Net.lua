@@ -29,6 +29,11 @@ local started = false
 local queue, head, tail = {}, 1, 0
 local later, laterHead, laterTail = {}, 1, 0
 local idle, idleHead, idleTail = {}, 1, 0
+-- Who queued each one ("listing", "search", "scan", or nobody that asks again), at the same places. lastOwner is
+-- whose message the game took last, false for nobody's, until the game answers it; dropped is what that was when
+-- the game last dropped a message.
+local queueOwner, laterOwner, idleOwner = {}, {}, {}
+local lastOwner, dropped
 local PUMP_CHECK = 0.5 -- seconds: a look at the game's readiness while something's queued, should its event not come
 local QUIET = 1.5 -- seconds after you last asked for something before a scan asks for more
 local IDLE_MOST = 8 -- seconds a scan's page waits at most, however busy you keep the auction house
@@ -78,6 +83,8 @@ function N.Stop()
     wipe(queue); head, tail = 1, 0
     wipe(later); laterHead, laterTail = 1, 0
     wipe(idle); idleHead, idleTail = 1, 0
+    wipe(queueOwner); wipe(laterOwner); wipe(idleOwner)
+    lastOwner, dropped = nil, nil
     -- Whoever waited on a name asks again next visit: the Auctions tab looks its names up each time it fills.
     wipe(keyWaiters)
     for _, request in ipairs(requests) do request.state = "cancelled" end
@@ -101,22 +108,23 @@ end
 function N.Pump()
     if not started then return end
     while started and AH.IsThrottledMessageSystemReady() do
-        local run
+        local run, owner
         if head <= tail then
-            run = queue[head]
-            queue[head] = nil
+            run, owner = queue[head], queueOwner[head]
+            queue[head], queueOwner[head] = nil, nil
             head = head + 1
         elseif laterHead <= laterTail then
-            run = later[laterHead]
-            later[laterHead] = nil
+            run, owner = later[laterHead], laterOwner[laterHead]
+            later[laterHead], laterOwner[laterHead] = nil, nil
             laterHead = laterHead + 1
         elseif idleHead <= idleTail and (GetTime() >= quietUntil or GetTime() - idleSince >= IDLE_MOST) then
-            run = idle[idleHead]
-            idle[idleHead] = nil
+            run, owner = idle[idleHead], idleOwner[idleHead]
+            idle[idleHead], idleOwner[idleHead] = nil, nil
             idleHead = idleHead + 1
         else
             break
         end
+        lastOwner = owner or false
         -- One that errors shows its error through the game's error handler, and the queue keeps going.
         securecallfunction(run)
     end
@@ -144,33 +152,44 @@ function N.Pump()
 end
 
 -- Runs fn as soon as the game can take another message. While the auction house is closed nothing is queued.
-function N.Send(fn)
+-- owner: who asks again should the game drop it (see N.WasDropped), for the three kinds of queueing alike.
+function N.Send(fn, owner)
     if not started then return end
     tail = tail + 1
-    queue[tail] = fn
+    queue[tail], queueOwner[tail] = fn, owner
     quietUntil = GetTime() + QUIET
     N.Pump()
 end
 
 -- The same, for what nobody's waiting on: it goes once nothing sent with N.Send is queued.
-function N.Later(fn)
+function N.Later(fn, owner)
     if not started then return end
     laterTail = laterTail + 1
-    later[laterTail] = fn
+    later[laterTail], laterOwner[laterTail] = fn, owner
     N.Pump()
 end
 
 -- For a scan's pages: it goes once nothing else is queued and you've stopped asking for things.
-function N.WhenIdle(fn)
+function N.WhenIdle(fn, owner)
     if not started then return end
     if idleHead > idleTail then idleSince = GetTime() end
     idleTail = idleTail + 1
-    idle[idleTail] = fn
+    idle[idleTail], idleOwner[idleTail] = fn, owner
     N.Pump()
 end
 
 N.On("AUCTION_HOUSE_THROTTLED_SYSTEM_READY", function() N.Pump() end)
-N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED", function() N.Pump() end)
+N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED", function()
+    lastOwner = nil
+    N.Pump()
+end)
+-- The game doesn't say which message it dropped: it's the last it took. This hears of it before the parts that ask
+-- again do, and each of them asks N.WasDropped whether the message was theirs, so only one does. With no message
+-- known to be out (one sent outside the queue, say) each asks again, as nothing says whose it was.
+N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED", function()
+    dropped, lastOwner = lastOwner, nil
+end)
+function N.WasDropped(owner) return dropped == nil or dropped == owner end
 
 ---------------------------------------------------------------------------
 -- Browse results. The game doesn't say whose query they answer, so they're the last query's: a query sent from here
@@ -267,20 +286,33 @@ local function ReadCommodities(request, itemID, fresh)
     return entries
 end
 
-local function ReadItems(itemKey)
-    local entries = {}
-    for i = 1, AH.GetNumItemSearchResults(itemKey) do
-        local r = AH.GetItemSearchResultInfo(itemKey, i)
-        if r then
-            entries[#entries + 1] = {
-                auctionID = r.auctionID, price = r.buyoutAmount, bid = r.bidAmount, minBid = r.minBid, quantity = r.quantity,
-                owners = r.owners, totalOwners = r.totalNumberOfOwners, seconds = r.timeLeftSeconds, band = r.timeLeft,
-                owned = r.containsOwnerItem, account = r.containsAccountItem, bidder = r.bidder, link = r.itemLink,
-                itemKey = r.itemKey, level = r.itemKey and r.itemKey.itemLevel, itemID = r.itemKey and r.itemKey.itemID,
-                socketed = r.containsSocketedItem,
-            }
-        end
+-- The same for an item's auctions: a page adds to the end, so only what's new is read. They're read from the start
+-- when the game says the list changed (fresh), when it's shorter than what was read, or when it's read under another
+-- key than last time (a sell search is read under the fuller of two). One the game can't describe yet ends the
+-- reading there, and the next answer takes it up again.
+local function ReadItems(request, itemKey, fresh)
+    local count = AH.GetNumItemSearchResults(itemKey)
+    local level, suffix = itemKey.itemLevel or 0, itemKey.itemSuffix or 0
+    if fresh or not request.entries or count < request.read or level ~= request.readLevel or suffix ~= request.readSuffix then
+        request.entries, request.read = {}, 0
     end
+    request.readLevel, request.readSuffix = level, suffix
+    local entries = request.entries
+    for i = request.read + 1, count do
+        local r = AH.GetItemSearchResultInfo(itemKey, i)
+        if not r then
+            count = i - 1
+            break
+        end
+        entries[#entries + 1] = {
+            auctionID = r.auctionID, price = r.buyoutAmount, bid = r.bidAmount, minBid = r.minBid, quantity = r.quantity,
+            owners = r.owners, totalOwners = r.totalNumberOfOwners, seconds = r.timeLeftSeconds, band = r.timeLeft,
+            owned = r.containsOwnerItem, account = r.containsAccountItem, bidder = r.bidder, link = r.itemLink,
+            itemKey = r.itemKey, level = r.itemKey and r.itemKey.itemLevel, itemID = r.itemKey and r.itemKey.itemID,
+            socketed = r.containsSocketedItem,
+        }
+    end
+    request.read = count
     return entries
 end
 
@@ -339,7 +371,7 @@ local function Ask(request, ask, again)
     request.ask = ask
     -- Asking again for what the game dropped doesn't wait longer, or a busy auction house keeps a listing loading.
     if not again then request.deadline = GetTime() + REQUEST_WAIT end
-    N.Send(request.go)
+    N.Send(request.go, "listing")
 end
 
 -- The request takes over the live search.
@@ -503,7 +535,7 @@ local function ResultsKey(request, eventKey)
     return AH.GetNumItemSearchResults(key) >= AH.GetNumItemSearchResults(eventKey) and key or eventKey
 end
 
-local function ItemResults(_, itemKey)
+local function ItemResults(event, itemKey)
     local request = current
     -- A sell query asks with item level 0 and may hear back with the levels it found, so only the item has to match.
     if not (request and request.sent and not request.commodity and request.itemID == itemKey.itemID
@@ -512,7 +544,7 @@ local function ItemResults(_, itemKey)
     if not request.bySell and (request.key.itemSuffix or 0) ~= (itemKey.itemSuffix or 0) then return end
     local key = ResultsKey(request, itemKey)
     request.moreKey = key
-    Answered(request, ReadItems(key), AH.HasFullItemSearchResults(key), itemKey)
+    Answered(request, ReadItems(request, key, event == "ITEM_SEARCH_RESULTS_UPDATED"), AH.HasFullItemSearchResults(key), itemKey)
 end
 N.On("ITEM_SEARCH_RESULTS_UPDATED", ItemResults)
 N.On("ITEM_SEARCH_RESULTS_ADDED", ItemResults)
@@ -538,7 +570,7 @@ local function AnswerHeld()
     local key = HeldKey(request)
     if not key then return end
     request.moreKey = key
-    Answered(request, ReadItems(key), AH.HasFullItemSearchResults(key), request.own)
+    Answered(request, ReadItems(request, key, true), AH.HasFullItemSearchResults(key), request.own)
 end
 N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED", function()
     local request = current
@@ -552,7 +584,7 @@ end)
 -- The game dropped a message under load: ask again for what the live search last asked.
 N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED", function()
     local request = current
-    if request and request.ask then Ask(request, request.ask, true) end
+    if request and request.ask and N.WasDropped("listing") then Ask(request, request.ask, true) end
 end)
 
 ---------------------------------------------------------------------------

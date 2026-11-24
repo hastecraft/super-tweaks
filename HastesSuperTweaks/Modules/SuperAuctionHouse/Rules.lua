@@ -1,0 +1,520 @@
+-- Rules for groups of items, and for one item on its own: what to post it for and how, and where else it goes (mailed
+-- to another character, sold to a vendor). A group's rules are saved with the group (group.rule); an item's own take
+-- their place for that item, saved for the realm by its price key (itemRules[realm][key]).
+--   { min = , normal = , max = ,   prices: copper, or a formula's text (Formula.lua)
+--     below = "min" | "normal" | "max" | "none",   what to do when the lowest price is under your minimum
+--     alone = "normal" | "max" | "min",            what to post for when nobody else is selling
+--     short = 1 | 2 | 3,       pass over auctions about to end: under 30 minutes, 2 hours, 8 hours
+--     ignoreLow = true,        pass over auctions under your minimum
+--     expiries = n,            stop posting once this many have expired since the last sale
+--     bid = percent,           the starting bid, as a share of the buyout
+--     cap = n,                 the most to have on sale
+--     keep = n,                how many stay in your bags
+--     duration = 1 | 2 | 3,
+--     snipe = ,                the Sniper lists the item at or under this price: copper or a formula
+--     mail = "Name",           a group's only: Mail Helper sends the group's items to this character
+--     vendor = true }          a group's only: its items are sold at vendors
+-- The Selling tab reads an item's rules as it's picked (R.Read) and prices it by them as its listing arrives (R.Price).
+-- SPDX-License-Identifier: MPL-2.0
+local ADDON, ns = ...
+local S = ns.SuperAuctionHouse
+local R = {}
+S.Rules = R
+
+local W = ns.Widgets
+local K = S.Kit
+local floor, ceil, max = math.floor, math.ceil, math.max
+
+S.defaults.global.itemRules = {}
+
+---------------------------------------------------------------------------
+-- Saved rules
+---------------------------------------------------------------------------
+-- The realm's name is asked for once: the Selling tab reads every bag item's rules on each bag change.
+local realmName
+local function ItemRules(make)
+    realmName = realmName or S.Prices.RealmName()
+    if not realmName then return nil end
+    local all = S.db.global.itemRules
+    local mine = all[realmName]
+    if not mine and make then
+        mine = {}
+        all[realmName] = mine
+    end
+    return mine
+end
+
+-- An item's own rules, by its price key; one that has since got a price per level or suffix still finds what was
+-- saved under its item ID.
+function R.OfItem(priceKey)
+    local mine = priceKey and ItemRules()
+    if not mine then return nil end
+    local rule = mine[priceKey]
+    if rule == nil and type(priceKey) == "string" then
+        local id = tonumber(priceKey:match("^[sg]:(%d+):"))
+        if id then rule = mine[id] end
+    end
+    return rule
+end
+
+function R.SetItem(priceKey, rule)
+    local mine = ItemRules(rule ~= nil)
+    if mine then mine[priceKey] = rule end
+end
+
+-- The first group with rules that holds an item, by the item's key in the groups ("2589:0:0:0").
+function R.GroupOf(keyString)
+    if not keyString then return nil end
+    local groups = S.db.global.groups
+    for i = 1, #groups do
+        local group = groups[i]
+        if group.rule and group.items[keyString] then return group end
+    end
+    return nil
+end
+
+-- The rules that apply to an item (its own, else its group's) and the group's name when they're a group's.
+function R.For(item)
+    local own = R.OfItem(item.priceKey)
+    if own then return own, nil end
+    local group = R.GroupOf(item.key)
+    if group then return group.rule, group.name end
+    return nil
+end
+
+-- The first group whose rules have a field set (mail, vendor) and that holds this item ID.
+function R.GroupWith(field, itemID)
+    if not (S.db and itemID) then return nil end
+    local groups = S.db.global.groups
+    for i = 1, #groups do
+        local group = groups[i]
+        local rule = group.rule
+        if rule and rule[field] and S.Selling.InGroup(group.name, itemID) then return group, rule[field] end
+    end
+    return nil
+end
+
+---------------------------------------------------------------------------
+-- Reading and pricing
+---------------------------------------------------------------------------
+-- Reads an item's rules into numbers for the item as it is now: item.rule (prices worked out from their formulas),
+-- item.ruleFrom (its group's name) and item.ruleStop (why it isn't to be posted, when the rules say so). A minimum
+-- price counts as the item's "Never post below", and the most to have on sale as its "Keep on sale", where the item
+-- has none of its own. record: the item's figures from your history.
+function R.Read(item, record)
+    item.floorIsRule, item.ruleStop = nil, nil
+    local raw, from = R.For(item)
+    if not raw then
+        item.rule, item.ruleFrom = nil, nil
+        return
+    end
+    local rule = item.rule or {}
+    local key = item.priceKey
+    local Price = S.Formula.Price
+    rule.min, rule.normal, rule.max = Price(raw.min, key), Price(raw.normal, key), Price(raw.max, key)
+    rule.below, rule.alone, rule.short, rule.ignoreLow = raw.below, raw.alone, raw.short, raw.ignoreLow
+    rule.bid, rule.keep, rule.duration, rule.cap = raw.bid, raw.keep, raw.duration, raw.cap
+    item.rule, item.ruleFrom = rule, from
+    if rule.min and (not item.floor or rule.min > item.floor) then item.floor, item.floorIsRule = rule.min, true end
+    if raw.cap and not item.keep then item.keep = raw.cap end
+    local expired = raw.expiries and record and record.expiredSince or 0
+    if raw.expiries and expired >= raw.expiries then
+        item.ruleStop = expired .. K.Plural(expired, " auction has", " auctions have") .. " expired since it last sold."
+    end
+end
+
+local BELOW = {
+    min = "The lowest is under your minimum. Priced at your minimum.",
+    normal = "The lowest is under your minimum. Priced at your normal price.",
+    max = "The lowest is under your minimum. Priced at your maximum.",
+}
+local ALONE = {
+    normal = "No auctions. Priced at your normal price.",
+    max = "No auctions. Priced at your maximum.",
+    min = "No auctions. Priced at your minimum.",
+}
+
+-- Prices as the game takes them: materials in copper, the rest in whole silver. up: rounded up, for a minimum.
+local function Round(copper, commodity, up)
+    if commodity then return max(1, floor(copper)) end
+    return max(100, (up and ceil(copper / 100) or floor(copper / 100)) * 100)
+end
+
+-- The price an item's rules give it against what's listed. rows: its auctions, cheapest first; final: all of them have
+-- come; same(row): whether a row is the same item as yours; undercut(price): what undercutting a price comes to.
+-- Returns whether the rules priced it (false: the caller prices it its own way), the price (nil: leave it as it is),
+-- a line saying what the rules did, and why it isn't to be posted when they say so.
+function R.Price(item, rows, final, same, undercut)
+    local rule = item.rule
+    if not (rule and (rule.min or rule.normal or rule.max or rule.short)) then return false end
+    local least, commodity = rule.min, item.commodity
+    local lowest, mine
+    for i = 1, #rows do
+        local row = rows[i]
+        local price = row.price
+        if price and price > 0 and same(row) then
+            -- Your own auction is matched, and nothing past it counts.
+            if row.owned then
+                lowest, mine = price, true
+                break
+            end
+            if not ((rule.short and row.band and row.band < rule.short) or (rule.ignoreLow and least and price < least)) then
+                lowest = price
+                break
+            end
+        end
+    end
+    if not lowest then
+        if not final then return true end
+        local which = rule.alone or "normal"
+        local price = rule[which]
+        if not price then return false end
+        return true, Round(price, commodity, which == "min"), ALONE[which]
+    end
+    local price = mine and lowest or undercut(lowest)
+    if least and price < least then
+        local below = rule.below or "min"
+        if below == "none" then return true, nil, nil, "The lowest price is under your minimum." end
+        local to = rule[below] or least
+        return true, Round(max(to, least), commodity, true), BELOW[below]
+    end
+    if rule.max and price > rule.max then return true, Round(rule.max, commodity), "Lowered to your maximum." end
+    return true, price
+end
+
+-- What undercutting a price comes to by the Selling settings, away from the Selling tab's own item (Selling.lua's
+-- Undercut is the same sum for the item being posted).
+function R.Undercut(price, commodity)
+    local p = S.db.profile
+    local cut
+    if p.undercutMode == "static" then
+        cut = p.undercutStatic * 100
+        if cut > 0 and cut * 2 >= price then cut = commodity and 1 or 100 end
+    else
+        cut = price * p.undercutPercent / 100
+    end
+    return Round(price - cut, commodity)
+end
+
+-- Whether one of your auctions is priced well under what it could go for now: more than `percent` under what the
+-- cheapest auction that isn't yours would be undercut to (or under what its rules post it for with nobody else
+-- selling), so cancelling it and posting again earns more. Returns the price it would go up for, or nil.
+-- item: { priceKey = , key = } of the auction; price: yours, each; nextPrice: the cheapest that isn't yours, or nil.
+-- read: the item's rules were read into it by the call before (the same item's next auction), so they aren't again.
+function R.RepostPrice(item, price, nextPrice, percent, commodity, read)
+    if not read then
+        item.floor, item.keep = nil, nil
+        R.Read(item)
+    end
+    local rule = item.rule
+    local target
+    if nextPrice then
+        target = R.Undercut(nextPrice, commodity)
+        if rule and rule.max and target > rule.max then target = rule.max end
+    elseif rule then
+        target = rule[rule.alone or "normal"]
+    end
+    if not target or target <= price then return nil end
+    if price >= target * (100 - percent) / 100 then return nil end
+    return floor(target)
+end
+
+---------------------------------------------------------------------------
+-- Selling to vendors: the items of a group whose rules say so are sold at vendors, in the one sale Sell Junk and Sell
+-- Clutter share (Automation.lua). That sale keeps what a Never sell list names, quest items and the bags you've told
+-- the game not to sell from, and Shift skips it. This tweak already has its own events, so the seller is added by
+-- hand instead of with the sale's Listen.
+---------------------------------------------------------------------------
+local Sale = ns.VendorSale
+local Seller = { db = { profile = {} } }
+local GetInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
+
+S.defaults.profile.vendorChat = true
+
+function Seller:IsEnabled()
+    if not (S:IsEnabled() and S.db) then return false end
+    local groups = S.db.global.groups
+    for i = 1, #groups do
+        local rule = groups[i].rule
+        if rule and rule.vendor then return true end
+    end
+    return false
+end
+
+-- Once a scan: the items to sell, by item ID, with their group's name.
+function Seller:PrepareSale()
+    local ids = {}
+    for _, group in ipairs(S.db.global.groups) do
+        if group.rule and group.rule.vendor then
+            for key in pairs(group.items) do
+                local id = tonumber(key:match("^(%d+):"))
+                if id and not ids[id] then ids[id] = group.name end
+            end
+        end
+    end
+    return true, ids
+end
+
+function Seller:SalePrice(info, _, _, ids)
+    local itemID = info.itemID
+    local from
+    if ids then
+        from = ids[itemID]
+    else
+        local group = R.GroupWith("vendor", itemID)
+        from = group and group.name
+    end
+    if not from then return nil end
+    local name, _, _, _, _, _, _, _, _, _, price = GetInfo(itemID)
+    if not name or (price or 0) <= 0 then return nil end
+    return price, from
+end
+
+function Seller:Sold(sold)
+    if not S.db.profile.vendorChat then return end
+    local total = 0
+    for _, sale in ipairs(sold) do total = total + sale.total end
+    ns.HST:Print(string.format("Sold %d %s from your groups for %s.", #sold, #sold == 1 and "item" or "items",
+        ns.Money(total)))
+end
+
+if Sale then
+    Sale.sellers[#Sale.sellers + 1] = Seller
+    S.On("MERCHANT_SHOW", function()
+        if not IsShiftKeyDown() and Sale:Leads(Seller) then Sale:Open() end
+    end)
+    S.On("MERCHANT_CLOSED", function() Sale:Close() end)
+    S.WhenOff(function() Sale:Left() end)
+end
+
+S.Extend(function(args, option)
+    args.selling.args.flow.args.vendorChat = option("toggle", "vendorChat", "Say what was sold to vendors", 10)
+end)
+
+---------------------------------------------------------------------------
+-- The editor: a card over the window for one group's rules or one item's.
+---------------------------------------------------------------------------
+local LEFT, ROW, WIDTH = 290, 26, 760
+local BELOW_NAMES = { min = "Post at your minimum", normal = "Post at your normal price", max = "Post at your maximum",
+    none = "Don't post" }
+local BELOW_ORDER = { "min", "normal", "max", "none" }
+local ALONE_NAMES = { normal = "Your normal price", max = "Your maximum", min = "Your minimum" }
+local ALONE_ORDER = { "normal", "max", "min" }
+local SHORT_NAMES = { [0] = "None", [1] = "30 minutes", [2] = "2 hours", [3] = "8 hours" }
+local SHORT_ORDER = { 0, 1, 2, 3 }
+local DURATION_ORDER = { 0, 1, 2, 3 }
+
+local editor
+
+local function Build()
+    local P = K.Palette()
+    local v = CreateFrame("Frame", nil, S.Window.frame)
+    v:SetAllPoints()
+    v:SetFrameLevel(S.Window.frame:GetFrameLevel() + 50)
+    v:EnableMouse(true)
+    W.Fill(v, P.veil, "BACKGROUND"):SetAllPoints()
+    local card = CreateFrame("Frame", nil, v)
+    card:SetPoint("CENTER")
+    card:EnableMouse(true)
+    K.Box(card, P.window, P.line)
+    v.title = K.Text(card, "GameFontNormal", P.title)
+    v.title:SetPoint("TOPLEFT", 16, -14)
+    v.from = K.Text(card, "GameFontHighlightSmall", P.muted, "RIGHT")
+    v.from:SetPoint("TOPRIGHT", -16, -16)
+    v.fields = {}
+    local add = { y = -44 }
+    function add.caption(text)
+        local c = K.Text(card, "GameFontHighlightSmall", P.text)
+        c:SetPoint("TOPLEFT", 16, add.y - 5)
+        c:SetWidth(LEFT - 24)
+        c:SetText(text)
+        return c
+    end
+    function add.next() add.y = add.y - ROW end
+    function add.field(read, write) v.fields[#v.fields + 1] = { read = read, write = write } end
+    function add.heading(text)
+        add.y = add.y - 4
+        local h = K.Text(card, "GameFontNormalSmall", P.accent)
+        h:SetPoint("TOPLEFT", 16, add.y - 4)
+        h:SetText(text)
+        add.y = add.y - 22
+        return h
+    end
+    v.prices = {}
+    local function price(key, text)
+        add.caption(text)
+        local box = K.PriceInput(card, nil, WIDTH - LEFT - 252 - 8 - 16)
+        box:SetPoint("TOPLEFT", LEFT, add.y)
+        v.prices[#v.prices + 1] = box
+        add.field(function(rule) box:SetSpec(rule[key]) end, function(rule) rule[key] = box:GetSpec() end)
+        add.next()
+    end
+    local function choice(key, text, names, order, none)
+        add.caption(text)
+        local value
+        local s = K.Select(card, function() return names, order end, function() return value end,
+            function(picked) value = picked end)
+        s:SetPoint("TOPLEFT", LEFT, add.y)
+        s:SetWidth(252)
+        add.field(function(rule)
+            value = rule[key] or none
+            s:Refresh()
+        end, function(rule) if value ~= none then rule[key] = value else rule[key] = nil end end)
+        add.next()
+    end
+    local function number(key, text, placeholder)
+        add.caption(text)
+        local box = K.Input(card, { numeric = true, width = 100, placeholder = placeholder })
+        box:SetPoint("TOPLEFT", LEFT, add.y)
+        add.field(function(rule) box:SetText(rule[key] or "") end, function(rule)
+            local n = tonumber(box:GetText())
+            rule[key] = n and n > 0 and floor(n) or nil
+        end)
+        add.next()
+    end
+    local function switch(key, text)
+        add.caption(text)
+        local s = W.Switch(card)
+        s:SetPoint("TOPLEFT", LEFT, add.y - 1)
+        local on = false
+        s.onClick = function(now)
+            on = now
+            s:SetOn(now, true)
+        end
+        add.field(function(rule)
+            on = rule[key] and true or false
+            s:SetOn(on)
+        end, function(rule) rule[key] = on or nil end)
+        add.next()
+    end
+
+    add.heading("Price")
+    price("min", "Minimum price")
+    price("normal", "Normal price")
+    price("max", "Maximum price")
+    choice("below", "When the lowest price is under your minimum", BELOW_NAMES, BELOW_ORDER, "min")
+    choice("alone", "With no auctions, post at", ALONE_NAMES, ALONE_ORDER, "normal")
+    choice("short", "Ignore auctions with less time left than", SHORT_NAMES, SHORT_ORDER, 0)
+    switch("ignoreLow", "Ignore auctions under your minimum")
+    add.heading("Posting")
+    local durations = S.DurationNames()
+    durations[0] = "As in the settings"
+    choice("duration", "Duration", durations, DURATION_ORDER, 0)
+    number("bid", "Starting bid (% of buyout)")
+    number("cap", "Most to have on sale", "No limit")
+    number("keep", "Keep in your bags")
+    number("expiries", "Stop posting after (expired auctions)", "Never")
+    v.last = add.heading("Buying")
+    price("snipe", "Buy at or under (Sniper)")
+    -- The last two rows are a group's only: an item's own rules don't mail or sell it.
+    v.short = -add.y + 56
+    v.groupOnly = {}
+    local mailCaption = add.caption("Mail to")
+    local mail = K.Input(card, { width = 252, placeholder = "Character" })
+    mail:SetPoint("TOPLEFT", LEFT, add.y)
+    add.field(function(rule) mail:SetText(rule.mail or "") end, function(rule)
+        local name = strtrim(mail:GetText())
+        rule.mail = v.forGroup and name ~= "" and name or nil
+    end)
+    add.next()
+    local vendorCaption = add.caption("Sell to vendors")
+    local vendor, selling = W.Switch(card), false
+    vendor:SetPoint("TOPLEFT", LEFT, add.y - 1)
+    vendor.onClick = function(now)
+        selling = now
+        vendor:SetOn(now, true)
+    end
+    add.field(function(rule)
+        selling = rule.vendor and true or false
+        vendor:SetOn(selling)
+    end, function(rule) rule.vendor = v.forGroup and selling or nil end)
+    add.next()
+    v.groupOnly[1], v.groupOnly[2], v.groupOnly[3], v.groupOnly[4] = mailCaption, mail, vendorCaption, vendor
+    v.tall = -add.y + 56
+    card:SetSize(WIDTH, v.tall)
+    v.card = card
+
+    local function close() v:Hide() end
+    local save = K.Button(card, "Save", "primary")
+    save:SetWidth(90)
+    save:SetPoint("BOTTOMRIGHT", -16, 14)
+    save:SetScript("OnClick", function()
+        for _, box in ipairs(v.prices) do
+            if box:HasProblem() then return S.Window.Status("One of the formulas can't be read.") end
+        end
+        local rule = {}
+        for _, field in ipairs(v.fields) do field.write(rule) end
+        if next(rule) == nil then rule = nil end
+        v.save(rule)
+        close()
+    end)
+    local cancel = K.Button(card, "Cancel")
+    cancel:SetWidth(80)
+    cancel:SetPoint("RIGHT", save, "LEFT", -6, 0)
+    cancel:SetScript("OnClick", close)
+    v.clear = K.Button(card, "")
+    v.clear:SetPoint("BOTTOMLEFT", 16, 14)
+    v.clear:SetScript("OnClick", function()
+        v.save(nil)
+        close()
+    end)
+    v:Hide()
+    K.BackLayer(v, close)
+    editor = v
+end
+
+local EMPTY = {}
+
+local function Open(title, from, rule, priceKey, clearText, save, forGroup)
+    if not S.Window.frame then return end
+    if not editor then Build() end
+    local v = editor
+    v.title:SetText(title)
+    v.from:SetText(from or "")
+    v.save = save
+    v.forGroup = forGroup
+    for _, part in ipairs(v.groupOnly) do part:SetShown(forGroup == true) end
+    v.card:SetHeight(forGroup and v.tall or v.short)
+    v.last:SetText(forGroup and "Buying, mail and vendors" or "Buying")
+    for _, box in ipairs(v.prices) do box:SetKey(priceKey) end
+    for _, field in ipairs(v.fields) do field.read(rule or EMPTY) end
+    -- A window too short for the card shows it smaller.
+    local room = S.Window.frame:GetHeight() - 16
+    v.card:SetScale(math.min(1, room / v.card:GetHeight()))
+    W.FitIcons(v.card)
+    v.clear:SetShown(clearText ~= nil)
+    if clearText then
+        v.clear:SetText(clearText)
+        v.clear:Fit(90)
+    end
+    v:Show()
+end
+
+local function Changed(priceKey)
+    if S.Selling.RulesChanged then S.Selling.RulesChanged(priceKey) end
+    if S.Auctions.RulesChanged then S.Auctions.RulesChanged() end
+end
+
+-- Opens the editor on a group's rules.
+function R.EditGroup(group)
+    Open("Rules for " .. group.name, nil, group.rule, nil, group.rule and "Remove rules" or nil, function(rule)
+        group.rule = rule
+        Changed()
+    end, true)
+end
+
+-- Opens the editor on an item's own rules. An item in a group with rules starts from the group's.
+function R.EditItem(item)
+    local key = item.priceKey
+    if not key then return end
+    local own = R.OfItem(key)
+    local group = R.GroupOf(item.key)
+    Open("Rules for " .. (item.name or "this item"),
+        not own and group and ("From the group " .. group.name) or nil,
+        own or group and group.rule, key,
+        own and (group and "Use the group's rules" or "Remove rules") or nil,
+        function(rule)
+            R.SetItem(key, rule)
+            Changed(key)
+        end)
+end

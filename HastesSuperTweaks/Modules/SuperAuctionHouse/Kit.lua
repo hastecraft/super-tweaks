@@ -174,11 +174,33 @@ local function PaintButton(b)
     end
 end
 
+-- A key as it's read: "SHIFT-SPACE" is "Shift+Space". Nil for no key.
+local KEY_WORDS = { SPACE = "Space", BACKSPACE = "Backspace", ESCAPE = "Esc", ENTER = "Enter", TAB = "Tab", DELETE = "Del",
+    CTRL = "Ctrl", SHIFT = "Shift", ALT = "Alt" }
+function K.KeyName(key)
+    if not key or key == "" then return nil end
+    local text
+    for part in key:gmatch("[^-]+") do
+        local word = KEY_WORDS[part] or part
+        text = text and (text .. "+" .. word) or word
+    end
+    return text
+end
+
+local function ButtonText(b)
+    local key = b.keyName
+    if not (key and b.style == "primary") then return b.text end
+    local c = P.muted
+    return format("%s  |cff%02x%02x%02x%s|r", b.text, c[1] * 255, c[2] * 255, c[3] * 255, key)
+end
+
 -- style: "primary" for the main action of a screen, "ghost" for one with no box until pointed at.
--- name, when given, is a global name a key binding can click.
+-- name, when given, is a global name a key binding can click. b:SetKey(key) says which key presses it: on the button
+-- for a screen's main action, in the tooltip for the others.
 function K.Button(parent, text, style, name)
     local b = CreateFrame("Button", name, parent)
     b.style = style
+    b.text = text or ""
     b:SetHeight(24)
     -- A pill, as the settings window's buttons are in every theme.
     b.SetRim, b.SetFill = W.Outline(b, nil, P.line, P.buttonFill)
@@ -191,7 +213,11 @@ function K.Button(parent, text, style, name)
     b:SetScript("OnEnter", function(self)
         self.lit = true
         PaintButton(self)
-        if self.tipText or self.tipTitle then W.ShowTooltip(self, self.tipTitle, self.tipText) end
+        local tip = self.tipText
+        if self.keyName and self.style ~= "primary" then
+            tip = (tip and (tip .. "\n") or "") .. "Key: " .. self.keyName
+        end
+        if tip or self.tipTitle then W.ShowTooltip(self, self.tipTitle, tip) end
     end)
     b:SetScript("OnLeave", function(self)
         self.lit = false
@@ -202,9 +228,23 @@ function K.Button(parent, text, style, name)
         self:SetEnabled(not off)
         PaintButton(self)
     end
-    function b:SetText(value) self.label:SetText(value or "") end
+    function b:SetText(value)
+        value = value or ""
+        if value == self.text then return end
+        self.text = value
+        self.label:SetText(ButtonText(self))
+    end
+    function b:SetKey(key)
+        local keyName = K.KeyName(key)
+        if keyName == self.keyName then return end
+        self.keyName = keyName
+        self.label:SetText(ButtonText(self))
+    end
     function b:SetStyle(value)
+        if value == self.style then return end
         self.style = value
+        -- A key shows on the label of a main action only.
+        if self.keyName then self.label:SetText(ButtonText(self)) end
         PaintButton(self)
     end
     function b:Fit(least, padding)
@@ -468,11 +508,14 @@ function K.MoneyInput(parent, onChange, onEnter)
     return f
 end
 
--- A dropdown. getEntries() returns values and order; the label follows the value.
+-- A dropdown. getEntries() returns values and order; the label follows the value. It's drawn as the buttons are, with
+-- a rim and a fill that stand off the cards it sits on, and lights up while pointed at and while open.
+local selectLook
 function K.Select(parent, getEntries, getValue, onSelect)
+    selectLook = selectLook or { rim = P.line, fill = P.buttonFill, lit = P.buttonLit, open = P.wash, chevron = P.text }
     local s
     s = W.Select(parent, {
-        getEntries = getEntries, getValue = getValue,
+        getEntries = getEntries, getValue = getValue, look = selectLook,
         onSelect = function(key)
             onSelect(key)
             local values = getEntries()

@@ -297,7 +297,7 @@ function P.ResetScanTimer()
     if r then r.lastScan, r.lastReplicate = 0, 0 end
 end
 local pending, pendingAt, pendingEnd, running = {}, 1, 0, false
-local plainSeen = {}
+local plainSeen, plainFrom = {}, {}
 
 function P.ResetRealm()
     if not P.Activate() then return end
@@ -305,6 +305,7 @@ function P.ResetRealm()
     wipe(pending)
     pendingAt, pendingEnd = 1, 0
     wipe(plainSeen)
+    wipe(plainFrom)
     realm = NewRealm()
     S.db.global.realms[realmName] = realm
     -- The copy kept of prices that couldn't be read (see P.Activate) is this realm's too.
@@ -404,8 +405,21 @@ function P.Record(key, price, available, typical)
     end
 end
 
--- The lowest of an item's levels seen since the auction house opened or a scan began, for its plain key.
-function P.ForgetPlain() wipe(plainSeen) end
+-- The lowest of an item's levels and suffixes seen since the auction house opened or a scan began, for its plain key,
+-- and which of them it was (a level, or a suffix and a half, so the two can't be mistaken): when that one is seen
+-- again at another price, the plain key follows it up as well as down.
+function P.ForgetPlain()
+    wipe(plainSeen)
+    wipe(plainFrom)
+end
+
+-- Whether a level's or suffix's price is now the item's lowest.
+local function PlainLowest(itemID, variant, price)
+    local lowest = plainSeen[itemID]
+    if lowest and lowest <= price and plainFrom[itemID] ~= variant then return false end
+    plainSeen[itemID], plainFrom[itemID] = price, variant
+    return true
+end
 
 -- Saves a price for one item level of gear, leaving the item's plain key alone.
 function P.RecordLevel(itemID, level, price, available, typical)
@@ -423,17 +437,13 @@ function P.RecordItemKey(itemKey, price, available, typical)
     local suffix = itemKey.itemSuffix
     if suffix and suffix ~= 0 then
         P.Record("s:" .. itemKey.itemID .. ":" .. suffix, price, available, typical)
-        local lowest = plainSeen[itemKey.itemID]
-        if lowest and lowest <= price then return end
-        plainSeen[itemKey.itemID] = price
+        if not PlainLowest(itemKey.itemID, suffix + 0.5, price) then return end
         -- One suffix's or level's middle price isn't the item's.
         typical = nil
     elseif level and level >= GEAR_LEVEL then
         P.RecordLevel(itemKey.itemID, level, price, available, typical)
         -- The plain key holds the lowest of an item's levels: what an item whose level isn't known shows.
-        local lowest = plainSeen[itemKey.itemID]
-        if lowest and lowest <= price then return end
-        plainSeen[itemKey.itemID] = price
+        if not PlainLowest(itemKey.itemID, level, price) then return end
         typical = nil
     end
     P.Record(itemKey.itemID, price, available, typical)
@@ -476,10 +486,8 @@ end
 function P.Listen(id, fn) listeners[id] = fn end
 function P.Fire()
     if seriesCount > 0 then series, seriesCount = {}, 0 end
-    for id, fn in pairs(listeners) do
-        local ok = pcall(fn)
-        if not ok then listeners[id] = nil end
-    end
+    -- One listener's error shows, and the others still hear the change.
+    for _, fn in pairs(listeners) do securecallfunction(fn) end
 end
 
 ---------------------------------------------------------------------------

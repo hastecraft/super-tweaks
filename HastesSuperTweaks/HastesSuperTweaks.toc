@@ -74,8 +74,11 @@ Modules\SuperAuctionHouse\Lists.lua
 Modules\SuperAuctionHouse\Kit.lua
 Modules\SuperAuctionHouse\Chart.lua
 Modules\SuperAuctionHouse\Parts.lua
+Modules\SuperAuctionHouse\Formula.lua
+Modules\SuperAuctionHouse\Rules.lua
 Modules\SuperAuctionHouse\Watch.lua
 Modules\SuperAuctionHouse\Owned.lua
+Modules\SuperAuctionHouse\Alts.lua
 Modules\SuperAuctionHouse\Alerts.lua
 Modules\SuperAuctionHouse\ItemPage.lua
 Modules\SuperAuctionHouse\Scan.lua
@@ -83,6 +86,7 @@ Modules\SuperAuctionHouse\Market.lua
 Modules\SuperAuctionHouse\Smart.lua
 Modules\SuperAuctionHouse\Buy.lua
 Modules\SuperAuctionHouse\Shopping.lua
+Modules\SuperAuctionHouse\Sniper.lua
 Modules\SuperAuctionHouse\Home.lua
 Modules\SuperAuctionHouse\Selling.lua
 Modules\SuperAuctionHouse\Auctions.lua
@@ -92,6 +96,8 @@ Modules\SuperAuctionHouse\Mail.lua
 Modules\SuperAuctionHouse\Window.lua
 Modules\SuperAuctionHouse\Crafting.lua
 Modules\SuperAuctionHouse\Recipes.lua
+Modules\SuperAuctionHouse\Queue.lua
+Modules\SuperAuctionHouse\Destroy.lua
 Modules\SuperAuctionHouse\RecipeData.lua
 Modules\SuperAuctionHouse\LevelingData.lua
 Modules\SuperAuctionHouse\RecipeBook.lua
