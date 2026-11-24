@@ -54,7 +54,8 @@ local function Scan()
         for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
             local info = C_Container.GetContainerItemInfo(bag, slot)
             local link = info and info.hyperlink
-            if link and not IsSecret(link) and not IsSecret(info.itemID) and not IsSecret(info.quality) then
+            -- Asked before anything is tested: a hidden value can't even be checked for nil.
+            if not IsSecret(link) and link and not IsSecret(info.itemID) and not IsSecret(info.quality) then
                 local quality = info.quality or 0
                 if quality >= 2 and quality <= (p.destroyEpic and 4 or 3) and not info.isLocked
                     and (p.destroyBound or not info.isBound) and not skipped[link] then
