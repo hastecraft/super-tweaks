@@ -25,14 +25,17 @@ ns.DungeonTimer = D
 
 D.defaults = { profile = {
     dungeons = true, raids = false, onlyGroup = false, hideQuests = true,
-    showDeaths = true, showGold = true, showVendor = true, showAuction = false,
-    locked = true, scale = 1, x = nil, y = nil,
+    showDeaths = true, showGold = true, showVendor = true, showAuction = false, targetBosses = true,
+    locked = true, scale = 1, width = 220, height = 0, align = "RIGHT", x = nil, y = nil,
 }, char = {}, global = { best = {} } }
 
 function D:OnInitialize()
     self.db = HST.db:RegisterNamespace(self:GetName(), self.defaults)
     ns.OnProfile(self, "Apply")
 end
+
+local ALIGN_NAMES = { LEFT = "Left", CENTER = "Center", RIGHT = "Right" }
+local ALIGN_ORDER = { "LEFT", "CENTER", "RIGHT" }
 
 ns.LazyOptions(D, function(m)
     local function profile() return m.db.profile end
@@ -52,12 +55,18 @@ ns.LazyOptions(D, function(m)
                 showAuction = option("toggle", "showAuction", "Auction value of loot", 4,
                     { desc = "Needs Super Auction House on.", disabled = ns.AuctionPricesOff }),
                 hideQuests = option("toggle", "hideQuests", "Hide the quest tracker while the timer runs", 5),
+                targetBosses = option("toggle", "targetBosses", "Click a boss to target it", 6,
+                    { desc = "The list can't change during combat, so a boss killed then moves it after the fight." }),
             }),
             position = ns.Section("Position", 3, {
                 locked = option("toggle", "locked", "Lock position", 1,
                     { desc = "While unlocked, the timer shows outside instances too and can be dragged." }),
                 scale = option("range", "scale", "Scale", 2, { min = 0.6, max = 2, step = 0.05 }),
-                reset = { type = "execute", name = "Reset position", order = 3, func = function()
+                width = option("range", "width", "Width", 3, { min = 140, max = 500, step = 1 }),
+                height = option("range", "height", "Height", 4, { min = 0, max = 800, step = 10,
+                    desc = "0: tall enough for every boss. When it's shorter, bosses already killed make room first." }),
+                align = option("select", "align", "Align the name and clock", 5, { values = ALIGN_NAMES, sorting = ALIGN_ORDER }),
+                reset = { type = "execute", name = "Reset position", order = 6, func = function()
                     local p = m.db.profile
                     p.x, p.y = nil, nil
                     apply()
@@ -171,7 +180,7 @@ end
 ---------------------------------------------------------------------------
 -- The panel: the instance, the time, the bosses, then what the run gave. Text is set only when it changed.
 ---------------------------------------------------------------------------
-local WIDTH, PAD, TITLE, CLOCK, ROW, GAP = 220, 2, 13, 28, 15, 6
+local PAD, TITLE, CLOCK, ROW, GAP = 220, 2, 13, 28, 15, 6
 local GOLD, WHITE = { 1, 0.82, 0 }, { 1, 1, 1 }
 local BOSSES, BEST, DEATHS = LABEL .. "Bosses|r", LABEL .. "Best|r", LABEL .. "Deaths|r"
 local GOLD_LOOTED, VENDOR, AUCTION = LABEL .. "Gold|r", LABEL .. "Vendor value|r", LABEL .. "Auction value|r"
@@ -194,14 +203,10 @@ end
 
 local function NewPanel(parent, name)
     local v = CreateFrame("Frame", name, parent)
-    v:SetWidth(WIDTH)
     v.font = ns.Media("font", "Inter Semi Bold")
     v.title = NewText(v, v.font, TITLE, "RIGHT")
-    v.title:SetPoint("TOPRIGHT", -PAD, -PAD)
-    v.title:SetWidth(WIDTH - PAD * 2)
     v.title:SetTextColor(1, 0.82, 0)
     v.clock = NewText(v, v.font, CLOCK, "RIGHT")
-    v.clock:SetPoint("TOPRIGHT", -PAD, -(PAD + TITLE + 3))
     v.rows = {}
     -- What each stat row last showed, and from which number (see StatText).
     v.statValue, v.statText = {}, {}
@@ -269,11 +274,52 @@ local function Paint(v, p, name, list, run, best, open, seconds)
         v.moneyStyle = moneyStyle
         wipe(v.statValue)
     end
+    local width = p.width
+    if v.width ~= width then
+        v.width = width
+        v:SetWidth(width)
+        v.title:SetWidth(width - PAD * 2)
+    end
+    local align = p.align
+    if v.align ~= align then
+        v.align = align
+        local point, x = "TOP" .. (align == "CENTER" and "" or align), align == "LEFT" and PAD or align == "RIGHT" and -PAD or 0
+        v.title:ClearAllPoints()
+        v.title:SetPoint(point, x, -PAD)
+        v.title:SetJustifyH(align)
+        v.clock:ClearAllPoints()
+        v.clock:SetPoint(point, x, -(PAD + TITLE + 3))
+        v.clock:SetJustifyH(align)
+    end
     Set(v.title, name)
     PaintClock(v, run.done or seconds, run.done ~= nil)
     local y, n = -(PAD + TITLE + 3 + CLOCK + GAP), #list
+    -- With a height set, the boss rows that fit: bosses killed before the first one alive go first, then the last.
+    local skip = 0
+    if v.hold and InCombatLockdown() then
+        -- Click targets can't move during combat: the list stays where it was.
+        skip = min(v.skip or 0, n)
+        n = min(v.count or n, n - skip)
+    elseif p.height > 0 and n > 0 then
+        local stats = (open or run.total or (best and best.total)) and 1 or 0
+        if p.showDeaths then stats = stats + 1 end
+        if p.showGold then stats = stats + 1 end
+        if p.showVendor then stats = stats + 1 end
+        if p.showAuction and not ns.AuctionPricesOff() then stats = stats + 1 end
+        local fit = max(1, floor((p.height + y - GAP - stats * ROW - PAD) / ROW))
+        if fit < n then
+            local alive = n + 1
+            for i = 1, n do
+                if not run.kills[list[i].key] then alive = i break end
+            end
+            skip = min(alive - 1, n - fit)
+            n = fit
+        end
+    end
+    v.skip, v.count, v.list = skip, n, list
     for i = 1, n do
-        Row(v, i, y, list[i].name, list[i].right)
+        local boss = list[skip + i]
+        Row(v, i, y, boss.name, boss.right)
         y = y - ROW
     end
     if n > 0 then y = y - GAP end
@@ -351,8 +397,7 @@ end
 
 -- The panel hangs from its top, so a longer boss list grows downward: x and y are that point, from the middle of the
 -- screen. Until it's moved it sits at the right edge.
-function D:Place()
-    local f, p = self.frame, self.db.profile
+local function PlaceFrame(f, p)
     local scale = p.scale
     if f.scale ~= scale then
         f.scale = scale
@@ -364,6 +409,102 @@ function D:Place()
     else
         f:SetPoint("TOPRIGHT", UIParent, "RIGHT", -24 / scale, 200 / scale)
     end
+end
+
+function D:Place() PlaceFrame(self.frame, self.db.profile) end
+
+---------------------------------------------------------------------------
+-- Click targets: secure buttons over the boss names, each a /targetexact of its boss. The game lets addons change
+-- them only out of combat, so they sit on their own frame (not the panel, which then stays free to move and hide in
+-- combat), and while they show, the panel's list holds still during combat (Paint's hold) until they catch up.
+---------------------------------------------------------------------------
+local LIST_TOP = -(PAD + TITLE + 3 + CLOCK + GAP)
+
+-- Whether the buttons already match the panel: nothing to change, so no asking about combat.
+local function TargetsMatch(t, f, p)
+    if not (t and t.visible) or t.count ~= f.count or t.x ~= p.x or t.y ~= p.y or t.scale ~= p.scale
+        or t.width ~= p.width then
+        return false
+    end
+    local buttons, list, skip = t.buttons, f.list, f.skip
+    for i = 1, f.count do
+        if buttons[i].hstName ~= list[skip + i].name then return false end
+    end
+    return true
+end
+
+function D:SyncTargets()
+    local p, f, t = self.db.profile, self.frame, self.targets
+    local want = self:IsEnabled() and p.targetBosses and self.live and p.locked and not self.editMode
+        and f and f.visible and f.count and f.count > 0 or false
+    if want then
+        if TargetsMatch(t, f, p) then return end
+    elseif not (t and t.visible) then
+        if f then f.hold = false end
+        return
+    end
+    if InCombatLockdown() then
+        if not self.targetsPending then
+            self.targetsPending = true
+            self.events:RegisterEvent("PLAYER_REGEN_ENABLED")
+        end
+        return
+    end
+    if self.targetsPending then
+        self.targetsPending = false
+        self.events:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    end
+    if not want then
+        if f then f.hold = false end
+        t.visible = false
+        t:Hide()
+        return
+    end
+    if not t then
+        t = CreateFrame("Frame", nil, UIParent)
+        t:SetFrameStrata("MEDIUM")
+        t:SetFrameLevel(f:GetFrameLevel() + 5)
+        t:SetHeight(1)
+        t.buttons = {}
+        self.targets = t
+    end
+    local resized = t.width ~= p.width
+    if resized or t.x ~= p.x or t.y ~= p.y or t.scale ~= p.scale then
+        t.x, t.y, t.width = p.x, p.y, p.width
+        PlaceFrame(t, p)
+        t:SetWidth(p.width)
+    end
+    local buttons, list, skip = t.buttons, f.list, f.skip
+    for i = 1, f.count do
+        local button = buttons[i]
+        if not button then
+            button = CreateFrame("Button", nil, t, "SecureActionButtonTemplate")
+            button:RegisterForClicks("LeftButtonUp", "LeftButtonDown")
+            button:SetAttribute("type", "macro")
+            local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+            highlight:SetAllPoints()
+            highlight:SetColorTexture(1, 1, 1, 0.12)
+            button:SetPoint("TOPLEFT", PAD, LIST_TOP - (i - 1) * ROW)
+            buttons[i] = button
+        end
+        local name = list[skip + i].name
+        if button.hstName ~= name or resized then
+            button.hstName = name
+            button:SetAttribute("macrotext", "/targetexact " .. name)
+            -- As wide as the name, so the rest of the row stays clear for clicks into the world.
+            local text = f.rows[i].left
+            button:SetSize(min(text:GetStringWidth(), text:GetWidth()) + 2, ROW)
+        end
+        if not button.shown then button.shown = true; button:Show() end
+    end
+    for i = f.count + 1, #buttons do
+        local button = buttons[i]
+        if button.shown then button.shown = false; button.hstName = nil; button:Hide() end
+    end
+    t.count = f.count
+    -- A list cut to a height moves when a boss dies: during combat it waits for the buttons.
+    f.hold = p.height > 0
+    if not t.visible then t.visible = true; t:Show() end
 end
 
 -- Draws the run (seconds into it, when the caller has just read that), or the sample while there is none.
@@ -399,7 +540,7 @@ function D:Update()
     local f = self.frame
     if not show then
         if f and f.visible then f.visible = false; f:Hide() end
-        return
+        return self:SyncTargets()
     end
     f = f or self:CreateFrame()
     self:Place()
@@ -410,6 +551,7 @@ function D:Update()
         f:EnableMouse(mouse)
     end
     if not f.visible then f.visible = true; f:Show() end
+    self:SyncTargets()
 end
 
 ---------------------------------------------------------------------------
@@ -645,6 +787,7 @@ function D:Kill(id, name)
     end
     self:BuildList()
     self:Paint(at)
+    self:SyncTargets()
 end
 
 -- What a vendor pays for an item, or nil while the game hasn't loaded the item.
@@ -700,6 +843,11 @@ end
 ns.Listen(D, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self, event, a, b, _, _, success)
     if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" or event == "GROUP_ROSTER_UPDATE" then
         return self:CheckZone()
+    end
+    if event == "PLAYER_REGEN_ENABLED" then
+        -- The click targets can move again: the list catches up with the fight's kills first.
+        if self.live and self.frame.visible then self:Paint() end
+        return self:SyncTargets()
     end
     local run = self.run
     if not self.live then return end
@@ -768,8 +916,9 @@ end
 function D:EditFrame() return self.frame or self:CreateFrame() end
 
 function D:EditSize()
-    local scale = self.db.profile.scale
-    return WIDTH * scale, (self.frame.height or self.frame:GetHeight()) * scale
+    local p = self.db.profile
+    local scale = p.scale
+    return p.width * scale, (self.frame.height or self.frame:GetHeight()) * scale
 end
 
 function D:GetPosition()
@@ -809,6 +958,6 @@ function D.info.preview(frame)
         v:SetPoint("CENTER")
     end
     local height = Paint(v, D.db.profile, SAMPLE_NAME, SampleList(), SAMPLE_RUN, SAMPLE_BEST, false, SAMPLE_SECONDS)
-    v:SetScale(min(1, (W.PREVIEW_HEIGHT - 8) / height))
+    v:SetScale(min(1, (W.PREVIEW_HEIGHT - 8) / height, (W.PREVIEW_WIDTH - 8) / v.width))
     W.Loop(frame, 60, function(t) PaintClock(v, SAMPLE_SECONDS + floor(t), false) end, 0)
 end
