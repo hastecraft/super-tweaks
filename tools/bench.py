@@ -161,24 +161,38 @@ Section('XP Tracker', function()
 end)
 -- The XP bar's ticker would run in every later scenario that lets time pass; those measure other tweaks.
 HST:SetFeatureEnabled('XPTracker', false)
--- A watched faction for the Rep Tracker. The mock hands back one table; the game makes a new one per call.
-local repData = { factionID = 72, name = 'Stormwind', reaction = 6, currentReactionThreshold = 9000,
-    nextReactionThreshold = 21000, currentStanding = 15000 }
-C_Reputation = C_Reputation or {}
-C_Reputation.GetWatchedFactionData = function() return repData end
-C_Reputation.GetFactionDataByID = function() return repData end
-HST:SetFeatureEnabled('RepTracker', true)
-AdvanceTime(1)
+
+-- The watched faction is the mocks' (REP in full_mocks.lua): Stormwind, Honored.
 Section('Rep Tracker', function()
+    Enable({ 'RepTracker' }, true)
+    local R, watched = mod('RepTracker'), REP[REP.watched]
+    R.db.char.session.seconds, R.db.char.session.gained = 4000, 5000
+    AdvanceTime(1)
+    assert(R.frame:IsShown(), 'the bar shows the watched faction')
     Measure('Rep bar: one-second tick, nothing changed', 300, function() AdvanceTime(1) end)
     Measure('Rep bar: rep gain (event + 0.1 s settle)', 100, function()
-        repData.currentStanding = repData.currentStanding + 5; Send('RepTracker', 'UPDATE_FACTION'); AdvanceTime(0.1)
+        watched.currentStanding = watched.currentStanding + 5; Send('RepTracker', 'UPDATE_FACTION'); AdvanceTime(0.1)
+    end)
+    Measure('Rep bar: another faction\'s rep changed (event + 0.1 s settle)', 100, function()
+        Send('RepTracker', 'UPDATE_FACTION'); AdvanceTime(0.1)
     end)
     Measure('Rep bar: combat start + end', 100, function()
         Send('RepTracker', 'PLAYER_REGEN_DISABLED'); Send('RepTracker', 'PLAYER_REGEN_ENABLED')
     end)
+    Measure('Rep bar: zone change', 100, function() Send('RepTracker', 'ZONE_CHANGED_NEW_AREA') end)
+    Script(R.frame, 'OnEnter')
+    Measure('Rep bar: one-second tick while hovered', 100, function() AdvanceTime(1) end)
+    Script(R.frame, 'OnLeave')
+    REP.watched = nil; Send('RepTracker', 'UPDATE_FACTION'); AdvanceTime(1)
+    assert(not R.frame:IsShown(), 'no faction to track hides the bar')
+    Measure('Rep bar hidden with no faction: one-second tick', 300, function() AdvanceTime(1) end)
+    Measure('Rep bar hidden with no faction: combat start + end', 100, function()
+        Send('RepTracker', 'PLAYER_REGEN_DISABLED'); Send('RepTracker', 'PLAYER_REGEN_ENABLED')
+    end)
+    REP.watched = 72; Send('RepTracker', 'UPDATE_FACTION'); AdvanceTime(1)
+    -- Its ticker would run in every later scenario that lets time pass.
+    Enable({ 'RepTracker' }, false)
 end)
-HST:SetFeatureEnabled('RepTracker', false)
 
 Section('Instance Tracker', function()
     state.money, state.groupSize = 50000, 5
