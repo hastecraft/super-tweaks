@@ -258,6 +258,9 @@ local function ByColumn(a, b)
 end
 
 local searchedCount = 0 -- listings for the activities picked (or for your level), shown or hidden by filters
+-- The activities the search under way asks for and the ones the last finished search asked for, as sets; and whether
+-- that one asked for everything wanted now (see PicksChanged). What it didn't ask for isn't among its listings.
+local asking, searchedFor, covered = nil, nil, false
 
 local function Status()
     local total, hidden = searchedCount, searchedCount - #shown
@@ -268,6 +271,8 @@ local function Status()
         text = "The search failed. Search again in a moment."
     elseif not searchedAt then
         text = "Pick what to search for, then Search."
+    elseif not covered then
+        text = "Press Search to list these activities."
     else
         local groups, players = 0, 0
         for _, e in ipairs(shown) do
@@ -281,6 +286,8 @@ local function Status()
         list:SetEmpty("")
     elseif not searchedAt then
         list:SetEmpty("Pick what to search for, then Search.")
+    elseif not covered then
+        list:SetEmpty("Press Search to list these activities.")
     elseif total == 0 then
         list:SetEmpty(hiddenBySecret > 0 and "The game hides these listings right now."
             or "No one is listed for this. Try more activities, or All levels.")
@@ -373,9 +380,13 @@ local function ReadAll()
     if F.built then F.CountActivities() end
 end
 
+local Covers
+
 -- The search's results, read once they're in (or once the timeout passes with the window closed, its event missed).
 local function Received()
     searching, failed, searchedAt = false, false, GetTime()
+    searchedFor = asking or searchedFor
+    covered = Covers()
     F.searchButton:SetDisabled(false)
     ReadAll()
     if Win.current == "find" then Show() end
@@ -409,16 +420,29 @@ local function SearchActivities(category)
     return ids
 end
 
+-- Whether the last search asked for every activity wanted now.
+function Covers()
+    local category = G.db.profile.category
+    if not searchedFor or category ~= searchCategory then return false end
+    for _, id in ipairs(SearchActivities(category)) do
+        if not searchedFor[id] then return false end
+    end
+    return true
+end
+
 function F.Search()
     local category = CurrentCategory()
     if category == 0 then return end
     if searching and searchCategory == category then return end
-    local ok = pcall(C_LFGList.Search, category, 0, 0, nil, false, nil, SearchActivities(category))
+    local ids = SearchActivities(category)
+    local ok = pcall(C_LFGList.Search, category, 0, 0, nil, false, nil, ids)
     if not ok then
         failed = true
         Status()
         return
     end
+    asking = {}
+    for _, id in ipairs(ids) do asking[id] = true end
     -- What was listed at this category's last search, for marking new listings.
     searchCategory = category
     lastSeen = seenBy[category]
@@ -436,6 +460,18 @@ function F.Search()
             if Win.current == "find" then Show(true) end
         end
     end)
+    Show()
+end
+
+-- The category, the picks or All levels changed, inside the click that did it: what the last search didn't ask for is
+-- searched for now, as the game's own window does. What it did ask for is only filtered.
+local function PicksChanged()
+    covered = Covers()
+    if searchedAt and not covered then
+        local token = F.searchToken
+        F.Search()
+        if F.searchToken ~= token then return end -- a search began, and drew the list
+    end
     Show()
 end
 
@@ -806,7 +842,7 @@ local function ActivityRow(i)
         chosen[self.id] = not chosen[self.id] or nil
         PaintActivityRow(self)
         F.PaintClear()
-        Show()
+        PicksChanged()
     end)
     activityRows[i] = r
     return r
@@ -947,6 +983,7 @@ local function BuildRail(page)
         p.allLevels = not p.allLevels
         PaintChips()
         LayoutRail()
+        PicksChanged()
     end)
     levels.isOn = function(p) return p.allLevels end
     levels.tipTitle = "Lists activities for every level, not only yours"
@@ -960,7 +997,7 @@ local function BuildRail(page)
         local p = G.db.profile
         p.activities[p.category] = nil
         LayoutRail()
-        Show()
+        PicksChanged()
     end)
     F.noActivities = K.Text(rail.child, "GameFontDisableSmall", P.muted)
     F.noActivities:SetText("Nothing for your level here.")
@@ -987,7 +1024,7 @@ local function BuildToolbar(page)
         G.db.profile.category = key
         LayoutRail()
         -- Another category's results aren't this one's: search it (this runs inside the click).
-        if searchedAt and key ~= searchCategory then F.Search() else Show() end
+        PicksChanged()
     end)
     F.categories:SetPoint("LEFT", 12, 0)
     F.categories:Choose(CurrentCategory())
@@ -1064,11 +1101,13 @@ function F.Shown()
     end
     F.categories:Choose(CurrentCategory())
     LayoutRail()
+    covered = Covers()
     Show()
     if Win.fromInput and G.db.profile.searchOnOpen and not searching then F.Search() end
 end
 
 function F.Apply()
+    covered = Covers() -- another profile has picks of its own
     if Win.current == "find" then Show(true) end
 end
 
@@ -1087,7 +1126,12 @@ function F.OnEvent(event, id)
             if Win.current == "find" then QueueRedraw() end
         end
     elseif event == "LFG_LIST_AVAILABILITY_UPDATE" or event == "PLAYER_LEVEL_UP" then
-        if Win.current == "find" then LayoutRail() end
+        -- The activities for your level may be others now.
+        covered = Covers()
+        if Win.current == "find" then
+            LayoutRail()
+            Show(true)
+        end
     elseif event == "GROUP_ROSTER_UPDATE" or event == "LFG_LIST_ROLE_UPDATE" or event == "PLAYER_ROLES_ASSIGNED" then
         if Win.current == "find" then QueueRedraw() end
     end
