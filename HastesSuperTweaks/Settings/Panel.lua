@@ -905,8 +905,9 @@ function Build.items(parent, o, chain, info, gate)
                 if type(itemID) == "number" then list[#list + 1] = itemID end
             end
         elseif items then
-            for itemID in pairs(items) do
-                if type(itemID) == "number" then list[#list + 1] = itemID end
+            -- An imported list can hold an item set to false: it isn't on the list.
+            for itemID, on in pairs(items) do
+                if type(itemID) == "number" and on then list[#list + 1] = itemID end
             end
             table.sort(list)
         end
@@ -1069,7 +1070,9 @@ function Build.theme(parent, o, chain, info)
             tile:ClearAllPoints()
             tile:SetPoint("TOPLEFT", (i - 1) * (tileWidth + TILE_GAP), -30)
             tile:SetSize(tileWidth, height)
-            if tile.sketch:GetScale() ~= scale then
+            -- Compared with the scale last set: the game keeps it less exactly, so GetScale rarely gives it back.
+            if tile.sketchScale ~= scale then
+                tile.sketchScale = scale
                 -- Its offset is in its own, scaled, units.
                 tile.sketch:SetScale(scale)
                 tile.sketch:SetPoint("TOPLEFT", TILE_PAD / scale, -TILE_PAD / scale)
@@ -1086,7 +1089,8 @@ end
 -- The game can't open web pages, so a link opens a popup with the address selected for copying.
 StaticPopupDialogs.HASTES_SUPER_TWEAKS_LINK = {
     text = "%s\n\nPress Ctrl+C to copy the link.", button1 = CLOSE or "Close",
-    hasEditBox = true, editBoxWidth = 280,
+    -- The popups share one edit box, and another popup's limit (a profile name's 50) stays on it.
+    hasEditBox = true, editBoxWidth = 280, maxLetters = 0,
     OnShow = function(popup, url)
         local box = popup.editBox or popup.EditBox
         box:SetText(url); box:HighlightText(); box:SetFocus()
@@ -3856,7 +3860,9 @@ function P:LayoutResults(modules, ranked, words)
             more = W.Text(self.list.child, "GameFontHighlightSmall", C.muted)
             self.moreResults = more
         end
-        more:SetText(string.format("%d more settings match. Add a word to find the one you want.", #ranked - shown))
+        local left = #ranked - shown
+        more:SetText((left == 1 and "1 more setting matches." or left .. " more settings match.")
+            .. " Add a word to find the one you want.")
         more:ClearAllPoints()
         more:SetPoint("TOPLEFT", 12, -(y + 8))
         more:Show()
