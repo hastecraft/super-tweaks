@@ -473,7 +473,7 @@ local function LinkNote(b, note, module, lit)
     end)
     b:SetScript("OnEnter", function(self)
         lit(self, true)
-        W.ShowTooltip(self, module.info.name, "Click to open its settings.")
+        W.ShowTooltip(self, module.info.name)
     end)
     b:SetScript("OnLeave", function(self)
         lit(self, false)
@@ -1520,7 +1520,7 @@ function P:Create()
     grip:SetScript("OnClick", function() self:SetSize(DEFAULT_W, DEFAULT_H); self:SavePlace() end)
     grip:SetScript("OnEnter", function(g)
         paint()
-        W.ShowTooltip(g, "Resize", "Drag to resize the window. Right-click for the default size.")
+        W.ShowTooltip(g, "Resize", "Right-click for the default size.")
     end)
     grip:SetScript("OnLeave", function(g) paint(); W.HideTooltip(g) end)
     self:CreateSidebarEdge(f, grip:GetFrameLevel())
@@ -1799,7 +1799,7 @@ function P:CreateSidebar(f)
     pip:SetScript("OnEnter", function()
         pip.hovered = true
         self:PaintPip()
-        W.ShowTooltip(pip, "Patch notes", pip.unseen and "New since you last looked." or "See what changed in each version.")
+        W.ShowTooltip(pip, "Patch notes", pip.unseen and "New since you last looked." or nil)
     end)
     pip:SetScript("OnLeave", function()
         pip.hovered = nil
@@ -2725,7 +2725,7 @@ function P:WelcomeCard()
     card.text:SetPoint("RIGHT", -WELCOME_PAD, 0)
     card.text:SetSpacing(3)
     card.text:SetText("Tweaks that show you more, like the XP bar and better tooltips, start on. Tweaks that act for you, "
-        .. "like selling, accepting and declining, start off. Point at a tweak to see what it does.")
+        .. "like selling, accepting and declining, start off.")
     local keep = W.Button(card, "Keep these", "primary")
     keep:Fit(110)
     keep:SetScript("OnClick", function() self:CloseWelcome() end)
@@ -2734,7 +2734,8 @@ function P:WelcomeCard()
         local b = W.Button(card, point.name)
         b:Fit(110)
         card.buttons[#card.buttons + 1] = b
-        b.tipTitle, b.tipText = point.name, HST:StartingPointTip(point)
+        b.tipText = HST:StartingPointTip(point)
+        b.tipTitle = b.tipText and point.name
         b:SetScript("OnClick", function()
             local function apply()
                 HST:ApplyStartingPoint(point)
@@ -2899,7 +2900,7 @@ function P:ShowModules()
             self:ShowEmpty({ icon = "off", title = "No tweaks are on", text = "Turn one on from the full list.",
                 buttons = { showAll } })
         else
-            self:ShowEmpty({ icon = "on", title = "Every tweak is on", text = "Nothing is turned off right now.",
+            self:ShowEmpty({ icon = "on", title = "Every tweak is on", text = "",
                 buttons = { showAll } })
         end
     elseif self.empty then

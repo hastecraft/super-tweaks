@@ -95,8 +95,7 @@ end
 HST.startingPoints = {
     { name = "Add the leveling set", tip = "Also turns on the tweaks that save time while leveling:",
         on = { "AutoQuests", "AutoGossip", "SellJunk", "AutoRepair", "FastLoot", "SpellRanks", "AutoBags" } },
-    { name = "Start with all off", tip = "Turns every tweak off, so you can pick the ones you want from the list.",
-        allOff = true, confirm = "Turn every tweak off? You can turn the ones you want back on from the list." },
+    { name = "Start with all off", allOff = true, confirm = "Turn every tweak off?" },
 }
 
 -- A starting point's description: its tip, and the tweaks it turns on that this client can use.
@@ -340,7 +339,6 @@ function HST:ProfileOptions()
         manage = { type = "group", inline = true, name = "Manage", order = 2, args = {
             copy = { type = "select", name = "Copy from", order = 1,
                 confirm = function(_, name) return "Replace the active profile's settings with \"" .. name .. "\"?" end,
-                desc = "Replace the active profile's settings with another profile's.",
                 values = others, disabled = none,
                 get = function() return nil end, set = function(_, name) if other(name) then db:CopyProfile(name) end end },
             delete = { type = "select", name = "Delete profile", order = 2,
