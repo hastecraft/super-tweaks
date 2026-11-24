@@ -859,7 +859,7 @@ function T:BuildOptions()
             }),
             size = section("Size", 2, {
                 barHeight = option("range", "barHeight", "Height", 1, { min = 2, max = 30, step = 1 }),
-                barGap = option("range", "barGap", "Gap", 2, { min = 0, max = 10, step = 1, desc = "Space between the tooltip and the bar." }),
+                barGap = option("range", "barGap", "Gap", 2, { min = 0, max = 10, step = 1 }),
             }, { disabled = noBar }),
             style = section("Style", 3, {
                 texture = media("statusbar", "texture", "Texture", 1),

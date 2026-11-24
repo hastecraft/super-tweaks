@@ -426,7 +426,7 @@ function Q:BuildOptions()
             sorting = function() return select(2, SoundChoices()) end })
     end
     local function play(key)
-        return { type = "execute", name = "Play", order = 2,
+        return { type = "execute", name = "Play sample", order = 2,
             func = function() Q:Preview(Q.db.profile[key]) end,
             disabled = function() return Q.db.profile[key] == "" end }
     end

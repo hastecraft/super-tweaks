@@ -51,7 +51,6 @@ ns.Configure(R, { placeNew = true, keepLower = true, summary = true }, function(
             "Only buttons with your previous highest rank get the new one." }),
         summary = ns.Option(profile, "toggle", "summary", "Say what was placed or upgraded", 3),
         upgradeAll = { type = "execute", name = "Upgrade all buttons now", order = 4,
-            desc = "Puts your highest rank on every button with a lower rank, including ones you placed on purpose.",
             confirm = true, confirmText = "Put your highest rank on every button with a lower rank, including ones you placed on purpose?",
             func = function() self:UpgradeAll() end },
     })

@@ -68,7 +68,6 @@ function S:BuildOptions()
             y = opt("range", "y", "Vertical", 7, { min = -1200, max = 1200, step = 1,
                 desc = "From the middle of the screen." }),
             reset = { type = "execute", name = "Reset position", order = 8,
-                desc = "Moves the area back to its default spot.",
                 func = function()
                     local a, default = area(), S.AREA_DEFAULTS[key]
                     a.x, a.y = default.x, default.y

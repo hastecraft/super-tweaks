@@ -583,8 +583,7 @@ function R:BuildOptions()
                     func = function() R:PlaySample() end },
             }),
             alerts = ns.Section("Alerts", 2, {
-                chat = option("toggle", "chat", "Say it in chat", 1, {
-                    desc = "A chat line when a refresh starts waiting and when it refreshes by itself." }),
+                chat = option("toggle", "chat", "Say it in chat", 1),
                 startSound = option("toggle", "startSound", "Play a sound", 2, {
                     desc = "Plays the ready check sound when a refresh starts waiting, even with sound effects off." }),
                 flash = option("toggle", "flash", "Flash the taskbar", 3, {

@@ -130,7 +130,7 @@ ns.Configure(R, defaults, function(m)
                 ammoWarning = ns.Option(profile, "toggle", "ammoWarning", "Warn when ammo runs low", 1,
                     { desc = "For bows, guns and crossbows: warns on screen and in chat when your equipped ammo runs "
                         .. "low." }, function() m:WatchAmmo() end),
-                ammoLow = ns.Option(profile, "range", "ammoLow", "Warn below", 2, { min = 50, max = 2000, step = 50,
+                ammoLow = ns.Option(profile, "range", "ammoLow", "Warn below (ammo left)", 2, { min = 50, max = 2000, step = 50,
                     disabled = function() return not m.db.profile.ammoWarning end }),
             }),
         } },
