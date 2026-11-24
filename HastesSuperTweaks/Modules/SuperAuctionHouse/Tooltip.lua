@@ -363,6 +363,8 @@ local function Build(itemID, link, count, stack, made, data, detail, own)
             lines[#lines + 1] = selling .. " on sale"
         end
     end
+    -- A line per other character of yours that has some (Alts.lua).
+    if detail or p.tipAlts then S.Alts.AddLines(lines, itemID) end
     return #lines > 0 and lines or NONE, loading
 end
 

@@ -75,9 +75,12 @@ end
 
 local function Word(rest) return (rest or ""):lower():match("^%s*(%S*)") end
 
--- How many of an item you have: bags, bank and the account's bank.
+-- How many of an item you have: bags, bank and the account's bank, and with "Count your other characters' items as
+-- yours" what they have too (Alts.lua).
 function S.Have(itemID)
-    return C_Item.GetItemCount(itemID, true, false, true, true) or 0
+    local have = C_Item.GetItemCount(itemID, true, false, true, true) or 0
+    if S.db.profile.altStock then have = have + S.Alts.Others(itemID) end
+    return have
 end
 
 ---------------------------------------------------------------------------

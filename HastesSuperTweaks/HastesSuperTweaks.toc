@@ -78,6 +78,7 @@ Modules\SuperAuctionHouse\Formula.lua
 Modules\SuperAuctionHouse\Rules.lua
 Modules\SuperAuctionHouse\Watch.lua
 Modules\SuperAuctionHouse\Owned.lua
+Modules\SuperAuctionHouse\Alts.lua
 Modules\SuperAuctionHouse\Alerts.lua
 Modules\SuperAuctionHouse\ItemPage.lua
 Modules\SuperAuctionHouse\Scan.lua

@@ -1816,6 +1816,37 @@ Section('Super Auction House: item tooltips', function()
     end
 end)
 
+-- What your other characters have (older bases lack it): the tooltip's line per character, a bag change, which
+-- nothing here hears, and the count of this character's bags as it logs out.
+if S.Alts then
+    Section('Super Auction House: other characters', function()
+        -- Off and on again: what the others have is added up at the first ask after the tweak turns on.
+        Only({})
+        S.db.global.alts.TestRealm = {
+            ['Alt One'] = { bags = { [2447] = 12 }, bank = { [2447] = 40 } },
+            ['Alt Two'] = { mail = { [2447] = 5 } },
+        }
+        Only({ 'SuperAuctionHouse' })
+        S.db.profile.tipAlts = true
+        S:Apply()
+        fill(GameTooltip, data)
+        Measure("Item tooltip: other characters' counts on, redraw", 300, function() fill(GameTooltip, data) end)
+        Measure("Item tooltip: other characters' counts on, first draw", 100, function()
+            S.Tooltip.Forget()
+            fill(GameTooltip, data)
+        end)
+        Measure("Bag change, other characters' items saved", 300, function() Send('SuperAuctionHouse', 'BAG_UPDATE_DELAYED') end)
+        -- One bag of 16 stacks.
+        C_Container = C_Container or {
+            GetContainerNumSlots = function(bag) return bag == 0 and 16 or 0 end,
+            GetContainerItemInfo = function(_, slot) return { itemID = 2400 + slot, stackCount = 5 } end,
+        }
+        Measure("Logout: this character's bags counted", 50, function() Send('SuperAuctionHouse', 'PLAYER_LOGOUT') end)
+        S.db.profile.tipAlts = false
+        S:Apply()
+    end)
+end
+
 -- History reads auction mail as the inbox changes: a mailbox of sale letters over a long history.
 Section('Super Auction House: auction mail', function()
     local letters = {}
