@@ -27,8 +27,8 @@ local searchCategory
 local searching, searchedAt, failed = false, nil, false
 local hiddenBySecret = 0
 local redrawQueued = false
--- Results the game updated, read again on the next redraw.
-local dirty = {}
+-- Results the game updated, read again on the next redraw; results that weren't ready to read yet.
+local dirty, unready = {}, {}
 local filterText = ""
 
 ---------------------------------------------------------------------------
@@ -52,26 +52,28 @@ local function ActivityText(activityIDs)
     return text
 end
 
--- A result as a row's entry, or nil when the game hides it.
+-- A result as a row's entry; or nil and true when the game hides it, nil alone when it isn't ready to read yet.
 local function ReadResult(id, entry)
     local info = C_LFGList.GetSearchResultInfo(id)
     if not info then return nil end
-    local leader = Read(info.leaderName)
-    local count = Read(info.numMembers)
-    if not leader or not count then return nil end
+    -- The leader's name can come later (the game's own window lists the group without it).
+    local leader = info.leaderName
+    if IsSecret(leader) then return nil, true end
+    local count = info.numMembers
+    if IsSecret(count) then return nil, true end
+    if not count then return nil end
     -- Activity IDs are table keys here: a listing whose IDs are hidden is left out.
     local ids = info.activityIDs
-    if ids == nil or IsSecret(ids) then return nil end
-    for i = 1, #ids do if IsSecret(ids[i]) then return nil end end
+    if IsSecret(ids) then return nil, true end
+    if ids == nil then return nil end
+    for i = 1, #ids do if IsSecret(ids[i]) then return nil, true end end
     entry = entry or {}
     entry.id = id
     entry.guid = Read(info.partyGUID) or ("id" .. id)
-    entry.leader = leader
     entry.solo = count <= 1
     entry.count = count
     entry.activityIDs = ids
     entry.activity = ActivityText(entry.activityIDs)
-    entry.leaderLower = leader:lower()
     entry.activityLower = entry.activity:lower()
     entry.max = max(MaxPlayers(entry.activityIDs), count)
     entry.playstyle = Read(info.generalPlaystyle) or 0
@@ -114,6 +116,15 @@ local function ReadResult(id, entry)
         end
     end
     for i = count + 1, #members do members[i] = nil end
+    -- Until the game sends the leader's name, the leader member's name stands in (or none).
+    if not leader then
+        for i = 1, count do
+            if members[i].leader then leader = members[i].name end
+        end
+        leader = leader or ""
+    end
+    entry.leader = leader
+    entry.leaderLower = leader:lower()
     entry.class = leaderClass
     entry.low, entry.high = low, high
     entry.avg = count > 0 and levels / count or 0
@@ -166,6 +177,21 @@ local function LevelActivities()
     if not next(levelActivities) then levelActivities = nil end
 end
 
+-- Whether a listing is for the activities picked, else the ones for your level: picks changed since the search apply
+-- at once. Listings it leaves out weren't asked for, so they don't count as hidden by filters.
+local function Searched(e)
+    if e.self then return true end
+    local p = G.db.profile
+    local chosen = p.activities[p.category]
+    if not (chosen and next(chosen)) then chosen = levelActivities end
+    if not chosen then return true end
+    for _, id in ipairs(e.activityIDs) do
+        if chosen[id] then return true end
+    end
+    return false
+end
+
+-- Whether a searched listing gets past the filters.
 local function Passes(e)
     local p = G.db.profile
     if e.self then return true end
@@ -180,14 +206,6 @@ local function Passes(e)
     end
     local styles = p.playstyles
     if next(styles) and not styles[e.playstyle] then return false end
-    -- The search asks for the whole category: the activities picked, else the ones for your level, are matched here.
-    local chosen = p.activities[p.category]
-    if not (chosen and next(chosen)) then chosen = levelActivities end
-    if chosen then
-        local any = false
-        for _, id in ipairs(e.activityIDs) do any = any or chosen[id] == true end
-        if not any then return false end
-    end
     if filterText ~= "" and not SearchText(e):find(filterText, 1, true) then return false end
     return true
 end
@@ -237,8 +255,10 @@ local function ByColumn(a, b)
     return va < vb
 end
 
+local searchedCount = 0 -- listings for the activities picked (or for your level), shown or hidden by filters
+
 local function Status()
-    local total, hidden = #entries, #entries - #shown
+    local total, hidden = searchedCount, searchedCount - #shown
     local text
     if searching then
         text = "Searching..."
@@ -273,8 +293,12 @@ local function Show(keepScroll)
     local p = G.db.profile
     wipe(shown)
     LevelActivities()
+    searchedCount = 0
     for _, e in ipairs(entries) do
-        if Passes(e) then shown[#shown + 1] = e end
+        if Searched(e) then
+            searchedCount = searchedCount + 1
+            if Passes(e) then shown[#shown + 1] = e end
+        end
     end
     sortKey, sortReverse = p.sortKey, p.sortReverse
     myRoles, inGroup, myLevel = G.MyRoles(), IsInGroup(), UnitLevel("player")
@@ -285,11 +309,28 @@ local function Show(keepScroll)
 end
 
 local function ReadDirty()
+    local added = false
     for id in pairs(dirty) do
         local e = byID[id]
-        if e then ReadResult(id, e) end
+        if e then
+            ReadResult(id, e)
+        elseif unready[id] then
+            local hidden
+            e, hidden = ReadResult(id)
+            if e then
+                unready[id] = nil
+                entries[#entries + 1] = e
+                byID[id] = e
+                seenNow[e.guid] = true
+                added = true
+            elseif hidden then
+                unready[id] = nil
+                hiddenBySecret = hiddenBySecret + 1
+            end
+        end
     end
     wipe(dirty)
+    if added and F.built then F.CountActivities() end
 end
 
 local function Redraw()
@@ -311,16 +352,19 @@ local function ReadAll()
     if searchCategory then seenBy[searchCategory] = seenNow end
     wipe(entries)
     wipe(byID)
+    wipe(unready)
     hiddenBySecret = 0
     local _, results = C_LFGList.GetFilteredSearchResults()
     for _, id in ipairs(results or {}) do
-        local e = ReadResult(id)
+        local e, hidden = ReadResult(id)
         if e then
             entries[#entries + 1] = e
             byID[id] = e
             seenNow[e.guid] = true
-        else
+        elseif hidden then
             hiddenBySecret = hiddenBySecret + 1
+        else
+            unready[id] = true
         end
     end
     wipe(dirty)
@@ -348,13 +392,26 @@ local function CurrentCategory()
     return p.category
 end
 
--- A search asks for the whole category, as the game's own window does: given a list of activities, the server
--- returns only a couple of listings. Show() matches the activities.
+-- What a search asks for, as the game's own window does: the activities picked, else every one in the category for
+-- your level (or every level). The server returns a limited number of listings, so a search for the whole category
+-- would leave most of a busy dungeon's out.
+local function SearchActivities(category)
+    local p = G.db.profile
+    local chosen = p.activities[category]
+    local ids = {}
+    if chosen then
+        for id, on in pairs(chosen) do if on then ids[#ids + 1] = id end end
+    end
+    if #ids == 0 then ids = G.Activities(category, p.allLevels) end
+    if #ids == 0 then ids = G.Activities(category, true) end
+    return ids
+end
+
 function F.Search()
     local category = CurrentCategory()
     if category == 0 then return end
     if searching and searchCategory == category then return end
-    local ok = pcall(C_LFGList.Search, category, 0, 0)
+    local ok = pcall(C_LFGList.Search, category, 0, 0, nil, false, nil, SearchActivities(category))
     if not ok then
         failed = true
         Status()
@@ -563,7 +620,7 @@ end
 
 -- The default action: invite a player you can invite, else whisper the leader.
 local function Act(e)
-    if e.self or e.delisted then return end
+    if e.self or e.delisted or e.leader == "" then return end
     local p = G.db.profile
     if e.solo and G.CanInvite() then
         G.Invite(e.leader)
@@ -575,7 +632,7 @@ local function Act(e)
 end
 
 local function Menu(row, e)
-    if e.self then return end
+    if e.self or e.leader == "" then return end
     local p = G.db.profile
     K.Menu(row, function(root)
         root:CreateTitle(e.leader)
@@ -627,7 +684,7 @@ local function BuildRow(row)
     row.invite = Win.RowButton(row, "Invite")
     row.invite:SetScript("OnClick", function()
         local e = row.entry
-        if not e then return end
+        if not e or e.leader == "" then return end
         G.Invite(e.leader)
         Win.Status("Invited " .. e.leader)
     end)
@@ -1020,7 +1077,7 @@ function F.OnEvent(event, id)
         F.searchButton:SetDisabled(false)
         if Win.current == "find" then Show(true) end
     elseif event == "LFG_LIST_SEARCH_RESULT_UPDATED" then
-        if byID[id] then
+        if byID[id] or unready[id] then
             dirty[id] = true
             if Win.current == "find" then QueueRedraw() end
         end
