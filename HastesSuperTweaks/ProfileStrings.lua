@@ -191,7 +191,8 @@ local function Clean(values, defaults, top)
             if type(value) ~= "table" then
                 -- left out
             elseif IsColor(default) then
-                if IsColor(value) then kept = Copy(value) end
+                -- With its alpha when the setting has one: what draws it reads all four.
+                if IsColor(value) and #value >= #default then kept = Copy(value) end
             else
                 local inner, count = Clean(value, default)
                 kept, left = inner, left + count
@@ -212,6 +213,8 @@ function HST:ReadProfileString(text)
     local E = C_EncodingUtil
     if not self:CanShareProfiles() then return nil, "This game client can't read profile strings." end
     -- Chat and forums break long text into lines.
+    -- Far too long to be one even with its line breaks: not copied to take them out.
+    if type(text) == "string" and #text > MAX_TEXT * 4 then return nil, "That's too long to be a profile string." end
     text = type(text) == "string" and (text:gsub("%s+", "")) or ""
     if text == "" then return nil, "Paste a profile string first." end
     if #text > MAX_TEXT then return nil, "That's too long to be a profile string." end
