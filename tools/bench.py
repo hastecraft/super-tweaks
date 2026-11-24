@@ -211,6 +211,8 @@ Section('Instance Tracker', function()
         state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
     end)
     state.instanceType, state.instanceName, state.instanceID = 'party', 'The Deadmines', 36
+    -- The item looted below: the game knows an item you've just looted, its quality too.
+    ITEMS[2169] = { name = 'Buzzer Blade', quality = 2 }
     Send('InstanceTracker', 'PLAYER_ENTERING_WORLD', false, false)
     Measure('Instance Tracker: XP gain inside an instance', 100, function()
         state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
@@ -229,11 +231,73 @@ Section('Instance Tracker', function()
     end)
     Measure('Instance Tracker: group roster update (5 players)', 100, function() Send('InstanceTracker', 'GROUP_ROSTER_UPDATE') end)
     Measure('Instance Tracker: target changed, instance ID unknown', 100, function() Send('InstanceTracker', 'PLAYER_TARGET_CHANGED') end)
+    -- With its window open: the run's events are drawn at the window's next look, a second apart.
+    local I = mod('InstanceTracker')
+    I:Toggle()
+    AdvanceTime(1)
+    Measure('Instance Tracker window open: a kill and its XP, then the one-second look', 100, function()
+        Send('InstanceTracker', 'CHAT_MSG_COMBAT_XP_GAIN', Chat('Defias Pillager dies, you gain 120 experience.'))
+        state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
+        AdvanceTime(1)
+    end)
+    Measure('Instance Tracker window open: one-second look, nothing happened', 100, function() AdvanceTime(1) end)
+    I.Window.Close()
     state.instanceType, state.instanceName, state.instanceID = 'none', nil, nil
     Send('InstanceTracker', 'PLAYER_ENTERING_WORLD', false, false)
     Measure('Instance Tracker: zone change outside an instance', 100, function() Send('InstanceTracker', 'ZONE_CHANGED_NEW_AREA') end)
     state.groupSize = 0
+    ITEMS[2169] = nil
     for i = 1, 4 do UNITS['party' .. i] = nil end
+end)
+
+Section('Dungeon Timer', function()
+    Enable({ 'DungeonTimer' }, true)
+    local T = mod('DungeonTimer')
+    Measure('Dungeon Timer: zone change outside an instance', 100, function() Send('DungeonTimer', 'ZONE_CHANGED_NEW_AREA') end)
+    state.money = 50000
+    state.instanceType, state.instanceName, state.instanceID = 'party', 'The Deadmines', 36
+    -- The item looted below: the game knows an item you've just looted. The one after it isn't loaded yet.
+    local blade = { name = 'Buzzer Blade' }
+    ITEMS[2169], ITEMS[2170] = blade, nil
+    Send('DungeonTimer', 'PLAYER_ENTERING_WORLD', false, false)
+    assert(T.live and T.frame:IsShown(), 'the timer shows inside the instance')
+    Measure('Dungeon Timer: one-second tick', 300, function() AdvanceTime(1) end)
+    Measure('Dungeon Timer: zone change inside the instance', 100, function() Send('DungeonTimer', 'ZONE_CHANGED_NEW_AREA') end)
+    Measure('Dungeon Timer: money looted', 100, function()
+        state.money = state.money + 50; Send('DungeonTimer', 'PLAYER_MONEY')
+    end)
+    Measure('Dungeon Timer: a loot message', 100, function()
+        Send('DungeonTimer', 'CHAT_MSG_LOOT', Chat('You receive loot: |cff1eff00|Hitem:2169::::::::30:::::|h[Buzzer Blade]|h|r.'))
+    end)
+    Measure('Dungeon Timer: loot the game hasn\'t loaded, then has', 100, function()
+        ITEMS[2170] = nil
+        Send('DungeonTimer', 'CHAT_MSG_LOOT', Chat('You receive loot: |cff1eff00|Hitem:2170::::::::30:::::|h[Buzzer Blade]|h|r.'))
+        ITEMS[2170] = blade
+        Send('DungeonTimer', 'GET_ITEM_INFO_RECEIVED', 2170, true)
+    end)
+    Measure('Dungeon Timer: a death', 100, function() Send('DungeonTimer', 'PLAYER_DEAD') end)
+    Measure('Dungeon Timer: money and loot, then a tick', 100, function()
+        state.money = state.money + 50; Send('DungeonTimer', 'PLAYER_MONEY')
+        Send('DungeonTimer', 'CHAT_MSG_LOOT', Chat('You receive loot: |cff1eff00|Hitem:2169::::::::30:::::|h[Buzzer Blade]|h|r.'))
+        AdvanceTime(1)
+    end)
+    -- Every boss of the instance once (so no warm-up kills), the last ending the run; the game sends both events for
+    -- a kill.
+    local bosses, killed = { 2741, 2742, 3676, 2743, 2744, 2745, 2746, 2747 }, 0
+    Measure('Dungeon Timer: a boss kill (both events)', #bosses, function()
+        killed = killed + 1
+        Send('DungeonTimer', 'BOSS_KILL', bosses[killed], 'Boss')
+        Send('DungeonTimer', 'ENCOUNTER_END', bosses[killed], 'Boss', 1, 5, 1)
+    end, 0)
+    assert(T.run.done and T.db.global.best[36].total == T.run.done, 'the run ends with its last boss')
+    Measure('Dungeon Timer: a wipe (encounter ended, boss alive)', 100, function()
+        Send('DungeonTimer', 'ENCOUNTER_END', 2747, 'Edwin VanCleef', 1, 5, 0)
+    end)
+    Measure('Dungeon Timer: one-second tick, run done', 100, function() AdvanceTime(1) end)
+    state.instanceType, state.instanceName, state.instanceID = 'none', nil, nil
+    Send('DungeonTimer', 'PLAYER_ENTERING_WORLD', false, false)
+    ITEMS[2169], ITEMS[2170] = nil, nil
+    Enable({ 'DungeonTimer' }, false)
 end)
 
 local tip = GameTooltip
