@@ -975,6 +975,24 @@ local function ShowWorth(card)
     GameTooltip:Show()
 end
 
+-- Net worth's note stops before the card's line. A note too long for that has the card's whole width, and the line
+-- gives way: a narrow card has room for one of the two.
+local function FitWorthNote()
+    local card = H.worth
+    local sparkWidth = card and card.sparkWidth
+    local width = sparkWidth and card:GetWidth() or 0
+    if width <= 0 then return end
+    local note = card.note
+    local needed = note.GetUnboundedStringWidth and note:GetUnboundedStringWidth() or note:GetStringWidth()
+    local beside = card.lined == true and needed <= width - 12 - (sparkWidth + 18)
+    card.spark:SetShown(beside)
+    local right = beside and -(sparkWidth + 18) or -12
+    if card.noteRight ~= right then
+        card.noteRight = right
+        note:SetPoint("BOTTOMRIGHT", right, 9)
+    end
+end
+
 local function FillWorth()
     local card = H.worth
     local live = Worth()
@@ -985,7 +1003,8 @@ local function FillWorth()
     local total = values[#values] or mine and live.total or nil
     card.live, card.who, card.characters = live, who, count
     if total then card:SetMoney(total) else card:SetText("Not known yet") end
-    card:SetSpark(#values > 1 and values or nil)
+    card.lined = #values > 1
+    card:SetSpark(card.lined and values or nil)
     Compare(card, total, before, false)
     if not mine then
         -- Another character's, as it stood the last time this tab was open on them.
@@ -996,6 +1015,7 @@ local function FillWorth()
     else
         card:SetNote("Gold, bags and auctions")
     end
+    FitWorthNote()
 end
 
 ---------------------------------------------------------------------------
@@ -1495,7 +1515,8 @@ local function PlaceCards(row, width)
             -- A narrow card's line is shorter, and its note stops before it.
             local sparkWidth = each >= 190 and 64 or 40
             card.spark:Resize(sparkWidth, 18)
-            card.note:SetPoint("BOTTOMRIGHT", -(sparkWidth + 18), 9)
+            card.sparkWidth = sparkWidth
+            FitWorthNote()
         end
     end
 end
