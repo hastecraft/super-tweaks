@@ -465,6 +465,11 @@ Section('Quest XP in Quest Log', function()
     Measure('Quest log redraw (Forever log): 20 titles', 100, function() QuestLogQuests_Update() end)
     Measure('Quest log title hover: reward line', 300, function() QuestMapLogTitleButton_OnEnter(buttons[3]) end)
     tip:Hide()
+    -- Off, its hook on the log's rows is still there: what a redraw costs then.
+    local wasOn = mod('QuestXP'):IsEnabled()
+    Enable({ 'QuestXP' }, false)
+    Measure('Quest XP off: quest log redraw (Forever log): 20 titles', 100, function() QuestLogQuests_Update() end)
+    Enable({ 'QuestXP' }, wasOn)
 end)
 
 Section('Quest Item Button', function()
@@ -498,6 +503,10 @@ Section('Quest Item Button', function()
     state.combat = true
     Measure('Quest Item Button: into and out of a quest area in combat (swap waits)', 50, function() area(true); area(false) end)
     state.combat = false; Send('QuestItemButton', 'PLAYER_REGEN_ENABLED')
+    -- Loot and other bag changes that leave the button's item as it was.
+    Measure('Quest Item Button: bags changed, same item count', 300, function()
+        Send('QuestItemButton', 'BAG_UPDATE_DELAYED'); AdvanceTime(0.3)
+    end)
     Enable({ 'QuestItemButton' }, false)
     UNITS.target = target
     torch.item, torch.distance, rope.item, rope.distance, TARGET_RIGHT = nil, nil, nil, nil, nil
@@ -564,6 +573,9 @@ Section('Gear Upgrades', function()
     Measure('Gear Upgrades: item tooltip after your gear changed', 100, function()
         Send('GearUpgrades', 'PLAYER_EQUIPMENT_CHANGED', 5, false); AdvanceTime(0.1); itemTip()
     end)
+    U.db.profile.allScales = true
+    Measure('Gear Upgrades: item tooltip, same item redrawn, every scale shown', 300, itemTip)
+    U.db.profile.allScales = false
     Enable({ 'GearUpgrades' }, false)
     Measure('Gear Upgrades off: item tooltip (hook already installed)', 300, itemTip)
     WIELDED[5], ITEMS[9101], ITEMS[9102] = nil, nil, nil
@@ -823,6 +835,20 @@ Section('Chat Spam Filter (one guild muted)', function()
         channel('<Horde Guard> is a fine guild', 'Player-9')
     end)
     F.db.profile.mutedGuilds = ''
+    -- Every list off and no guild muted: what the game's filter list still runs of this tweak for a channel message.
+    local lists = { 'gold', 'boosting', 'recruitment', 'custom' }
+    for _, key in ipairs(lists) do F.db.profile[key] = false end
+    F:Apply()
+    Measure('Chat filter: channel message, every list off', 300, function()
+        line = line + 1
+        for _, filter in ipairs(CHAT_FILTERS.CHAT_MSG_CHANNEL or {}) do
+            if filter == F.Filter then
+                filter(nil, 'CHAT_MSG_CHANNEL', 'LFM Deadmines', 'Grunt-TestRealm', '', '', '', '', 2, 0, '', 0, line, 'Player-9')
+            end
+        end
+    end)
+    for _, key in ipairs(lists) do F.db.profile[key] = true end
+    F:Apply()
     Enable({ 'ChatFilter' }, false)
     UNITS.nameplate2, state.groupSize = nil, nil
     for i = 1, 4 do UNITS['party' .. i] = nil end
@@ -1548,6 +1574,8 @@ Section('Startup and settings (one cold run, then warmed navigation)', function(
     Measure('Settings: XP and tooltip page navigation', 30, function()
         HST:OpenSettings('XPTracker'); HST:OpenSettings('Tooltip')
     end)
+    -- What every change to a setting costs (a slider drag is one a step): the open page refreshed.
+    Measure('Settings: a refresh with the Tooltip page open', 30, function() HST.settingsPanel:Refresh() end)
     if HST:GetModule('AuraReminders', true) then
         HST:SetFeatureEnabled('AuraReminders', true)
         Measure('Settings: Aura Reminders page with a reminder', 1, function()
@@ -1628,6 +1656,10 @@ Section('Bag Cleaner (64 slots, 20 quests)', function()
         Script(B.frame.slots[1], 'OnClick', 'LeftButton')
         bagEvent()
         fill(62); bagEvent()
+    end)
+    -- Quest data arrives for every quest anyone asks about (other addons ask for hundreds at login).
+    Measure('Bag cleaner: quest data it did not wait for, low bags', 300, function()
+        Send('BagCleaner', 'QUEST_DATA_LOAD_RESULT', 12345, true); AdvanceTime(B.DELAY)
     end)
 end)
 '''
@@ -1769,6 +1801,30 @@ Section('Aura Reminders: melee range', function()
         Send('AuraReminders', 'PLAYER_TARGET_CHANGED')
     end)
     Send('AuraReminders', 'PLAYER_REGEN_ENABLED')
+end)
+
+-- The Cooldown Manager lays out its icons often (every aura it tracks, every cooldown): each time, what it tracks is
+-- looked through again.
+Section('Aura Reminders: Cooldown Manager', function()
+    Only({ 'AuraReminders' })
+    local R = mod('AuraReminders')
+    local viewer, item = CreateFrame('Frame', 'BuffIconCooldownViewer'), CreateFrame('Frame')
+    local info, items = { spellID = 6673 }, { item }
+    item.GetCooldownInfo = function() return info end
+    item.IsActive = function() return true end
+    item.SetIsActive = function() end
+    item.GetAuraDataCached = function() return REMINDER_AURAS['Battle Shout'] end
+    viewer.GetItemFrames = function() return items end
+    viewer.RefreshLayout = function() end
+    local shoutReminder = R.NewReminder()
+    shoutReminder.aura = 'Battle Shout'
+    R.db.profile.reminders = { shoutReminder }
+    R:Apply()
+    Send('AuraReminders', 'PLAYER_REGEN_DISABLED')
+    Measure('Aura reminders: the Cooldown Manager lays out its icons in combat', 300, function() viewer:RefreshLayout() end)
+    Send('AuraReminders', 'PLAYER_REGEN_ENABLED')
+    Only({})
+    Measure('Aura reminders off: the Cooldown Manager lays out its icons', 300, function() viewer:RefreshLayout() end)
 end)
 '''
 

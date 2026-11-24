@@ -11,7 +11,7 @@ local IsSecret, Money = ns.IsSecret, ns.Money
 
 local S = HST:NewFeature("SellClutter", {
     name = "Sell Clutter Automatically", category = "loot", order = 5, enabledByDefault = false, command = "clutter",
-    summary = "Sells items you won't use, like monster parts and outleveled food, at vendors.", examples = { "cooking", "gear", { "levels", "Outleveled by (levels)" }, { "cloth", "Sell cloth" }, "tooltip" },
+    summary = "Sells monster parts, outleveled food and other items you won't use.", examples = { "cooking", "gear", { "levels", "Outleveled by (levels)" }, { "cloth", "Sell cloth" }, "tooltip" },
     description = "Sells leveling clutter you won't use at vendors: cooking ingredients if you don't cook, monster "
         .. "parts, gear your class can't use, outleveled food and potions, and the materials you choose. Anything your "
         .. "professions or quests need is kept, and so are valuable materials. Hold Shift to skip.",
@@ -997,6 +997,7 @@ ns.Configure(S, S.DEFAULTS, function(m)
                     "Healing, mana and rejuvenation potions, stat scrolls and early stat elixirs. Utility potions, other "
                         .. "elixirs and flasks stay."),
                 levels = ns.Option(profile, "range", "levels", "Levels below yours", 4, { min = 10, max = 40, step = 1,
+                    disabled = function() local p = profile(); return not (p.oldGear or p.food or p.potions) end,
                     desc = "How far below your level an item's requirement must be to count as outleveled. At 20, the "
                         .. "best vendor food and potions are never sold at 60." }),
             }),

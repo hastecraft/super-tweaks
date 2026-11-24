@@ -1223,7 +1223,6 @@ function C.info.preview(frame)
         frame.hstCampfire = d
         d.steps = {}
         d.chat = W.ChatLine(frame, "")
-        d.caption = W.Caption(frame, "Nothing on screen.")
     end
     local steps = d.steps
     Steps(p, steps)
@@ -1239,7 +1238,6 @@ function C.info.preview(frame)
     local below = chatHeight > 0 and chatHeight + CHAT_GAP or 0
     local f = d.frame
     Shown(f, false)
-    d.caption:SetShown(not p.display)
     d.chat:ClearAllPoints()
     if p.display then
         -- Scaled to fit the stage above the chat line, its text too: the campfire or icon with the lines under it, or
@@ -1259,7 +1257,7 @@ function C.info.preview(frame)
         f:SetPoint("TOP", frame, "TOP", 0, -top)
         d.chat:SetPoint("TOP", frame, "TOP", 0, -top - (height + text) * scale - CHAT_GAP)
     else
-        W.Column(frame, chatHeight > 0 and { d.caption, CHAT_GAP, d.chat } or { d.caption })
+        W.Column(frame, { d.chat })
     end
     d.chat:SetAlpha(0)
     if #steps == 0 then return frame:SetScript("OnUpdate", nil) end

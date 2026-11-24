@@ -374,7 +374,7 @@ function C:BuildOptions()
                 empty = option("toggle", "empty", "Show empty points", 4,
                     { desc = "Also shows the points you don't have yet, while you have at least one." }),
             }),
-            place = ns.Section("Place", 2, {
+            place = ns.Section("Position", 2, {
                 help = { type = "description", order = 0, name = "They show on your target's nameplate, so turn on "
                     .. "enemy nameplates to see them." },
                 position = option("select", "position", "Position", 1, places),

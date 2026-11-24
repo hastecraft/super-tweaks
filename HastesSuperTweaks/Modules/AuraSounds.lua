@@ -555,7 +555,7 @@ ns.Configure(A, defaults, function(m)
             [key .. "Sound"] = ns.Option(profile, "select", key .. "Sound", "Sound", 2,
                 { values = values, sorting = sorting },
                 function() m:Preview(m.db.profile[key .. "Sound"], trigger.sound); m:Sync() end),
-            [key .. "Play"] = { type = "execute", name = "Play", order = 3,
+            [key .. "Play"] = { type = "execute", name = "Play sample", order = 3,
                 func = function() m:Preview(m.db.profile[key .. "Sound"], trigger.sound) end },
         })
     end

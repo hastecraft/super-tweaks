@@ -167,8 +167,7 @@ ns.Configure(M, defaults, function(self)
                 drinkCombat = toggle("drinkCombat", "Drink macro restores mana in combat", 4,
                     "Uses a mana potion in combat, where you can't drink."),
                 stoneFirst = toggle("stoneFirst", "Healthstones before potions", 5),
-                bandageTarget = toggle("bandageTarget", "Bandage your friendly target", 6,
-                    "Otherwise you bandage yourself."),
+                bandageTarget = toggle("bandageTarget", "Bandage your friendly target", 6),
             }),
             pet = ns.Section("Feed Pet", 3, {
                 petKeepRaw = toggle("petKeepRaw", "Keep raw meat and fish", 1,

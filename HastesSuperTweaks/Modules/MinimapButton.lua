@@ -132,7 +132,8 @@ function M:CreateButton()
         end)
         GameTooltip:Hide()
     end)
-    button:SetScript("OnDragStop", function(b) b:SetScript("OnUpdate", nil) end)
+    -- The settings window's preview shows the button where it was dropped.
+    button:SetScript("OnDragStop", function(b) b:SetScript("OnUpdate", nil); HST:RefreshSettings() end)
     -- Hidden mid-drag (turned off with a middle-click, or the minimap or the whole UI hidden, e.g. Alt+Z): a hidden
     -- button gets no OnDragStop.
     button:SetScript("OnHide", function(b) b:SetScript("OnUpdate", nil) end)

@@ -158,7 +158,7 @@ function T:BuildOptions()
     local options = Build(self)
     local function profile() return T.db.profile end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra) end
-    options.args.extras = { type = "group", name = "Extras", order = 5, args = {
+    options.args.extras = { type = "group", name = "Extras", order = 6, args = {
         place = ns.Section("Position", 1, {
             anchor = option("select", "anchor", "Show tooltips", 1, {
                 values = { DEFAULT = "Where the game puts them", CURSOR = "At the mouse", WORLD = "At the mouse, in the game world only" },

@@ -29,8 +29,8 @@ ns.Configure(G, {
     openAll = true, announce = true,
 }, function(m)
     local function profile() return m.db.profile end
-    local function option(key, name, order, desc)
-        return ns.Option(profile, "toggle", key, name, order, { desc = desc }, function() m:Changed() end)
+    local function option(key, name, order, desc, disabled)
+        return ns.Option(profile, "toggle", key, name, order, { desc = desc, disabled = disabled }, function() m:Changed() end)
     end
     return { name = m.info.name, type = "group", args = {
         general = { type = "group", name = "General", order = 1, args = {
@@ -40,7 +40,8 @@ ns.Configure(G, {
                 cod = option("cod", "Cash on delivery mail", 1),
                 items = option("items", "Mail with items", 2),
                 openAll = option("openAll", "Open All leaves marked mail", 3),
-                announce = option("announce", "Say what Open All left", 4),
+                announce = option("announce", "Say what Open All left", 4, nil,
+                    function() return not m.db.profile.openAll end),
             }),
             trust = ns.Section("Trust", 2, {
                 characters = option("characters", "Your characters", 1,

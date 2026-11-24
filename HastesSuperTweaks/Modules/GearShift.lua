@@ -57,6 +57,11 @@ local SLOTS = {
     { 17, "Off hand", "SecondaryHandSlot" }, { 18, "Ranged", "RangedSlot" },
 }
 G.SLOTS = SLOTS
+-- Every slot the bar can show has a default, off but for the trinkets: profile strings only carry settings the
+-- defaults know (see ProfileStrings.lua), so a slot you turned on went missing from them.
+for _, s in ipairs(SLOTS) do
+    if defaults.slots[s[1]] == nil then defaults.slots[s[1]] = false end
+end
 local SLOT_NAME, SLOT_ART = {}, {}
 for _, s in ipairs(SLOTS) do SLOT_NAME[s[1]] = s[2]; SLOT_ART[s[1]] = s[3] end
 -- The game swaps these in combat.
@@ -166,12 +171,19 @@ function G:Put(slot, itemID, link)
         self:ShowSlot(slot)
         return false
     end
+    -- An item held on the cursor is yours; nothing is swapped through it. What waited for the fight to end waits on,
+    -- and is tried again in a moment.
+    if CursorHasItem() then
+        if self.pending[slot] ~= nil and not self.flushing then
+            self.flushing = true
+            C_Timer.After(1, self.flushSoon)
+        end
+        return false
+    end
     if self.pending[slot] ~= nil then
         self.pending[slot], self.pendingLink[slot] = nil, nil
         self:ShowSlot(slot)
     end
-    -- An item held on the cursor is yours; nothing is swapped through it.
-    if CursorHasItem() then return false end
     if not itemID then return TakeOff(slot) end
     if GetInventoryItemID("player", slot) == itemID
         and (not link or GetInventoryItemLink("player", slot) == link) then return true end
@@ -213,6 +225,13 @@ function G:Wait()
     if self.waiting or not self.events then return end
     self.waiting = true
     for _, event in ipairs(WAIT_EVENTS) do self.events:RegisterEvent(event) end
+end
+
+G.flushSoon = function()
+    G.flushing = nil
+    -- A fight or a death since: what waits goes on waiting for its end.
+    if Busy() then return G:Wait() end
+    G:Flush()
 end
 
 -- Does what waited, once nothing stops it.
@@ -945,7 +964,8 @@ function G:Apply()
     self.specGroups = NumSpecGroups()
     self.cdLook = self.cdLook + 1
     if not self.bar then
-        if not show then return end
+        -- No bar to make: situations and queues still need their events.
+        if not show then return self:Watch() end
         self.bar = CreateFrame("Frame", "HastesSuperTweaksGearShift", UIParent)
         self.bar:SetClampedToScreen(true)
         -- Above the action bars' own frames (EllesmereUI's end caps reach well past a bar's ends, 4 to 17 levels
@@ -1098,6 +1118,8 @@ end
 
 local function MenuClick(e)
     local menu = G.menu
+    -- A new swap: the bag slots the last one emptied hold what it took off by now, which may be what's picked.
+    wipe(taken)
     if e.setID then G:WearSet(e.setID) else G:Put(menu.slot, e.itemID, e.link) end
     G:CloseMenu()
 end
@@ -1664,7 +1686,7 @@ function G:BuildOptions()
                 alpha = ns.Option(profile, "range", "alpha", "Opacity", 7,
                     { min = 0.1, max = 1, step = 0.05, isPercent = true }, apply),
             }),
-            cooldown = ns.Section("Cooldown text", 2, {
+            cooldown = ns.Section("Text", 2, {
                 cdText = ns.Option(profile, "toggle", "cdText", "Show cooldown numbers", 1, nil, apply),
                 cdFont = ns.MediaOption(profile, "font", "cdFont", "Font", 2, { disabled = noCdText }, apply),
                 cdSize = ns.Option(profile, "range", "cdSize", "Size", 3,
@@ -1681,7 +1703,7 @@ function G:BuildOptions()
                 end },
             }),
         } },
-        slots = { type = "group", name = "Slots", order = 2, args = { slots = ns.Section("Slots", 1, slotArgs) } },
+        slots = { type = "group", name = "Slots", order = 2, args = { slots = ns.Section("Settings", 1, slotArgs) } },
         specs = { type = "group", name = "Specs", order = 2.5, args = specArgs },
         queues = { type = "group", name = "Queues", order = 3, args = queueArgs },
         situations = { type = "group", name = "Situations", order = 4, args = situationArgs },

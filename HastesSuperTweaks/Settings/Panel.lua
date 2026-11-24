@@ -473,7 +473,7 @@ local function LinkNote(b, note, module, lit)
     end)
     b:SetScript("OnEnter", function(self)
         lit(self, true)
-        W.ShowTooltip(self, module.info.name, "Click to open its settings.")
+        W.ShowTooltip(self, module.info.name)
     end)
     b:SetScript("OnLeave", function(self)
         lit(self, false)
@@ -905,8 +905,9 @@ function Build.items(parent, o, chain, info, gate)
                 if type(itemID) == "number" then list[#list + 1] = itemID end
             end
         elseif items then
-            for itemID in pairs(items) do
-                if type(itemID) == "number" then list[#list + 1] = itemID end
+            -- An imported list can hold an item set to false: it isn't on the list.
+            for itemID, on in pairs(items) do
+                if type(itemID) == "number" and on then list[#list + 1] = itemID end
             end
             table.sort(list)
         end
@@ -1069,7 +1070,9 @@ function Build.theme(parent, o, chain, info)
             tile:ClearAllPoints()
             tile:SetPoint("TOPLEFT", (i - 1) * (tileWidth + TILE_GAP), -30)
             tile:SetSize(tileWidth, height)
-            if tile.sketch:GetScale() ~= scale then
+            -- Compared with the scale last set: the game keeps it less exactly, so GetScale rarely gives it back.
+            if tile.sketchScale ~= scale then
+                tile.sketchScale = scale
                 -- Its offset is in its own, scaled, units.
                 tile.sketch:SetScale(scale)
                 tile.sketch:SetPoint("TOPLEFT", TILE_PAD / scale, -TILE_PAD / scale)
@@ -1086,7 +1089,8 @@ end
 -- The game can't open web pages, so a link opens a popup with the address selected for copying.
 StaticPopupDialogs.HASTES_SUPER_TWEAKS_LINK = {
     text = "%s\n\nPress Ctrl+C to copy the link.", button1 = CLOSE or "Close",
-    hasEditBox = true, editBoxWidth = 280,
+    -- The popups share one edit box, and another popup's limit (a profile name's 50) stays on it.
+    hasEditBox = true, editBoxWidth = 280, maxLetters = 0,
     OnShow = function(popup, url)
         local box = popup.editBox or popup.EditBox
         box:SetText(url); box:HighlightText(); box:SetFocus()
@@ -1516,7 +1520,7 @@ function P:Create()
     grip:SetScript("OnClick", function() self:SetSize(DEFAULT_W, DEFAULT_H); self:SavePlace() end)
     grip:SetScript("OnEnter", function(g)
         paint()
-        W.ShowTooltip(g, "Resize", "Drag to resize the window. Right-click for the default size.")
+        W.ShowTooltip(g, "Resize", "Right-click for the default size.")
     end)
     grip:SetScript("OnLeave", function(g) paint(); W.HideTooltip(g) end)
     self:CreateSidebarEdge(f, grip:GetFrameLevel())
@@ -1795,7 +1799,7 @@ function P:CreateSidebar(f)
     pip:SetScript("OnEnter", function()
         pip.hovered = true
         self:PaintPip()
-        W.ShowTooltip(pip, "Patch notes", pip.unseen and "New since you last looked." or "See what changed in each version.")
+        W.ShowTooltip(pip, "Patch notes", pip.unseen and "New since you last looked." or nil)
     end)
     pip:SetScript("OnLeave", function()
         pip.hovered = nil
@@ -2094,11 +2098,38 @@ function P:NavSelected(entry)
 end
 
 -- The sidebar's nth row, its table reused from the last time the rows were listed (every field is set again).
-local function NavEntry(entries, n, kind, key, text, count)
+local function NavEntry(entries, n, kind, key, text)
     local entry = entries[n] or {}
     entries[n] = entry
-    entry.kind, entry.key, entry.text, entry.count = kind, key, text, count
+    entry.kind, entry.key, entry.text = kind, key, text
     return entry
+end
+
+-- A row's count as text ("3/7"), written anew only when one of its numbers changed.
+local function SetCount(entry, on, count)
+    if entry.on ~= on or entry.total ~= count then
+        entry.on, entry.total = on, count
+        entry.count = on .. "/" .. count
+    end
+end
+
+-- How many tweaks each category has (navTotal) and has on (navOn), counted in one pass over the tweaks. Returns the
+-- same for all of them.
+local navOn, navTotal = {}, {}
+local function CountTweaks()
+    wipe(navOn)
+    wipe(navTotal)
+    local allOn, all = 0, 0
+    for _, module in ipairs(HST:Features()) do
+        local category, on = module.info.category, module:IsEnabled()
+        all = all + 1
+        if on then allOn = allOn + 1 end
+        if category then
+            navTotal[category] = (navTotal[category] or 0) + 1
+            if on then navOn[category] = (navOn[category] or 0) + 1 end
+        end
+    end
+    return allOn, all
 end
 
 -- The sidebar's rows: All tweaks, Pinned while a tweak is, then each category.
@@ -2106,29 +2137,23 @@ function P:NavEntries()
     local entries = self.navEntries or {}
     self.navEntries = entries
     local onCount, total, n = 0, 0, 1
-    local home = NavEntry(entries, 1, "home", nil, "All tweaks", nil)
+    local home = NavEntry(entries, 1, "home", nil, "All tweaks")
     local pinnedOn, pinnedCount = PinnedCount()
     if pinnedCount > 0 then
         n = n + 1
-        NavEntry(entries, n, "category", PINNED, "Pinned", pinnedOn .. "/" .. pinnedCount)
+        SetCount(NavEntry(entries, n, "category", PINNED, "Pinned"), pinnedOn, pinnedCount)
     end
-    local features = HST:Features()
+    CountTweaks()
     for _, category in ipairs(HST.categories) do
-        local on, count = 0, 0
-        for _, module in ipairs(features) do
-            if module.info.category == category.key then
-                count = count + 1
-                if module:IsEnabled() then on = on + 1 end
-            end
-        end
+        local on, count = navOn[category.key] or 0, navTotal[category.key] or 0
         if count > 0 then
             onCount, total = onCount + on, total + count
             n = n + 1
-            NavEntry(entries, n, "category", category.key, category.name, on .. "/" .. count)
+            SetCount(NavEntry(entries, n, "category", category.key, category.name), on, count)
         end
     end
     for i = #entries, n + 1, -1 do entries[i] = nil end
-    home.count = onCount .. "/" .. total
+    SetCount(home, onCount, total)
     return entries
 end
 
@@ -2171,23 +2196,18 @@ end
 
 -- Counts follow tweaks turning on and off, without rebuilding the rows.
 function P:PaintNav()
-    local features = HST:Features()
+    local allOn, all = CountTweaks()
     for _, b in ipairs(self.nav) do
         local entry = b:IsShown() and b.entry
         if entry then
-            local on, count = 0, 0
             if entry.key == PINNED then
-                on, count = PinnedCount()
+                SetCount(entry, PinnedCount())
+            elseif entry.kind == "home" then
+                SetCount(entry, allOn, all)
             else
-                for _, module in ipairs(features) do
-                    if entry.kind == "home" or module.info.category == entry.key then
-                        count = count + 1
-                        if module:IsEnabled() then on = on + 1 end
-                    end
-                end
+                SetCount(entry, navOn[entry.key] or 0, navTotal[entry.key] or 0)
             end
-            local text = on .. "/" .. count
-            entry.count = text
+            local text = entry.count
             if b.countText ~= text then b.countText = text; b.count:SetText(text) end
         end
     end
@@ -2721,7 +2741,7 @@ function P:WelcomeCard()
     card.text:SetPoint("RIGHT", -WELCOME_PAD, 0)
     card.text:SetSpacing(3)
     card.text:SetText("Tweaks that show you more, like the XP bar and better tooltips, start on. Tweaks that act for you, "
-        .. "like selling, accepting and declining, start off. Point at a tweak to see what it does.")
+        .. "like selling, accepting and declining, start off.")
     local keep = W.Button(card, "Keep these", "primary")
     keep:Fit(110)
     keep:SetScript("OnClick", function() self:CloseWelcome() end)
@@ -2730,7 +2750,8 @@ function P:WelcomeCard()
         local b = W.Button(card, point.name)
         b:Fit(110)
         card.buttons[#card.buttons + 1] = b
-        b.tipTitle, b.tipText = point.name, HST:StartingPointTip(point)
+        b.tipText = HST:StartingPointTip(point)
+        b.tipTitle = b.tipText and point.name
         b:SetScript("OnClick", function()
             local function apply()
                 HST:ApplyStartingPoint(point)
@@ -2895,7 +2916,7 @@ function P:ShowModules()
             self:ShowEmpty({ icon = "off", title = "No tweaks are on", text = "Turn one on from the full list.",
                 buttons = { showAll } })
         else
-            self:ShowEmpty({ icon = "on", title = "Every tweak is on", text = "Nothing is turned off right now.",
+            self:ShowEmpty({ icon = "on", title = "Every tweak is on", text = "",
                 buttons = { showAll } })
         end
     elseif self.empty then
@@ -3856,7 +3877,9 @@ function P:LayoutResults(modules, ranked, words)
             more = W.Text(self.list.child, "GameFontHighlightSmall", C.muted)
             self.moreResults = more
         end
-        more:SetText(string.format("%d more settings match. Add a word to find the one you want.", #ranked - shown))
+        local left = #ranked - shown
+        more:SetText((left == 1 and "1 more setting matches." or left .. " more settings match.")
+            .. " Add a word to find the one you want.")
         more:ClearAllPoints()
         more:SetPoint("TOPLEFT", 12, -(y + 8))
         more:Show()
@@ -3948,7 +3971,11 @@ end
 ---------------------------------------------------------------------------
 -- Entry points
 ---------------------------------------------------------------------------
+-- Whether a tweak has asked for a refresh that hasn't happened yet (see HST:RefreshSettings).
+local refreshWanted, refreshQueued = false, false
+
 function P:Refresh()
+    refreshWanted = false
     if not (self.frame and self.frame:IsShown()) then return end
     if self.mode == "modules" or self.mode == "search" then
         self:RefreshRows()
@@ -3991,8 +4018,18 @@ function HST:CanShowCpuGraph()
     return CpuProfiler() ~= nil
 end
 
+-- Asked for by tweaks as their state changes, often several times in a frame: the window is refreshed once, at the
+-- next frame, unless it refreshed itself meanwhile (see P:Refresh).
+local function RefreshWanted()
+    refreshQueued = false
+    if refreshWanted then P:Refresh() end
+end
 function HST:RefreshSettings()
-    P:Refresh()
+    if not (P.frame and P.frame:IsShown()) then return end
+    refreshWanted = true
+    if refreshQueued then return end
+    refreshQueued = true
+    C_Timer.After(0, RefreshWanted)
 end
 
 function HST:ToggleSettings()

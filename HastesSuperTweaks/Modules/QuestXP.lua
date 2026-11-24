@@ -139,6 +139,7 @@ function Q:Hook()
         local pool = QuestScrollFrame and QuestScrollFrame.titleFramePool
         if QuestMapFrame and QuestMapFrame.SetFrameLayoutIndex and pool and pool.IsActive then
             hooksecurefunc(QuestMapFrame, "SetFrameLayoutIndex", function(_, frame)
+                if not self:IsEnabled() then return end
                 -- A title button is hooked once; the pool is asked only about rows not hooked yet.
                 local text = frame.Text
                 if text and hookedTitles[text] then return end

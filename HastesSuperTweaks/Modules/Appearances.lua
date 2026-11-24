@@ -327,7 +327,9 @@ function A:Wait(item)
 end
 
 ns.Listen(A, { "TRANSMOG_COLLECTION_SOURCE_ADDED", "TRANSMOG_COLLECTION_SOURCE_REMOVED", "TRANSMOG_COLLECTION_UPDATED" },
-    function(self, event)
+    function(self, event, _, success)
+        -- An item the game can't load would be asked for again by the marks it's drawn on, over and over.
+        if event == "GET_ITEM_INFO_RECEIVED" and success == false then return end
         if event == "GET_ITEM_INFO_RECEIVED" or event == "TRANSMOG_SOURCE_COLLECTABILITY_UPDATE" then
             self.waiting = nil
             for _, wait in ipairs(WAIT_EVENTS) do self.events:UnregisterEvent(wait) end

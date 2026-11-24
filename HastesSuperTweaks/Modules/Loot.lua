@@ -280,7 +280,6 @@ Configure(L, defaults, function(m)
                     get = function() return m.db.profile.hotkey end,
                     set = function(_, text) m.db.profile.hotkey = text:upper():gsub("%s", ""); m:Refresh() end },
                 reset = { type = "execute", name = "Reset position", order = 5,
-                    desc = "Moves the window back to its default spot.",
                     func = function() local p = m.db.profile; p.x, p.y, p.bottom = false, false, false; m:Refresh() end },
                 onScreen = { type = "execute", name = "Show on screen", order = 6,
                     desc = "Shows a sample where the loot window opens, until you leave these settings. Drag its top bar "
@@ -321,7 +320,7 @@ Configure(L, defaults, function(m)
                 takeBackground = option("toggle", "takeBackground", "Loot background", 1,
                     { desc = "When you loot by hand, and for what auto looting leaves behind." }),
                 noticeAlpha = option("range", "noticeAlpha", "Auto loot list background", 2, { min = 0, max = 1, step = 0.05,
-                    isPercent = true,
+                    isPercent = true, disabled = quiet,
                     desc = "At 0% the list has no background." }),
                 backgroundStyle = option("select", "backgroundStyle", "Style", 3, { disabled = noBackground,
                     values = { SOLID = "Solid color", PAGE = "Burnt page" }, sorting = { "SOLID", "PAGE" } }),

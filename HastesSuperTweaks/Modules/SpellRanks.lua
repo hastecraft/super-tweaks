@@ -31,14 +31,12 @@ function R.info.preview(frame)
         v.glow:SetAllPoints()
         v.rank = W.Text(v.slot, "NumberFontNormalSmall", { 1, 1, 1 }, "RIGHT")
         v.rank:SetPoint("BOTTOMRIGHT", -2, 2)
-        v.caption = W.Caption(frame, "Learned Frostbolt (Rank 3)")
-        W.Column(frame, { bar, 10, v.caption })
+        W.Column(frame, { bar })
     end
     W.Loop(frame, 4, function(t)
         local upgraded = t >= 1.5
         v.rank:SetText(upgraded and "3" or "2")
         v.glow:SetAlpha(upgraded and math.max(0, 1 - (t - 1.5) / 0.8) or 0)
-        v.caption:SetText(upgraded and "Rank 3 replaces Rank 2 on your bar" or "Learned Frostbolt (Rank 3)")
     end, 1.5)
 end
 
@@ -51,7 +49,6 @@ ns.Configure(R, { placeNew = true, keepLower = true, summary = true }, function(
             "Only buttons with your previous highest rank get the new one." }),
         summary = ns.Option(profile, "toggle", "summary", "Say what was placed or upgraded", 3),
         upgradeAll = { type = "execute", name = "Upgrade all buttons now", order = 4,
-            desc = "Puts your highest rank on every button with a lower rank, including ones you placed on purpose.",
             confirm = true, confirmText = "Put your highest rank on every button with a lower rank, including ones you placed on purpose?",
             func = function() self:UpgradeAll() end },
     })
