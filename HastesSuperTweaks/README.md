@@ -9,6 +9,7 @@ Built for WoW Forever 1.60.1 (interface 16001); the TOC also lists Classic Era's
 | Module | Category | What it does |
 | --- | --- | --- |
 | XP Tracker | Leveling | An XP bar that shows your rested and quest XP, how fast you're leveling, and how long until your next level. Move it in Edit Mode, where it snaps to the grid and remembers a position per layout. |
+| Rep Tracker | Leveling | A reputation bar that shows how fast you're gaining rep and how long until your next standing. Right-click it to choose the faction or reset the session. Move it in Edit Mode. Off by default. |
 | Kills to Level | Leveling | Mob tooltips estimate how many more kills of that mob you need to reach your next level. Predictions are marked with `~`, including those based on recorded kills. |
 | Quest XP in Quest Log | Leveling | Your quest log shows how much XP each quest is worth, and how much of a level that is. |
 | Screenshot Level-Ups | Leveling | Takes a screenshot each time you level up, once the "Level N" banner is on screen. |

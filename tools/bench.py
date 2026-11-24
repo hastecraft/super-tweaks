@@ -161,6 +161,24 @@ Section('XP Tracker', function()
 end)
 -- The XP bar's ticker would run in every later scenario that lets time pass; those measure other tweaks.
 HST:SetFeatureEnabled('XPTracker', false)
+-- A watched faction for the Rep Tracker. The mock hands back one table; the game makes a new one per call.
+local repData = { factionID = 72, name = 'Stormwind', reaction = 6, currentReactionThreshold = 9000,
+    nextReactionThreshold = 21000, currentStanding = 15000 }
+C_Reputation = C_Reputation or {}
+C_Reputation.GetWatchedFactionData = function() return repData end
+C_Reputation.GetFactionDataByID = function() return repData end
+HST:SetFeatureEnabled('RepTracker', true)
+AdvanceTime(1)
+Section('Rep Tracker', function()
+    Measure('Rep bar: one-second tick, nothing changed', 300, function() AdvanceTime(1) end)
+    Measure('Rep bar: rep gain (event + 0.1 s settle)', 100, function()
+        repData.currentStanding = repData.currentStanding + 5; Send('RepTracker', 'UPDATE_FACTION'); AdvanceTime(0.1)
+    end)
+    Measure('Rep bar: combat start + end', 100, function()
+        Send('RepTracker', 'PLAYER_REGEN_DISABLED'); Send('RepTracker', 'PLAYER_REGEN_ENABLED')
+    end)
+end)
+HST:SetFeatureEnabled('RepTracker', false)
 
 Section('Instance Tracker', function()
     state.money, state.groupSize = 50000, 5

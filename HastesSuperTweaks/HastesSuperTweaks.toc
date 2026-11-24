@@ -27,6 +27,8 @@ EditMode.lua
 Modules\XPTracker.lua
 Modules\XPTrackerOptions.lua
 Modules\XPTrackerEditMode.lua
+Modules\RepTracker.lua
+Modules\RepTrackerOptions.lua
 Modules\GuildInvite.lua
 Modules\HideIssueReporter.lua
 Modules\MinimapButton.lua

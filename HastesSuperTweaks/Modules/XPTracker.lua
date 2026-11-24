@@ -613,7 +613,8 @@ local NO_ART = {}
 function X:BlizzardXPRegions()
     local regions = {}
     local manager, kinds = StatusTrackingBarManager, StatusTrackingBarInfo and StatusTrackingBarInfo.BarsEnum
-    local experience = kinds and kinds.Experience
+    -- Rep Tracker borrows this for the reputation bar (blizzardKind).
+    local experience = kinds and kinds[self.blizzardKind or "Experience"]
     if not (manager and manager.barContainers and experience) then return regions end
     for _, container in ipairs(manager.barContainers) do
         local bar = container.bars and container.bars[experience]
