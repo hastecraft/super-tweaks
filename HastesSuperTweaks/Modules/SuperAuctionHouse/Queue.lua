@@ -556,8 +556,8 @@ S.Window.OnApply(function() craftText = nil end)
 S.Extend(function(args, option)
     args.crafting = { type = "group", name = "Crafting", order = 5.5, args = {
         crafting = ns.Section("Settings", 1, {
-            keyCraft = option("input", "keyCraft", "Key for the queue's craft button", 1,
-                { desc = "Crafts the next recipe in your queue while the professions window is open." }),
+            keyCraft = option("input", "keyCraft", "Key to craft the next recipe in your queue", 1,
+                { desc = "Works while the professions window is open." }),
         }),
     } }
 end)
