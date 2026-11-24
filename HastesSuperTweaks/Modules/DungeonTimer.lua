@@ -3,8 +3,9 @@
 -- The game has no run clock on WoW Forever, so the time is this tweak's own, counted from when you entered and saved
 -- per character: a reload or a corpse run keeps it. Bosses come from the game's own encounter table
 -- (DungeonTimerData.lua) and die by BOSS_KILL and ENCOUNTER_END, the only kill events the game still gives addons
--- inside. A run ends as Instance Tracker's does (coming back as a ghost continues it, coming back alive starts another),
--- and while Instance Tracker has a run of this instance, its start time is used, so both show the same.
+-- inside. A run ends as Instance Tracker's does: coming back continues it, unless the game said the instance was reset
+-- or a boss that died before you left dies again (that splits Instance Tracker's run too). While Instance Tracker has a
+-- run of this instance, its start time is used, so both show the same.
 -- Away from instances this costs two events (entering the world, a new zone). Inside, the run's events add numbers
 -- and the panel is drawn once a second, by a ticker that runs only while the panel shows a run: the clock each second,
 -- and a row only when its number changed.
@@ -79,7 +80,8 @@ end)
 ---------------------------------------------------------------------------
 -- Saved data
 -- The run (db.char.run): map instance map ID, name, t when it was entered (time()), seen when it was last drawn, left
--- when you left it (nil while inside), gh whether you left as a ghost, kills { [boss] = seconds into the run },
+-- when you left it (nil while inside), gh whether you left as a ghost, back when you last came back in, reset whether
+-- the game said the instance was reset while you were out, kills { [boss] = seconds into the run },
 -- order { boss, ... } as they died, diff { [boss] = seconds against the best there was }, extra { [boss] = name } for
 -- bosses the game's table doesn't list, done seconds at the final boss's death, total its difference to the best,
 -- deaths, gold (copper), vendor (copper), av (copper at auction).
@@ -150,7 +152,7 @@ local function BossText(key, run, best)
     return time and GREY .. Clock(time) .. "|r" or ""
 end
 
--- The rows the panel lists, { name, key, right }: every boss of the instance in order, then those killed that the
+-- The rows the panel lists, { name, key, left, right } (left the name, greyed once the boss is dead): every boss of the instance in order, then those killed that the
 -- table doesn't have; in an instance of wings (or one the table doesn't have), the bosses killed, as they died.
 -- Their text is made here, when a run starts and when a boss dies, so a redraw only compares it.
 function D:BuildList()
@@ -164,7 +166,11 @@ function D:BuildList()
             list[#list + 1] = { name = self.names[key] or (run.extra and run.extra[key]) or tostring(key), key = key }
         end
     end
-    for i = 1, #list do list[i].right = BossText(list[i].key, run, best) end
+    for i = 1, #list do
+        local boss = list[i]
+        boss.right = BossText(boss.key, run, best)
+        boss.left = run.kills[boss.key] and GREY .. boss.name .. "|r" or boss.name
+    end
     self.list = list
 end
 
@@ -278,7 +284,6 @@ local function Paint(v, p, name, list, run, best, open, seconds)
     if v.width ~= width then
         v.width = width
         v:SetWidth(width)
-        v.title:SetWidth(width - PAD * 2)
     end
     local align = p.align
     if v.align ~= align then
@@ -319,7 +324,7 @@ local function Paint(v, p, name, list, run, best, open, seconds)
     v.skip, v.count, v.list = skip, n, list
     for i = 1, n do
         local boss = list[skip + i]
-        Row(v, i, y, boss.name, boss.right)
+        Row(v, i, y, boss.left, boss.right)
         y = y - ROW
     end
     if n > 0 then y = y - GAP end
@@ -362,7 +367,10 @@ local SAMPLE_NAME, SAMPLE_SECONDS = "The Deadmines", 872
 -- The sample's rows, their text made the first time they're shown.
 local function SampleList()
     if not SAMPLE_LIST[1].right then
-        for _, boss in ipairs(SAMPLE_LIST) do boss.right = BossText(boss.key, SAMPLE_RUN, SAMPLE_BEST) end
+        for _, boss in ipairs(SAMPLE_LIST) do
+            boss.right = BossText(boss.key, SAMPLE_RUN, SAMPLE_BEST)
+            boss.left = SAMPLE_RUN.kills[boss.key] and GREY .. boss.name .. "|r" or boss.name
+        end
     end
     return SAMPLE_LIST
 end
@@ -617,12 +625,17 @@ function D:Tick()
     run.seen = time()
     -- A finished run's clock stands still: only what was looted since is drawn.
     if run.done then
-        if self.dirty then self:Paint(run.done) end
+        if self.dirty then self:Paint(run.done); self:SyncTargets() end
         return
     end
     local now = GetTime() - self.base
     local seconds = max(0, floor(now))
-    if self.dirty then self:Paint(seconds) else PaintClock(self.frame, seconds, false) end
+    if self.dirty then
+        self:Paint(seconds)
+        self:SyncTargets()
+    else
+        PaintClock(self.frame, seconds, false)
+    end
     -- The ticker runs a little late each time: once it has slipped half a second, it starts over on the second.
     if now % 1 > 0.5 then
         self:StopClock()
@@ -678,13 +691,15 @@ function D:Enter(name, map)
         if theirs then
             continue = theirs.t == run.t
         else
-            -- Never seen leaving (a reload, a crash inside) or left as a ghost, and not long ago.
-            continue = (run.left == nil or run.gh == true) and (run.left or run.seen or 0) >= now - ResumeMinutes() * 60
+            -- Not reset, and left (or last seen, after a reload or a crash inside) not long ago.
+            continue = not run.reset and (run.left or run.seen or 0) >= now - ResumeMinutes() * 60
         end
     end
+    self.events:UnregisterEvent("CHAT_MSG_SYSTEM")
     if continue then
         self.run = run
-        run.left, run.gh, run.name = nil, nil, name
+        if run.left then run.back = now end
+        run.left, run.gh, run.reset, run.name = nil, nil, nil, name
         self:SetStart(run.t)
     else
         self:NewRun(name, map, theirs and theirs.t or now)
@@ -717,6 +732,8 @@ function D:Leave(turnedOff)
     local ghost = UnitIsDeadOrGhost("player")
     if IsSecret(ghost) then ghost = false end
     run.gh = (ghost or turnedOff) and true or nil
+    -- Until the next instance: the game's line for a reset, which ends the run.
+    if not turnedOff then self.events:RegisterEvent("CHAT_MSG_SYSTEM") end
     self:StopClock()
     self.bosses, self.byID, self.names, self.byName, self.list = nil, nil, nil, nil, nil
     self:RegisterRun()
@@ -750,7 +767,14 @@ function D:Kill(id, name)
     local run = self.run
     id, name = Number(id), Text(name)
     local key = id and self.byID[id] or name and self.byName[name] or id or name
-    if not key or run.kills[key] then return end
+    if not key then return end
+    local before = run.kills[key]
+    if before then
+        -- Dead before you last left, and dying again: the instance was reset.
+        if not (run.back and before < run.back - run.t) then return end
+        self:AfterReset()
+        run = self.run
+    end
     local at = self:Elapsed()
     run.kills[key] = at
     run.order[#run.order + 1] = key
@@ -786,8 +810,39 @@ function D:Kill(id, name)
         end
     end
     self:BuildList()
-    self:Paint(at)
-    self:SyncTargets()
+    -- Drawn by the next tick, with the clock, within the second.
+    self.dirty = true
+end
+
+-- A reset found by a boss dying again: a new run from when you came back in (Instance Tracker's, which splits too),
+-- with the bosses killed since.
+function D:AfterReset()
+    local old = self.run
+    local tracker = ns.InstanceTracker
+    if tracker and tracker:IsEnabled() then tracker:ResetSeen() end
+    local theirs = tracker and tracker.run
+    local t = theirs and theirs.map == old.map and theirs.t or old.back
+    self:NewRun(old.name, old.map, t)
+    local run, since = self.run, t - old.t
+    for _, key in ipairs(old.order) do
+        local at = old.kills[key]
+        if at >= since then
+            run.kills[key] = at - since
+            run.order[#run.order + 1] = key
+            if old.extra and old.extra[key] then
+                run.extra = run.extra or {}
+                run.extra[key] = old.extra[key]
+            end
+        end
+    end
+    self:BuildList()
+end
+
+-- "<instance> has been reset.": the run you left there is over.
+function D:InstanceReset(message)
+    local name = message:match(ns.InstanceTracker.RESET)
+    local run = self.db.char.run
+    if name and run and run.left and run.name == name then run.reset = true end
 end
 
 -- What a vendor pays for an item, or nil while the game hasn't loaded the item.
@@ -843,6 +898,10 @@ end
 ns.Listen(D, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self, event, a, b, _, _, success)
     if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" or event == "GROUP_ROSTER_UPDATE" then
         return self:CheckZone()
+    end
+    if event == "CHAT_MSG_SYSTEM" then
+        if not IsSecret(a) and type(a) == "string" then self:InstanceReset(a) end
+        return
     end
     if event == "PLAYER_REGEN_ENABLED" then
         -- The click targets can move again: the list catches up with the fight's kills first.
