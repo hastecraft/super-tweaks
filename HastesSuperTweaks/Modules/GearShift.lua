@@ -57,6 +57,11 @@ local SLOTS = {
     { 17, "Off hand", "SecondaryHandSlot" }, { 18, "Ranged", "RangedSlot" },
 }
 G.SLOTS = SLOTS
+-- Every slot the bar can show has a default, off but for the trinkets: profile strings only carry settings the
+-- defaults know (see ProfileStrings.lua), so a slot you turned on went missing from them.
+for _, s in ipairs(SLOTS) do
+    if defaults.slots[s[1]] == nil then defaults.slots[s[1]] = false end
+end
 local SLOT_NAME, SLOT_ART = {}, {}
 for _, s in ipairs(SLOTS) do SLOT_NAME[s[1]] = s[2]; SLOT_ART[s[1]] = s[3] end
 -- The game swaps these in combat.
