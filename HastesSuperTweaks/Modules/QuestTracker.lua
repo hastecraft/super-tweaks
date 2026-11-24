@@ -33,7 +33,7 @@ ns.Configure(T, { instances = true, pvp = false, combat = false, always = false 
 end, "Update")
 
 ---------------------------------------------------------------------------
--- Settings preview: the tracker, gone as a dungeon starts.
+-- Settings preview: the tracker, gone and back.
 ---------------------------------------------------------------------------
 T.info.pagePreview = false -- its preview shows in the tweak list, not on its settings page
 function T.info.preview(frame)
@@ -56,18 +56,10 @@ function T.info.preview(frame)
             text:SetPoint("TOPLEFT", 6, -14 - i * 12)
             text:SetText(line[1])
         end
-        v.caption = W.Caption(frame, "")
-        W.Column(frame, { v.tracker, 10, v.caption })
+        W.Column(frame, { v.tracker })
     end
-    local shown
-    W.Loop(frame, 4, function(t)
-        local gone = t > 1.5 and t < 3.5
-        v.tracker:SetAlpha(1 - W.Window(t, 1.3, 3.7, 0.25))
-        if gone ~= shown then
-            shown = gone
-            v.caption:SetText(gone and "In a dungeon: hidden" or "Outside: shown")
-        end
-    end)
+    -- Still (animations off), it shows the tracker.
+    W.Loop(frame, 4, function(t) v.tracker:SetAlpha(1 - W.Window(t, 1.3, 3.7, 0.25)) end, 0)
 end
 
 ---------------------------------------------------------------------------
