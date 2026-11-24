@@ -161,7 +161,8 @@ function R:ResetSession()
 end
 
 -- Reads the tracked faction and adds what you gained since the last read to the session. Another faction (a new pick,
--- or a new watched faction) starts a new session.
+-- or a new watched faction) starts a new session. Returns whether anything the bar shows changed: the game sends
+-- UPDATE_FACTION for every faction, and for much else.
 function R:SampleRep()
     local id, name, standing, low, high, value = ReadFaction(self.db.char.factionID)
     local session = self.db.char.session
@@ -170,8 +171,11 @@ function R:SampleRep()
     elseif value and faction.value and value > faction.value then
         session.gained = session.gained + value - faction.value
     end
+    local changed = not faction.read or id ~= faction.id or value ~= faction.value or standing ~= faction.standing
+        or low ~= faction.low or high ~= faction.high or name ~= faction.name
     faction.read = true
     faction.id, faction.name, faction.standing, faction.low, faction.high, faction.value = id, name, standing, low, high, value
+    return changed
 end
 
 local tokens = {}
@@ -242,6 +246,8 @@ end
 function R:CreateBar()
     local f = CreateFrame("Frame", "HastesSuperTweaksRepBar", UIParent)
     self.frame = f
+    -- Shown and hidden only by Render and OnUnlisten, which keep that here rather than ask the frame.
+    self.shown = true
     f:SetMovable(true)
     f:SetClampedToScreen(true)
     f:RegisterForDrag("LeftButton")
@@ -359,13 +365,13 @@ function R:Render(sameContent)
     if not self.frame or not self:IsEnabled() then return end
     if self:HiddenReason() then
         self.hovered = false
-        self.frame:Hide()
+        if self.shown then self.shown = false; self.frame:Hide() end
         return
     end
     local f = self.frame
-    local shown = f:IsShown()
+    local shown = self.shown
     local inView = sameContent and not self.faded and shown
-    if not shown then f:Show() end
+    if not shown then self.shown = true; f:Show() end
     local p = self.db.profile
     local alpha = p.mouseover and not self.hovered and not self.preview and not self.editMode and p.locked and 0
         or self:InCombat() and p.combatAlpha or p.alpha
@@ -529,7 +535,10 @@ ns.Listen(R, { "UPDATE_FACTION", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA
     "PLAYER_REGEN_ENABLED" }, function(self, event, ...)
     if event == "UPDATE_FACTION" then
         -- It comes in bursts (a kill, a turn-in, opening the reputation list): read once after them.
-        if not self.repPending then self.repPending = C_Timer.NewTimer(0.1, self.settleRep) end
+        if not self.repPending then
+            self.repPending = true
+            C_Timer.After(0.1, self.settleRep)
+        end
         return
     elseif event == "PLAYER_ENTERING_WORLD" then
         local initial, reload = ...
@@ -547,9 +556,10 @@ function R:OnListen()
     HST:EnsureCharacterKey()
     if not self.frame then self:CreateBar() end
     self.settleRep = self.settleRep or function()
+        if not self.repPending then return end -- turned off since, which read it
         self.repPending = nil
         local standing = faction.standing
-        self:SampleRep()
+        if not self:SampleRep() then return end
         self:Render()
         -- The Visibility page's status follows Exalted and a faction to track.
         if faction.standing ~= standing and HST.settingsPanel and HST.settingsPanel.settingsOwner == "RepTracker" then
@@ -562,6 +572,8 @@ function R:OnListen()
     self:Apply()
     self.lastTick = GetTime()
     self:StartTicker()
+    -- Joined the first time this is turned on: off, it doesn't follow Edit Mode.
+    if not self.UpdateEditMode then ns.EditMode.Add(self) end
     self:UpdateEditMode()
     self:HookLayouts()
     HST.LSM.RegisterCallback(self, "LibSharedMedia_Registered", function(_, kind, name)
@@ -590,7 +602,7 @@ function R:StartTicker()
         if faction.name and not (self.db.profile.pauseAFK and self:IsAFK()) then
             session.seconds = session.seconds + elapsed
         end
-        if self.faded or not self.frame:IsShown() then return end
+        if self.faded or not self.shown then return end
         if self.hovered then return self:Render() end
         self:RenderTimes()
     end)
@@ -598,8 +610,8 @@ end
 
 function R:OnUnlisten()
     self:UpdateEditMode(false)
+    -- Rep that arrived while on and is still waiting to be read counts now; nothing is read after this.
     if self.repPending then
-        self.repPending:Cancel()
         self.repPending = nil
         self:SampleRep()
     end
@@ -609,12 +621,13 @@ function R:OnUnlisten()
     if self.frame then
         ns.Widgets.HideTooltip(self.frame)
         self.frame:StopMovingOrSizing()
+        self.shown = false
         self.frame:Hide()
     end
     self:UpdateBlizzardBar()
 end
 
--- Edit Mode (see EditMode.lua).
+-- Edit Mode (see EditMode.lua), joined in OnListen.
 function R:EditFrame() return self.frame end
 function R:EditSize()
     local p = self.db.profile
@@ -626,4 +639,3 @@ function R:EditPlace(x, y)
     self.frame:SetPoint("CENTER", UIParent, "CENTER", x / p.scale, y / p.scale)
 end
 function R:ApplyEditMode() self:Apply() end
-ns.EditMode.Add(R)
