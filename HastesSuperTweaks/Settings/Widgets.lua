@@ -2195,18 +2195,21 @@ end
 -- t: what the game itself would move (a cooldown's sweep) stands still too.
 local animate = true
 function W.SetAnimate(on) animate = on end
+-- Every loop's frame runs this one step: where it is, how long it is and what it draws are kept on the frame.
+local function LoopStep(frame, delta)
+    local elapsed = (frame.hstLoopAt + delta) % frame.hstLoopPeriod
+    frame.hstLoopAt = elapsed
+    frame.hstLoopUpdate(elapsed)
+end
 function W.Loop(frame, period, update, still)
     if not animate then
         frame:SetScript("OnUpdate", nil)
         update(still or period / 2, true)
         return
     end
-    local elapsed = 0
+    frame.hstLoopAt, frame.hstLoopPeriod, frame.hstLoopUpdate = 0, period, update
     update(0)
-    frame:SetScript("OnUpdate", function(_, delta)
-        elapsed = (elapsed + delta) % period
-        update(elapsed)
-    end)
+    frame:SetScript("OnUpdate", LoopStep)
 end
 
 -- For a W.Loop step: 0 before time a, 1 after b, easing in and out between.
