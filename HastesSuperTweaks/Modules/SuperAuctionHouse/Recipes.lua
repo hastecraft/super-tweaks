@@ -183,6 +183,7 @@ local ALL = 0
 local P
 local view = {}
 local rows, shown, stale = {}, {}, true
+local byOutput -- the rows by the item they make, for M.CostOf
 local professions, professionOrder = {}, {}
 local filterText, filterProfession, profitOnly = "", ALL, false
 
@@ -286,7 +287,7 @@ end
 
 -- The saved recipes changed.
 function M.Changed()
-    stale = true
+    stale, byOutput = true, nil
     if S.RecipeBook then S.RecipeBook.Reset() end
     if view.frame and view.frame:IsVisible() then Fill(true) end
 end
@@ -405,6 +406,32 @@ function M.Rows()
     return rows
 end
 M.Price = Price
+
+-- What one of an item costs to craft at the prices of the moment, by the cheapest of your recipes that make it. Nil
+-- when none does, or a material has no price.
+function M.CostOf(itemID)
+    if not byOutput then
+        byOutput = {}
+        for _, row in ipairs(M.Rows()) do
+            local list = byOutput[row.itemID]
+            if not list then
+                list = {}
+                byOutput[row.itemID] = list
+            end
+            list[#list + 1] = row
+        end
+    end
+    local list = byOutput[itemID]
+    if not list then return nil end
+    local best
+    for i = 1, #list do
+        local row = list[i]
+        Price(row)
+        local each = row.cost and row.quantity > 0 and row.cost / row.quantity
+        if each and (not best or each < best) then best = each end
+    end
+    return best and floor(best + 0.5) or nil
+end
 
 ---------------------------------------------------------------------------
 -- The Crafting tab

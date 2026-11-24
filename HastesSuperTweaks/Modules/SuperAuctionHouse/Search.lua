@@ -1,9 +1,10 @@
 -- Search terms and the search that runs them. A term is text, so lists can be saved, exported and imported:
---   query;category;minItemLevel;maxItemLevel;minLevel;maxLevel;minCrafted;maxCrafted;minGold;maxGold;quality;tier;expansion;quantity;maxPrice;usable;uncollected
+--   query;category;minItemLevel;maxItemLevel;minLevel;maxLevel;minCrafted;maxCrafted;minGold;maxGold;quality;tier;expansion;quantity;maxPrice;usable;uncollected;maxFormula
 -- A query in double quotes matches the whole name. Plain text with no semicolons is a plain search. minGold and maxGold
 -- are in gold and can have a fraction (0.5 is 50 silver). maxPrice, in copper, is the most you'd pay for each: it
--- filters nothing, and marks the results at or under it. usable and uncollected are "1" when set. What's typed in the
--- search box can also name limits in short (T.Quick).
+-- filters nothing, and marks the results at or under it. maxFormula is a price formula (Formula.lua) in its place:
+-- the term's maxPrice is then what the formula comes to for the named item, each time the term is read. usable and
+-- uncollected are "1" when set. What's typed in the search box can also name limits in short (T.Quick).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local S = ns.SuperAuctionHouse
@@ -13,7 +14,7 @@ S.Terms, S.Search = T, Q
 local AH = C_AuctionHouse
 local N = S.Net
 local FIELDS = { "query", "category", "minItemLevel", "maxItemLevel", "minLevel", "maxLevel", "minCrafted", "maxCrafted",
-    "minGold", "maxGold", "quality", "tier", "expansion", "quantity", "maxPrice", "usable", "uncollected" }
+    "minGold", "maxGold", "quality", "tier", "expansion", "quantity", "maxPrice", "usable", "uncollected", "maxFormula" }
 local NUMERIC = { minItemLevel = true, maxItemLevel = true, minLevel = true, maxLevel = true, minCrafted = true,
     maxCrafted = true, minGold = true, maxGold = true, quality = true, tier = true, expansion = true, quantity = true,
     maxPrice = true }
@@ -83,6 +84,10 @@ function T.Parse(text)
     local query = term.query or ""
     local exact = query:match('^"(.*)"$')
     if exact then term.query, term.exact = exact, true else term.query = query end
+    if term.maxFormula then
+        local key = term.exact and S.Prices.KeyByName(term.query)
+        term.maxPrice = key and S.Formula.Eval(term.maxFormula, key) or nil
+    end
     return term
 end
 
@@ -98,6 +103,8 @@ function T.Compose(term)
         local value = term[name]
         if FLAGS[name] then
             parts[i] = value and "1" or ""
+        elseif name == "maxPrice" and term.maxFormula then
+            parts[i] = ""
         else
             parts[i] = value ~= nil and tostring(value) or ""
         end
@@ -133,7 +140,8 @@ function T.Limits(term)
     add(term.usable and "usable", "usable")
     add(term.uncollected and "not collected", "uncollected")
     add(term.quantity and ("buy " .. term.quantity), "quantity")
-    add(term.maxPrice and ("at most " .. S.Kit.ShortMoney(term.maxPrice)), "maxPrice")
+    add(term.maxPrice and ("at most " .. S.Kit.ShortMoney(term.maxPrice)) or term.maxFormula and ("at most " .. term.maxFormula),
+        "maxPrice", "maxFormula")
     return limits
 end
 
@@ -222,7 +230,7 @@ end
 -- A term as it would be typed in the search box, in the quick syntax. What that can't say (a category, crafted
 -- levels, an expansion, the most you'd pay) comes back as a second value: a table of those fields, with the term's
 -- name in lower case as its query, or nil.
-local UNTYPED = { "category", "minCrafted", "maxCrafted", "tier", "expansion", "maxPrice" }
+local UNTYPED = { "category", "minCrafted", "maxCrafted", "tier", "expansion", "maxPrice", "maxFormula" }
 function T.Typed(text)
     if not text:find(";", 1, true) then return text end
     local term = T.Parse(text)

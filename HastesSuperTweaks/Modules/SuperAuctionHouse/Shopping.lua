@@ -966,13 +966,14 @@ end
 -- against it after every scan (Lists.lua).
 local function AskMost(list, index)
     local term = T.Parse(list.terms[index])
-    K.Dialog({ title = "Most you'd pay for each", text = "Like 80s or 1g 20s. Empty: no limit.", input = true,
-        inputText = term.maxPrice and T.MoneyText(term.maxPrice) or "", confirm = "Save",
+    K.Dialog({ title = "Most you'd pay for each",
+        text = "Like 80s or 1g 20s, or a formula like usual * 80%. Empty: no limit.", input = true,
+        inputText = term.maxFormula or term.maxPrice and T.MoneyText(term.maxPrice) or "", confirm = "Save",
         onConfirm = function(_, typed)
-            typed = strtrim(typed or "")
-            local copper = typed ~= "" and T.Money(typed) or nil
-            if typed ~= "" and not copper then return Status("That isn't an amount of money.") end
-            term.maxPrice = copper and copper > 0 and copper or nil
+            local spec, problem = S.Formula.Read(typed)
+            if problem then return Status(problem) end
+            term.maxPrice = type(spec) == "number" and spec or nil
+            term.maxFormula = type(spec) == "string" and spec or nil
             list.terms[index] = T.Compose(term)
             RefreshSide()
         end })
@@ -1306,7 +1307,7 @@ local function BuildFilters()
     v.quantity:SetPoint("TOPLEFT", FILTER_LEFT, y)
     y = y - 30
     caption("Most you'd pay for each")
-    v.most = K.MoneyInput(card)
+    v.most = K.PriceInput(card)
     v.most:SetPoint("TOPLEFT", FILTER_LEFT, y)
 
     local function compose()
@@ -1324,8 +1325,8 @@ local function BuildFilters()
         if high > 0 then term.maxGold = high / 10000 end
         local quantity = tonumber(v.quantity:GetText())
         if quantity and quantity > 0 then term.quantity = quantity end
-        local most = v.most:GetValue()
-        if most > 0 then term.maxPrice = most end
+        local most = v.most:GetSpec()
+        if type(most) == "number" then term.maxPrice = most else term.maxFormula = most end
         term.tier = draft.tier
         return T.Compose(term)
     end
@@ -1388,7 +1389,7 @@ function Sh.FillFilters(text)
     for key, input in pairs(v.ranges) do input:SetText(term[key] or "") end
     v.minPrice:SetValue(term.minGold and T.Copper(term.minGold) or 0)
     v.maxPrice:SetValue(term.maxGold and T.Copper(term.maxGold) or 0)
-    v.most:SetValue(term.maxPrice or 0)
+    v.most:SetSpec(term.maxFormula or term.maxPrice)
     v.quantity:SetText(term.quantity or "")
     v.category:Refresh()
     v.quality:Refresh()
