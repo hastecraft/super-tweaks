@@ -286,20 +286,33 @@ local function ReadCommodities(request, itemID, fresh)
     return entries
 end
 
-local function ReadItems(itemKey)
-    local entries = {}
-    for i = 1, AH.GetNumItemSearchResults(itemKey) do
-        local r = AH.GetItemSearchResultInfo(itemKey, i)
-        if r then
-            entries[#entries + 1] = {
-                auctionID = r.auctionID, price = r.buyoutAmount, bid = r.bidAmount, minBid = r.minBid, quantity = r.quantity,
-                owners = r.owners, totalOwners = r.totalNumberOfOwners, seconds = r.timeLeftSeconds, band = r.timeLeft,
-                owned = r.containsOwnerItem, account = r.containsAccountItem, bidder = r.bidder, link = r.itemLink,
-                itemKey = r.itemKey, level = r.itemKey and r.itemKey.itemLevel, itemID = r.itemKey and r.itemKey.itemID,
-                socketed = r.containsSocketedItem,
-            }
-        end
+-- The same for an item's auctions: a page adds to the end, so only what's new is read. They're read from the start
+-- when the game says the list changed (fresh), when it's shorter than what was read, or when it's read under another
+-- key than last time (a sell search is read under the fuller of two). One the game can't describe yet ends the
+-- reading there, and the next answer takes it up again.
+local function ReadItems(request, itemKey, fresh)
+    local count = AH.GetNumItemSearchResults(itemKey)
+    local level, suffix = itemKey.itemLevel or 0, itemKey.itemSuffix or 0
+    if fresh or not request.entries or count < request.read or level ~= request.readLevel or suffix ~= request.readSuffix then
+        request.entries, request.read = {}, 0
     end
+    request.readLevel, request.readSuffix = level, suffix
+    local entries = request.entries
+    for i = request.read + 1, count do
+        local r = AH.GetItemSearchResultInfo(itemKey, i)
+        if not r then
+            count = i - 1
+            break
+        end
+        entries[#entries + 1] = {
+            auctionID = r.auctionID, price = r.buyoutAmount, bid = r.bidAmount, minBid = r.minBid, quantity = r.quantity,
+            owners = r.owners, totalOwners = r.totalNumberOfOwners, seconds = r.timeLeftSeconds, band = r.timeLeft,
+            owned = r.containsOwnerItem, account = r.containsAccountItem, bidder = r.bidder, link = r.itemLink,
+            itemKey = r.itemKey, level = r.itemKey and r.itemKey.itemLevel, itemID = r.itemKey and r.itemKey.itemID,
+            socketed = r.containsSocketedItem,
+        }
+    end
+    request.read = count
     return entries
 end
 
@@ -522,7 +535,7 @@ local function ResultsKey(request, eventKey)
     return AH.GetNumItemSearchResults(key) >= AH.GetNumItemSearchResults(eventKey) and key or eventKey
 end
 
-local function ItemResults(_, itemKey)
+local function ItemResults(event, itemKey)
     local request = current
     -- A sell query asks with item level 0 and may hear back with the levels it found, so only the item has to match.
     if not (request and request.sent and not request.commodity and request.itemID == itemKey.itemID
@@ -531,7 +544,7 @@ local function ItemResults(_, itemKey)
     if not request.bySell and (request.key.itemSuffix or 0) ~= (itemKey.itemSuffix or 0) then return end
     local key = ResultsKey(request, itemKey)
     request.moreKey = key
-    Answered(request, ReadItems(key), AH.HasFullItemSearchResults(key), itemKey)
+    Answered(request, ReadItems(request, key, event == "ITEM_SEARCH_RESULTS_UPDATED"), AH.HasFullItemSearchResults(key), itemKey)
 end
 N.On("ITEM_SEARCH_RESULTS_UPDATED", ItemResults)
 N.On("ITEM_SEARCH_RESULTS_ADDED", ItemResults)
@@ -557,7 +570,7 @@ local function AnswerHeld()
     local key = HeldKey(request)
     if not key then return end
     request.moreKey = key
-    Answered(request, ReadItems(key), AH.HasFullItemSearchResults(key), request.own)
+    Answered(request, ReadItems(request, key, true), AH.HasFullItemSearchResults(key), request.own)
 end
 N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED", function()
     local request = current

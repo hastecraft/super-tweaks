@@ -1883,6 +1883,46 @@ if S.Queue then
     end)
 end
 
+-- An item's auctions arrive a page at a time: with 500 read, the page that brings 50 more.
+if S.Net and S.Net.Listings then
+    Section('Super Auction House: auction listings', function()
+        Only({ 'SuperAuctionHouse' })
+        local AH = C_AuctionHouse
+        local key = { itemID = 2589, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }
+        local rows = {}
+        for i = 1, 550 do
+            rows[i] = { auctionID = i, buyoutAmount = 1000 + i, quantity = 1, owners = {}, totalNumberOfOwners = 1,
+                timeLeft = 2, itemKey = key, itemLink = 'link' }
+        end
+        local count = 500
+        local info = { isCommodity = false, isEquipment = false, itemName = 'Linen Cloth', quality = 1 }
+        AH.IsThrottledMessageSystemReady = function() return true end
+        AH.GetItemKeyInfo = function() return info end
+        AH.MakeItemKey = function(itemID) return { itemID = itemID } end
+        AH.SendSearchQuery = function() end
+        AH.SendSellSearchQuery = function() end
+        AH.RequestMoreItemSearchResults = function() return false end
+        AH.GetNumItemSearchResults = function() return count end
+        AH.GetItemSearchResultInfo = function(_, i) return rows[i] end
+        AH.HasFullItemSearchResults = function() return false end
+        S.Net.Start()
+        local request = S.Net.Listings(key, nil, function() end)
+        Dispatch('ITEM_SEARCH_RESULTS_UPDATED', key)
+        count = 550
+        Measure('Auction listing: a page of 50 more auctions, 500 already read', 50, function()
+            -- Back to 500 read, for a page to add to.
+            local entries = request.entries
+            if request.read then
+                request.read = 500
+                for i = #entries, 501, -1 do entries[i] = nil end
+            end
+            Dispatch('ITEM_SEARCH_RESULTS_ADDED', key)
+        end)
+        S.Net.CancelListings(request)
+        S.Net.Stop()
+    end)
+end
+
 -- History reads auction mail as the inbox changes: a mailbox of sale letters over a long history.
 Section('Super Auction House: auction mail', function()
     local letters = {}
