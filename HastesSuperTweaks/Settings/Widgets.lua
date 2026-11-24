@@ -215,10 +215,16 @@ end
 -- What each region was last painted with, when that was a palette color.
 local painted = setmetatable({}, { __mode = "k" })
 
+-- A fading line's two ends, used again for every one painted: the game copies what they hold.
+local fadeFrom, fadeTo
+
 local function Apply(region, color)
     local r, g, b, a = color[1], color[2], color[3], color[4] or 1
     if region.hstFade then
-        region:SetGradient("HORIZONTAL", CreateColor(r, g, b, region.hstFade), CreateColor(r, g, b, 0))
+        if not fadeFrom then fadeFrom, fadeTo = CreateColor(0, 0, 0, 0), CreateColor(0, 0, 0, 0) end
+        fadeFrom.r, fadeFrom.g, fadeFrom.b, fadeFrom.a = r, g, b, region.hstFade
+        fadeTo.r, fadeTo.g, fadeTo.b = r, g, b
+        region:SetGradient("HORIZONTAL", fadeFrom, fadeTo)
     elseif region.SetTextColor then
         region:SetTextColor(r, g, b, a)
     elseif region.hstFlat then
