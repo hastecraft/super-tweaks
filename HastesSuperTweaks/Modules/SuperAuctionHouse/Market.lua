@@ -385,10 +385,18 @@ local function Query(keepScroll)
         local from = latest - RECENT
         -- By name, the saved names give the places in order: every name, or the ones the search finds.
         local named = (view.text ~= "" or sortKey == "name") and S.Prices.FindNames(view.text, huge) or nil
+        -- With no search, the places whose names haven't been learned yet follow the named ones.
+        local namedCount = named and #named or 0
+        local nameless = named and view.text == "" and count or 0
+        local names = S.db.global.names
         heapSize, total = 0, 0
-        view.job = M.Each(named and #named or count, function(i)
-            local pos = i
-            if named then
+        view.job = M.Each(named and namedCount + nameless or count, function(i)
+            local pos, unnamed = i, false
+            if i > namedCount and named then
+                pos = i - namedCount
+                if names[keys[pos]] then return end
+                unnamed = true
+            elseif named then
                 pos = posOf[named[i]]
                 if not pos then return end
             end
@@ -422,7 +430,7 @@ local function Query(keepScroll)
                 value = avail[pos]
             elseif sortKey == "seen" then
                 value = -days[pos]
-            else
+            elseif not unnamed then
                 value = i
             end
             if value == nil then value = huge elseif reverse then value = -value end
