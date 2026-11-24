@@ -1,6 +1,7 @@
 -- Recipes by what they'd earn: what each one's result sells for against what its materials cost, at saved prices. The
 -- game lists a profession's recipes only while its window is open, so they're saved then, a line each, and priced in
--- the Prices tab's Recipes view anywhere.
+-- the Crafting tab's Recipes view anywhere. The tab itself is here too: this view, and the ones other files add with
+-- S.AddView("crafting", ...).
 --   recipes[character][professionID] = { name = "Alchemy", [recipeID] = "13512*1:13463*30,13465*10=Flask of Supreme Power" }
 -- A recipe's line: the item it makes and how many a craft gives, each material and how many, then the recipe's name.
 -- SPDX-License-Identifier: MPL-2.0
@@ -176,7 +177,7 @@ end)
 S.On("TRADE_SKILL_CLOSE", function() Finish(); seenFor = nil end)
 
 ---------------------------------------------------------------------------
--- The Recipes view of the Prices tab: a row per saved recipe.
+-- The Recipes view of the Crafting tab: a row per saved recipe.
 ---------------------------------------------------------------------------
 local ALL = 0
 local P
@@ -251,9 +252,11 @@ end
 local function Fill(keepScroll)
     if not view.table then return end
     local columns = false
-    if stale then
-        stale = false
-        BuildRows()
+    if stale or view.several == nil then
+        if stale then
+            stale = false
+            BuildRows()
+        end
         -- The professions to pick from, and their column, show with more than one.
         local several = #professionOrder > 2
         view.professions:Refresh()
@@ -361,7 +364,6 @@ local function Build(frame)
     view.professions:SetWidth(170)
     view.professions:SetPoint("LEFT", view.filter, "RIGHT", 6, 0)
     view.professions:Hide()
-    view.several = false
     view.profit = K.Toggle(top, "Profit only", function() return profitOnly end, function(on) profitOnly = on; Fill() end)
     view.profit:SetPoint("LEFT", view.filter, "RIGHT", 6, 0)
     view.table = K.Table(frame, {
@@ -392,11 +394,45 @@ local function Build(frame)
     S.Prices.Listen("recipes", function() if frame:IsVisible() then Fill(true) end end)
 end
 
-S.AddView("prices", {
-    key = "recipes", name = "Recipes", order = 4, build = Build,
-    show = function() Fill() end,
-    hide = function() K.HideItemTip() end,
-})
+-- The saved recipes as rows (recipeID, itemID, quantity, name, reagents as id, count pairs, profession), for the
+-- crafting queue. M.Price(row) fills a row's cost, sale and profit at the prices of the moment.
+function M.Rows()
+    if stale then
+        stale = false
+        BuildRows()
+        if view.professions then view.professions:Refresh() end
+    end
+    return rows
+end
+M.Price = Price
+
+---------------------------------------------------------------------------
+-- The Crafting tab
+---------------------------------------------------------------------------
+local Tab = {}
+S.CraftTab = Tab
+
+function Tab.Build(frame)
+    Tab.views = K.Views(frame, "crafting", { key = "recipes", name = "Recipes", build = Build,
+        show = function() Fill() end, hide = function() K.HideItemTip() end })
+end
+
+function Tab.OnShow()
+    local views = Tab.views
+    if views then views:Show(views.current or "recipes") end
+end
+
+function Tab.OnHide()
+    local views = Tab.views
+    local shown = views and views.current and views.byKey[views.current]
+    if shown and shown.hide then shown.hide() end
+end
+
+-- Shows one of the tab's views, from anywhere.
+function Tab.Show(key)
+    S.Window.Select("crafting")
+    if Tab.views then Tab.views:Show(key) end
+end
 
 -- The game's own word that a profession was unlearned: its recipes go.
 local hooked = false

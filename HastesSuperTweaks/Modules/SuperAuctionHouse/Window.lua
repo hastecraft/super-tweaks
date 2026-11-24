@@ -21,8 +21,9 @@ local N = S.Net
 local K = S.Kit
 local P
 
-local TAB_ORDER = { "shopping", "selling", "auctions", "history", "prices" }
-local TAB_NAMES = { shopping = "Shopping", selling = "Selling", auctions = "Auctions", history = "History", prices = "Prices" }
+local TAB_ORDER = { "shopping", "selling", "auctions", "crafting", "history", "prices" }
+local TAB_NAMES = { shopping = "Shopping", selling = "Selling", auctions = "Auctions", crafting = "Crafting",
+    history = "History", prices = "Prices" }
 local HEAD = 42
 local FOOT = 36
 local BAR_SPEED = 5
@@ -32,7 +33,8 @@ local LIVE_ONLY = { selling = true }
 local SAVED_STATUS = "Saved prices from your last scan."
 
 local function Modules()
-    return { shopping = S.Shopping, selling = S.Selling, auctions = S.Auctions, history = S.History, prices = S.Scan }
+    return { shopping = S.Shopping, selling = S.Selling, auctions = S.Auctions, crafting = S.CraftTab, history = S.History,
+        prices = S.Scan }
 end
 
 -- A tab's module, by the tab's key.

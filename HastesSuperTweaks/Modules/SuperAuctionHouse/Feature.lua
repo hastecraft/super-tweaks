@@ -3,7 +3,7 @@
 -- Nothing is built until the auction house first opens. While it's closed this tweak costs five events and one tooltip
 -- hook that stops at its first line once the tweak is off. Other files in this folder hang their parts off this module:
 -- S.Prices, S.Tooltip, S.Net, S.Kit, S.Terms, S.Search, S.Window, S.Shopping, S.Buy, S.Selling, S.Auctions, S.History,
--- S.Scan, S.Crafting and S.Compat.
+-- S.Scan, S.Crafting, S.CraftTab and S.Compat.
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -259,9 +259,9 @@ end
 ---------------------------------------------------------------------------
 -- Settings
 ---------------------------------------------------------------------------
-local OPEN_ON = { shopping = "Shopping", selling = "Selling", auctions = "Auctions", prices = "Prices",
+local OPEN_ON = { shopping = "Shopping", selling = "Selling", auctions = "Auctions", crafting = "Crafting", prices = "Prices",
     last = "The last tab you used", game = "The game's window" }
-local OPEN_ON_ORDER = { "shopping", "selling", "auctions", "prices", "last", "game" }
+local OPEN_ON_ORDER = { "shopping", "selling", "auctions", "crafting", "prices", "last", "game" }
 local STACK = { always = "Always", shift = "While holding Shift", invert = "Unless holding Shift", off = "Never" }
 local STACK_ORDER = { "always", "shift", "invert", "off" }
 local UNDERCUT = { percent = "A percentage", static = "A set amount" }
