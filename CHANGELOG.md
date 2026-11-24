@@ -2,6 +2,18 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.15.0 (2026-11-24)
+
+### Changes
+
+- Dungeon Timer: killed bosses are greyed out.
+
+### Bug Fixes
+
+- Instance Tracker: coming back into an instance alive continues the run on WoW Forever, unless it was reset.
+- Dungeon Timer: coming back into an instance continues the run, unless it was reset.
+- Dungeon Timer: "Align the name and clock" now moves the instance name too.
+
 ## 4.14.0 (2026-11-24)
 
 ### Changes
