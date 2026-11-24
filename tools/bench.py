@@ -641,8 +641,9 @@ Section('Mail Expiry & Alt List', function()
     end)
     Send('MailHelper', 'MAIL_SHOW')
     Measure('Mailbox open: inbox update (50 mails)', 300, function() Send('MailHelper', 'MAIL_INBOX_UPDATE') end)
-    Measure('Mailbox open: 5 inbox updates in a row, and the moment after (50 mails)', 100, function()
-        for _ = 1, 5 do Send('MailHelper', 'MAIL_INBOX_UPDATE') end
+    -- Open All: an update for each letter taken, then the one read that follows them.
+    Measure('Mailbox open: 20 inbox updates in a row, and the moment after (50 mails)', 100, function()
+        for _ = 1, 20 do Send('MailHelper', 'MAIL_INBOX_UPDATE') end
         AdvanceTime(0.4)
     end)
     local n = 0
