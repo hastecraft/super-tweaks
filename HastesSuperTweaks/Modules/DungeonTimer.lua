@@ -82,8 +82,7 @@ local TRACKED = { party = "dungeons", raid = "raids" } -- instance type -> the s
 -- Blackrock Spire, Stratholme, Dire Maul. Their runs list the bosses killed and never count as done.
 local WINGS = { [189] = true, [229] = true, [329] = true, [429] = true }
 local RESUME = 30 -- minutes a corpse run may take, when Instance Tracker's setting can't be read
-local RETRIES = 5 -- looks, a second apart, for the price of an item the game hasn't loaded yet
-local pending = {} -- [itemID] = count looted, waiting for that price
+local pending = {} -- [itemID] = count looted of an item the game hasn't loaded yet, waiting for its price
 
 local function Number(value)
     if IsSecret(value) or type(value) ~= "number" then return nil end
@@ -416,14 +415,23 @@ end
 -- The run
 ---------------------------------------------------------------------------
 local RUN_EVENTS = { "BOSS_KILL", "ENCOUNTER_END", "PLAYER_DEAD", "PLAYER_MONEY", "CHAT_MSG_LOOT" }
+local ITEM_LOADED = "GET_ITEM_INFO_RECEIVED" -- heard only while a looted item's price is waited for
 
 -- What the game's messages for your own loot start with, and how many of its item a message names: Instance Tracker's.
 local LOOT_PREFIXES, LootCount = ns.InstanceTracker.LOOT_PREFIXES, ns.InstanceTracker.LootCount
+
+-- Forgets the looted items whose price was waited for.
+function D:DropPending()
+    if not next(pending) then return end
+    wipe(pending)
+    self.events:UnregisterEvent(ITEM_LOADED)
+end
 
 -- The run's events, each only while its number is shown.
 function D:RegisterRun()
     local events, p = self.events, self.db.profile
     for _, event in ipairs(RUN_EVENTS) do events:UnregisterEvent(event) end
+    if not (self.live and p.showVendor) then self:DropPending() end
     if not self.live then return end
     pcall(events.RegisterEvent, events, "BOSS_KILL")
     pcall(events.RegisterEvent, events, "ENCOUNTER_END")
@@ -484,7 +492,7 @@ function D:NewRun(name, map, t)
     self.db.char.run = run
     self.run = run
     self:SetStart(t)
-    wipe(pending)
+    self:DropPending()
     if self.live then
         self:BuildList()
         self.dirty = true
@@ -627,23 +635,16 @@ local function VendorPrice(id)
     return Number(price) or 0
 end
 
--- Items whose price wasn't known when they were looted are asked about again, a few times.
-function D:RetryPrices()
-    local run = self.run
-    self.retries = self.retries - 1
-    for id, count in pairs(pending) do
-        local price = VendorPrice(id)
-        if price then
-            pending[id] = nil
-            if run then run.vendor = run.vendor + price * count end
-            self.dirty = true
-        end
-    end
-    if next(pending) and self.retries > 0 and self.live then
-        C_Timer.After(1, self.onRetry)
-    else
-        wipe(pending)
-        self.retries = nil
+-- The game loaded an item (or couldn't): one whose price was waited for is counted now.
+function D:ItemLoaded(id)
+    local count = pending[id]
+    if not count then return end
+    pending[id] = nil
+    if not next(pending) then self.events:UnregisterEvent(ITEM_LOADED) end
+    local price = VendorPrice(id)
+    if price and price > 0 then
+        self.run.vendor = self.run.vendor + price * count
+        self.dirty = true
     end
 end
 
@@ -659,11 +660,9 @@ function D:Loot(message)
         if price then
             run.vendor = run.vendor + price * count
         else
+            -- Asking made the game load it, and it says when it has.
+            if not next(pending) then self.events:RegisterEvent(ITEM_LOADED) end
             pending[id] = (pending[id] or 0) + count
-            if not self.retries then
-                self.retries = RETRIES
-                C_Timer.After(1, self.onRetry)
-            end
         end
     end
     if p.showAuction then
@@ -697,6 +696,8 @@ ns.Listen(D, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self
             run.gold = run.gold + (money - before)
             self.dirty = true
         end
+    elseif event == ITEM_LOADED then
+        if not IsSecret(a) then self:ItemLoaded(a) end
     elseif event == "CHAT_MSG_LOOT" then
         if IsSecret(a) or type(a) ~= "string" then return end
         for i = 1, #LOOT_PREFIXES do
@@ -715,7 +716,6 @@ function D:OnListen()
             self.timer = C_Timer.NewTicker(1, self.onTick)
             self:Tick()
         end
-        self.onRetry = function() self:RetryPrices() end
     end
     -- Joined the first time this is turned on: off, it doesn't follow Edit Mode.
     if not self.UpdateEditMode then ns.EditMode.Add(self) end
