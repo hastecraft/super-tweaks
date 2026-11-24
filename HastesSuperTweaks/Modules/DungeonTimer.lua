@@ -213,15 +213,16 @@ local function Row(v, index, y, left, right)
     local row = v.rows[index]
     if not row then
         row = { left = NewText(v, v.font, 12, "LEFT"), right = NewText(v, v.font, 12, "RIGHT") }
-        row.left:SetWidth(WIDTH - PAD * 2 - 60)
         v.rows[index] = row
     end
     if row.y ~= y then
         row.y = y
-        row.left:ClearAllPoints()
-        row.left:SetPoint("TOPLEFT", PAD, y)
         row.right:ClearAllPoints()
         row.right:SetPoint("TOPRIGHT", -PAD, y)
+        -- The name ends where its value begins, however long either is.
+        row.left:ClearAllPoints()
+        row.left:SetPoint("TOPLEFT", PAD, y)
+        row.left:SetPoint("RIGHT", row.right, "LEFT", -6, 0)
     end
     if not row.shown then
         row.shown = true
