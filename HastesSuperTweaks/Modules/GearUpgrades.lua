@@ -636,6 +636,7 @@ end
 function U:Changed()
     wipe(results)
     wipe(guidLinks)
+    self.scaleList = nil
     self.generation = self.generation + 1
     ReadLive()
     self.talentScale = self:TalentScale()
@@ -694,7 +695,14 @@ local function OnTooltip(tip, data)
     local link = TooltipLink(data)
     if not link then return end
     if p.allScales then
-        for _, scale in ipairs(U:Scales()) do AddLine(tip, scale, link) end
+        -- The list is kept until a scale is added or deleted, or what items are worth changes (see U:Changed): a
+        -- tooltip is redrawn five times a second.
+        local scales = U.scaleList
+        if not scales then
+            scales = U:Scales()
+            U.scaleList = scales
+        end
+        for i = 1, #scales do AddLine(tip, scales[i], link) end
     else
         AddLine(tip, U:Active(), link)
     end
@@ -956,6 +964,7 @@ function U:AddScale(name, weights, class)
     local scales, key, n = self.db.global.scales, name, 1
     while scales[key] or self:ScaleByKey(key) do n = n + 1; key = name .. " " .. n end
     scales[key] = { key = key, name = key, class = class or Class(), weights = weights, custom = true }
+    self.scaleList = nil
     return key
 end
 
@@ -1189,6 +1198,7 @@ function U:BuildOptions()
         func = function()
             local scale = picked()
             self.db.global.scales[scale.key] = nil
+            self.scaleList = nil
             compiled[scale] = nil
             char().scale = "AUTO"
             remark()
