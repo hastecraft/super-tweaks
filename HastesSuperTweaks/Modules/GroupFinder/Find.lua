@@ -131,8 +131,9 @@ local function ReadResult(id, entry)
     entry.class = leaderClass
     entry.low, entry.high = low, high
     entry.avg = count > 0 and levels / count or 0
-    -- What the group still needs.
+    -- What the group still needs. The game's documentation doesn't list this function; its own group window calls it.
     local counts = C_LFGList.GetSearchResultMemberCounts and C_LFGList.GetSearchResultMemberCounts(id)
+    if IsSecret(counts) then counts = nil end
     entry.needTank = counts and (Read(counts.TANK_REMAINING) or 0) > 0 or false
     entry.needHealer = counts and (Read(counts.HEALER_REMAINING) or 0) > 0 or false
     entry.needDps = counts and (Read(counts.DAMAGER_REMAINING) or 0) > 0 or false
