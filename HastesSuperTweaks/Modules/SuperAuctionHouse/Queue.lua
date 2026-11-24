@@ -498,6 +498,8 @@ end
 function Qu.RecipesChanged()
     byRecipe, stale = nil, true
     Refresh()
+    -- A recipe learned or first read with the professions window open can be the next to craft.
+    if open then RefreshCraft() end
 end
 
 local function Watch(on)
