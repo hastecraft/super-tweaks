@@ -280,7 +280,7 @@ function T:Newest()
         local info = infos[i]
         if not IsSecret(info.startTime) and (not newest or info.startTime > newest.startTime) then newest = info end
     end
-    if newest then self:UpdateEncounter(newest.encounterID) end
+    if newest and not IsSecret(newest.encounterID) then self:UpdateEncounter(newest.encounterID) end
 end
 
 ns.Listen(T, { "LOOT_HISTORY_UPDATE_DROP", "LOOT_HISTORY_UPDATE_ENCOUNTER", "LOOT_HISTORY_CLEAR_HISTORY",
