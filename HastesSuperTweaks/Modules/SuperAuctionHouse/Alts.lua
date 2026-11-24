@@ -4,6 +4,8 @@
 -- Nothing here hears a bag event. Bags are counted as you log out and as a bank, a mailbox or the auction house
 -- closes; the bank while it's open; the mailbox while it's open. A character's own numbers are only ever read by the
 -- others, so they needn't be current until it's left.
+-- The settings library clears empty tables out of the saved data as you log out, and may do so before the bags are
+-- counted: this character's record is made as the tweak turns on, so there's always something for it to keep.
 -- What the others have is added up once a session, the first time something asks (their numbers can't change while
 -- you're on this character), and each ask after that is one read of a table.
 -- SPDX-License-Identifier: MPL-2.0
@@ -27,6 +29,11 @@ local function Realm(make)
     local name = S.Prices.RealmName()
     if not name then return nil end
     local all = S.db.global.alts
+    if not all then
+        if not make then return nil end
+        all = {}
+        S.db.global.alts = all
+    end
     local realm = all[name]
     if not realm and make then
         realm = {}
@@ -68,13 +75,21 @@ local function CountBags()
     record.bags = bags
 end
 
--- The bank's own slots and its bags, as Bank Helper reads them. Only while you're at the bank.
+-- The bank, as Bank Helper reads it: WoW Forever's character tabs, or Classic Era's bank and its bag slots. The
+-- account's bank is every character's, and the game's own count of an item already has it. Only while you're at the
+-- bank.
 local function CountBank()
     local record = Mine()
     if not record then return end
     local bank = {}
-    CountBag(bank, BANK_CONTAINER or -1)
-    for i = 1, NUM_BANKBAGSLOTS or 6 do CountBag(bank, BAG_LAST + i) end
+    local kind = Enum.BankType and Enum.BankType.Character
+    local tabs = kind and C_Bank and C_Bank.FetchPurchasedBankTabIDs and C_Bank.FetchPurchasedBankTabIDs(kind)
+    if tabs then
+        for i = 1, #tabs do CountBag(bank, tabs[i]) end
+    else
+        CountBag(bank, BANK_CONTAINER or -1)
+        for i = 1, NUM_BANKBAGSLOTS or 6 do CountBag(bank, BAG_LAST + i) end
+    end
     record.bank = bank
 end
 
@@ -147,6 +162,7 @@ end)
 S.On("AUCTION_HOUSE_CLOSED", CountBags)
 S.On("PLAYER_LOGOUT", CountBags)
 
+S.WhenOn(Mine)
 S.WhenOff(function()
     bankOpen, mailOpen = false, false
     if watcher then watcher:UnregisterAllEvents() end
