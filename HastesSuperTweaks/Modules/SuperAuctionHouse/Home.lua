@@ -178,7 +178,7 @@ local function Build(parent)
     frame = CreateFrame("Frame", nil, parent)
     frame:SetAllPoints()
     NewCard(frame, "Recent searches", "None yet.", function(text) S.Shopping.RunTerm(text) end)
-    NewCard(frame, "Your lists", "Make one with New, on the left.", function(list) S.Shopping.SearchList(list) end)
+    NewCard(frame, "Your lists", "Make one with New list, under Lists on the left.", function(list) S.Shopping.SearchList(list) end)
     -- At an auction house a watched item's auctions are a search away; anywhere else its price history is.
     NewCard(frame, "Watching", "Right-click an item and pick Watch.", function(item)
         if S.Window.IsLive() then return S.Shopping.SearchExact(item.name) end
