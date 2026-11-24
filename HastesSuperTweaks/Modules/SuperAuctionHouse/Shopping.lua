@@ -443,7 +443,8 @@ local function WalkStep()
             if entry and SavedMatches(term, entry) then
                 found = found + 1
                 if not known then
-                    entry.at, entry.purchase, entry.most = at, term.quantity, term.maxPrice
+                    entry.at, entry.purchase = at, term.quantity
+                    entry.most = term.maxFormula and S.Formula.Eval(term.maxFormula, key) or term.maxPrice
                     byKey[key] = entry
                     results[#results + 1] = entry
                 end
@@ -1311,7 +1312,7 @@ local function BuildFilters()
     v.quantity:SetPoint("TOPLEFT", FILTER_LEFT, y)
     y = y - 30
     caption("Most you'd pay for each")
-    v.most = K.PriceInput(card)
+    v.most = K.PriceInput(card, nil, 178 + 26 + 178 - 260)
     v.most:SetPoint("TOPLEFT", FILTER_LEFT, y)
 
     local function compose()
@@ -1342,6 +1343,7 @@ local function BuildFilters()
     go:SetWidth(90)
     go:SetPoint("BOTTOMRIGHT", -16, 14)
     go:SetScript("OnClick", function()
+        if v.most:HasProblem() then return Status("The formula can't be read.") end
         local text = compose()
         if v.editList then
             v.editList.terms[v.editIndex] = text
@@ -1355,6 +1357,7 @@ local function BuildFilters()
     add:Fit(90)
     add:SetPoint("RIGHT", go, "LEFT", -6, 0)
     add:SetScript("OnClick", function(self)
+        if v.most:HasProblem() then return Status("The formula can't be read.") end
         local text = compose()
         if v.editList then
             v.editList.terms[v.editIndex] = text

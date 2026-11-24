@@ -301,11 +301,12 @@ end
 -- The price box: gold, silver and copper, or a formula once "Formula" is pressed.
 -- box:SetSpec(spec) shows a saved price, box:GetSpec() reads it back (nil for none, and for a formula that can't be
 -- read), box:SetKey(key) names the item the formula's result is shown for. onChange(spec) runs on edits by the player.
+-- What a formula comes to, or what's wrong with it, shows to the box's right: noteWidth is the room it has there.
 ---------------------------------------------------------------------------
 local K = S.Kit
 local MONEY_W, MODE_W = 178, 70
 
-function K.PriceInput(parent, onChange)
+function K.PriceInput(parent, onChange, noteWidth)
     local P = K.Palette()
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(MONEY_W + 4 + MODE_W, 24)
@@ -315,6 +316,7 @@ function K.PriceInput(parent, onChange)
     f.note = K.Text(f, "GameFontHighlightSmall", P.muted)
     f.note:SetPoint("LEFT", f, "RIGHT", 8, 0)
     f.note:SetWordWrap(false)
+    if noteWidth then f.note:SetWidth(noteWidth) end
     local function note()
         if not f.formulaMode then return f.note:SetText("") end
         local typed = strtrim(f.formula:GetText())

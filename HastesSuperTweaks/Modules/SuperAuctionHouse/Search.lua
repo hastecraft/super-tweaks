@@ -3,7 +3,8 @@
 -- A query in double quotes matches the whole name. Plain text with no semicolons is a plain search. minGold and maxGold
 -- are in gold and can have a fraction (0.5 is 50 silver). maxPrice, in copper, is the most you'd pay for each: it
 -- filters nothing, and marks the results at or under it. maxFormula is a price formula (Formula.lua) in its place:
--- the term's maxPrice is then what the formula comes to for the named item, each time the term is read. usable and
+-- a whole-name term's maxPrice is then what the formula comes to for the named item, each time the term is read,
+-- and a search works it out for each item it finds. usable and
 -- uncollected are "1" when set. What's typed in the search box can also name limits in short (T.Quick).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -414,6 +415,8 @@ local function AddResult(r, term, result)
                     icon = info.iconFileID, level = result.itemKey.itemLevel, price = result.minPrice,
                     available = result.totalQuantity, owned = result.containsOwnerItem, isCommodity = info.isCommodity,
                     isPet = info.isPet, link = info.battlePetLink, purchase = term.quantity, at = at, most = term.maxPrice }
+                -- A formula comes to a price of its own for each item found.
+                if term.maxFormula then entry.most = S.Formula.Eval(term.maxFormula, S.ItemPage.KeyOf(entry)) end
                 r.byKey[keyString] = entry
                 r.results[#r.results + 1] = entry
                 if r.onResults then r.onResults(r) end

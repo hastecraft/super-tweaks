@@ -337,7 +337,7 @@ local function Build()
     v.prices = {}
     local function price(key, text)
         add.caption(text)
-        local box = K.PriceInput(card)
+        local box = K.PriceInput(card, nil, WIDTH - LEFT - 252 - 8 - 16)
         box:SetPoint("TOPLEFT", LEFT, add.y)
         v.prices[#v.prices + 1] = box
         add.field(function(rule) box:SetSpec(rule[key]) end, function(rule) rule[key] = box:GetSpec() end)
