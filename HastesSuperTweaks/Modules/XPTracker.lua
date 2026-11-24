@@ -146,6 +146,17 @@ local function SetToken(token, text)
     tokens[token] = text
     return true
 end
+-- What each time readout was last written from: the whole second under an hour, the whole minute from an hour up, the
+-- whole XP an hour. One is written again only when that changed. Apply clears it ("Short numbers").
+local timeShown = {}
+-- The seconds a time readout shows, when it wasn't last written from them; nil when it was.
+local function TimeChanged(token, seconds)
+    local shown = max(0, floor(seconds or 0))
+    if shown >= 3600 then shown = shown - shown % 60 end
+    if timeShown[token] == shown then return nil end
+    timeShown[token] = shown
+    return shown
+end
 
 -- gaining: HiddenReason has just found you can gain XP, so neither is asked again.
 function X:GetState(gaining)
@@ -188,13 +199,31 @@ function X:TimeTokens(used)
     if not used or used.rate or used.ttl then
         local measured = seconds >= self.RATE_AFTER
         local rate = measured and gained / seconds * 3600 or 0
-        changed = SetToken("rate", measured and self:FormatNumber(rate) or "--")
-        changed = SetToken("ttl", state.atMax and "MAX"
-            or not state.xpOff and rate > 0 and self:FormatTime(state.remaining / rate * 3600) or "--") or changed
+        local whole = measured and floor(rate + 0.5) or -1
+        if timeShown.rate ~= whole then
+            timeShown.rate = whole
+            changed = SetToken("rate", measured and self:FormatNumber(whole) or "--")
+        end
+        if state.atMax or state.xpOff or rate <= 0 then
+            timeShown.ttl = nil
+            changed = SetToken("ttl", state.atMax and "MAX" or "--") or changed
+        else
+            local shown = TimeChanged("ttl", state.remaining / rate * 3600)
+            if shown then changed = SetToken("ttl", self:FormatTime(shown)) or changed end
+        end
     end
-    if not used or used.session then changed = SetToken("session", self:FormatTime(seconds)) or changed end
-    if not used or used.leveltime then changed = SetToken("leveltime", self:FormatTime(char.levelTime)) or changed end
-    if not used or used.played then changed = SetToken("played", self:FormatTime(char.played)) or changed end
+    if not used or used.session then
+        local shown = TimeChanged("session", seconds)
+        if shown then changed = SetToken("session", self:FormatTime(shown)) or changed end
+    end
+    if not used or used.leveltime then
+        local shown = TimeChanged("leveltime", char.levelTime)
+        if shown then changed = SetToken("leveltime", self:FormatTime(shown)) or changed end
+    end
+    if not used or used.played then
+        local shown = TimeChanged("played", char.played)
+        if shown then changed = SetToken("played", self:FormatTime(shown)) or changed end
+    end
     return changed
 end
 
@@ -361,6 +390,7 @@ function X:Apply()
     if not self.frame or not self:IsEnabled() then return end
     hexes = nil
     wipe(paintedFrom)
+    wipe(timeShown)
     if self.ticker and self.tickerInterval ~= self.db.profile.updateInterval then self:StartTicker() end
     local p, f = self.db.profile, self.frame
     f:SetSize(p.width, p.height)
