@@ -148,6 +148,15 @@ Section('XP Tracker', function()
     Measure('XP bar: quest log update, then a tick (20 quests)', 100, function()
         Send('XPTracker', 'QUEST_LOG_UPDATE'); AdvanceTime(1)
     end)
+    -- Nothing on the bar shows completed quests' XP: no shading, no label with it.
+    local bonus = X.db.profile.texts.bonus.template
+    X.db.profile.showQuests, X.db.profile.texts.bonus.template = false, 'Rested {rested}'
+    X:Apply()
+    Measure('XP bar: quest log update, then a tick, quest XP not shown', 100, function()
+        Send('XPTracker', 'QUEST_LOG_UPDATE'); AdvanceTime(1)
+    end)
+    X.db.profile.showQuests, X.db.profile.texts.bonus.template = true, bonus
+    X:Apply()
     Script(X.frame, 'OnEnter')
     Measure('XP bar: one-second tick while hovered', 100, function() AdvanceTime(1) end)
     Script(X.frame, 'OnLeave')
