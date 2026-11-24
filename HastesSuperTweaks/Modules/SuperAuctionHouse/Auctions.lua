@@ -28,6 +28,7 @@ local EXPIRING = 2 * 3600 -- seconds left under which an auction counts as expir
 local LONGEST = 48 * 3600 -- the longest an auction lasts: a full time bar
 local RECHECK = 300 -- seconds a check's answer for an item stands, before the tab asks again as it opens
 local TICK = 60 -- seconds between redraws of the time left, while the list shows
+local NARROW = 990 -- a list narrower than this drops the Total column while "Could post at" shows
 local PILLS = { { "all", "All" }, { "undercut", "Undercut" }, { "low", "Priced low" }, { "expiring", "Expiring" },
     { "sold", "Sold" }, { "bids", "With bids" } }
 local PILL_NAMES = {}
@@ -792,7 +793,9 @@ local function BuildList(frame)
               text = function(e) return e.label end },
             { key = "quantity", title = "Quantity", width = 62, justify = "RIGHT" },
             { key = "buyout", title = "Price each", width = 104, justify = "RIGHT", money = function(e) return e.buyout end },
-            { key = "total", title = "Total", width = 104, justify = "RIGHT", money = function(e) return e.total end },
+            -- A narrow window hasn't room for it beside what a low-priced auction could go up for.
+            { key = "total", title = "Total", width = 104, justify = "RIGHT", money = function(e) return e.total end,
+              hide = function() return A.anyLow and A.table ~= nil and A.table:GetWidth() < NARROW end },
             -- Before anyone bids it's what the bidding starts at, shown faint as the game shows it.
             { key = "bid", title = "Bid", width = 92, justify = "RIGHT", money = function(e) return e.bid end,
               color = function(e) return e.hasBid and K.GAIN or P.muted end },
