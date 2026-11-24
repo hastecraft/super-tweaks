@@ -26,15 +26,24 @@ local function CanEdit()
     return not IsInGroup(LE_PARTY_CATEGORY_HOME) or UnitIsGroupLeader("player", LE_PARTY_CATEGORY_HOME)
 end
 
+-- Your listing, or nil when there's none or the game hides it (its activities are read without further checks).
 local function Active()
-    if not C_LFGList.HasActiveEntryInfo() then return nil end
-    return C_LFGList.GetActiveEntryInfo()
+    local has = C_LFGList.HasActiveEntryInfo()
+    if ns.IsSecret(has) or not has then return nil end
+    local active = C_LFGList.GetActiveEntryInfo()
+    if ns.IsSecret(active) or not active then return nil end
+    local ids = active.activityIDs
+    if ns.IsSecret(ids) then return nil end
+    if ids then
+        for i = 1, #ids do if ns.IsSecret(ids[i]) then return nil end end
+    end
+    return active
 end
 
 -- The category of your listing's first activity.
 local function ActiveCategory(active)
     local id = active.activityIDs and active.activityIDs[1]
-    if id == nil or ns.IsSecret(id) then return nil end
+    if id == nil then return nil end
     local info = C_LFGList.GetActivityInfoTable(id)
     return info and info.categoryID
 end
