@@ -24,7 +24,7 @@ ns.Configure(T, { instances = true, pvp = false, combat = false, always = false 
     local function option(key, name, order, desc)
         return ns.Option(profile, "toggle", key, name, order, { desc = desc }, function() m:Update() end)
     end
-    return ns.OnePage(m.info.name, "hide", "Hide the quest tracker", {
+    return ns.OnePage(m.info.name, "hide", "Settings", {
         instances = option("instances", "In dungeons and raids", 1),
         pvp = option("pvp", "In battlegrounds and arenas", 2),
         combat = option("combat", "In combat", 3),
