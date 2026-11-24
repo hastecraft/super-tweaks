@@ -279,7 +279,7 @@ function X:CreateBar()
         HST:RefreshSettings()
     end)
     f:SetScript("OnMouseUp", function(_, button) if button == "RightButton" then HST:OpenSettings("XPTracker") end end)
-    f:SetScript("OnEnter", function() self.hovered = true; self:Render(); self:ShowTooltip() end)
+    f:SetScript("OnEnter", function() self.hovered = true; self:ShowTooltip(self:Render()) end)
     f:SetScript("OnLeave", function()
         self.hovered = false
         ns.Widgets.HideTooltip(f)
@@ -475,6 +475,7 @@ end
 
 -- Shows or hides the bar, and redraws what it shows. With sameContent (combat starting or ending, a new zone: they
 -- change whether and how faintly the bar shows, not what's on it) a bar that was already in view is left as drawn.
+-- Returns true when it read the readouts, so a tooltip shown next needn't read them again.
 function X:Render(sameContent)
     if not self.frame or not self:IsEnabled() then return end
     if self:HiddenReason() then
@@ -504,6 +505,7 @@ function X:Render(sameContent)
     self:DrawBars()
     -- The tooltip follows the readouts while you point at the bar.
     if self.hovered and GameTooltip:IsOwned(self.frame) then self:ShowTooltip(true) end
+    return true
 end
 
 -- Numbers in a label with colorNumbers: rested and quest readouts in their own colors, the rest in your class color or
