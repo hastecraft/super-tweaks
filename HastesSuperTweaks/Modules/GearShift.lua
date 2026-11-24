@@ -229,6 +229,8 @@ end
 
 G.flushSoon = function()
     G.flushing = nil
+    -- A fight or a death since: what waits goes on waiting for its end.
+    if Busy() then return G:Wait() end
     G:Flush()
 end
 
