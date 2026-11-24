@@ -338,7 +338,7 @@ end
 -- side by side a pixel apart (tools/make_art.py draws them); Fit shows the one that maps texel for texel onto the
 -- screen at the texture's current scale, snapped to the pixel grid, so it stays sharp at any UI scale. Past 32 pixels
 -- it scales down the 64-pixel Art/<name>, or with none, shows the 32. Fit runs again when the parent shows and when
--- the UI scale or the resolution changes; call W.FitIcons after changing a frame's scale.
+-- the UI scale or the resolution changes; call W.FitIcons(frame) after changing a frame's scale.
 local SIZES_MIN, SIZES_MAX, SIZES_WIDTH, SIZES_HEIGHT = 2, 32, 1024, 32
 -- The art points right; the other ways swap its corners' texture coordinates (UL, LL, UR, LR), so they stay exact.
 local TURNS = {
@@ -389,9 +389,16 @@ local function FitIcon(t, screen)
     t:SetTexCoord(TURNS[t.direction or "RIGHT"](l, r, top, bottom))
 end
 
+-- Fits every pixel-exact region again. frame: the frame whose scale the caller may have changed; while that frame's
+-- scale and the screen are what they were at its last call, nothing has moved and nothing is looked at.
 local icons = setmetatable({}, { __mode = "k" })
-function W.FitIcons()
+function W.FitIcons(frame)
     local screen = ScreenHeight()
+    if frame then
+        local scale = frame:GetEffectiveScale()
+        if scale == frame.hstFitScale and screen == frame.hstFitScreen then return end
+        frame.hstFitScale, frame.hstFitScreen = scale, screen
+    end
     for t in pairs(icons) do t:Fit(screen) end
 end
 -- A pixel-exact texture, fitted again when its parent shows (one OnShow hook per parent) and, with `sized`, when its
@@ -1440,6 +1447,7 @@ local function OpenMenu(s)
     -- As big as the select, wherever the window is scaled; under it, or over it when there's no room below.
     local scale = s:GetEffectiveScale() / UIParent:GetEffectiveScale()
     menu:SetScale(scale)
+    W.FitIcons(menu)
     local height = math.max(1, menu.shown) * MENU_ROW + MENU_PAD * 2
     menu:SetSize(s:GetWidth(), height)
     menu:ClearAllPoints()

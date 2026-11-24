@@ -583,7 +583,7 @@ local function Build()
     BuildKeys(f)
 
     FitToScreen()
-    W.FitIcons() -- the rules were drawn before the window took its scale
+    W.FitIcons(f) -- the rules were drawn before the window took its scale
     N.On("PLAYER_MONEY", UpdateMoney)
     -- Shift-clicking an item with no chat line open searches for it.
     local function linked(text)
@@ -761,7 +761,7 @@ end
 -- Settings changed while the window exists.
 function Win.Apply()
     FitToScreen()
-    W.FitIcons()
+    W.FitIcons(Win.frame)
     PaintLock()
     PaintAutoScan()
     K.ApplyDensity()

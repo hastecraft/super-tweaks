@@ -481,6 +481,7 @@ local function Open(title, from, rule, priceKey, clearText, save, forGroup)
     -- A window too short for the card shows it smaller.
     local room = S.Window.frame:GetHeight() - 16
     v.card:SetScale(math.min(1, room / v.card:GetHeight()))
+    W.FitIcons(v.card)
     v.clear:SetShown(clearText ~= nil)
     if clearText then
         v.clear:SetText(clearText)
