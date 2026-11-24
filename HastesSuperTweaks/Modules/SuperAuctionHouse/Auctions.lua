@@ -391,7 +391,8 @@ local function Judge(list, results)
             -- Yours is the cheapest, by a long way: cancelled and posted again it would go for more.
             row.low = nil
             if repost > 0 and not row.undercut and Checkable(e) and (not lowest or lowest > mine) then
-                ruleItem.priceKey, ruleItem.key = row.key, e.itemKey and N.KeyString(e.itemKey) or nil
+                ruleItem.priceKey = e.link and S.Prices.KeyForLink(e.link) or row.key
+                ruleItem.key = e.keyString
                 row.low = S.Rules.RepostPrice(ruleItem, mine, lowest, repost, e.isCommodity)
             end
             row.checked = now
@@ -634,8 +635,33 @@ local function UnbindKey()
     if A.frame and not InCombatLockdown() then ClearOverrideBindings(A.frame) end
 end
 
+-- What's marked "Priced low" was worked out from the rules and the setting as they were: the marks go, and the next
+-- check looks every item up again.
+local function ForgetLow()
+    local list = O.Live()
+    for i = 1, #list do
+        local row = list[i].row
+        if row then row.low, row.checked = nil, nil end
+    end
+    if saved or not (A.list and A.list:IsVisible()) then return end
+    A.Fill()
+    A.UpdateNext()
+    if S.db.profile.repostPercent > 0 and O.IsFresh() then StartCheck(false) end
+end
+
+-- An item's rules or a group's changed (Rules.lua): they set what an auction could be posted at.
+function A.RulesChanged()
+    if S.db.profile.repostPercent > 0 then ForgetLow() end
+end
+
 -- Settings changed: a new key takes over at once.
-function A.Apply() BindKey() end
+local shownRepost
+function A.Apply()
+    BindKey()
+    local repost = S.db.profile.repostPercent
+    if shownRepost ~= nil and repost ~= shownRepost then ForgetLow() end
+    shownRepost = repost
+end
 
 ---------------------------------------------------------------------------
 -- The list
@@ -857,6 +883,7 @@ end
 
 function A.Build(frame)
     P = K.Palette()
+    shownRepost = S.db.profile.repostPercent
     -- The views fill the tab: each leaves the top left to the pills that pick it.
     A.views = K.Views(frame, "auctions", { key = "auctions", name = "Auctions", build = BuildList, show = ShowList,
         hide = HideList }, 0)
