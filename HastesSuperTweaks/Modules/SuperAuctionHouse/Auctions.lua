@@ -926,9 +926,9 @@ end
 S.Extend(function(args, option)
     local page = args.auctions.args.auctions.args
     page.undercutOnOpen = option("toggle", "undercutOnOpen", "Check for undercuts when the tab opens", 0.5)
-    page.undercutBy = option("range", "undercutBy", "Undercut by at least (percent)", 1.5,
+    page.undercutBy = option("range", "undercutBy", "Undercut by at least (%)", 1.5,
         { min = 0, max = 50, step = 1, desc = "0: any cheaper price counts." })
-    page.repostPercent = option("range", "repostPercent", "Priced low from (percent under the next price)", 1.7,
+    page.repostPercent = option("range", "repostPercent", "Priced low from (% under the next price)", 1.7,
         { min = 0, max = 90, step = 5,
           desc = "Cancel Next takes these too, so you can post them again for more. 0: never." })
 end)

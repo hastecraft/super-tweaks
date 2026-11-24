@@ -363,7 +363,7 @@ function S:BuildOptions()
                 undercutMode = option("select", "undercutMode", "Undercut by", 1,
                     { values = UNDERCUT, sorting = UNDERCUT_ORDER,
                       desc = "Your price matches the lowest auction when that auction is yours." }),
-                undercutPercent = option("range", "undercutPercent", "Undercut (percent)", 2, { min = 0, max = 100, step = 1,
+                undercutPercent = option("range", "undercutPercent", "Undercut (%)", 2, { min = 0, max = 100, step = 1,
                     disabled = function() return profile().undercutMode ~= "percent" end }),
                 undercutStatic = option("range", "undercutStatic", "Undercut (silver)", 3, { min = 0, max = 10000, step = 1,
                     desc = "An item listed for less than twice this is undercut by 1 copper instead, or 1 silver for gear.",
