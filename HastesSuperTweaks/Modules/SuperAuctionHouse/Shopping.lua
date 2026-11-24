@@ -501,6 +501,9 @@ local skipped = {}
 -- Runs a list of terms. Results replace what's showing, and the buy screen closes.
 function Sh.Run(terms)
     if #terms == 0 then return end
+    -- A view that draws over the results (the Sniper) gives way to them.
+    local shown = Sh.sideViews[S.db.profile.shoppingView]
+    if shown and shown.covers and Sh.SetView then Sh.SetView("lists") end
     if S.Smart and S.Smart.Stop then S.Smart.Stop() end
     local wasSmart = smartKey ~= nil
     smartKey = nil
