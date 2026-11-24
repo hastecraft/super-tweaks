@@ -596,6 +596,8 @@ function D:CheckZone()
             end
             return self:Enter(name, map)
         end
+        -- Still inside, though the game wouldn't say which instance just now: the run goes on.
+        if self.live then return end
     end
     self:Leave()
 end
