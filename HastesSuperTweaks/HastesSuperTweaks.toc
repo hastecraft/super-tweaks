@@ -97,6 +97,7 @@ Modules\SuperAuctionHouse\Window.lua
 Modules\SuperAuctionHouse\Crafting.lua
 Modules\SuperAuctionHouse\Recipes.lua
 Modules\SuperAuctionHouse\Queue.lua
+Modules\SuperAuctionHouse\Destroy.lua
 Modules\SuperAuctionHouse\RecipeData.lua
 Modules\SuperAuctionHouse\LevelingData.lua
 Modules\SuperAuctionHouse\RecipeBook.lua
