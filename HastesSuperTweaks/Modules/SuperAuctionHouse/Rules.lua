@@ -335,6 +335,7 @@ local function Build()
         h:SetPoint("TOPLEFT", 16, add.y - 4)
         h:SetText(text)
         add.y = add.y - 22
+        return h
     end
     v.prices = {}
     local function price(key, text)
@@ -400,7 +401,7 @@ local function Build()
     number("cap", "Most to have on sale", "No limit")
     number("keep", "Keep in your bags")
     number("expiries", "Stop posting after (expired auctions)", "Never")
-    add.heading("Buying, mail and vendors")
+    v.last = add.heading("Buying")
     price("snipe", "Buy at or under (Sniper)")
     -- The last two rows are a group's only: an item's own rules don't mail or sell it.
     v.short = -add.y + 56
@@ -471,6 +472,7 @@ local function Open(title, from, rule, priceKey, clearText, save, forGroup)
     v.forGroup = forGroup
     for _, part in ipairs(v.groupOnly) do part:SetShown(forGroup == true) end
     v.card:SetHeight(forGroup and v.tall or v.short)
+    v.last:SetText(forGroup and "Buying, mail and vendors" or "Buying")
     for _, box in ipairs(v.prices) do box:SetKey(priceKey) end
     for _, field in ipairs(v.fields) do field.read(rule or EMPTY) end
     -- A window too short for the card shows it smaller.
