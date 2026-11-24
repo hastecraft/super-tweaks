@@ -97,6 +97,7 @@ local function ReadResult(id, entry)
         local m = members[i] or {}
         members[i] = m
         local p = C_LFGList.GetSearchResultPlayerInfo(id, i)
+        if IsSecret(p) then p = nil end
         m.name = p and Read(p.name) or nil
         m.class = p and Read(p.classFilename) or nil
         m.level = p and Read(p.level) or nil
@@ -105,7 +106,7 @@ local function ReadResult(id, entry)
         m.leader = p and Read(p.isLeader) and true or false
         m.leaver = p and Read(p.isLeaver) and true or false
         local roles = p and p.lfgRoles
-        if roles ~= nil and IsSecret(roles) then roles = nil end
+        if IsSecret(roles) then roles = nil end
         m.tank = roles and Read(roles.tank) and true or false
         m.healer = roles and Read(roles.healer) and true or false
         m.dps = roles and Read(roles.dps) and true or false
