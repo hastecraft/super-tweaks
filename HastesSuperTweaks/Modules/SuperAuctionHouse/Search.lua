@@ -436,7 +436,7 @@ end
 local function Ask(r, ask, send)
     r.ask = ask
     local token = r.token
-    send(function() if r == run and r.token == token then ask() end end)
+    send(function() if r == run and r.token == token then ask() end end, "search")
 end
 
 -- Only the term's own query's results count: a scan's late page, or a search in the game's window, aren't its.
@@ -453,7 +453,7 @@ end
 N.On("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", function(event) BrowseUpdated(event) end)
 N.On("AUCTION_HOUSE_BROWSE_RESULTS_ADDED", BrowseUpdated)
 N.On("AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED", function()
-    if run and run.ask and not run.browseFull then Ask(run, run.ask, N.Send) end
+    if run and run.ask and not run.browseFull and N.WasDropped("search") then Ask(run, run.ask, N.Send) end
 end)
 N.On("AUCTION_HOUSE_BROWSE_FAILURE", function(event)
     if run and N.OwnsBrowse(run.token, event) then
