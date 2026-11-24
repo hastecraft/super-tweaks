@@ -1847,6 +1847,42 @@ if S.Alts then
     end)
 end
 
+-- The crafting queue (older bases lack it) hears bags only while the professions window is open with a recipe
+-- queued: a bag change then, with 60 recipes saved and 5 of them queued, and one with the window closed.
+if S.Queue then
+    Section('Super Auction House: crafting queue', function()
+        Only({ 'SuperAuctionHouse' })
+        local key = S.Recipes.CharacterKey()
+        local saved = { name = 'Alchemy' }
+        for i = 1, 60 do saved[2330 + i] = (118 + i) .. '*1:2447*1,765*2=Potion ' .. i end
+        S.db.global.recipes[key] = { [171] = saved }
+        S.Recipes.Changed()
+        for i = 1, 5 do S.Queue.Set(2330 + i, 20) end
+        local skills, window, permissive = C_TradeSkillUI, ProfessionsFrame, PERMISSIVE_FRAMES
+        PERMISSIVE_FRAMES = true -- the craft button is one of the game's own
+        C_Item.GetItemQualityByID = C_Item.GetItemQualityByID or function() return 1 end
+        C_Item.GetItemNameByID = C_Item.GetItemNameByID or function(id) return 'Item ' .. id end
+        C_Item.GetItemCount = C_Item.GetItemCount or function() return 4 end
+        local alchemy = { professionID = 171 }
+        C_TradeSkillUI = {
+            IsTradeSkillReady = function() return true end,
+            GetChildProfessionInfo = function() return alchemy end,
+            GetCraftableCount = function() return 3 end,
+        }
+        ProfessionsFrame = CreateFrame('Frame')
+        S.Crafting.panel = S.Crafting.panel or CreateFrame('Frame', nil, CreateFrame('Frame'))
+        Dispatch('TRADE_SKILL_LIST_UPDATE')
+        RunTimers() -- the recipes' own read of the list
+        Measure('Bag change, professions window open with recipes queued', 200, function() Dispatch('BAG_UPDATE_DELAYED') end)
+        Dispatch('TRADE_SKILL_CLOSE')
+        Measure('Bag change, recipes queued, professions window closed', 300, function() Dispatch('BAG_UPDATE_DELAYED') end)
+        for i = 1, 5 do S.Queue.Set(2330 + i, 0) end
+        S.db.global.recipes[key] = nil
+        S.Recipes.Changed()
+        C_TradeSkillUI, ProfessionsFrame, PERMISSIVE_FRAMES = skills, window, permissive
+    end)
+end
+
 -- History reads auction mail as the inbox changes: a mailbox of sale letters over a long history.
 Section('Super Auction House: auction mail', function()
     local letters = {}

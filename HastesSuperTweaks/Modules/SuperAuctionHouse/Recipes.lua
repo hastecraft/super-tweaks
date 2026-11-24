@@ -62,6 +62,8 @@ local function OwnList()
         or Is("IsTradeSkillGuildMember") or Is("IsNPCCrafting") or Is("IsRuneforging"))
 end
 
+M.CharacterKey, M.OwnList = CharacterKey, OwnList
+
 local StartRead
 
 -- The list changed: it's looked at once it has settled, or once the read under way is done.
@@ -289,7 +291,15 @@ end
 function M.Changed()
     stale, byOutput = true, nil
     if S.RecipeBook then S.RecipeBook.Reset() end
+    if S.Queue then S.Queue.RecipesChanged() end
     if view.frame and view.frame:IsVisible() then Fill(true) end
+end
+
+-- A recipe's target stock changed (Queue.lua): its column comes and goes with the first and the last.
+function M.TargetsChanged()
+    if not (view.frame and view.frame:IsVisible()) then return end
+    view.table:Layout()
+    view.table:Redraw()
 end
 
 -- A recipe's materials as the searches and lists take them, with its result ahead of them when asked.
@@ -328,6 +338,7 @@ local function RowMenu(row, owner)
                 input = "Crafts", inputText = "1", inputNumeric = true, confirm = "Add",
                 onConfirm = function(_, text) S.Crafting.AddMissing(Ids(row), math.max(1, tonumber(text) or 1)) end })
         end)
+        root:CreateButton("Set target stock", function() S.Queue.Ask(row.recipeID, row.name) end)
     end)
 end
 
@@ -341,6 +352,10 @@ local function RowClick(row, button, owner)
 end
 
 local function Unknown(value) return value or "Unknown" end
+local function TargetOf(row)
+    local target = S.Queue.Target(row.recipeID)
+    return target and target.stock or nil
+end
 local function ProfitColor(row)
     if not row.profit then return P.text end
     return row.profit >= 0 and K.GAIN or K.LOSS
@@ -383,6 +398,10 @@ local function Build(frame)
               text = function(e) return e.percent and K.Percent(e.percent) or "" end, color = ProfitColor },
             { key = "history", title = "Price history", width = 100, noSort = true,
               spark = function(e) return S.Prices.Series(e.itemID) end },
+            -- The stock the crafting queue keeps of it.
+            { key = "target", title = "Target stock", width = 84, justify = "RIGHT",
+              hide = function() return not S.Queue.HasTargets() end,
+              sort = function(e) return TargetOf(e) or 0 end, text = function(e) return TargetOf(e) or "" end },
         },
         onClick = RowClick, onEnter = RowTip,
     })
