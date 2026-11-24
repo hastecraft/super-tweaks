@@ -568,8 +568,11 @@ local function Members(row, e)
     end
 end
 
+-- Reused for every row painted: the roles a player looks for, and the parts of a row's second line.
+local soloRoles, subParts = {}, {}
 local function SoloRoles(m)
-    local roles = {}
+    local roles = soloRoles
+    wipe(roles)
     if m.tank then roles[#roles + 1] = G.ROLE_NAMES.TANK end
     if m.healer then roles[#roles + 1] = G.ROLE_NAMES.HEALER end
     if m.dps then roles[#roles + 1] = G.ROLE_NAMES.DAMAGER end
@@ -587,7 +590,8 @@ local function Paint(row, e)
         name:SetWidth(nameWidth)
     end
     SetBadges(row, e, room - nameWidth)
-    local parts = {}
+    local parts = subParts
+    wipe(parts)
     local style = G.PlaystyleName(e.playstyle)
     if style then parts[#parts + 1] = style end
     if e.solo and e.members[1] then
