@@ -1380,19 +1380,40 @@ local function ReadRules(item)
     S.Rules.Read(item, StatsOf(item))
 end
 
+-- The first two buttons' words, and how wide the two then are. In a row with no room for them (a narrow window, a
+-- long key on Post) what you've set is written short.
+local function RuleLabels(short)
+    local least, keep = Saved("floors", cur.priceKey), Saved("keepOnSale", cur.priceKey)
+    local b = Se.floorButton
+    b:SetText(least and ((short and "Not below " or "Never post below ") .. K.ShortMoney(least)) or "Never post below")
+    b:Fit(60, 22)
+    local width = b:GetWidth()
+    b = Se.keepButton
+    b:SetText(keep and (short and ("Keep " .. keep) or ("Keep " .. keep .. " on sale")) or "Keep on sale")
+    b:Fit(60, 22)
+    Se.rulesShort = short
+    return width + b:GetWidth()
+end
+
+-- The row ends before Post: 14 at each end, 6 between its four buttons and 10 before Post.
+local function FitRules()
+    if not (cur and Se.rulesFull) then return end
+    local width = Se.form:GetWidth() or 0
+    if width <= 0 then return end
+    local room = width - Se.post:GetWidth() - Se.lastButton:GetWidth() - Se.rulesButton:GetWidth() - 56
+    local short = Se.rulesFull > room
+    if short ~= Se.rulesShort then RuleLabels(short) end
+end
+
 -- The buttons for the item's rules and its last post. The first two show what you've set for the item yourself:
 -- a minimum or a most on sale from its rules shows in the rules, where it can be changed.
 function paint.Rules()
     local least, keep = Saved("floors", cur.priceKey), Saved("keepOnSale", cur.priceKey)
-    local b = Se.floorButton
-    b:SetText(least and ("Never post below " .. K.ShortMoney(least)) or "Never post below")
-    b:SetStyle(least and "primary" or nil)
-    b:Fit(60, 22)
-    b = Se.keepButton
-    b:SetText(keep and ("Keep " .. keep .. " on sale") or "Keep on sale")
-    b:SetStyle(keep and "primary" or nil)
-    b:Fit(60, 22)
-    b = Se.rulesButton
+    Se.floorButton:SetStyle(least and "primary" or nil)
+    Se.keepButton:SetStyle(keep and "primary" or nil)
+    Se.rulesFull = RuleLabels(false)
+    FitRules()
+    local b = Se.rulesButton
     b:SetStyle(cur.rule and "primary" or nil)
     b.tipText = cur.ruleFrom and ("From the group " .. cur.ruleFrom .. ".") or nil
     local last = Saved("lastPost", cur.priceKey)
@@ -2024,6 +2045,7 @@ function Se.BindKeys()
     -- As wide as its key needs: the buttons along the bottom reach it at the smallest window.
     Se.post:SetKey(p.keyPost)
     Se.post:Fit(110)
+    FitRules()
     Se.skip:SetKey(p.keySkip)
     Se.prev:SetKey(p.keyPrev)
 end
@@ -2430,6 +2452,7 @@ function build.Rules(form)
     rules:SetPoint("LEFT", last, "RIGHT", 6, 0)
     rules:SetScript("OnClick", function() if cur then S.Rules.EditItem(cur) end end)
     Se.rulesButton = rules
+    form:SetScript("OnSizeChanged", FitRules)
 end
 
 -- The panel for the item being posted: its slot and the buttons that post, and between them the item's form, or what
