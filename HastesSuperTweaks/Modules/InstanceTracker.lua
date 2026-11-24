@@ -5,8 +5,9 @@
 -- Away from instances this costs two events (entering the world, a new zone). Inside one it listens to the XP, loot,
 -- money, death and group events, and to your target and mouseover until a mob's GUID says which copy of the instance
 -- this is: leaving and coming back to the same copy (a corpse run) continues the run, a reset one starts another.
--- Where the game hides mobs' GUIDs (WoW Forever's instances), coming back as a ghost continues the run and coming back
--- alive starts another.
+-- Where the game hides mobs' GUIDs (WoW Forever's instances), coming back continues the run unless a reset was seen:
+-- the game's "<instance> has been reset." line (only the player who resets gets it), or Dungeon Timer seeing a boss
+-- that died before you left die again (I:ResetSeen).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
 local HST = ns.HST
@@ -63,9 +64,8 @@ ns.LazyOptions(I, function(m)
             }),
             tracking = ns.Section("Tracking", 3, {
                 resume = ns.Option(profile, "range", "resume", "Continue a run re-entered within (minutes)", 1,
-                    { min = 1, max = 120, step = 1, desc = "Coming back to the same instance within this long after "
-                        .. "dying continues the run. Coming back alive starts a new run on WoW Forever; on Classic Era it "
-                        .. "does only if the instance was reset." }),
+                    { min = 1, max = 120, step = 1, desc = "Coming back to the same instance within this long "
+                        .. "continues the run, unless it was reset." }),
                 lootQuality = ns.Option(profile, "select", "lootQuality", "Keep loot", 2,
                     { values = m.QUALITIES, sorting = m.QUALITY_ORDER }),
                 keep = ns.Option(profile, "range", "keep", "Runs kept per character", 3, { min = 50, max = 1000, step = 50 }),
@@ -142,7 +142,7 @@ end
 -- it changed), xp, k kills, dt deaths, g gold gained, sp gold spent (copper), rep { faction = change },
 -- items { { id, count } }, av what its loot sold for at auction when it was looted (copper; only with Super Auction
 -- House's prices), grp { { n = name, c = class } }, maps the maps it was seen on, gh when you left it as a ghost (until
--- you're back).
+-- you're back), rs when the game said it was reset after you left.
 -- A character: runs, oldest first, and cleared, when the deleted runs of the last day were entered (in no order): the
 -- game still counts those against its limits.
 ---------------------------------------------------------------------------
@@ -287,6 +287,8 @@ local REP_DOWN = Pattern((FACTION_STANDING_DECREASED or "Reputation with %s decr
 local LOOT_PREFIXES = { Prefix(LOOT_ITEM_SELF or "You receive loot: %s."), Prefix(LOOT_ITEM_PUSHED_SELF or "You receive item: %s."),
     Prefix(LOOT_ITEM_CREATED_SELF or "You create: %s.") }
 I.LOOT_PREFIXES = LOOT_PREFIXES -- Dungeon Timer reads loot the same way
+local RESET = Pattern(INSTANCE_RESET_SUCCESS or "%s has been reset.") .. "$"
+I.RESET = RESET
 
 -- Adds the time since the last look to the run, and notes it was seen now, so a crash loses little.
 function I:Touch()
@@ -391,7 +393,7 @@ function I:Enter(name, kind, difficulty, mapID, login)
     -- on a map it was seen on: another wing of it is another instance.
     -- A run that never ended (a reload or crash inside) continues wherever you stand in it.
     local here = MapHere()
-    if last and last.map == mapID and (last.e or last.s) >= now - p.resume * 60
+    if last and last.map == mapID and not last.rs and (last.e or last.s) >= now - p.resume * 60
         and (not here or not last.maps or last.e == nil or Seen(last, here)) then
         run = last
         SeeMap(run, here)
@@ -399,7 +401,7 @@ function I:Enter(name, kind, difficulty, mapID, login)
             -- Back after a trip out: a new copy of the instance (a reset) would count as another entry; the mobs tell.
             run.re = (run.re or 0) + 1
             snap.d, snap.xp, snap.k, snap.dt, snap.g, snap.sp, snap.lv = run.d, run.xp, run.k, run.dt, run.g, run.sp, level
-            self.resumeAt, self.resumeEnd, self.resumeAlive = now, run.e, not run.gh
+            self.resumeAt, self.resumeEnd = now, run.e
         end
         run.e, run.gh = nil, nil
     else
@@ -425,6 +427,7 @@ function I:Enter(name, kind, difficulty, mapID, login)
         end)
     end
     local events = self.events
+    events:UnregisterEvent("CHAT_MSG_SYSTEM")
     events:RegisterUnitEvent("PLAYER_XP_UPDATE", "player")
     for _, event in ipairs(LIVE_EVENTS) do pcall(events.RegisterEvent, events, event) end
     if not run.cp or self.resumeAt then
@@ -455,7 +458,29 @@ function I:Leave(turnedOff)
     -- Left as a ghost (or with the tweak turned off inside): coming back is the same run, whatever the mobs can tell.
     run.gh = (ghost or turnedOff) and true or nil
     if self.db.profile.sayLeave and not turnedOff and not ghost then HST:Print(I.Summary(run)) end
+    -- Until the next instance: the game's line for a reset, which ends the run.
+    if not turnedOff then events:RegisterEvent("CHAT_MSG_SYSTEM") end
     self:Refresh()
+end
+
+-- "<instance> has been reset.": a run of it you're outside of is over, so going back in starts another.
+function I:InstanceReset(message)
+    local name = message:match(RESET)
+    local char = name and self:Character()
+    if not char then return end
+    local runs = char.runs
+    for i = #runs, 1, -1 do
+        local run = runs[i]
+        if run.e and run.n == name then run.rs = true; return end
+    end
+end
+
+-- Dungeon Timer saw a boss that died before you left die again: the instance was reset after all, so what came since
+-- you came back in is a run of its own.
+function I:ResetSeen()
+    if not (self.run and self.resumeAt) then return end
+    self:Split(nil, true)
+    self.resumeAt = nil
 end
 
 -- Your XP since the last look, as the XP bar counts it; a level-up adds the rest of the old level.
@@ -552,15 +577,15 @@ end
 -- A mob's GUID names the copy of the instance you're in (Creature-0-server-map-copy-npc-spawn: the map is the same
 -- for every copy). Once known, the target and mouseover aren't watched. A copy other than the one a continued run
 -- was in splits the run; a new run in a copy an earlier run was in (back after the time a run continues within)
--- isn't another entry. Where the game hides mobs' GUIDs from addons inside (WoW Forever), nothing names the copy: a
--- run continued after leaving alive is taken for another one (a reset, another wing) from the first mob seen, and one
--- continued after leaving as a ghost for the same.
+-- isn't another entry. Where the game hides mobs' GUIDs from addons inside (WoW Forever), nothing names the copy: the
+-- run goes on, and the visit's start stays noted should Dungeon Timer find it was reset (I:ResetSeen).
 function I:LearnID(unit)
     local run = self.run
     if not run or not UnitGUID then return end
     local guid = UnitGUID(unit)
     if IsSecret(guid) then
-        if self.resumeAt and self.resumeAlive then self:Split() end
+        for _, event in ipairs(ID_EVENTS) do self.events:UnregisterEvent(event) end
+        return
     else
         if type(guid) ~= "string" then return end
         local copy = tonumber(guid:match("^Creature%-%d+%-%d+%-%d+%-(%d+)%-"))
@@ -580,9 +605,9 @@ function I:LearnID(unit)
     for _, event in ipairs(ID_EVENTS) do self.events:UnregisterEvent(event) end
 end
 
--- The continued run was another copy of the instance (`copy`, nil where the game hides it): what came since the
--- re-entry becomes a run of its own (reputation and loot stay with the first).
-function I:Split(copy)
+-- The continued run was another copy of the instance (`copy`, nil where the game hides it; `reset` when a reset was
+-- seen): what came since the re-entry becomes a run of its own (reputation and loot stay with the first).
+function I:Split(copy, reset)
     local old = self.run
     local char = self:Character()
     if not char then return end
@@ -603,7 +628,7 @@ function I:Split(copy)
     self:Prune(char)
     if self.db.profile.sayEnter then
         local hour = self:Entries(3600) .. " of " .. self.db.profile.limitHour .. " instances this hour."
-        HST:Print(copy and ("That was a reset " .. new.n .. ": it counts as an entry. " .. hour)
+        HST:Print((copy or reset) and ("That was a reset " .. new.n .. ": it counts as an entry. " .. hour)
             or ("Entered " .. new.n .. ". " .. hour))
     end
     self:Refresh()
@@ -670,7 +695,9 @@ end
 
 ns.Listen(I, { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }, function(self, event, a, b)
     local run = self.run
-    if event == "PLAYER_ENTERING_WORLD" then
+    if event == "CHAT_MSG_SYSTEM" then
+        if not IsSecret(a) and type(a) == "string" then self:InstanceReset(a) end
+    elseif event == "PLAYER_ENTERING_WORLD" then
         -- Logging in or reloading inside an instance says nothing in chat, and closes runs the game ended inside.
         self:CheckZone(a or b)
     elseif event == "ZONE_CHANGED_NEW_AREA" then
