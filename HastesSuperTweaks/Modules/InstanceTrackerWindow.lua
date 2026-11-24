@@ -743,18 +743,47 @@ function Win.Refresh()
     PaintDetail()
 end
 
--- Once a second while shown: the live run's time, and when the next place frees; all of it when the run's events
--- changed what's shown (I:Refresh).
+-- The columns of a run that change while you're inside: sorted by one of them, the live run can change places.
+local LIVE_SORTS = { d = true, xp = true, rate = true, g = true, av = true, k = true, dt = true, grp = true }
+
+-- Whether the live run's events (I:Refresh) changed more than its own row, the totals and its details: it isn't
+-- listed, its first auction value brings that column in, the table is sorted by one of its numbers, or the table
+-- shows totals per instance.
+local function LiveNeedsAll(run)
+    if not run or not owner[run] or I.db.profile.view ~= "runs" then return true end
+    if run.av and not Win.auction then return true end
+    return LIVE_SORTS[Win.tables.runs.sortKey] == true
+end
+
+-- The live run's row, when it's in view: the other rows show runs that are over.
+local function PaintLiveRow(run)
+    local runs = Win.tables.runs
+    if Win.table ~= runs then return end
+    for _, row in ipairs(runs.rows) do
+        if row.entry == run then
+            runs:FillRow(row, run)
+            runs:PaintRow(row)
+            return
+        end
+    end
+end
+
+-- Once a second while shown: the live run's time and row, the totals it adds to, and when the next place frees. The
+-- run's events since the last look are drawn by that too; all of it only when they changed more (LiveNeedsAll).
 local function Tick()
     if not Win.frame:IsShown() then return end
-    if Win.dirty then return Win.Refresh() end
-    PaintLive()
-    if I.run then
-        PaintTotals()
-        Win.table:Redraw()
-        if Win.selected == I.run then PaintDetail() end
+    local run = I.run
+    if Win.dirty then
+        Win.dirty = nil
+        if LiveNeedsAll(run) then return Win.Refresh() end
     end
-    if #hourTimes > 0 or I.run then PaintLockout() end
+    PaintLive()
+    if run then
+        PaintTotals()
+        PaintLiveRow(run)
+        if Win.selected == run then PaintDetail() end
+    end
+    if #hourTimes > 0 or run then PaintLockout() end
 end
 
 local function Build()
