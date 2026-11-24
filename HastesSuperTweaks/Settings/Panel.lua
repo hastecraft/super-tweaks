@@ -2098,11 +2098,38 @@ function P:NavSelected(entry)
 end
 
 -- The sidebar's nth row, its table reused from the last time the rows were listed (every field is set again).
-local function NavEntry(entries, n, kind, key, text, count)
+local function NavEntry(entries, n, kind, key, text)
     local entry = entries[n] or {}
     entries[n] = entry
-    entry.kind, entry.key, entry.text, entry.count = kind, key, text, count
+    entry.kind, entry.key, entry.text = kind, key, text
     return entry
+end
+
+-- A row's count as text ("3/7"), written anew only when one of its numbers changed.
+local function SetCount(entry, on, count)
+    if entry.on ~= on or entry.total ~= count then
+        entry.on, entry.total = on, count
+        entry.count = on .. "/" .. count
+    end
+end
+
+-- How many tweaks each category has (navTotal) and has on (navOn), counted in one pass over the tweaks. Returns the
+-- same for all of them.
+local navOn, navTotal = {}, {}
+local function CountTweaks()
+    wipe(navOn)
+    wipe(navTotal)
+    local allOn, all = 0, 0
+    for _, module in ipairs(HST:Features()) do
+        local category, on = module.info.category, module:IsEnabled()
+        all = all + 1
+        if on then allOn = allOn + 1 end
+        if category then
+            navTotal[category] = (navTotal[category] or 0) + 1
+            if on then navOn[category] = (navOn[category] or 0) + 1 end
+        end
+    end
+    return allOn, all
 end
 
 -- The sidebar's rows: All tweaks, Pinned while a tweak is, then each category.
@@ -2110,29 +2137,23 @@ function P:NavEntries()
     local entries = self.navEntries or {}
     self.navEntries = entries
     local onCount, total, n = 0, 0, 1
-    local home = NavEntry(entries, 1, "home", nil, "All tweaks", nil)
+    local home = NavEntry(entries, 1, "home", nil, "All tweaks")
     local pinnedOn, pinnedCount = PinnedCount()
     if pinnedCount > 0 then
         n = n + 1
-        NavEntry(entries, n, "category", PINNED, "Pinned", pinnedOn .. "/" .. pinnedCount)
+        SetCount(NavEntry(entries, n, "category", PINNED, "Pinned"), pinnedOn, pinnedCount)
     end
-    local features = HST:Features()
+    CountTweaks()
     for _, category in ipairs(HST.categories) do
-        local on, count = 0, 0
-        for _, module in ipairs(features) do
-            if module.info.category == category.key then
-                count = count + 1
-                if module:IsEnabled() then on = on + 1 end
-            end
-        end
+        local on, count = navOn[category.key] or 0, navTotal[category.key] or 0
         if count > 0 then
             onCount, total = onCount + on, total + count
             n = n + 1
-            NavEntry(entries, n, "category", category.key, category.name, on .. "/" .. count)
+            SetCount(NavEntry(entries, n, "category", category.key, category.name), on, count)
         end
     end
     for i = #entries, n + 1, -1 do entries[i] = nil end
-    home.count = onCount .. "/" .. total
+    SetCount(home, onCount, total)
     return entries
 end
 
@@ -2175,23 +2196,18 @@ end
 
 -- Counts follow tweaks turning on and off, without rebuilding the rows.
 function P:PaintNav()
-    local features = HST:Features()
+    local allOn, all = CountTweaks()
     for _, b in ipairs(self.nav) do
         local entry = b:IsShown() and b.entry
         if entry then
-            local on, count = 0, 0
             if entry.key == PINNED then
-                on, count = PinnedCount()
+                SetCount(entry, PinnedCount())
+            elseif entry.kind == "home" then
+                SetCount(entry, allOn, all)
             else
-                for _, module in ipairs(features) do
-                    if entry.kind == "home" or module.info.category == entry.key then
-                        count = count + 1
-                        if module:IsEnabled() then on = on + 1 end
-                    end
-                end
+                SetCount(entry, navOn[entry.key] or 0, navTotal[entry.key] or 0)
             end
-            local text = on .. "/" .. count
-            entry.count = text
+            local text = entry.count
             if b.countText ~= text then b.countText = text; b.count:SetText(text) end
         end
     end
