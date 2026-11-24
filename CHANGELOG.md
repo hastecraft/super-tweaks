@@ -2,6 +2,60 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.13.0 (2026-11-24)
+
+### Rep Tracker
+
+A reputation bar for the faction you track, with what you've gained this session and the time to your next standing. Move it in Edit Mode. It starts off.
+
+### Dungeon Timer
+
+Times your dungeon and raid runs boss by boss against your best, with your deaths, the gold you looted and what your loot is worth. It starts off.
+
+### Super Auction House: Posting Rules
+
+Groups and single items can have posting rules: a minimum, normal and maximum price, what to do below your minimum, duration, starting bid, and how many to keep on sale and in your bags. Prices can be formulas, such as "usual * 80%".
+
+### Super Auction House: Sniper and Crafting Queue
+
+A Sniper view in Shopping keeps searching for auctions at or under your prices. Crafting has its own tab, with a queue of recipes to keep in stock and a key to craft the next one.
+
+### New Features
+
+- Super Auction House: Disenchant. Lists gear worth more as materials, and disenchants it one click at a time.
+- Super Auction House: Other Characters. Tooltips can show how many your other characters have, and shopping lists can count their items as yours.
+- Super Auction House: Priced Low. The Auctions tab marks auctions priced low, and Cancel Next takes them so you can post them for more.
+- Super Auction House: Mail and Vendor Rules. A group's rules can mail it to a character through Mail Expiry & Alt List, or sell it to vendors.
+
+### Changes
+
+- Super Auction House: dropdowns are easier to see, buttons show their keys, and the Shopping side panel's view is picked from a dropdown.
+- Super Auction House: list alerts and the Sniper count searches by part of a name, and ones priced with a formula.
+- Group Finder: picking an activity the last search didn't cover searches for it.
+- Better Scrolling Combat Text: "Off" for enemy damage also hides the game's own damage numbers.
+- Settings that do nothing while their parent setting is off are greyed out, section names match across tweaks, and sound buttons all say "Play sample".
+- Previews no longer have captions under them, and tweak summaries are shorter.
+- Quest Item Button, Chat Spam Filter, Gear Upgrades, XP Tracker, Instance Tracker and Mail Expiry & Alt List do less work.
+
+### Bug Fixes
+
+- Super Auction House: "Price for the whole stack" and prices on vendor and auction listing tooltips now work.
+- Super Auction House: small windows no longer cut off or overlap the Selling tab's buttons, the cards or the Auctions table.
+- Super Auction House: taking auction mail stops with a message when the game won't hand a letter over.
+- Group Finder: groups whose leader's name arrives late are listed again.
+- Instance Tracker: counts a kill when the game hides the XP message, and keeps the run when the game can't report the instance for a moment.
+- Gear Upgrades counts lines like "+10 Fire Resistance" and "+20 Fire Spell Damage".
+- Aura Reminders no longer shows reminders while it's off.
+- Gear Shift: an item swapped out from the menu can be picked again, a swap waiting for the fight to end isn't lost while you hold an item, situations work with the bar hidden, and profile strings keep every slot.
+- Importing a profile string can no longer break the Loot Window's background color.
+- Auto-Invite Customers no longer invites someone who's already in your group.
+- Restock at Vendors no longer repeats the low ammo warning while you drag "Warn below (ammo left)".
+- Better Breath Meter shows a timer that was already running at its real value after a loading screen.
+- Appearance Collector no longer keeps asking for an item the game can't load.
+- Minimap Button: the settings preview follows the button when you drag it.
+- Instance Tracker's "Clear history" confirmation reads correctly.
+- Settings search says "1 more setting matches" when there's one.
+
 ## 4.12.0 (2026-11-22)
 
 ### Loot Roll Tracker
