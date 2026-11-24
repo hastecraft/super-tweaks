@@ -324,7 +324,7 @@ function R:CreateBar()
         HST:RefreshSettings()
     end)
     f:SetScript("OnMouseUp", function(_, button) if button == "RightButton" then self:OpenMenu() end end)
-    f:SetScript("OnEnter", function() self.hovered = true; self:Render(); self:ShowTooltip() end)
+    f:SetScript("OnEnter", function() self.hovered = true; self:ShowTooltip(self:Render()) end)
     f:SetScript("OnLeave", function()
         self.hovered = false
         ns.Widgets.HideTooltip(f)
@@ -442,6 +442,7 @@ function R:Render(sameContent)
     self:DrawTexts()
     self:DrawBar()
     if self.hovered and GameTooltip:IsOwned(self.frame) then self:ShowTooltip(true) end
+    return true -- the readouts were read: a tooltip shown next needn't read them again
 end
 
 local function Hex(c)
