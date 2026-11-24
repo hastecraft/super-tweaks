@@ -460,7 +460,8 @@ local function Hook(tooltip, data)
     local itemID = data and data.id
     if IsSecret(itemID) or not itemID then return end
     local p = S.db.profile
-    local info = tooltip.info
+    -- How the tooltip was asked for, while it's being filled (what its GetProcessingTooltipInfo returns).
+    local info = tooltip.processingInfo
     local getter = info and info.getterName
     if getter == "GetMerchantItem" and not p.tipMerchant then return end
     if not p.tipListings then
@@ -472,7 +473,11 @@ local function Hook(tooltip, data)
     local count = 1
     if getter then
         local read = COUNT[getter]
-        if read and StackWanted(p.tipStack) then count = read(info.getterArgs) or 1 end
+        local args = info.getterArgs
+        if read and args and StackWanted(p.tipStack) then
+            count = read(args)
+            if IsSecret(count) or type(count) ~= "number" then count = 1 end
+        end
     end
     local detail = p.tipDetail and Shift() or false
     -- Whether an item of yours can still be sold at auction depends on that one item, so the best place to sell it is
