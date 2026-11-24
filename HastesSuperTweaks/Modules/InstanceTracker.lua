@@ -336,6 +336,8 @@ function I:CheckZone(login)
             if login then self:CloseStale() end
             return
         end
+        -- Still inside, though the game wouldn't say which instance just now: the run goes on.
+        if self.run then return end
     end
     self:Leave()
     if login then self:CloseStale() end
