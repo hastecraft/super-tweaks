@@ -1377,9 +1377,10 @@ local function ReadRules(item)
     S.Rules.Read(item, StatsOf(item))
 end
 
--- The buttons for the item's rules and its last post.
+-- The buttons for the item's rules and its last post. The first two show what you've set for the item yourself:
+-- a minimum or a most on sale from its rules shows in the rules, where it can be changed.
 function paint.Rules()
-    local least, keep = cur.floor, cur.keep
+    local least, keep = Saved("floors", cur.priceKey), Saved("keepOnSale", cur.priceKey)
     local b = Se.floorButton
     b:SetText(least and ("Never post below " .. K.ShortMoney(least)) or "Never post below")
     b:SetStyle(least and "primary" or nil)
@@ -1548,6 +1549,15 @@ RuleChanged = function(key)
     if not (cur and cur.priceKey == key) then return end
     ReadRules(cur)
     paint.Rules()
+    -- The rules can set the duration and a starting bid.
+    local ruled = cur.rule and cur.rule.duration
+    if ruled or Se.ruleDuration then
+        duration, Se.ruleDuration = ruled or Profile().duration, ruled and true or nil
+        Se.durations:Choose(duration)
+    end
+    local bidShown = BidShown()
+    Se.bid:SetShown(bidShown)
+    Se.bidLabel:SetShown(bidShown)
     Se.quantity:SetText(DefaultQuantity(cur))
     if priceTouched then return FillSummary() end
     SetPrice(Lifted(StartingPrice()))
@@ -1572,7 +1582,7 @@ local function FloorMenu(owner)
             end)
         end
         root:CreateButton("Type a price", function() AskFloor(item) end)
-        if item.floor then
+        if Saved("floors", item.priceKey) then
             root:CreateButton("Clear", function()
                 Save("floors", item.priceKey, nil)
                 RuleChanged(item.priceKey)
@@ -2008,7 +2018,9 @@ function Se.BindKeys()
         if p.keySkip ~= "" then SetOverrideBinding(Se.keyOwner, true, p.keySkip, "CLICK HSTSuperAHSkip:LeftButton") end
     end
     if p.keyPrev ~= "" then SetOverrideBinding(Se.keyOwner, true, p.keyPrev, "CLICK HSTSuperAHPrev:LeftButton") end
+    -- As wide as its key needs: the buttons along the bottom reach it at the smallest window.
     Se.post:SetKey(p.keyPost)
+    Se.post:Fit(110)
     Se.skip:SetKey(p.keySkip)
     Se.prev:SetKey(p.keyPrev)
 end
@@ -2468,7 +2480,7 @@ function build.Sale(main)
     build.Rules(form)
 
     Se.post = K.Button(sale, "Post", "primary", "HSTSuperAHPost")
-    Se.post:SetSize(144, 30)
+    Se.post:SetSize(110, 30)
     Se.post:SetPoint("BOTTOMRIGHT", -14, 14)
     Se.post:SetScript("OnClick", Post)
     local skip = K.Button(sale, "Skip", nil, "HSTSuperAHSkip")
