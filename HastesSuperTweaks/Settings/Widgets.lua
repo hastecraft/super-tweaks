@@ -1743,6 +1743,20 @@ function W.TextAreaRow(parent, lines, onEdit)
     return c
 end
 
+-- A filled button's text is set again a frame after it's made (see W.Button): one timer does it for every button made
+-- in that frame.
+local relabel, relabelQueued = {}, false
+local function Relabel()
+    relabelQueued = false
+    for i = 1, #relabel do
+        local label = relabel[i]
+        relabel[i] = nil
+        local shown = label:GetText()
+        label:SetText("")
+        label:SetText(shown)
+    end
+end
+
 -- A flat button; "primary" ones are filled with the accent color. In `colors` (W.C unless given, W.INGAME in windows
 -- shown in play).
 function W.Button(parent, text, style, colors)
@@ -1769,11 +1783,11 @@ function W.Button(parent, text, style, colors)
     -- After the font: text set before a font change can stay blank until it's set again.
     b.label:SetText(text or "")
     if primary then
-        C_Timer.After(0, function()
-            local shown = b.label:GetText()
-            b.label:SetText("")
-            b.label:SetText(shown)
-        end)
+        relabel[#relabel + 1] = b.label
+        if not relabelQueued then
+            relabelQueued = true
+            C_Timer.After(0, Relabel)
+        end
     end
     b:SetMotionScriptsWhileDisabled(true)
     b:SetScript("OnEnter", function(self)
