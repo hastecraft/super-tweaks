@@ -1434,10 +1434,10 @@ function S:UpdateCVars()
     local on, p = self:IsEnabled(), self.db.profile
     -- An earlier build held the game's combat text on for its events; a hold left from then is given back.
     self:HoldCVar("enableFloatingCombatText", "1", false)
-    -- The game's damage numbers over enemies: off while ours show and theirs are hidden, else left to the game's own
-    -- Show Damage option. An earlier build held them on while they were the ones shown: that hold is given back as
-    -- "1", so they're put back as they were only if they're still on.
-    local hide = on and p.hideWorldDamage and OwnEnemyNumbers(p)
+    -- The game's damage numbers over enemies: off while ours show and theirs are hidden, and while enemy damage is
+    -- set to Off; else left to the game's own Show Damage option. An earlier build held them on while they were the
+    -- ones shown: that hold is given back as "1", so they're put back as they were only if they're still on.
+    local hide = on and (p.enemyMode == "OFF" or (p.hideWorldDamage and OwnEnemyNumbers(p)))
     self:HoldCVar("floatingCombatTextCombatDamage_v2", (hide or p.enemyMode ~= "GAME") and "0" or "1", hide)
     -- The size of the game's floating text, which its damage numbers share with its XP popups and the rest: set for
     -- its damage numbers when they're the ones shown. An earlier build sized it to nothing; a hold left from then is
