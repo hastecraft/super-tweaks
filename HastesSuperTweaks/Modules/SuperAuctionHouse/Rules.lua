@@ -200,9 +200,12 @@ end
 -- cheapest auction that isn't yours would be undercut to (or under what its rules post it for with nobody else
 -- selling), so cancelling it and posting again earns more. Returns the price it would go up for, or nil.
 -- item: { priceKey = , key = } of the auction; price: yours, each; nextPrice: the cheapest that isn't yours, or nil.
-function R.RepostPrice(item, price, nextPrice, percent, commodity)
-    item.floor, item.keep = nil, nil
-    R.Read(item)
+-- read: the item's rules were read into it by the call before (the same item's next auction), so they aren't again.
+function R.RepostPrice(item, price, nextPrice, percent, commodity, read)
+    if not read then
+        item.floor, item.keep = nil, nil
+        R.Read(item)
+    end
     local rule = item.rule
     local target
     if nextPrice then

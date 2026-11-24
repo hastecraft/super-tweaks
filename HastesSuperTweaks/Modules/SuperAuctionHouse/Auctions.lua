@@ -357,6 +357,8 @@ local function Judge(list, results)
     local profile = S.db.profile
     local needAhead, by, repost = profile.undercutAhead, profile.undercutBy, profile.repostPercent
     local now = GetServerTime()
+    -- An item's rules are read once for all its auctions: the key they were last read for, in this call.
+    local readKey, readString
     for i = 1, #list do
         local e = list[i]
         local mine = e.buyout
@@ -391,9 +393,13 @@ local function Judge(list, results)
             -- Yours is the cheapest, by a long way: cancelled and posted again it would go for more.
             row.low = nil
             if repost > 0 and not row.undercut and Checkable(e) and (not lowest or lowest > mine) then
-                ruleItem.priceKey = e.link and S.Prices.KeyForLink(e.link) or row.key
-                ruleItem.key = e.keyString
-                row.low = S.Rules.RepostPrice(ruleItem, mine, lowest, repost, e.isCommodity)
+                local priceKey = e.link and S.Prices.KeyForLink(e.link) or row.key
+                local read = readKey ~= nil and priceKey == readKey and e.keyString == readString
+                if not read then
+                    readKey, readString = priceKey, e.keyString
+                    ruleItem.priceKey, ruleItem.key = priceKey, e.keyString
+                end
+                row.low = S.Rules.RepostPrice(ruleItem, mine, lowest, repost, e.isCommodity, read)
             end
             row.checked = now
         end
