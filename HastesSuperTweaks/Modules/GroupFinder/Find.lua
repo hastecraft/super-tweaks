@@ -34,11 +34,18 @@ local filterText = ""
 ---------------------------------------------------------------------------
 -- Reading results.
 ---------------------------------------------------------------------------
+-- How many players each activity takes, by its ID: the game is asked once, as that never changes.
+local activityPlayers = {}
 local function MaxPlayers(activityIDs)
     local most = 0
     for _, id in ipairs(activityIDs) do
-        local info = C_LFGList.GetActivityInfoTable(id)
-        if info and info.maxNumPlayers and info.maxNumPlayers > most then most = info.maxNumPlayers end
+        local players = activityPlayers[id]
+        if not players then
+            local info = C_LFGList.GetActivityInfoTable(id)
+            players = info and info.maxNumPlayers or 0
+            if info then activityPlayers[id] = players end
+        end
+        if players > most then most = players end
     end
     return most
 end
