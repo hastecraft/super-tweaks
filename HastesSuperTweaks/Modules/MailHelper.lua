@@ -433,6 +433,15 @@ if SendMail then
     hooksecurefunc("SendMail", function(recipient) if M:IsEnabled() then M.sending = recipient end end)
 end
 
+-- The inbox updates many times in a row at a mailbox (once for each letter taken): it's read once, a moment after
+-- the first of them, by one timer. A read still waiting when the mailbox closes is done then.
+local SCAN_AFTER = 0.3
+local scanQueued = false
+local function ScanQueued()
+    scanQueued = false
+    if M:IsEnabled() and M.atMailbox then M:ScanInbox() end
+end
+
 ns.Listen(M, { "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "MAIL_SHOW", "MAIL_INBOX_UPDATE", "MAIL_CLOSED", "MAIL_SEND_SUCCESS", "MAIL_FAILED" },
     function(self, event, ...)
         if event == "PLAYER_ENTERING_WORLD" then
@@ -449,9 +458,13 @@ ns.Listen(M, { "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "MAIL_SHOW", "MAIL_IN
             self.atMailbox = true
             self:UpdateButton()
         elseif event == "MAIL_CLOSED" then
+            if scanQueued and self.atMailbox then self:ScanInbox() end
             self.atMailbox = false
         elseif event == "MAIL_INBOX_UPDATE" then
-            if self.atMailbox then self:ScanInbox() end
+            if self.atMailbox and not scanQueued then
+                scanQueued = true
+                C_Timer.After(SCAN_AFTER, ScanQueued)
+            end
         elseif event == "MAIL_SEND_SUCCESS" then
             if self.sending then self:AddRecent(self.sending) end
             self.sending = nil

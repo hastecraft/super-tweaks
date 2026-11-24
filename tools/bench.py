@@ -641,6 +641,10 @@ Section('Mail Expiry & Alt List', function()
     end)
     Send('MailHelper', 'MAIL_SHOW')
     Measure('Mailbox open: inbox update (50 mails)', 300, function() Send('MailHelper', 'MAIL_INBOX_UPDATE') end)
+    Measure('Mailbox open: 5 inbox updates in a row, and the moment after (50 mails)', 100, function()
+        for _ = 1, 5 do Send('MailHelper', 'MAIL_INBOX_UPDATE') end
+        AdvanceTime(0.4)
+    end)
     local n = 0
     Measure('Mail sent: recipient remembered', 100, function()
         n = n % 30 + 1
