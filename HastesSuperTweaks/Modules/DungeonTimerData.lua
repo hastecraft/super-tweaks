@@ -16,7 +16,7 @@ ns.DungeonBosses = {
     [48] = "2697,2761,2916=Ghamoo-ra;2699,2762,2915=Lady Sarevess;2704,2763,2914=Geilhast;2710,2764,2913=Lorgus Jett;2765,2912=Old Serra'kis;2766,2825,2911=Twilight Lord Kelris;2767,2891,2910=Aku'mai",
     [70] = "547=Revelosh;548=The Lost Dwarves;549=Ironaya;1887=Obsidian Sentinel;551=Ancient Stone Keeper;552=Galgann Firehammer;553=Grimlok;554=Archaedas",
     [90] = "2768,2925=Grubbis;2769,2928=Viscous Fallout;2770,2927=Electrocutioner 6000;2771,2899=Crowd Pummeler 9-60;2772,2940=Mekgineer Thermaplugg",
-    [109] = "2814,2952,3582=Atal'alarion;492,2956,3583=Avatar of Hakkar;493,2959,3584=Shade of Eranikus;491,3585=Hazzas;490,3586=Morphaz;487,3587=Weaver;486,3588=Dreamscythe;488,3589=Jammal'an the Prophet",
+    [109] = "2814,2952,3582=Atal'alarion;492,2956,3583=Avatar of Hakkar;491,3585=Hazzas;490,3586=Morphaz;487,3587=Weaver;486,3588=Dreamscythe;488,3589=Jammal'an the Prophet;493,2959,3584=Shade of Eranikus",
     [129] = "2780=Tuten'kash;2781=Plaguemaw the Rotting;2782=Mordresh Fire Eye;2783=Ragglesnout;2784=Glutton;2785=Amnennar the Coldbringer",
     [189] = "444=Interrogator Vishas;2779=Bloodmage Thalnos;446=Houndmaster Loksey;447=Arcanist Doan;448=Herod;449=High Inquisitor Fairbanks;450=High Inquisitor Whitemane",
     [209] = "593=Hydromancer Velratha;594=Gahz'rilla;595=Antu'sul;596=Theka the Martyr;597=Witch Doctor Zum'rah;598=Nekrum Gutchewer;599=Shadowpriest Sezz'ziz;600=Chief Ukorz Sandscalp",

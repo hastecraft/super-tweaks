@@ -29,6 +29,9 @@ SKIP_MAPS = {0, 2720}
 SKIP_ENCOUNTERS = {3018}
 # The same boss spelled another way in another difficulty's row.
 SAME_BOSS = {'Gelihast': 'Geilhast'}
+# Instances whose final boss isn't the table's last, by map. The run is done when the last boss listed dies, and the
+# Sunken Temple's table ends with Jammal'an the Prophet, who dies before the dragons and the Shade of Eranikus.
+FINAL_BOSS = {109: 'Shade of Eranikus'}
 
 
 def fetch(url):
@@ -78,7 +81,9 @@ def bosses(rows):
             boss['ids'].append(int(row['ID']))
     result = {}
     for instance, found in maps.items():
-        ordered = sorted(found.items(), key=lambda item: (item[1]['order'], item[1]['newest']))
+        final = FINAL_BOSS.get(instance)
+        assert final is None or final in found, instance
+        ordered = sorted(found.items(), key=lambda item: (item[0] == final, item[1]['order'], item[1]['newest']))
         result[instance] = [(name, sorted(boss['ids'])) for name, boss in ordered]
     return result
 
