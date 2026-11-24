@@ -189,9 +189,13 @@ local function SetToken(token, text)
     return true
 end
 
+-- Sample numbers stand in with Preview on, and in Edit Mode with no faction to show.
+function R:Sampling() return self.preview or (self.editMode and not faction.name) or false end
+
 function R:GetState()
     local name, standing, low, high, value = faction.name, faction.standing, faction.low, faction.high, faction.value
-    if self.preview then name, standing, low, high, value = "Stormwind", 6, 9000, 21000, 15500 end
+    local sample = self:Sampling()
+    if sample then name, standing, low, high, value = "Stormwind", 6, 9000, 21000, 15500 end
     local none = not name
     if none then name, standing, low, high, value = "", 4, 0, 1, 0 end
     local cap, rep = max(0, high - low), max(0, value - low)
@@ -203,7 +207,7 @@ function R:GetState()
     tokens.name, tokens.standing = name, StandingName(standing)
     tokens.next = atMax and tokens.standing or StandingName(standing + 1)
     tokens.rep, tokens.max, tokens.remaining = self:FormatNumber(rep), self:FormatNumber(cap), self:FormatNumber(remaining)
-    tokens.gained = self:FormatNumber(self.preview and 1400 or self.db.char.session.gained)
+    tokens.gained = self:FormatNumber(sample and 1400 or self.db.char.session.gained)
     tokens.percent = string.format(percent, cap > 0 and rep / cap * 100 or 100)
     tokens.remainingpercent = string.format(percent, cap > 0 and remaining / cap * 100 or 0)
     self:TimeTokens()
@@ -213,7 +217,7 @@ end
 function R:TimeTokens(used)
     local session = self.db.char.session
     local seconds, gained = session.seconds, session.gained
-    if self.preview then seconds, gained = 1800, 1400 end
+    if self:Sampling() then seconds, gained = 1800, 1400 end
     local changed = false
     if not used or used.rate or used.ttl then
         local measured = seconds >= self.RATE_AFTER
