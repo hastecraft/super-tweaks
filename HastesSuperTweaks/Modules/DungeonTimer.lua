@@ -180,7 +180,7 @@ end
 ---------------------------------------------------------------------------
 -- The panel: the instance, the time, the bosses, then what the run gave. Text is set only when it changed.
 ---------------------------------------------------------------------------
-local PAD, TITLE, CLOCK, ROW, GAP = 220, 2, 13, 28, 15, 6
+local PAD, TITLE, CLOCK, ROW, GAP = 2, 13, 28, 15, 6
 local GOLD, WHITE = { 1, 0.82, 0 }, { 1, 1, 1 }
 local BOSSES, BEST, DEATHS = LABEL .. "Bosses|r", LABEL .. "Best|r", LABEL .. "Deaths|r"
 local GOLD_LOOTED, VENDOR, AUCTION = LABEL .. "Gold|r", LABEL .. "Vendor value|r", LABEL .. "Auction value|r"
