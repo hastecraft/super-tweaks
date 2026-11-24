@@ -271,7 +271,7 @@ S.Extend(function(args, option)
     args.tooltips.args.lines.args.tipAlts = option("toggle", "tipAlts", "How many your other characters have", 6.8)
     local shopping = args.shopping.args.shopping.args
     shopping.altStock = option("toggle", "altStock", "Count your other characters' items as yours", 5.2)
-    args.general.args.history.args.forgetAlts = { type = "execute", name = "Forget your other characters' items", order = 3,
+    args.general.args.history.args.forgetAlts = { type = "execute", name = "Forget your other characters' items", order = 4,
         confirm = true, confirmText = "Forget what your other characters on this realm have?",
         func = function() S.Alts.Forget() end }
 end)
