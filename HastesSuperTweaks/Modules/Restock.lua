@@ -131,8 +131,7 @@ ns.Configure(R, defaults, function(m)
                     { desc = "For bows, guns and crossbows: warns on screen and in chat when your equipped ammo runs "
                         .. "low." }, function() m:WatchAmmo() end),
                 ammoLow = ns.Option(profile, "range", "ammoLow", "Warn below", 2, { min = 50, max = 2000, step = 50,
-                    disabled = function() return not m.db.profile.ammoWarning end },
-                    function() m.ammoWarned = nil; m:WatchAmmo() end),
+                    disabled = function() return not m.db.profile.ammoWarning end }),
             }),
         } },
     } }
@@ -382,8 +381,9 @@ function R:WatchAmmo()
 end
 
 function R:CheckAmmo()
-    local count = GetInventoryItemID("player", AMMO_SLOT) and GetInventoryItemCount("player", AMMO_SLOT) or 0
+    local count = GetInventoryItemID("player", AMMO_SLOT) and GetInventoryItemCount("player", AMMO_SLOT)
     if IsSecret(count) then return end
+    count = count or 0
     local low = count < self.db.profile.ammoLow
     if low and not self.ammoWarned then
         self.ammoWarned = true
