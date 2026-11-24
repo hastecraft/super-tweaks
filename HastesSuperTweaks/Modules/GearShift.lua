@@ -166,12 +166,19 @@ function G:Put(slot, itemID, link)
         self:ShowSlot(slot)
         return false
     end
+    -- An item held on the cursor is yours; nothing is swapped through it. What waited for the fight to end waits on,
+    -- and is tried again in a moment.
+    if CursorHasItem() then
+        if self.pending[slot] ~= nil and not self.flushing then
+            self.flushing = true
+            C_Timer.After(1, self.flushSoon)
+        end
+        return false
+    end
     if self.pending[slot] ~= nil then
         self.pending[slot], self.pendingLink[slot] = nil, nil
         self:ShowSlot(slot)
     end
-    -- An item held on the cursor is yours; nothing is swapped through it.
-    if CursorHasItem() then return false end
     if not itemID then return TakeOff(slot) end
     if GetInventoryItemID("player", slot) == itemID
         and (not link or GetInventoryItemLink("player", slot) == link) then return true end
@@ -213,6 +220,11 @@ function G:Wait()
     if self.waiting or not self.events then return end
     self.waiting = true
     for _, event in ipairs(WAIT_EVENTS) do self.events:RegisterEvent(event) end
+end
+
+G.flushSoon = function()
+    G.flushing = nil
+    G:Flush()
 end
 
 -- Does what waited, once nothing stops it.
@@ -945,7 +957,8 @@ function G:Apply()
     self.specGroups = NumSpecGroups()
     self.cdLook = self.cdLook + 1
     if not self.bar then
-        if not show then return end
+        -- No bar to make: situations and queues still need their events.
+        if not show then return self:Watch() end
         self.bar = CreateFrame("Frame", "HastesSuperTweaksGearShift", UIParent)
         self.bar:SetClampedToScreen(true)
         -- Above the action bars' own frames (EllesmereUI's end caps reach well past a bar's ends, 4 to 17 levels
@@ -1098,6 +1111,8 @@ end
 
 local function MenuClick(e)
     local menu = G.menu
+    -- A new swap: the bag slots the last one emptied hold what it took off by now, which may be what's picked.
+    wipe(taken)
     if e.setID then G:WearSet(e.setID) else G:Put(menu.slot, e.itemID, e.link) end
     G:CloseMenu()
 end
