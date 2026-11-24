@@ -44,7 +44,6 @@ ns.LazyOptions(D, function(m)
                 dungeons = option("toggle", "dungeons", "Dungeons", 1),
                 raids = option("toggle", "raids", "Raids", 2),
                 onlyGroup = option("toggle", "onlyGroup", "Only in a group", 3),
-                hideQuests = option("toggle", "hideQuests", "Hide the quest tracker while the timer runs", 4),
             }),
             timer = ns.Section("Timer", 2, {
                 showDeaths = option("toggle", "showDeaths", "Deaths", 1),
@@ -52,6 +51,7 @@ ns.LazyOptions(D, function(m)
                 showVendor = option("toggle", "showVendor", "Vendor value of loot", 3),
                 showAuction = option("toggle", "showAuction", "Auction value of loot", 4,
                     { desc = "Needs Super Auction House on.", disabled = ns.AuctionPricesOff }),
+                hideQuests = option("toggle", "hideQuests", "Hide the quest tracker while the timer runs", 5),
             }),
             position = ns.Section("Position", 3, {
                 locked = option("toggle", "locked", "Lock position", 1,
