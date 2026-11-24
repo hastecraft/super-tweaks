@@ -118,7 +118,8 @@ local function ReadResult(id, entry)
     end
     for i = count + 1, #members do members[i] = nil end
     -- Until the game sends the leader's name, the leader member's name stands in (or none).
-    if not leader then
+    if not leader or leader == "" then
+        leader = nil
         for i = 1, count do
             if members[i].leader then leader = members[i].name end
         end
@@ -568,7 +569,8 @@ end
 -- The row's buttons: Whisper, and Invite for a player you can invite.
 function F.ShowActions(row)
     local e = row.entry
-    if not e or e.self then
+    -- No one to whisper or invite: your own listing, and one whose leader's name the game hasn't sent yet.
+    if not e or e.self or e.leader == "" then
         row.whisper:Hide()
         row.invite:Hide()
         return
@@ -612,7 +614,7 @@ local function Tooltip(row, e)
             tip:AddDoubleLine(G.ActivityName(id), levels, 0.8, 0.8, 0.8, 0.6, 0.6, 0.6)
         end
     end
-    if not e.self then
+    if not e.self and e.leader ~= "" then
         tip:AddLine(" ")
         tip:AddLine(e.solo and G.CanInvite() and "Double-click to invite" or "Double-click to whisper", 0.5, 0.5, 0.5)
     end
@@ -1056,6 +1058,8 @@ end
 
 function F.Shown()
     if searchedAt then
+        -- Listings that weren't ready may be now: with the window closed, their updates weren't heard.
+        for id in pairs(unready) do dirty[id] = true end
         if not entries[1] then ReadAll() else ReadDirty() end
     end
     F.categories:Choose(CurrentCategory())
