@@ -570,7 +570,7 @@ ns.EditMode.Add(Q)
 function Q:BuildOptions()
     local function profile() return self.db.profile end
     local function apply() self:Apply() end
-    return ns.OnePage(self.info.name, "button", "Button", {
+    return ns.OnePage(self.info.name, "button", "Settings", {
         help = { type = "description", order = 0, name = "Set its key in the game's Key Bindings, under "
             .. HST.title .. "." },
         size = ns.Option(profile, "range", "size", "Size", 1, { min = 24, max = 64, step = 1 }, apply),

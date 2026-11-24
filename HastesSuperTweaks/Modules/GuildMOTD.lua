@@ -161,7 +161,7 @@ end
 function M:BuildOptions()
     local function profile() return M.db.profile end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra) end
-    return ns.OnePage("Guild Message Popup", "popup", "Popup", {
+    return ns.OnePage("Guild Message Popup", "popup", "Settings", {
         duration = option("range", "duration", "Show for (seconds)", 1, { min = 3, max = 30, step = 1 }),
         font = ns.MediaOption(profile, "font", "font", "Font", 2),
         size = option("range", "size", "Text size", 3, { min = 10, max = 32, step = 1 }),

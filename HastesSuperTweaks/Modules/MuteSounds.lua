@@ -155,7 +155,7 @@ Setup(M, { horsesteps = true, mechsteps = true, striders = true, airships = true
     local function toggle(key, name, order, desc)
         return ns.Option(function() return m.db.profile end, "toggle", key, name, order, { desc = desc }, function() m:Apply() end)
     end
-    return ns.OnePage(m.info.name, "sounds", "Sounds", {
+    return ns.OnePage(m.info.name, "sounds", "Settings", {
         horsesteps = toggle("horsesteps", "Horse hooves", 1),
         mechsteps = toggle("mechsteps", "Mechanical footsteps", 2, "Mechanostriders and other mechanical mounts."),
         striders = toggle("striders", "Mechanostrider noises", 3, "Whirring and combat sounds."),

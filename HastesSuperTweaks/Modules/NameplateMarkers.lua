@@ -54,7 +54,7 @@ ns.Configure(N, { quest = true, enemiesOnly = true, size = 14, alert = true, sou
     local function profile() return m.db.profile end
     local function option(kind, key, name, order, extra) return ns.Option(profile, kind, key, name, order, extra, function() m:Refresh() end) end
     local quests = m.questSource ~= nil
-    return ns.OnePage(m.info.name, "markers", "Markers", {
+    return ns.OnePage(m.info.name, "markers", "Settings", {
         quest = option("toggle", "quest", "Quest mobs", 1, quests
             and { desc = "A quest mark beside the mobs your quests need, and objects with a nameplate." }
             or { desc = "This client doesn't tell addons which mobs your quests need.", disabled = true,

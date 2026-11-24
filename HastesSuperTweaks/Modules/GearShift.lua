@@ -1679,7 +1679,7 @@ function G:BuildOptions()
                 alpha = ns.Option(profile, "range", "alpha", "Opacity", 7,
                     { min = 0.1, max = 1, step = 0.05, isPercent = true }, apply),
             }),
-            cooldown = ns.Section("Cooldown text", 2, {
+            cooldown = ns.Section("Text", 2, {
                 cdText = ns.Option(profile, "toggle", "cdText", "Show cooldown numbers", 1, nil, apply),
                 cdFont = ns.MediaOption(profile, "font", "cdFont", "Font", 2, { disabled = noCdText }, apply),
                 cdSize = ns.Option(profile, "range", "cdSize", "Size", 3,
@@ -1696,7 +1696,7 @@ function G:BuildOptions()
                 end },
             }),
         } },
-        slots = { type = "group", name = "Slots", order = 2, args = { slots = ns.Section("Slots", 1, slotArgs) } },
+        slots = { type = "group", name = "Slots", order = 2, args = { slots = ns.Section("Settings", 1, slotArgs) } },
         specs = { type = "group", name = "Specs", order = 2.5, args = specArgs },
         queues = { type = "group", name = "Queues", order = 3, args = queueArgs },
         situations = { type = "group", name = "Situations", order = 4, args = situationArgs },

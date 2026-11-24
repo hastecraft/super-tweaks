@@ -45,7 +45,7 @@ ns.Configure(A, { invite = true, gates = true, gatesWarning = false, sound = fal
     local function toggle(key, name, order, desc, extra)
         return ns.Option(profile, "toggle", key, name, order, ns.With({ desc = desc }, extra), function() m:Apply() end)
     end
-    return ns.OnePage(m.info.name, "alerts", "Alerts", {
+    return ns.OnePage(m.info.name, "alerts", "Settings", {
         invite = toggle("invite", "Invite countdown", 1, "While a battleground invite is up, shows how long you have "
             .. "left to enter, and flashes the taskbar at 20 and 10 seconds left. When the game doesn't say how long, "
             .. "it shows the invite and flashes every 20 seconds."),

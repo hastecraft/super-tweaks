@@ -1214,7 +1214,7 @@ function U:BuildOptions()
             }),
         } },
         scales = { type = "group", name = "Stat weights", order = 2, args = {
-            edit = ns.Section("Weights", 1, weightArgs),
+            edit = ns.Section("Settings", 1, weightArgs),
         } },
     } }
 end
