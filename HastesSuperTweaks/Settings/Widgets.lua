@@ -1290,9 +1290,13 @@ local menu
 
 local function PaintSelect(s)
     local open = menu and menu:IsShown() and menu.owner == s
-    s.SetRim(s.off and C.border or (open or s.lit) and C.accent or C.border)
+    -- A select can have a look of its own (source.look: rim, fill, lit, open, chevron), for a window where the
+    -- settings window's quiet field would be lost among other parts.
+    local look = s.source.look
+    s.SetRim(s.off and C.border or (open or s.lit) and C.accent or look and look.rim or C.border)
+    if look then s.SetFill(s.off and C.field or open and look.open or s.lit and look.lit or look.fill) end
     W.Paint(s.label, s.off and C.disabled or C.bright)
-    W.Paint(s.chevron, s.off and C.disabled or (open or s.lit) and C.accent or C.header)
+    W.Paint(s.chevron, s.off and C.disabled or (open or s.lit) and C.accent or look and look.chevron or C.header)
     s.chevron:Point(open and "UP" or "DOWN")
 end
 
@@ -1449,12 +1453,13 @@ function W.Select(parent, source)
     local s = CreateFrame("Button", nil, parent)
     s.source = source
     s:SetHeight(SELECT_H)
-    s.SetRim = W.Outline(s, nil, C.border, C.field)
+    local look = source.look
+    s.SetRim, s.SetFill = W.Outline(s, nil, look and look.rim or C.border, look and look.fill or C.field)
     s.label = W.Text(s, "GameFontHighlight", C.bright)
     s.label:SetPoint("LEFT", 12, 0)
     s.label:SetPoint("RIGHT", -28, 0)
     s.label:SetWordWrap(false)
-    s.chevron = W.Chevron(s, 12, C.header)
+    s.chevron = W.Chevron(s, 12, look and look.chevron or C.header)
     s.chevron:SetPoint("RIGHT", -10, 0)
     s:SetMotionScriptsWhileDisabled(true)
     s:SetScript("OnEnter", function(self) self.lit = true; PaintSelect(self) end)

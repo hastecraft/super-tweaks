@@ -468,11 +468,14 @@ function K.MoneyInput(parent, onChange, onEnter)
     return f
 end
 
--- A dropdown. getEntries() returns values and order; the label follows the value.
+-- A dropdown. getEntries() returns values and order; the label follows the value. It's drawn as the buttons are, with
+-- a rim and a fill that stand off the cards it sits on, and lights up while pointed at and while open.
+local selectLook
 function K.Select(parent, getEntries, getValue, onSelect)
+    selectLook = selectLook or { rim = P.line, fill = P.buttonFill, lit = P.buttonLit, open = P.wash, chevron = P.text }
     local s
     s = W.Select(parent, {
-        getEntries = getEntries, getValue = getValue,
+        getEntries = getEntries, getValue = getValue, look = selectLook,
         onSelect = function(key)
             onSelect(key)
             local values = getEntries()
