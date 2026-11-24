@@ -140,7 +140,8 @@ end
 -- The side panel shows one view at a time, picked from the dropdown over it. Other files add theirs:
 -- Sh.AddView({ key = , name = , entries = function() return rows end, click = function(e, button, row) end,
 -- show = function() end, hide = function() end }). A view's rows carry view = the view, and can have name, count,
--- icon and deal as the other rows do.
+-- icon and deal as the other rows do. covers: the view draws over the search row and the results, so a search from
+-- the box leaves it. changed(): the auction house opened or closed.
 Sh.sideViews, Sh.sideViewOrder = {}, {}
 function Sh.AddView(view)
     Sh.sideViews[view.key] = view
@@ -1443,6 +1444,7 @@ end
 function Sh.BuyNext()
     if K.ConfirmDialog("buy") then return end
     if S.Buy.IsOpen() then return S.Buy.Press() end
+    if S.Sniper.IsUp() then return S.Sniper.BuyNext() end
     if not (S.Window.IsLive() and Sh.results) then return end
     local over, gone = false, false
     for _, e in ipairs(Sh.results.entries) do
@@ -1465,7 +1467,11 @@ function Sh.BuyNext()
 end
 
 -- Whether the key for Buy Next has something to do (Window.lua binds it only then).
-function Sh.WantsBuyKey() return shownBuys or S.Buy.IsOpen() end
+function Sh.WantsBuyKey()
+    if S.Buy.IsOpen() then return true end
+    if S.Sniper.IsUp() then return S.Sniper.WantsKey() end
+    return shownBuys
+end
 
 -- A saved price keeps only an item string ("item:871"), which chat would send as plain text: it needs the full link.
 local function LinkOf(e)
@@ -1791,6 +1797,9 @@ function Sh.Build(frame)
     end
     ShowHome(true)
     RefreshSide()
+    -- The view the panel was left on comes up as it did then.
+    local shown = Sh.sideViews[S.db.profile.shoppingView]
+    if shown and shown.show then shown.show() end
 end
 
 function Sh.OnShow()
@@ -1800,6 +1809,8 @@ end
 -- The key for the search box.
 function Sh.Find()
     if not Sh.box then return end
+    local shown = Sh.sideViews[S.db.profile.shoppingView]
+    if shown and shown.covers then Sh.SetView("lists") end
     if S.Buy.IsOpen() then S.Buy.Close() end
     if Sh.filters and Sh.filters:IsShown() then Sh.filters:Hide() end
     Sh.box:Focus()
@@ -1809,6 +1820,8 @@ end
 function Sh.ModeChanged()
     RefreshSide() -- the categories come and go with the auction house
     if not Sh.results then return end
+    local shown = Sh.sideViews[S.db.profile.shoppingView]
+    if shown and shown.changed then shown.changed() end
     if S.Buy.IsOpen() then S.Buy.Close() end
     Sh.Clear()
     Sh.results:Layout()

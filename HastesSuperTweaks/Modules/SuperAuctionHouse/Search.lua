@@ -477,13 +477,15 @@ NextTerm = function(r)
     Ask(r, function() N.SendBrowse(token, query) end, N.Send)
 end
 
--- Starts a search over a list of term strings. Callbacks in `handlers`: onResults(run), onProgress(done, total), onDone(run).
+-- Starts a search over a list of term strings. Callbacks in `handlers`: onResults(run), onProgress(done, total), onDone(run),
+-- onStop(run) when it's stopped, and onReplaced(run) when another search starts in its place.
 -- run.results holds the entries, run.missing the terms that found nothing, and run.found how many each term found, by
 -- its place in the list (an item two terms find is listed under the first).
 function Q.Start(terms, handlers)
     Q.Stop(true)
     local r = { terms = terms, at = 0, results = {}, byKey = {}, missing = {}, found = {}, onResults = handlers.onResults,
-        onProgress = handlers.onProgress, onDone = handlers.onDone, onStop = handlers.onStop }
+        onProgress = handlers.onProgress, onDone = handlers.onDone, onStop = handlers.onStop,
+        onReplaced = handlers.onReplaced }
     run = r
     NextTerm(r)
     return r
@@ -493,7 +495,11 @@ function Q.Stop(replaced)
     if not run then return end
     local stopped = run
     run = nil
-    if not replaced and stopped.onStop then stopped.onStop(stopped) end
+    if replaced then
+        if stopped.onReplaced then stopped.onReplaced(stopped) end
+    elseif stopped.onStop then
+        stopped.onStop(stopped)
+    end
 end
 
 function Q.IsRunning() return run ~= nil end

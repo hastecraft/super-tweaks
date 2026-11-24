@@ -11,6 +11,7 @@
 --     cap = n,                 the most to have on sale
 --     keep = n,                how many stay in your bags
 --     duration = 1 | 2 | 3,
+--     snipe = ,                the Sniper lists the item at or under this price: copper or a formula
 --     mail = "Name",           Mail Helper sends the group's items to this character
 --     vendor = true }          sold at vendors with your clutter
 -- The Selling tab reads an item's rules as it's picked (R.Read) and prices it by them as its listing arrives (R.Price).
@@ -332,8 +333,11 @@ local function Build()
     number("cap", "Most to have on sale", "No limit")
     number("keep", "Keep in your bags")
     number("expiries", "Stop posting after (expired auctions)", "Never")
+    add.heading("Buying, mail and vendors")
+    price("snipe", "Buy at or under (Sniper)")
     for _, build in ipairs(extraRows) do build(card, add) end
     card:SetSize(WIDTH, -add.y + 56)
+    v.card = card
 
     local function close() v:Hide() end
     local save = K.Button(card, "Save", "primary")
@@ -375,6 +379,9 @@ local function Open(title, from, rule, priceKey, clearText, save)
     v.save = save
     for _, box in ipairs(v.prices) do box:SetKey(priceKey) end
     for _, field in ipairs(v.fields) do field.read(rule or EMPTY) end
+    -- A window too short for the card shows it smaller.
+    local room = S.Window.frame:GetHeight() - 16
+    v.card:SetScale(math.min(1, room / v.card:GetHeight()))
     v.clear:SetShown(clearText ~= nil)
     if clearText then
         v.clear:SetText(clearText)
