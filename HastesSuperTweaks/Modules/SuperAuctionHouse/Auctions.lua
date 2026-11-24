@@ -1,6 +1,6 @@
 -- The Auctions tab: everything you have on sale, grouped by item, with what's sold and on its way, who has bid, and a
 -- check of where each auction stands among its item's prices. The check runs one item at a time through the queue.
--- Cancelling needs a click or a key press, so the check only marks auctions and Cancel next takes them one per press;
+-- Cancelling needs a click or a key press, so the check only marks auctions and Cancel Next takes them one per press;
 -- "Cancel all of this item" points the same button at one item. Away from an auction house the tab shows every
 -- character's auctions as last seen there (Owned.lua reads and keeps them). Bids.lua adds the Bids view.
 -- SPDX-License-Identifier: MPL-2.0
@@ -49,7 +49,7 @@ local savedEntries = {}
 -- The table's top rows (a group or a lone auction), the groups by item, and which groups are open.
 local shown, groups, open = {}, {}, {}
 local grouped = true
--- The item Cancel next is pointed at by "Cancel all of this item": { key = , name = }.
+-- The item Cancel Next is pointed at by "Cancel all of this item": { key = , name = }.
 local scope
 -- A check to start once your auctions have been read this visit: true for the ones not checked lately, "all" for all.
 local wantCheck = false
@@ -511,7 +511,7 @@ local function Targets(key)
     return left, up
 end
 
--- The line beside the filters: what Cancel next is pointed at, or how old the saved copy is.
+-- The line beside the filters: what Cancel Next is pointed at, or how old the saved copy is.
 local function PaintNote()
     if not A.note then return end
     local text = ""
@@ -529,7 +529,7 @@ local function PaintNote()
     A.stopButton:SetShown(scope ~= nil)
 end
 
--- The auction Cancel next takes: the next of the item it's pointed at, or else the next one undercut or priced low.
+-- The auction Cancel Next takes: the next of the item it's pointed at, or else the next one undercut or priced low.
 function A.NextUndercut()
     if saved then return nil end
     local list = O.Live()
@@ -574,7 +574,7 @@ local function DoCancel(e)
     end
 end
 
--- Cancel next asks only when cancelling costs something; a click on a row always asks.
+-- Cancel Next asks only when cancelling costs something; a click on a row always asks.
 local function AskCancel(e, always)
     if e.sold or saved then return end
     if not AH.CanCancelAuction(e.auctionID) then
@@ -598,13 +598,13 @@ local function EndScope()
     A.UpdateNext()
 end
 
--- "Cancel all of this item": the game takes one cancel per click or key press, so Cancel next is pointed at the item
+-- "Cancel all of this item": the game takes one cancel per click or key press, so Cancel Next is pointed at the item
 -- and takes one of its auctions per press. It stays pointed there, with nothing to take, until the game has taken the
 -- last of them away: a press too many doesn't cancel some other auction.
 local function StartScope(e)
     scope = { key = e.keyString, name = e.name or "" }
     local key = S.db.profile.keyCancel
-    Status("Press Cancel next" .. ((key and key ~= "") and (" (" .. key .. ")") or "") .. " once for each auction.")
+    Status("Press Cancel Next" .. ((key and key ~= "") and (" (" .. key .. ")") or "") .. " once for each auction.")
     PaintNote()
     A.UpdateNext()
 end
@@ -767,7 +767,7 @@ end
 local function BuildList(frame)
     A.list = frame
     -- The first line, right of the pills that pick the view.
-    A.nextButton = K.Button(frame, "Cancel next", "primary", "HSTSuperAHCancelNext")
+    A.nextButton = K.Button(frame, "Cancel Next", "primary", "HSTSuperAHCancelNext")
     A.nextButton:Fit(90)
     A.nextButton:SetPoint("TOPRIGHT", -10, -12)
     A.nextButton:SetScript("OnClick", CancelNext)
@@ -930,5 +930,5 @@ S.Extend(function(args, option)
         { min = 0, max = 50, step = 1, desc = "0: any cheaper price counts." })
     page.repostPercent = option("range", "repostPercent", "Priced low from (percent under the next price)", 1.7,
         { min = 0, max = 90, step = 5,
-          desc = "Cancel next takes these too, so you can post them again for more. 0: never." })
+          desc = "Cancel Next takes these too, so you can post them again for more. 0: never." })
 end)
