@@ -211,6 +211,8 @@ Section('Instance Tracker', function()
         state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
     end)
     state.instanceType, state.instanceName, state.instanceID = 'party', 'The Deadmines', 36
+    -- The item looted below: the game knows an item you've just looted, its quality too.
+    ITEMS[2169] = { name = 'Buzzer Blade', quality = 2 }
     Send('InstanceTracker', 'PLAYER_ENTERING_WORLD', false, false)
     Measure('Instance Tracker: XP gain inside an instance', 100, function()
         state.xp = state.xp + 10; Send('InstanceTracker', 'PLAYER_XP_UPDATE', 'player')
@@ -244,6 +246,7 @@ Section('Instance Tracker', function()
     Send('InstanceTracker', 'PLAYER_ENTERING_WORLD', false, false)
     Measure('Instance Tracker: zone change outside an instance', 100, function() Send('InstanceTracker', 'ZONE_CHANGED_NEW_AREA') end)
     state.groupSize = 0
+    ITEMS[2169] = nil
     for i = 1, 4 do UNITS['party' .. i] = nil end
 end)
 

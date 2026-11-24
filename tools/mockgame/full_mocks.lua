@@ -129,6 +129,7 @@ end
 C_Container.PickupContainerItem = function() end
 function GetInventoryItemID(_, slot) return WIELDED[slot] end
 function PutItemInBag() end
+C_Item.GetItemQualityByID = function(id) local i = ITEMS[id]; return i and (i.quality or 1) or nil end
 C_Item.GetItemInfoInstant = function(id)
     if type(id) == 'string' then id = tonumber(id:match('item:(%d+)')) end -- a link, as the game takes
     local i = ITEMS[id]
