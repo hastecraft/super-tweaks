@@ -487,9 +487,11 @@ end
 ---------------------------------------------------------------------------
 -- Cancelling
 ---------------------------------------------------------------------------
+-- Whether an auction that isn't sold is on its way out: its cancel was sent, or the game has said it's cancelled and
+-- the list hasn't been read again since.
 local function Cancelling(auctionID)
     local at = cancelling[auctionID]
-    return at ~= nil and GetTime() - at < CANCEL_WAIT
+    return (at ~= nil and GetTime() - at < CANCEL_WAIT) or not O.Active(auctionID)
 end
 
 -- An item's auctions that are still up: how many are left to cancel, and how many there are (the rest are being
@@ -824,7 +826,7 @@ local function BuildList(frame)
               text = function(e) return e.row.ahead or "" end },
             { key = "character", title = "Character", width = 100, hide = function() return not saved end },
         },
-        dim = function(e) return e.sold or e.left <= 0 or (not e.group and Cancelling(e.auctionID)) end,
+        dim = function(e) return e.sold or e.left <= 0 or (not e.group and not saved and Cancelling(e.auctionID)) end,
         onClick = function(e, button, row)
             if e.group then
                 if button == "RightButton" then RowMenu(e, row) else Toggle(e) end
