@@ -132,7 +132,6 @@ end
 ---------------------------------------------------------------------------
 -- Settings preview: the button with a quest's torch. It glows as you target the right thing, then it's pressed.
 ---------------------------------------------------------------------------
-local CAPTIONS = { "The item for the quest you're on", "It glows: your target is the right one", "Pressed: the item is used" }
 function Q.info.preview(frame)
     local W = ns.Widgets
     local p = Q.db.profile
@@ -142,11 +141,10 @@ function Q.info.preview(frame)
         frame.hstQuestItem = v
         v.button = Dress(CreateFrame("Frame", nil, frame), true)
         v.button.icon:SetTexture(SAMPLE_ICON)
-        v.caption = W.Caption(frame, CAPTIONS[1]) -- each caption is one line, laid out with this one
     end
     local b, key = v.button, KeyText()
     Size(b, p.size)
-    W.Column(frame, { b, 14, v.caption })
+    W.Column(frame, { b })
     local phase
     W.Loop(frame, 5, function(t)
         local now = t < 1.5 and 1 or t < 3 and p.glow and 2 or 3
@@ -156,7 +154,6 @@ function Q.info.preview(frame)
         ShowRange(b, key, now > 1 or nil)
         if now == 3 then b.cooldown:SetCooldown(GetTime(), 1.5) else b.cooldown:Clear() end
         b.count:SetText(now == 3 and "2" or "3")
-        v.caption:SetText(CAPTIONS[now])
     end, p.glow and 2.5 or 0.75)
 end
 
@@ -298,7 +295,7 @@ function Q:Place(p, link, editing)
         self.link, self.itemID = itemID and link or nil, itemID
         b.icon:SetTexture(self.pickTexture)
         -- Drawn anew for the new item; where it is in your bags is looked for again.
-        b.shownCount, b.cdStart, self.bag = nil, nil, nil
+        b.shownCount, b.cdStart, self.bag, self.bagChecked = nil, nil, nil, nil
         -- With no item it hides, and nothing checks its target to end a glow.
         if not self.link then Glow(b, false) end
     end
@@ -354,6 +351,7 @@ function Q:Apply()
     end
     -- One item can serve two quests. Which quest it's for is this addon's own note, which combat doesn't hold up.
     if self.link and link == self.link then self.questID = self.pickQuest end
+    self.index = nil
     self:Watch()
     self:UpdateLook()
 end
@@ -395,28 +393,52 @@ end
 ---------------------------------------------------------------------------
 -- What the button shows for its item: count, cooldown, range and glow.
 ---------------------------------------------------------------------------
-function Q:UpdateLook()
+-- The quest's place in the log, kept until the log may have changed (see the events and Q:Apply): the range check
+-- needs it five times a second.
+function Q:Index()
+    local index = self.index
+    if index == nil then
+        index = self.questID and QL.GetLogIndexForQuestID(self.questID) or false
+        self.index = index
+    end
+    return index or nil
+end
+
+-- Charges count, as on action buttons; the icon greys out with none left.
+function Q:UpdateCount()
     local b = self.button
-    if not (b and self.link) then return end
-    -- Charges count, as on action buttons; the icon greys out with none left.
     local count = ItemCount and ItemCount(self.itemID, false, true)
     if not IsSecret(count) and type(count) == "number" and count ~= b.shownCount then
         b.shownCount = count
         b.count:SetText(count > 1 and count or "")
         b.icon:SetDesaturated(count == 0)
     end
-    -- The quest's place in the log, read once for both.
-    local index = self.questID and QL.GetLogIndexForQuestID(self.questID)
-    self:UpdateCooldown(index, true)
-    self:CheckTarget(index, true)
 end
 
--- The cooldown's swipe; the icon is dimmed while the cooldown waits to start (a potion's, in combat). known: index is
--- the quest's place in the log, already read.
-function Q:UpdateCooldown(index, known)
+function Q:UpdateLook()
+    if not (self.button and self.link) then return end
+    self:UpdateCount()
+    self:UpdateCooldown()
+    self:CheckTarget()
+end
+
+-- Your bags changed: the item may have moved, arrived or been used. Only its count is read, and where it is is
+-- looked at again at its next use. The quest is picked again only when the last one went or the first came.
+function Q:BagsChanged()
+    self.bagChecked = nil
+    if self.bag == false then self.bag = nil end
     local b = self.button
     if not (b and self.link) then return end
-    if not known then index = self.questID and QL.GetLogIndexForQuestID(self.questID) end
+    local before = b.shownCount
+    self:UpdateCount()
+    if (before == 0) ~= (b.shownCount == 0) then self:Queue() end
+end
+
+-- The cooldown's swipe; the icon is dimmed while the cooldown waits to start (a potion's, in combat).
+function Q:UpdateCooldown()
+    local b = self.button
+    if not (b and self.link) then return end
+    local index = self:Index()
     local start, duration, enable
     if index and SpecialCooldown then start, duration, enable = SpecialCooldown(index) end
     if IsSecret(start) or IsSecret(duration) or IsSecret(enable) then start, duration, enable = nil, nil, nil end
@@ -439,20 +461,19 @@ local function InRange(index)
     return nil
 end
 
--- Range and glow, checked as your target changes and every RANGE_EVERY seconds while you have one. known: as for
--- UpdateCooldown.
-function Q:CheckTarget(index, known)
+-- Range and glow, checked as your target changes and every RANGE_EVERY seconds while you have one.
+function Q:CheckTarget()
     local b = self.button
     if not (b and self.link) then return end
-    if not known then index = self.questID and QL.GetLogIndexForQuestID(self.questID) end
-    ShowRange(b, self.keyText or "", InRange(index))
+    ShowRange(b, self.keyText or "", InRange(self:Index()))
     Glow(b, self.db.profile.glow and self:RightTarget() or false)
 end
 
 -- Whether your target is one the item can be used on, in range: the game's own check, which needs where the item is
--- in your bags (found once, and looked for again when your bags change).
+-- in your bags (found once, and looked for again when your bags change). Whether you have a target is known from its
+-- last change (see Q:Watch).
 function Q:RightTarget()
-    if not (CanUseOn and UnitExists("target")) then return false end
+    if not (CanUseOn and self.ranging) then return false end
     local location = self:Location()
     if not location then return false end
     local ok, can = pcall(CanUseOn, location, "target", true)
@@ -464,7 +485,11 @@ function Q:Location()
     local bags, itemID = C_Container, self.itemID
     if self.bag == false or not (bags and ItemLocation and ItemLocation.CreateFromBagAndSlot) then return nil end
     local bag, slot = self.bag, self.slot
-    if bag and bags.GetContainerItemID(bag, slot) == itemID then return self.location end
+    -- The slot found is looked at once after your bags change, not at every range check.
+    if bag and (self.bagChecked or bags.GetContainerItemID(bag, slot) == itemID) then
+        self.bagChecked = true
+        return self.location
+    end
     bag, slot = nil, nil
     for b = 0, LAST_BAG do
         for s = 1, bags.GetContainerNumSlots(b) do
@@ -473,7 +498,7 @@ function Q:Location()
         if bag then break end
     end
     -- false: looked for and not found, until your bags change.
-    self.bag, self.slot = bag or false, slot
+    self.bag, self.slot, self.bagChecked = bag or false, slot, bag ~= nil
     if not bag then return nil end
     if self.location then self.location:SetBagAndSlot(bag, slot) else self.location = ItemLocation:CreateFromBagAndSlot(bag, slot) end
     return self.location
@@ -496,11 +521,9 @@ ns.Listen(Q, { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_C
     function(self, event, a, b)
         if event == "BAG_UPDATE_COOLDOWN" then return self:UpdateCooldown() end
         if event == "PLAYER_TARGET_CHANGED" then self:Watch(); return self:CheckTarget() end
-        if REPICK[event] then return self:Queue() end
+        if REPICK[event] then self.index = nil; return self:Queue() end
         if event == "BAG_UPDATE_DELAYED" then
-            -- An item not found may have arrived; a slot found is checked again when it's next used (see Q:Location).
-            if self.bag == false then self.bag = nil end
-            return self:Queue()
+            return self:BagsChanged()
         elseif event == "PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED" then
             if not IsSecret(a) and not IsSecret(b) and type(a) == "number" then areas[a] = b == true or nil end
             return self:Queue()
@@ -570,7 +593,7 @@ ns.EditMode.Add(Q)
 function Q:BuildOptions()
     local function profile() return self.db.profile end
     local function apply() self:Apply() end
-    return ns.OnePage(self.info.name, "button", "Button", {
+    return ns.OnePage(self.info.name, "button", "Settings", {
         help = { type = "description", order = 0, name = "Set its key in the game's Key Bindings, under "
             .. HST.title .. "." },
         size = ns.Option(profile, "range", "size", "Size", 1, { min = 24, max = 64, step = 1 }, apply),

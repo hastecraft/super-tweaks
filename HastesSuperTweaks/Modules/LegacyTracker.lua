@@ -11,7 +11,7 @@ local IsSecret = ns.IsSecret
 
 local L = HST:NewFeature("LegacyTracker", {
     name = "Legacy Tracker", category = "leveling", order = 8,
-    summary = "Says what each challenge earns and reminds you to spend your Legacy points.",
+    summary = "Says what each challenge earns and reminds you to spend Legacy points.",
     examples = { "announce", "remind" },
     description = "When a challenge completes, says how many Legacy points it gave and how many you have to spend. "
         .. "Can also remind you at login when you have points to spend. Links in these lines, and /hst legacy, open "
@@ -349,7 +349,6 @@ function L.info.preview(frame)
         v.details:SetWidth(BAR_W)
         v.challenge = W.ChatLine(frame, "")
         v.reminder = W.ChatLine(frame, "")
-        v.caption = W.Caption(frame, "")
     end
     local p = L.db.profile
     local s, live = SAMPLE, false
@@ -374,18 +373,15 @@ function L.info.preview(frame)
     if remind then SetLine(v.reminder, ReminderText(s, at, names)) end
     v.challenge:SetShown(announce)
     v.reminder:SetShown(remind)
-    v.caption:SetShown(not (announce or remind))
     -- Placed by the taller line shown; the other takes its place.
-    local below, other = v.caption, nil
+    local below, other
     if announce and remind then
         below, other = v.challenge, v.reminder
         if v.reminder:GetStringHeight() > v.challenge:GetStringHeight() then below, other = v.reminder, v.challenge end
     elseif announce or remind then
         below = announce and v.challenge or v.reminder
-    else
-        v.caption:SetText(p.remind and "No points to spend, so no login reminder." or "Nothing in chat.")
     end
-    W.Column(frame, { v.card, 14, below })
+    W.Column(frame, below and { v.card, 14, below } or { v.card })
     if other then
         other:ClearAllPoints()
         other:SetPoint("TOP", below, "TOP")

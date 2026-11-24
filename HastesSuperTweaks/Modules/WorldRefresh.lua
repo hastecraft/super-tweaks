@@ -13,7 +13,7 @@ local Confirm = C_PlayerInteractionManager and C_PlayerInteractionManager.ShardT
 
 local R = HST:NewFeature("WorldRefresh", {
     name = "Better World Refresh", category = "interface", order = 3, command = "refresh", enabledByDefault = false,
-    summary = "A world refresh countdown you can place, with an automatic refresh at a safe moment.",
+    summary = "Counts down to the world refresh and can refresh at a safe moment.",
     examples = { "autoRefresh", { "warnAt", "Last warning" }, "flash", { "width", "Bar width" } },
     description = "Replaces the game's world refresh notice with a countdown bar you can move in Edit Mode. Click it "
         .. "(or press its key) to refresh now, or let it refresh for you once you're out of combat and somewhere "
@@ -583,8 +583,7 @@ function R:BuildOptions()
                     func = function() R:PlaySample() end },
             }),
             alerts = ns.Section("Alerts", 2, {
-                chat = option("toggle", "chat", "Say it in chat", 1, {
-                    desc = "A chat line when a refresh starts waiting and when it refreshes by itself." }),
+                chat = option("toggle", "chat", "Say it in chat", 1),
                 startSound = option("toggle", "startSound", "Play a sound", 2, {
                     desc = "Plays the ready check sound when a refresh starts waiting, even with sound effects off." }),
                 flash = option("toggle", "flash", "Flash the taskbar", 3, {
@@ -606,7 +605,8 @@ function R:BuildOptions()
                 height = option("range", "height", "Height", 2, { min = 8, max = 60, step = 1 }),
                 texture = ns.MediaOption(profile, "statusbar", "texture", "Texture", 3, nil, apply),
                 border = option("range", "border", "Border", 4, { min = 0, max = 4, step = 1 }),
-                borderColor = option("color", "borderColor", "Border color", 5),
+                borderColor = option("color", "borderColor", "Border color", 5,
+                    { disabled = function() return R.db.profile.border == 0 end }),
                 backgroundColor = option("color", "backgroundColor", "Background", 6),
                 reset = { type = "execute", name = "Reset position", order = 7,
                     desc = "Moves the bar back under the middle of the screen.",

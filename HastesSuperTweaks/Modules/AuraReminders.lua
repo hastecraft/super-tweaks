@@ -435,7 +435,8 @@ local function Read(r, now)
     if tracked then r.other = false; return true end
     if GetByName and Readable(r) then
         local ok, aura = pcall(GetByName, "player", r.name, "HELPFUL")
-        if ok and aura == nil and r.wide then ok, aura = pcall(GetByName, "player", r.wide, "HELPFUL") end
+        -- type() can be asked of a hidden value; a comparison can't.
+        if ok and type(aura) == "nil" and r.wide then ok, aura = pcall(GetByName, "player", r.wide, "HELPFUL") end
         if ok and not IsSecret(aura) then
             if aura == nil then
                 if not (inCombat and r.other and r.ends and r.ends > now) then
@@ -571,10 +572,11 @@ end
 -- whenever it lays out its icons. Hooked only once a reminder exists.
 ---------------------------------------------------------------------------
 local trackedBy = {} -- aura name -> the item frame tracking it
-local viewersHooked = false
+local viewersHooked = {} -- by viewer name: one that isn't there yet is looked for again
 
+-- The hooks stay once made, and the list is kept while the tweak is off (its settings still edit it).
 local function OnTracked(frame)
-    if not (inCombat or needOut) then return end
+    if not (inCombat or needOut) or not R:IsEnabled() then return end
     for i = 1, #list do
         if list[i].item == frame then return Update() end
     end
@@ -617,17 +619,18 @@ local function Track()
 end
 
 local function Retrack()
-    if #list == 0 then return end
+    if #list == 0 or not R:IsEnabled() then return end
     Track()
     Update()
 end
 
 local function HookViewers()
-    if viewersHooked then return end
-    viewersHooked = true
     for _, key in ipairs(VIEWERS) do
         local viewer = _G[key]
-        if viewer and viewer.RefreshLayout then hooksecurefunc(viewer, "RefreshLayout", Retrack) end
+        if viewer and viewer.RefreshLayout and not viewersHooked[key] then
+            viewersHooked[key] = true
+            hooksecurefunc(viewer, "RefreshLayout", Retrack)
+        end
     end
 end
 

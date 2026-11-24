@@ -357,6 +357,7 @@ function B:Scan()
     self.fresh = nil
     local ctx = clutter:Context(fresh)
     -- Until the game has said what your quests need, nothing can be offered. Asked for here, and an event says when.
+    self.awaitingQuests = not ctx.complete or nil
     if not ctx.complete then
         clutter:PrepareSale()
         return
@@ -599,6 +600,9 @@ end
 ---------------------------------------------------------------------------
 ns.Listen(B, { "BAG_UPDATE_DELAYED", "PLAYER_ENTERING_WORLD" }, function(self, event)
     if event == "PLAYER_ENTERING_WORLD" then self.inWorld = true end
+    -- Quest data arrives for every quest anyone asks about (other addons ask for hundreds): it only matters here
+    -- while what your quests need couldn't all be read.
+    if event == "QUEST_DATA_LOAD_RESULT" and not (self.awaitingQuests or self.questsPending) then return end
     if event == "QUEST_LOG_UPDATE" or event == "QUEST_DATA_LOAD_RESULT" then
         self.fresh, self.questsPending = true, nil
     else

@@ -95,8 +95,7 @@ end
 HST.startingPoints = {
     { name = "Add the leveling set", tip = "Also turns on the tweaks that save time while leveling:",
         on = { "AutoQuests", "AutoGossip", "SellJunk", "AutoRepair", "FastLoot", "SpellRanks", "AutoBags" } },
-    { name = "Start with all off", tip = "Turns every tweak off, so you can pick the ones you want from the list.",
-        allOff = true, confirm = "Turn every tweak off? You can turn the ones you want back on from the list." },
+    { name = "Start with all off", allOff = true, confirm = "Turn every tweak off?" },
 }
 
 -- A starting point's description: its tip, and the tweaks it turns on that this client can use.
@@ -340,7 +339,6 @@ function HST:ProfileOptions()
         manage = { type = "group", inline = true, name = "Manage", order = 2, args = {
             copy = { type = "select", name = "Copy from", order = 1,
                 confirm = function(_, name) return "Replace the active profile's settings with \"" .. name .. "\"?" end,
-                desc = "Replace the active profile's settings with another profile's.",
                 values = others, disabled = none,
                 get = function() return nil end, set = function(_, name) if other(name) then db:CopyProfile(name) end end },
             delete = { type = "select", name = "Delete profile", order = 2,
@@ -1077,6 +1075,7 @@ end
 -- only that data is passed on, to the functions given to ns.OnQuestRewardData.
 local requestedRewards, awaitedRewards, rewardListeners = {}, 0, {}
 local rewardWatcher -- made with the first request
+local REWARD_TIMEOUT = 15 -- seconds: a request the game never answers counts as a failed load
 local RequestRewardData
 local function OnRewardData(frame, _, questID, success)
     local request = requestedRewards[questID]
@@ -1103,6 +1102,7 @@ RequestRewardData = function(questID)
     request = request or { attempts = 0 }
     if request.attempts >= 3 then request.attempts = 0 end
     request.attempts, request.pending = request.attempts + 1, true
+    request.asked = (request.asked or 0) + 1
     requestedRewards[questID] = request
     awaitedRewards = awaitedRewards + 1
     if not rewardWatcher then
@@ -1111,6 +1111,11 @@ RequestRewardData = function(questID)
     end
     rewardWatcher:RegisterEvent("QUEST_DATA_LOAD_RESULT")
     C_QuestLog.RequestLoadQuestByID(questID)
+    -- Without an answer the request would wait forever, and the event stay listened to: it's settled as failed.
+    local asked = request.asked
+    C_Timer.After(REWARD_TIMEOUT, function()
+        if request.pending and request.asked == asked then OnRewardData(rewardWatcher, nil, questID, false) end
+    end)
 end
 
 -- Calls fn(questID) when reward data ns.QuestRewardXP asked for arrives. Listeners can't be removed, so fn checks its

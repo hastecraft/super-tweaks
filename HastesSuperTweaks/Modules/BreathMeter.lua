@@ -263,8 +263,14 @@ end
 function B:ReadTimers()
     if not GetMirrorTimerInfo then return end
     for i = 1, 3 do
+        -- The second return is the value the timer started at: one under way is read where it is now, which a paused
+        -- one would otherwise never show.
         local name, value, maxValue, scale, paused, label = GetMirrorTimerInfo(i)
-        if name and name ~= "UNKNOWN" then self:Start(name, value, maxValue, scale, paused, label) end
+        if name and name ~= "UNKNOWN" then
+            local progress = GetMirrorTimerProgress and GetMirrorTimerProgress(name)
+            if type(progress) == "number" and progress > 0 then value = progress end
+            self:Start(name, value, maxValue, scale, paused, label)
+        end
     end
 end
 
@@ -468,7 +474,8 @@ function B:BuildOptions()
                 gap = option("range", "gap", "Space between bars", 3, { min = 0, max = 30, step = 1 }),
                 texture = ns.MediaOption(profile, "statusbar", "texture", "Texture", 4, nil, apply),
                 border = option("range", "border", "Border", 5, { min = 0, max = 4, step = 1 }),
-                borderColor = option("color", "borderColor", "Border color", 6),
+                borderColor = option("color", "borderColor", "Border color", 6,
+                    { disabled = function() return B.db.profile.border == 0 end }),
                 backgroundColor = option("color", "backgroundColor", "Background", 7),
                 reset = { type = "execute", name = "Reset position", order = 8,
                     desc = "Moves the meter back to where the game's breath bar sits.",

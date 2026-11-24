@@ -161,7 +161,11 @@ local function OnEvent(_, _, text, sender, _, _, _, _, zoneChannel, _, _, _, _, 
     local p, now = F.db.profile, GetTime()
     local last = handled[sender]
     if last and now - last < p.again * 60 then return end
-    local inParty = UnitInParty(sender) or UnitInRaid(sender)
+    -- In your group already: asked by GUID where the game can (WoW Forever's chat names are "First-Surname", which the
+    -- unit functions may not take), else by name.
+    local inParty = guid and IsGUIDInGroup and IsGUIDInGroup(guid)
+    if IsSecret(inParty) or inParty then return end
+    inParty = UnitInParty(sender) or UnitInRaid(sender)
     if IsSecret(inParty) or inParty or not CanInvite() then return end
     -- The players invited are let go once there are many, keeping those still waiting out the time.
     if not last then
@@ -240,7 +244,8 @@ ns.Configure(F, defaults, function(m)
             words = ns.Option(profile, "input", key .. "Words", "Words", 1,
                 { width = "full", multiline = true, disabled = off, desc = INPUT_HELP }, apply),
             whisper = ns.Option(profile, "input", key .. "Whisper", "Whisper", 2,
-                { width = "full", disabled = off, desc = "{word} is the word that matched." }),
+                { width = "full", desc = "{word} is the word that matched.",
+                    disabled = function() return off() or not m.db.profile.whisper end }),
         })
     end
     keywords.reset = { type = "execute", name = "Reset words and whispers", order = #m.SERVICES + 1, confirm = true,

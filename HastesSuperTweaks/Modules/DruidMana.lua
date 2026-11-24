@@ -291,7 +291,6 @@ function D.info.preview(frame)
         v.bar = CreateBar(unit)
         v.bar:SetMinMaxValues(0, SAMPLE_MAX)
         v.bar:SetValue(SAMPLE_MANA)
-        v.caption = W.Caption(frame, "Caster form")
     end
     local p = D.db.profile
     -- The bar sits under the frame's bars; one too wide for that slides left, up to the stage's middle.
@@ -301,8 +300,7 @@ function D.info.preview(frame)
     v.bar:SetPoint("TOP", v.unit, "TOPLEFT", 102 - max(0, (width + 2 * p.border - 208) / 2), -32)
     Write(v.bar.text, p.textFormat, SAMPLE_MANA, SAMPLE_MAX, SAMPLE_MANA / SAMPLE_MAX * 100)
     v.unit:SetHeight(32 + p.height + p.border)
-    W.Column(frame, { v.unit, 12, v.caption })
-    local shifted
+    W.Column(frame, { v.unit })
     W.Loop(frame, 6, function(t)
         local form = W.Window(t, 1.5, 5.5, 0.3)
         v.caster:SetAlpha(1 - form)
@@ -310,11 +308,6 @@ function D.info.preview(frame)
         v.mana:SetAlpha(1 - form)
         v.energy:SetAlpha(form)
         v.bar:SetAlpha(form)
-        local cat = form > 0.5
-        if cat ~= shifted then
-            shifted = cat
-            v.caption:SetText(cat and "Cat form" or "Caster form")
-        end
     end)
 end
 
