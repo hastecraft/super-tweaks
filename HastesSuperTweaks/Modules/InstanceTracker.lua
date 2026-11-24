@@ -267,6 +267,7 @@ local TRACKED = { party = true, raid = true }
 local LIVE_EVENTS = { "PLAYER_LEVEL_UP", "CHAT_MSG_COMBAT_XP_GAIN", "CHAT_MSG_COMBAT_FACTION_CHANGE", "CHAT_MSG_LOOT",
     "PLAYER_MONEY", "PLAYER_DEAD", "GROUP_ROSTER_UPDATE", "PLAYER_LOGOUT", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS" }
 local TOUCH_EVERY = 60 -- seconds between looks at a quiet run, so a crash or reload loses little of it
+local ROSTER_LOOKS = 5 -- looks, one at each of those, for a member's name the game hasn't sent
 local ID_EVENTS = { "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT" }
 local ID_UNITS = { PLAYER_TARGET_CHANGED = "target", UPDATE_MOUSEOVER_UNIT = "mouseover" }
 local PARTY, RAID = {}, {}
@@ -419,7 +420,7 @@ function I:Enter(name, kind, difficulty, mapID, login)
             if self.run then
                 self:Touch()
                 SeeMap(self.run, MapHere())
-                if self.rosterOpen then self:Roster() end
+                if self.rosterOpen then self:Roster(true) end
             end
         end)
     end
@@ -517,8 +518,9 @@ local function Slot(run, index, unit, me)
 end
 
 -- Adds the group's members to the run. A name that hasn't arrived yet (rosterOpen) is asked for again at the next
--- roster event, and each minute until then.
-function I:Roster()
+-- roster event, and each minute until then (`again`) a few times: a name that never comes (a member who stays
+-- offline, names the game hides inside) isn't asked for all run long.
+function I:Roster(again)
     local run = self.run
     if not run then return end
     local count = Number(GetNumGroupMembers()) or 0
@@ -531,7 +533,9 @@ function I:Roster()
             for i = 1, min(count - 1, 4) do if not Slot(run, i, PARTY[i], me) then open = true end end
         end
     end
-    self.rosterOpen = open
+    local looks = again and open and (self.rosterLooks or 0) + 1 or 0
+    self.rosterLooks = looks
+    self.rosterOpen = open and looks < ROSTER_LOOKS
 end
 
 -- Whether one of the day's earlier runs in this instance was in this copy of it.
