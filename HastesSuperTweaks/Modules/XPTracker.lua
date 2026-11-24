@@ -138,11 +138,24 @@ local state = {}
 local PERCENT = { [0] = "%.0f", "%.1f", "%.2f" }
 -- Readouts that change with time alone; between XP events the ticker redraws only the labels using them.
 local TIMED = { rate = true, ttl = true, session = true, leveltime = true, played = true }
+-- Readouts of completed quests' XP: the quest log is scanned only while something shows it (see QuestScanDue).
+local QUEST = { quest = true, questpercent = true }
 -- Sets a readout; true when that changed it.
 local function SetToken(token, text)
     if tokens[token] == text then return false end
     tokens[token] = text
     return true
+end
+-- What each time readout was last written from: the whole second under an hour, the whole minute from an hour up, the
+-- whole XP an hour. One is written again only when that changed. Apply clears it ("Short numbers").
+local timeShown = {}
+-- The seconds a time readout shows, when it wasn't last written from them; nil when it was.
+local function TimeChanged(token, seconds)
+    local shown = max(0, floor(seconds or 0))
+    if shown >= 3600 then shown = shown - shown % 60 end
+    if timeShown[token] == shown then return nil end
+    timeShown[token] = shown
+    return shown
 end
 
 -- gaining: HiddenReason has just found you can gain XP, so neither is asked again.
@@ -186,13 +199,31 @@ function X:TimeTokens(used)
     if not used or used.rate or used.ttl then
         local measured = seconds >= self.RATE_AFTER
         local rate = measured and gained / seconds * 3600 or 0
-        changed = SetToken("rate", measured and self:FormatNumber(rate) or "--")
-        changed = SetToken("ttl", state.atMax and "MAX"
-            or not state.xpOff and rate > 0 and self:FormatTime(state.remaining / rate * 3600) or "--") or changed
+        local whole = measured and floor(rate + 0.5) or -1
+        if timeShown.rate ~= whole then
+            timeShown.rate = whole
+            changed = SetToken("rate", measured and self:FormatNumber(whole) or "--")
+        end
+        if state.atMax or state.xpOff or rate <= 0 then
+            timeShown.ttl = nil
+            changed = SetToken("ttl", state.atMax and "MAX" or "--") or changed
+        else
+            local shown = TimeChanged("ttl", state.remaining / rate * 3600)
+            if shown then changed = SetToken("ttl", self:FormatTime(shown)) or changed end
+        end
     end
-    if not used or used.session then changed = SetToken("session", self:FormatTime(seconds)) or changed end
-    if not used or used.leveltime then changed = SetToken("leveltime", self:FormatTime(char.levelTime)) or changed end
-    if not used or used.played then changed = SetToken("played", self:FormatTime(char.played)) or changed end
+    if not used or used.session then
+        local shown = TimeChanged("session", seconds)
+        if shown then changed = SetToken("session", self:FormatTime(shown)) or changed end
+    end
+    if not used or used.leveltime then
+        local shown = TimeChanged("leveltime", char.levelTime)
+        if shown then changed = SetToken("leveltime", self:FormatTime(shown)) or changed end
+    end
+    if not used or used.played then
+        local shown = TimeChanged("played", char.played)
+        if shown then changed = SetToken("played", self:FormatTime(shown)) or changed end
+    end
     return changed
 end
 
@@ -248,7 +279,7 @@ function X:CreateBar()
         HST:RefreshSettings()
     end)
     f:SetScript("OnMouseUp", function(_, button) if button == "RightButton" then HST:OpenSettings("XPTracker") end end)
-    f:SetScript("OnEnter", function() self.hovered = true; self:Render(); self:ShowTooltip() end)
+    f:SetScript("OnEnter", function() self.hovered = true; self:ShowTooltip(self:Render()) end)
     f:SetScript("OnLeave", function()
         self.hovered = false
         ns.Widgets.HideTooltip(f)
@@ -359,6 +390,7 @@ function X:Apply()
     if not self.frame or not self:IsEnabled() then return end
     hexes = nil
     wipe(paintedFrom)
+    wipe(timeShown)
     if self.ticker and self.tickerInterval ~= self.db.profile.updateInterval then self:StartTicker() end
     local p, f = self.db.profile, self.frame
     f:SetSize(p.width, p.height)
@@ -385,16 +417,20 @@ function X:Apply()
         bar:SetStatusBarColor(unpack(self:BarColor(key)))
     end
     wipe(self.timedTexts); wipe(self.timedTokens)
+    -- Whether the bar itself shows completed quests' XP: its shading, or a label.
+    local questShown = p.showQuests
     for key, fontString in pairs(self.texts) do
         local t = p.texts[key]
         if t.enabled then
             for token in t.template:gmatch("{(%a+)}") do
                 if TIMED[token] then self.timedTexts[key], self.timedTokens[token] = fontString, true end
+                if QUEST[token] then questShown = true end
             end
         end
         self:StyleLabel(fontString, t, p, f)
         fontString:SetShown(t.enabled)
     end
+    self.questShown = questShown
     local width, height = p.width - inset * 2, p.height - inset * 2
     local thin = ns.Pixels(f, 1) -- a tick's thickness: a unit, in whole screen pixels
     for i = 1, 39 do
@@ -431,8 +467,15 @@ function X:BarColor(key)
     return p[key .. "Color"]
 end
 
+-- Whether a quest log change waits for a scan that something would show: the bar's quest shading, a label with a
+-- quest readout, or the tooltip while it's up. With none of those the log isn't scanned; the change waits.
+function X:QuestScanDue()
+    return self.questDirty and (self.questShown or (self.hovered and self.db.profile.tooltip)) or false
+end
+
 -- Shows or hides the bar, and redraws what it shows. With sameContent (combat starting or ending, a new zone: they
 -- change whether and how faintly the bar shows, not what's on it) a bar that was already in view is left as drawn.
+-- Returns true when it read the readouts, so a tooltip shown next needn't read them again.
 function X:Render(sameContent)
     if not self.frame or not self:IsEnabled() then return end
     if self:HiddenReason() then
@@ -453,14 +496,16 @@ function X:Render(sameContent)
     -- Fully faded (Mouseover only, or no combat opacity): nothing to redraw until the bar shows again,
     -- which pointing at it, combat ending or a settings change all trigger.
     self.faded = alpha == 0
-    if self.faded or (inView and not self.questDirty and not self.hovered) then return end
+    local scan = self:QuestScanDue()
+    if self.faded or (inView and not scan and not self.hovered) then return end
     -- Quest log changes are only noted; scan once here, while the bar is visible.
-    if self.questDirty then self.questDirty = false; self:UpdateQuestXP() end
+    if scan then self.questDirty = false; self:UpdateQuestXP() end
     self:GetState(p.hideMax and not self.preview and not self.editMode)
     self:DrawTexts()
     self:DrawBars()
     -- The tooltip follows the readouts while you point at the bar.
     if self.hovered and GameTooltip:IsOwned(self.frame) then self:ShowTooltip(true) end
+    return true
 end
 
 -- Numbers in a label with colorNumbers: rested and quest readouts in their own colors, the rest in your class color or
@@ -613,7 +658,8 @@ local NO_ART = {}
 function X:BlizzardXPRegions()
     local regions = {}
     local manager, kinds = StatusTrackingBarManager, StatusTrackingBarInfo and StatusTrackingBarInfo.BarsEnum
-    local experience = kinds and kinds.Experience
+    -- Rep Tracker borrows this for the reputation bar (blizzardKind).
+    local experience = kinds and kinds[self.blizzardKind or "Experience"]
     if not (manager and manager.barContainers and experience) then return regions end
     for _, container in ipairs(manager.barContainers) do
         local bar = container.bars and container.bars[experience]
@@ -647,6 +693,11 @@ end
 
 local function Protected(region) return region.IsProtected ~= nil and region:IsProtected() == true end
 
+-- What hidden regions looked like before: { alpha, mouse, users }. Shared by the XP and Rep Trackers, since a
+-- container's frame art goes with whichever bar it shows: when that changes, one tracker lets go of the art as the
+-- other hides it, in either order, and it comes back only once neither hides it.
+local blizzardSaved = {}
+
 -- Hides Blizzard's XP bar while the setting is on and the module is enabled, and restores what it hid otherwise: each
 -- region's own alpha from before, and whether a frame took the mouse (an invisible bar would still show its tooltip
 -- and catch clicks). This client's bars aren't protected, so this works in combat; protected ones wait for it to end.
@@ -673,20 +724,30 @@ function X:UpdateBlizzardBar()
     for _, region in ipairs(regions) do
         if region.SetAlpha then
             wanted[region] = true
-            local saved = hidden[region]
+            local saved = blizzardSaved[region]
             if not saved then
-                saved = { alpha = region:GetAlpha(), mouse = region.IsMouseEnabled ~= nil and region:IsMouseEnabled() == true }
-                hidden[region] = saved
+                saved = { alpha = region:GetAlpha(), mouse = region.IsMouseEnabled ~= nil and region:IsMouseEnabled() == true,
+                    users = 0 }
+                blizzardSaved[region] = saved
+            end
+            if not hidden[region] then
+                hidden[region] = true
+                saved.users = saved.users + 1
             end
             region:SetAlpha(0)
             if saved.mouse then region:EnableMouse(false) end
         end
     end
-    for region, saved in pairs(hidden) do
+    for region in pairs(hidden) do
         if not wanted[region] then
-            region:SetAlpha(saved.alpha)
-            if saved.mouse then region:EnableMouse(true) end
             hidden[region] = nil
+            local saved = blizzardSaved[region]
+            saved.users = saved.users - 1
+            if saved.users == 0 then
+                blizzardSaved[region] = nil
+                region:SetAlpha(saved.alpha)
+                if saved.mouse then region:EnableMouse(true) end
+            end
         end
     end
 end
@@ -769,7 +830,7 @@ function X:OnListen()
     self.settleXP = self.settleXP or function() self.xpPending = nil; self:SampleXP(); self:Render() end
     self.lastXP, self.inCombat = nil, InCombatLockdown()
     self:SampleXP()
-    self:UpdateQuestXP()
+    self.questDirty = true -- Apply scans the quest log, if something shows its XP
     self:Apply()
     self.lastTick = GetTime()
     self:StartTicker()
@@ -877,7 +938,7 @@ function X:StartTicker()
         -- anything else only the time readouts.
         if self.faded or not self.frame:IsShown() then return end
         if self.hovered then return self:Render() end
-        if self.questDirty then
+        if self.questDirty and self.questShown then
             local quest, known, estimated = self.questXP, self.questAvailable, self.questEstimated
             self.questDirty = false
             self:UpdateQuestXP()
