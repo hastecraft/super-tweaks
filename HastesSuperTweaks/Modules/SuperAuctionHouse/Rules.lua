@@ -12,8 +12,8 @@
 --     keep = n,                how many stay in your bags
 --     duration = 1 | 2 | 3,
 --     snipe = ,                the Sniper lists the item at or under this price: copper or a formula
---     mail = "Name",           Mail Helper sends the group's items to this character
---     vendor = true }          sold at vendors with your clutter
+--     mail = "Name",           a group's only: Mail Helper sends the group's items to this character
+--     vendor = true }          a group's only: its items are sold at vendors
 -- The Selling tab reads an item's rules as it's picked (R.Read) and prices it by them as its listing arrives (R.Price).
 -- SPDX-License-Identifier: MPL-2.0
 local ADDON, ns = ...
@@ -215,6 +215,78 @@ function R.RepostPrice(item, price, nextPrice, percent, commodity)
 end
 
 ---------------------------------------------------------------------------
+-- Selling to vendors: the items of a group whose rules say so are sold at vendors, in the one sale Sell Junk and Sell
+-- Clutter share (Automation.lua). That sale keeps what a Never sell list names, quest items and the bags you've told
+-- the game not to sell from, and Shift skips it. This tweak already has its own events, so the seller is added by
+-- hand instead of with the sale's Listen.
+---------------------------------------------------------------------------
+local Sale = ns.VendorSale
+local Seller = { db = { profile = {} } }
+local GetInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
+
+S.defaults.profile.vendorChat = true
+
+function Seller:IsEnabled()
+    if not (S:IsEnabled() and S.db) then return false end
+    local groups = S.db.global.groups
+    for i = 1, #groups do
+        local rule = groups[i].rule
+        if rule and rule.vendor then return true end
+    end
+    return false
+end
+
+-- Once a scan: the items to sell, by item ID, with their group's name.
+function Seller:PrepareSale()
+    local ids = {}
+    for _, group in ipairs(S.db.global.groups) do
+        if group.rule and group.rule.vendor then
+            for key in pairs(group.items) do
+                local id = tonumber(key:match("^(%d+):"))
+                if id and not ids[id] then ids[id] = group.name end
+            end
+        end
+    end
+    return true, ids
+end
+
+function Seller:SalePrice(info, _, _, ids)
+    local itemID = info.itemID
+    local from
+    if ids then
+        from = ids[itemID]
+    else
+        local group = R.GroupWith("vendor", itemID)
+        from = group and group.name
+    end
+    if not from then return nil end
+    local name, _, _, _, _, _, _, _, _, _, price = GetInfo(itemID)
+    if not name or (price or 0) <= 0 then return nil end
+    return price, from
+end
+
+function Seller:Sold(sold)
+    if not S.db.profile.vendorChat then return end
+    local total = 0
+    for _, sale in ipairs(sold) do total = total + sale.total end
+    ns.HST:Print(string.format("Sold %d %s from your groups for %s.", #sold, #sold == 1 and "item" or "items",
+        ns.Money(total)))
+end
+
+if Sale then
+    Sale.sellers[#Sale.sellers + 1] = Seller
+    S.On("MERCHANT_SHOW", function()
+        if not IsShiftKeyDown() and Sale:Leads(Seller) then Sale:Open() end
+    end)
+    S.On("MERCHANT_CLOSED", function() Sale:Close() end)
+    S.WhenOff(function() Sale:Left() end)
+end
+
+S.Extend(function(args, option)
+    args.selling.args.flow.args.vendorChat = option("toggle", "vendorChat", "Say what was sold to vendors", 10)
+end)
+
+---------------------------------------------------------------------------
 -- The editor: a card over the window for one group's rules or one item's.
 ---------------------------------------------------------------------------
 local LEFT, ROW, WIDTH = 290, 26, 760
@@ -228,12 +300,6 @@ local SHORT_ORDER = { 0, 1, 2, 3 }
 local DURATION_ORDER = { 0, 1, 2, 3 }
 
 local editor
--- More rows for the editor, from other files: R.AddRow(function(card, add) end) runs as the editor is built. add is
--- the editor's own builder: add.heading(text), add.caption(text), add.y (where the next row goes), add.next() (moves
--- down a row), add.field(read, write) (read(rule) fills the row from a rule, write(rule) puts its value in one), and
--- whole rows: add.price, add.choice, add.number and add.switch.
-local extraRows = {}
-function R.AddRow(build) extraRows[#extraRows + 1] = build end
 
 local function Build()
     local P = K.Palette()
@@ -315,7 +381,6 @@ local function Build()
         end, function(rule) rule[key] = on or nil end)
         add.next()
     end
-    add.price, add.choice, add.number, add.switch = price, choice, number, switch
 
     add.heading("Price")
     price("min", "Minimum price")
@@ -335,8 +400,32 @@ local function Build()
     number("expiries", "Stop posting after (expired auctions)", "Never")
     add.heading("Buying, mail and vendors")
     price("snipe", "Buy at or under (Sniper)")
-    for _, build in ipairs(extraRows) do build(card, add) end
-    card:SetSize(WIDTH, -add.y + 56)
+    -- The last two rows are a group's only: an item's own rules don't mail or sell it.
+    v.short = -add.y + 56
+    v.groupOnly = {}
+    local mailCaption = add.caption("Mail to")
+    local mail = K.Input(card, { width = 252, placeholder = "Character" })
+    mail:SetPoint("TOPLEFT", LEFT, add.y)
+    add.field(function(rule) mail:SetText(rule.mail or "") end, function(rule)
+        local name = strtrim(mail:GetText())
+        rule.mail = v.forGroup and name ~= "" and name or nil
+    end)
+    add.next()
+    local vendorCaption = add.caption("Sell to vendors")
+    local vendor, selling = W.Switch(card), false
+    vendor:SetPoint("TOPLEFT", LEFT, add.y - 1)
+    vendor.onClick = function(now)
+        selling = now
+        vendor:SetOn(now, true)
+    end
+    add.field(function(rule)
+        selling = rule.vendor and true or false
+        vendor:SetOn(selling)
+    end, function(rule) rule.vendor = v.forGroup and selling or nil end)
+    add.next()
+    v.groupOnly[1], v.groupOnly[2], v.groupOnly[3], v.groupOnly[4] = mailCaption, mail, vendorCaption, vendor
+    v.tall = -add.y + 56
+    card:SetSize(WIDTH, v.tall)
     v.card = card
 
     local function close() v:Hide() end
@@ -370,13 +459,16 @@ end
 
 local EMPTY = {}
 
-local function Open(title, from, rule, priceKey, clearText, save)
+local function Open(title, from, rule, priceKey, clearText, save, forGroup)
     if not S.Window.frame then return end
     if not editor then Build() end
     local v = editor
     v.title:SetText(title)
     v.from:SetText(from or "")
     v.save = save
+    v.forGroup = forGroup
+    for _, part in ipairs(v.groupOnly) do part:SetShown(forGroup == true) end
+    v.card:SetHeight(forGroup and v.tall or v.short)
     for _, box in ipairs(v.prices) do box:SetKey(priceKey) end
     for _, field in ipairs(v.fields) do field.read(rule or EMPTY) end
     -- A window too short for the card shows it smaller.
@@ -400,7 +492,7 @@ function R.EditGroup(group)
     Open("Rules for " .. group.name, nil, group.rule, nil, group.rule and "Remove rules" or nil, function(rule)
         group.rule = rule
         Changed()
-    end)
+    end, true)
 end
 
 -- Opens the editor on an item's own rules. An item in a group with rules starts from the group's.

@@ -158,6 +158,15 @@ function Se.GroupNames()
     return names
 end
 
+-- Who a group's rules mail it to (Rules.lua), or nil.
+function Se.MailTo(name)
+    if not (S.db and name) then return nil end
+    for _, group in ipairs(Global().groups) do
+        if group.name == name then return group.rule and group.rule.mail or nil end
+    end
+    return nil
+end
+
 -- A group holds item keys ("2589:0:0:0"): their item IDs are read once, and again after a group changes.
 local groupStamp, groupIDs = 0, setmetatable({}, { __mode = "k" })
 function Se.InGroup(name, itemID)

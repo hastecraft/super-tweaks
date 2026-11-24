@@ -329,7 +329,8 @@ end
 
 -- Adds the groups with something to mail, each opening onto who can get it: the name in the To: field, your
 -- characters and, when listed, the people you mailed recently. With nobody to list, picking the group fills the
--- letter and leaves the To: field to you.
+-- letter and leaves the To: field to you. A group whose rules name a character (Super Auction House's "Mail to")
+-- goes to that character at once.
 function M:AddGroups(root, alts, recent)
     local selling = Selling()
     local names = selling and selling.GroupNames()
@@ -347,7 +348,11 @@ function M:AddGroups(root, alts, recent)
                 root:CreateTitle("Send a Selling group")
             end
             local label = group .. "  |cff808080" .. stacks[group] .. "|r"
-            if not typedKey and #alts == 0 and #recent == 0 then
+            local to = selling.MailTo and selling.MailTo(group)
+            if to then
+                root:CreateButton(group .. " to " .. to .. "  |cff808080" .. stacks[group] .. "|r",
+                    function() self:AttachGroup(group, to) end)
+            elseif not typedKey and #alts == 0 and #recent == 0 then
                 root:CreateButton(label, function() self:AttachGroup(group) end)
             else
                 local entry = root:CreateButton(label)
