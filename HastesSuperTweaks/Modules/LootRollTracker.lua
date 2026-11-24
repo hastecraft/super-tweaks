@@ -90,7 +90,8 @@ end
 
 local function Roll(roll)
     local n = roll.roll
-    if n == nil or IsSecret(n) then return nil end
+    -- type() can be asked of a hidden value; a comparison can't. No roll yet (nil) needs no further question.
+    if type(n) ~= "number" or IsSecret(n) then return nil end
     return n
 end
 
