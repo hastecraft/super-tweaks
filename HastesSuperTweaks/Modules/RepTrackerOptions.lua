@@ -76,6 +76,13 @@ function R:BuildOptions()
     local options = { name = "Rep Tracker", type = "group", args = {} }
     options.args.general = { type = "group", name = "General", order = 1, args = {
         bar = section("Tracker", 1, {
+            -- Also in the bar's right-click menu, which a hidden bar (no faction to track) can't open.
+            faction = { type = "select", name = "Faction", order = 0,
+                desc = "Watched faction follows the one the game's reputation bar shows.",
+                values = function() return R:FactionChoices().values end,
+                sorting = function() return R:FactionChoices().order end,
+                get = function() return R.db.char.factionID end,
+                set = function(_, id) R:Track(id) end },
             preview = { type = "toggle", name = "Preview", order = 1,
                 desc = "Shows sample data. Turns off on /reload.",
                 get = function() return R.preview end, set = function(_, v) R.preview = v; R:Render() end },

@@ -15,7 +15,6 @@ local R = HST:NewFeature("RepTracker", {
         .. "Right-click it to choose the faction or reset the session. Move it in Edit Mode.",
 })
 ns.RepTracker = R
-function R:Print(...) HST:Print(...) end
 local WHITE = ns.WHITE
 local min, max, floor = math.min, math.max, math.floor
 
@@ -106,12 +105,16 @@ local function Collapse(index) (Rep and Rep.CollapseFactionHeader or CollapseFac
 -- Every faction in the reputation list, under its headers: { { name = header, { name, id, standing, child }... } }.
 -- Collapsed headers are opened to read them and closed again, so the game's list looks as it did.
 function R:FactionList()
-    local collapsed = {}
+    -- A header is known by its faction ID, or by its name when it has none.
+    local collapsed, any = {}, false
     local i = 1
     while i <= NumFactions() do
-        local name, header, _, isCollapsed = Entry(i)
+        local name, header, _, isCollapsed, id = Entry(i)
         if not name then break end
-        if header and isCollapsed then collapsed[#collapsed + 1] = name; Expand(i) end
+        if header and isCollapsed then
+            collapsed[id and id ~= 0 and id or name], any = true, true
+            Expand(i)
+        end
         i = i + 1
     end
     local groups, group = {}, nil
@@ -122,20 +125,50 @@ function R:FactionList()
         if header and not child then
             group = { name = name }
             groups[#groups + 1] = group
+            -- A header with a reputation of its own leads its group.
+            if hasRep then group[1] = { name = name, id = id, standing = standing } end
         elseif header and child and group then
             group[#group + 1] = { name = name, id = hasRep and id or nil, standing = standing, header = true }
-        end
-        if not header or hasRep then
+        elseif not header then
             if not group then group = { name = "" }; groups[#groups + 1] = group end
-            if not header then group[#group + 1] = { name = name, id = id, standing = standing, child = child } end
+            group[#group + 1] = { name = name, id = id, standing = standing, child = child }
         end
-        for _, closed in ipairs(collapsed) do
-            if closed == name and header then reopened[#reopened + 1] = index end
-        end
+        if header and collapsed[id and id ~= 0 and id or name] then reopened[#reopened + 1] = index end
     end
     -- From the end, so closing one doesn't move the headers before it.
     for k = #reopened, 1, -1 do Collapse(reopened[k]) end
+    -- Opening and closing headers sends UPDATE_FACTION, which mustn't count as the list changing (see FactionChoices).
+    if any then self.listedAt = GetTime() end
     return groups
+end
+
+-- The Faction setting's choices: the watched faction, then every faction in the reputation list's order. Kept until
+-- the list changes.
+function R:FactionChoices()
+    local choices = self.choices
+    if not choices then
+        local values, order = { [0] = "Watched faction" }, { 0 }
+        for _, group in ipairs(self:FactionList()) do
+            for _, entry in ipairs(group) do
+                if entry.id and not values[entry.id] then
+                    values[entry.id] = entry.name
+                    order[#order + 1] = entry.id
+                end
+            end
+        end
+        -- The tracked faction, should the list not have it.
+        local id = self.db.char.factionID
+        if id ~= 0 and not values[id] then
+            local _, name = ReadFaction(id)
+            if name then
+                values[id] = name
+                order[#order + 1] = id
+            end
+        end
+        choices = { values = values, order = order }
+        self.choices = choices
+    end
+    return choices
 end
 
 local function StandingName(standing)
@@ -562,6 +595,8 @@ function R:OnListen()
     self.settleRep = self.settleRep or function()
         if not self.repPending then return end -- turned off since, which read it
         self.repPending = nil
+        -- The reputation list may have changed too, unless this is the list being read (see FactionList).
+        if not (self.listedAt and GetTime() - self.listedAt < 1) then self.choices = nil end
         local standing = faction.standing
         if not self:SampleRep() then return end
         self:Render()
@@ -622,6 +657,7 @@ function R:OnUnlisten()
     if self.ticker then self.ticker:Cancel(); self.ticker = nil end
     HST.LSM.UnregisterCallback(self, "LibSharedMedia_Registered")
     self.preview, self.hovered, self.moving = false, false, false
+    self.choices = nil -- the reputation list isn't followed while off
     if self.frame then
         ns.Widgets.HideTooltip(self.frame)
         self.frame:StopMovingOrSizing()
