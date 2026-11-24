@@ -648,6 +648,11 @@ end
 
 local function Protected(region) return region.IsProtected ~= nil and region:IsProtected() == true end
 
+-- What hidden regions looked like before: { alpha, mouse, users }. Shared by the XP and Rep Trackers, since a
+-- container's frame art goes with whichever bar it shows: when that changes, one tracker lets go of the art as the
+-- other hides it, in either order, and it comes back only once neither hides it.
+local blizzardSaved = {}
+
 -- Hides Blizzard's XP bar while the setting is on and the module is enabled, and restores what it hid otherwise: each
 -- region's own alpha from before, and whether a frame took the mouse (an invisible bar would still show its tooltip
 -- and catch clicks). This client's bars aren't protected, so this works in combat; protected ones wait for it to end.
@@ -674,20 +679,30 @@ function X:UpdateBlizzardBar()
     for _, region in ipairs(regions) do
         if region.SetAlpha then
             wanted[region] = true
-            local saved = hidden[region]
+            local saved = blizzardSaved[region]
             if not saved then
-                saved = { alpha = region:GetAlpha(), mouse = region.IsMouseEnabled ~= nil and region:IsMouseEnabled() == true }
-                hidden[region] = saved
+                saved = { alpha = region:GetAlpha(), mouse = region.IsMouseEnabled ~= nil and region:IsMouseEnabled() == true,
+                    users = 0 }
+                blizzardSaved[region] = saved
+            end
+            if not hidden[region] then
+                hidden[region] = true
+                saved.users = saved.users + 1
             end
             region:SetAlpha(0)
             if saved.mouse then region:EnableMouse(false) end
         end
     end
-    for region, saved in pairs(hidden) do
+    for region in pairs(hidden) do
         if not wanted[region] then
-            region:SetAlpha(saved.alpha)
-            if saved.mouse then region:EnableMouse(true) end
             hidden[region] = nil
+            local saved = blizzardSaved[region]
+            saved.users = saved.users - 1
+            if saved.users == 0 then
+                blizzardSaved[region] = nil
+                region:SetAlpha(saved.alpha)
+                if saved.mouse then region:EnableMouse(true) end
+            end
         end
     end
 end
