@@ -18,17 +18,15 @@ end
 
 local Money = ns.Money
 
--- Plays a preview popup's countdown: the picked button is pressed when it runs out, and the caption says what's
--- happening (counting has a %d for the seconds left).
-local function Countdown(frame, popup, caption, seconds, counting, done)
-    local shown
+-- Plays a preview popup's countdown: the picked button is pressed when it runs out.
+local function Countdown(frame, popup, seconds)
+    local pressed
     ns.Widgets.Loop(frame, seconds + 3, function(t)
-        local left = math.ceil(seconds - t)
-        if left == shown then return end
-        shown = left
-        popup.buttons[popup.pick]:SetLit(left <= 0)
-        popup.mark:SetShown(left <= 0)
-        caption:SetText(left <= 0 and done or counting:format(left))
+        local now = t >= seconds
+        if now == pressed then return end
+        pressed = now
+        popup.buttons[popup.pick]:SetLit(now)
+        popup.mark:SetShown(now)
     end, seconds + 1)
 end
 
@@ -295,10 +293,9 @@ function S.info.preview(frame)
     if not frame.hstPopup then
         frame.hstPopup = W.Popup(frame, { icon = "Interface\\Icons\\Spell_Shadow_Twilight", text = "Zaltor wants to summon you to Stormwind.",
             buttons = { "Accept", "Decline" }, pick = 1, accept = true })
-        frame.hstCaption = W.Caption(frame, "")
     end
-    Countdown(frame, frame.hstPopup, frame.hstCaption, S.db.profile.delay, "Accepting in %d...  Hold Shift to stay.", "Summon accepted")
-    W.Column(frame, { frame.hstPopup, 12, frame.hstCaption })
+    Countdown(frame, frame.hstPopup, S.db.profile.delay)
+    W.Column(frame, { frame.hstPopup })
 end
 Settings(S, { delay = 5, anyone = true, friends = false, guild = false, communities = false }, function(m)
     local function chosen() return m.db.profile.anyone end
@@ -380,14 +377,10 @@ R.info.pagePreview = false -- its preview shows in the tweak list, not on its se
 -- Settings preview: the resurrection popup, accepted right away.
 function R.info.preview(frame)
     local W = ns.Widgets
-    if not frame.hstCaption then
-        local popup = W.Popup(frame, { icon = "Interface\\Icons\\Spell_Holy_Resurrection", text = "Elunara wants to resurrect you.",
-            buttons = { "Accept", "Decline" }, pick = 1, accept = true })
-        frame.hstPopup = popup
-        frame.hstCaption = W.Caption(frame, "")
-    end
-    frame.hstCaption:SetText(R.db.profile.notInCombat and "Accepted unless they're in combat" or "Accepted right away")
-    W.Column(frame, { frame.hstPopup, 12, frame.hstCaption })
+    if frame.hstPopup then return end
+    frame.hstPopup = W.Popup(frame, { icon = "Interface\\Icons\\Spell_Holy_Resurrection", text = "Elunara wants to resurrect you.",
+        buttons = { "Accept", "Decline" }, pick = 1, accept = true })
+    W.Column(frame, { frame.hstPopup })
 end
 Settings(R, { notInCombat = true }, function(m) return {
     notInCombat = Toggle(m, "notInCombat", "Not while they're in combat", 1,
@@ -440,12 +433,9 @@ function P.info.preview(frame)
     if not frame.hstPopup then
         frame.hstPopup = W.Popup(frame, { icon = "Interface\\Icons\\INV_BannerPVP_02", text = "You died in Warsong Gulch.",
             buttons = { "Release Spirit" }, pick = 1, accept = true })
-        frame.hstCaption = W.Caption(frame, "")
     end
-    local delay = P.db.profile.delay
-    Countdown(frame, frame.hstPopup, frame.hstCaption, delay, "Releasing in %d...  Hold Shift to stay.",
-        delay > 0 and "Spirit released" or "Released right away. Hold Shift to stay.")
-    W.Column(frame, { frame.hstPopup, 12, frame.hstCaption })
+    Countdown(frame, frame.hstPopup, P.db.profile.delay)
+    W.Column(frame, { frame.hstPopup })
 end
 P.ALTERAC_VALLEY = 30
 Settings(P, { delay = 0, skipAlterac = false }, function(m) return {

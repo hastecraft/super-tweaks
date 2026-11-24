@@ -132,7 +132,6 @@ end
 ---------------------------------------------------------------------------
 -- Settings preview: the button with a quest's torch. It glows as you target the right thing, then it's pressed.
 ---------------------------------------------------------------------------
-local CAPTIONS = { "The item for the quest you're on", "It glows: your target is the right one", "Pressed: the item is used" }
 function Q.info.preview(frame)
     local W = ns.Widgets
     local p = Q.db.profile
@@ -142,11 +141,10 @@ function Q.info.preview(frame)
         frame.hstQuestItem = v
         v.button = Dress(CreateFrame("Frame", nil, frame), true)
         v.button.icon:SetTexture(SAMPLE_ICON)
-        v.caption = W.Caption(frame, CAPTIONS[1]) -- each caption is one line, laid out with this one
     end
     local b, key = v.button, KeyText()
     Size(b, p.size)
-    W.Column(frame, { b, 14, v.caption })
+    W.Column(frame, { b })
     local phase
     W.Loop(frame, 5, function(t)
         local now = t < 1.5 and 1 or t < 3 and p.glow and 2 or 3
@@ -156,7 +154,6 @@ function Q.info.preview(frame)
         ShowRange(b, key, now > 1 or nil)
         if now == 3 then b.cooldown:SetCooldown(GetTime(), 1.5) else b.cooldown:Clear() end
         b.count:SetText(now == 3 and "2" or "3")
-        v.caption:SetText(CAPTIONS[now])
     end, p.glow and 2.5 or 0.75)
 end
 

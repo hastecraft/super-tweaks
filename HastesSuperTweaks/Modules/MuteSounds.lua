@@ -197,7 +197,7 @@ function S.info.preview(frame)
         id:SetPoint("RIGHT", panel, "TOPRIGHT", -10, y - 7)
         id:SetText(sound[2])
     end
-    W.Column(frame, { panel, 10, W.Caption(frame, "Find IDs with Sound player in the settings") })
+    W.Column(frame, { panel })
 end
 
 -- The sound file IDs in a list, with how many there are. Anything but digits separates them,

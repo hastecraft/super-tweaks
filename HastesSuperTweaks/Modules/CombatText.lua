@@ -2010,8 +2010,6 @@ function S:DrawLivePreview(stage, w, h, focus)
         local fill = W.Fill(v.plate, { 0.8, 0.15, 0.1, 1 })
         W.Inside(fill, v.plate, "TOPLEFT", "BOTTOMLEFT")
         fill:SetWidth(44)
-        v.caption = W.Caption(stage, "")
-        v.caption:SetWidth(160)
         v.update = function(t) LiveTick(v, t) end
     end
     v.w, v.h, v.kx, v.ky = w, h, (w / 2 - 50) / LIVE_REACH_X, (h / 2) / LIVE_REACH_Y
@@ -2055,11 +2053,6 @@ function S:DrawLivePreview(stage, w, h, focus)
         Add(v, "enemy", lane, GAME_YELLOW, nil, "615")
     end
     v.plate:SetShown(mode == "NAMEPLATE" or mode == "GAME")
-    v.caption:ClearAllPoints()
-    v.caption:SetPoint("BOTTOM", stage, "BOTTOM", v.plateX, v.plate:IsShown() and 22 or 6)
-    local caption = focus == "enemies" and (mode == "GAME" and "The game's own numbers" or mode == "OFF" and "Enemy damage off") or nil
-    v.caption:SetText(caption or "")
-    v.caption:SetShown(caption ~= nil)
     -- Notices shown here, in their area.
     AreaLane(v, p, "notices", 3)
     for i, area in ipairs(self.NOTICE_AREAS) do AreaLane(v, p, area.key, 3 + i) end
