@@ -760,8 +760,9 @@ PaintChips = function()
         x = x + width + 4
     end
     for i = count + 1, #row.chips do row.chips[i]:Hide() end
-    local key = S.db.profile.keyBuy
-    row.buyNext.tipText = "Opens the next item you still need. Press it again to buy." .. (key ~= "" and ("\nKey: " .. key) or "")
+    row.buyNext.tipText = "Opens the next item you still need. Press it again to buy."
+    row.buyNext:SetKey(S.db.profile.keyBuy)
+    row.buyNext:Fit(76)
     row.buyNext:SetShown(shownBuys)
     if row.beside ~= shownBuys then
         row.beside = shownBuys

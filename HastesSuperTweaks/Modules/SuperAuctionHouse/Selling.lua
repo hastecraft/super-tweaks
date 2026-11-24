@@ -1964,6 +1964,9 @@ function Se.BindKeys()
         if p.keySkip ~= "" then SetOverrideBinding(Se.keyOwner, true, p.keySkip, "CLICK HSTSuperAHSkip:LeftButton") end
     end
     if p.keyPrev ~= "" then SetOverrideBinding(Se.keyOwner, true, p.keyPrev, "CLICK HSTSuperAHPrev:LeftButton") end
+    Se.post:SetKey(p.keyPost)
+    Se.skip:SetKey(p.keySkip)
+    Se.prev:SetKey(p.keyPrev)
 end
 
 local function UnbindKeys()
@@ -2415,7 +2418,7 @@ function build.Sale(main)
     build.Rules(form)
 
     Se.post = K.Button(sale, "Post", "primary", "HSTSuperAHPost")
-    Se.post:SetSize(110, 30)
+    Se.post:SetSize(144, 30)
     Se.post:SetPoint("BOTTOMRIGHT", -14, 14)
     Se.post:SetScript("OnClick", Post)
     local skip = K.Button(sale, "Skip", nil, "HSTSuperAHSkip")
@@ -2426,6 +2429,7 @@ function build.Sale(main)
     prev:SetSize(70, 24)
     prev:SetPoint("RIGHT", skip, "LEFT", -4, 0)
     prev:SetScript("OnClick", function() Step(-1) end)
+    Se.skip, Se.prev = skip, prev
     -- "Posting 3 of 12", over them.
     Se.queueBar = K.Progress(form)
     Se.queueBar:SetWidth(144)

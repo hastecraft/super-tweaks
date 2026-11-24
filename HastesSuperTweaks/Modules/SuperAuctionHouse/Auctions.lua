@@ -597,6 +597,10 @@ local function BindKey()
     if not A.frame or InCombatLockdown() then return end
     ClearOverrideBindings(A.frame)
     local key = S.db.profile.keyCancel
+    if A.nextButton then
+        A.nextButton:SetKey(key)
+        A.nextButton:Fit(90)
+    end
     if key and key ~= "" and not saved and A.list and A.list:IsVisible() then
         SetOverrideBinding(A.frame, true, key, "CLICK HSTSuperAHCancelNext:LeftButton")
     end
