@@ -896,8 +896,8 @@ end
 -- global one. Revenge, say, stays usable for its whole window, but goes on cooldown. What the game won't say counts
 -- as not.
 S.GCD = 1.5
-local function Used(spell)
-    if Usable(spell) == false then return true end
+-- Whether a spell waits out a cooldown longer than the global one. What the game won't say counts as not.
+local function OnCooldown(spell)
     local get = C_Spell and C_Spell.GetSpellCooldown
     if get then
         local ok, info = pcall(get, spell)
@@ -910,6 +910,27 @@ local function Used(spell)
     if not GetSpellCooldown then return false end
     local ok, _, duration = pcall(GetSpellCooldown, spell)
     return ok and not IsSecret(duration) and type(duration) == "number" and duration > S.GCD
+end
+ns.SpellOnCooldown = OnCooldown
+local function Used(spell)
+    return Usable(spell) == false or OnCooldown(spell)
+end
+
+-- Warriors: WoW Forever keeps an Overpower opening (a mob dodged your attack) as a combo point it shows nowhere, and
+-- its own spell alert for Overpower comes only in Battle Stance. A point gained shows that alert, in any stance, once
+-- Overpower is learned and off cooldown. The game's alert and this one for the same dodge show once (S.SAME_ALERT).
+local CLASS = select(2, UnitClass("player"))
+local WARRIOR = not IsSecret(CLASS) and CLASS == "WARRIOR"
+S.OVERPOWER_RANKS = { 11585, 11584, 7887, 7384 }
+S.SAME_ALERT = 1.5
+local function KnowsOverpower()
+    local knows = C_SpellBook and C_SpellBook.IsSpellKnown or IsPlayerSpell
+    if not knows then return true end
+    for _, id in ipairs(S.OVERPOWER_RANKS) do
+        local ok, known = pcall(knows, id)
+        if ok and not IsSecret(known) and known then return true end
+    end
+    return false
 end
 
 -- Abilities the game lights up after a dodge, parry or block, or on a target under 20% health, by the ID of one rank
@@ -1035,7 +1056,9 @@ function S:OnGameCombatText(kind)
     local lane = self:NoticeLane(kind == "SPELL_ACTIVE" and "noticeAlerts"
         or (option == "buffs" or option == "debuffs" or option == "fades") and "noticeAuras" or "noticeProgress")
     if kind == "SPELL_ACTIVE" then
-        self:Alert(self:Show(lane, COLORS.reactive, "crit", "%s!", data), data)
+        if WARRIOR and self:OverpowerShown(data) then return end
+        local f = self:Alert(self:Show(lane, COLORS.reactive, "crit", "%s!", data), data)
+        if WARRIOR and f and f.spell ~= nil and f.spell == SpellName(7384) then self.overpowerAt = GetTime() end
     elseif option == "buffs" or option == "debuffs" then
         self:Show(lane, option == "buffs" and COLORS.buff or COLORS.debuff, nil, "+%s", data)
     elseif option == "fades" then
@@ -1092,9 +1115,43 @@ function S:ReadComboPoints()
     self.comboPoints = not IsSecret(points) and type(points) == "number" and points or nil
 end
 
+-- A warrior's Overpower point (see KnowsOverpower), read without a notice when the events start.
+function S:ReadOverpowerPoint()
+    local points = UnitPower("player", COMBO)
+    self.overpowerPoints = not IsSecret(points) and type(points) == "number" and points or nil
+end
+
+function S:OnOverpowerPoint()
+    local points = UnitPower("player", COMBO)
+    if IsSecret(points) or type(points) ~= "number" then return end
+    local before = self.overpowerPoints or 0
+    self.overpowerPoints = points
+    if points <= before then return end
+    local name = SpellName(7384)
+    if not name or not KnowsOverpower() or OnCooldown(name) then return end
+    local now = GetTime()
+    if self.overpowerAt and now - self.overpowerAt < self.SAME_ALERT then return end
+    self.overpowerAt = now
+    self:Alert(self:Show(self:NoticeLane("noticeAlerts"), COLORS.reactive, "crit", "%s!", name), name)
+end
+
+-- Whether the game's spell alert is for an Overpower this already showed. The game may hide its spell's name: then
+-- Overpower being usable says so (Revenge, the other dodge alert, is never usable in the same stance).
+function S:OverpowerShown(spell)
+    local at = self.overpowerAt
+    if not at or GetTime() - at >= self.SAME_ALERT then return false end
+    local name = SpellName(7384)
+    if IsSecret(spell) then return Usable(name) == true end
+    return spell == name
+end
+
 function S:OnPower(token)
     local p = self.db.profile
     if IsSecret(token) then return end
+    if token == "COMBO_POINTS" and WARRIOR then
+        if p.reactives then self:OnOverpowerPoint() end
+        return
+    end
     if token == "MANA" and p.lowMana then
         local _, main = UnitPowerType("player")
         if main ~= "MANA" then return end
@@ -1188,7 +1245,8 @@ function S:UpdateEvents()
         end
     end
     if p.lowHealth then Register(general, "UNIT_HEALTH", "player") end
-    if p.lowMana or p.comboPoints then Register(general, "UNIT_POWER_UPDATE", "player") end
+    if p.lowMana or p.comboPoints or (WARRIOR and p.reactives) then Register(general, "UNIT_POWER_UPDATE", "player") end
+    if WARRIOR and p.reactives then self:ReadOverpowerPoint() end
     if p.comboPoints then
         Register(general, "PLAYER_TARGET_CHANGED")
         Register(general, "COMBO_TARGET_CHANGED") -- WoW Forever only; Register skips events a client doesn't have
