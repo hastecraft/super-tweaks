@@ -2,6 +2,22 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 5.0.0 (2026-11-27)
+
+### Zone Levels on World Map
+
+Hovering a zone on the world map shows its level range beside its name, colored for your level. It starts off.
+
+### Changes
+
+- Gear Upgrades: rings and trinkets show how they compare with each one you wear.
+- Legacy Tracker, Bank Helper and Loot Roll Tracker are removed.
+
+### Bug Fixes
+
+- Gear Upgrades: items that list healing and spell damage on one line count both.
+- Instance Tracker: the tiles along the top of the window no longer overlap the first time it opens.
+
 ## 4.16.0 (2026-11-27)
 
 ### Overpower Alert

@@ -16,6 +16,21 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "5.0.0", date = "2026-11-27",
+        changed = {
+            { "Gear Upgrades: rings and trinkets show how they compare with each one you wear.", module = "GearUpgrades" },
+            "Legacy Tracker, Bank Helper and Loot Roll Tracker are removed.",
+        },
+        fixed = {
+            { "Gear Upgrades: items that list healing and spell damage on one line count both.", module = "GearUpgrades" },
+            { "Instance Tracker: the tiles along the top of the window no longer overlap the first time it opens.", module = "InstanceTracker" },
+        },
+        highlights = {
+            { "Hovering a zone on the world map shows its level range beside its name, colored for your level. It starts off.",
+                title = "Zone Levels on World Map", module = "ZoneLevels" },
+        },
+    },
+    {
         version = "4.16.0", date = "2026-11-27",
         changed = {
             { "Better Scrolling Combat Text: \"Overpower!\" shows when a mob dodges you in any stance, not only in Battle Stance.", module = "CombatText" },
