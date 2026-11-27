@@ -9,7 +9,7 @@ local ADDON, ns = ...
 local HST = ns.HST
 local IsSecret = ns.IsSecret
 local M = HST:NewFeature("ConsumableMacros", {
-    name = "Consumable Macros", category = "combat", order = 6, enabledByDefault = false, command = "macros",
+    name = "Consumable Macros", category = "combat", order = 7, enabledByDefault = false, command = "macros",
     summary = "Macros that always use your best food, drink, potions and weapon buffs.", examples = { { "eatdrink", "Eat & Drink macro" }, "conjuredFirst", "stoneFirst", "bandageTarget" },
     description = "Keeps macros that use your best food, drink, bandage and potions as your bags change, plus one that "
         .. "eats and drinks at once, a hunter's Feed Pet, and ones that put your best stone, oil or poison on each "

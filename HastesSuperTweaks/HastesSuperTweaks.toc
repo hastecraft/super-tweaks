@@ -21,6 +21,7 @@ Core.lua
 ProfileStrings.lua
 PatchNotes.lua
 Media.lua
+Glows.lua
 Settings\Widgets.lua
 Settings\Panel.lua
 EditMode.lua
@@ -42,6 +43,7 @@ Modules\SwingTimer.lua
 Modules\AuraReminders.lua
 Modules\WorldRefresh.lua
 Modules\DruidMana.lua
+Modules\OverpowerAlert.lua
 Modules\GuildMOTD.lua
 Modules\KillsToLevel.lua
 Modules\QuestXP.lua
