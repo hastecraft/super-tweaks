@@ -57,7 +57,6 @@ Modules\MuteSounds.lua
 Modules\AuraSounds.lua
 Modules\Loot.lua
 Modules\LootRolls.lua
-Modules\LootRollTracker.lua
 Modules\SpellRanks.lua
 Modules\ConsumableMacros.lua
 Modules\AutoBags.lua
@@ -68,7 +67,6 @@ Modules\MailHelper.lua
 Modules\MailGuard.lua
 Modules\BagTweaks.lua
 Modules\BagCleaner.lua
-Modules\BankHelper.lua
 Modules\SuperAuctionHouse\Feature.lua
 Modules\SuperAuctionHouse\Prices.lua
 Modules\SuperAuctionHouse\Tooltip.lua
@@ -109,7 +107,6 @@ Modules\SuperAuctionHouse\Compat.lua
 Modules\Appearances.lua
 Modules\Restock.lua
 Modules\Trainer.lua
-Modules\LegacyTracker.lua
 Modules\InstanceTracker.lua
 Modules\InstanceTrackerWindow.lua
 Modules\DungeonTimerData.lua

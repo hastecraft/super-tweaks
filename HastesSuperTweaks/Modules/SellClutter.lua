@@ -601,21 +601,10 @@ function S:MustKeep(itemID, name, ctx)
     return item and Uses(ctx, item, "all") and "Your professions use it" or nil
 end
 
--- Whether a quest in your log, or a RestedXP guide you'd follow ("Keep what its guides will need"), needs an item (Bank
--- Helper and Sell Junk ask). Holds with this tweak off too.
+-- Whether a quest in your log, or a RestedXP guide you'd follow ("Keep what its guides will need"), needs an item (Sell
+-- Junk asks). Holds with this tweak off too.
 function S:QuestNeeds(itemID, name, ctx)
     return Needed(ctx, itemID, name) or self.db.profile.rxp and self:GuideStatus(itemID, ctx) == "needed"
-end
-
--- Whether a profession of yours uses an item, whatever it's worth (Bank Helper asks).
-function S:ProfessionUses(itemID, ctx)
-    local _, _, _, equipLoc, _, classID, subclassID = ItemInfoInstant(itemID)
-    local kind = classID and self:KindOf(itemID, classID, subclassID, equipLoc)
-    if not kind then return false end
-    for _, id in ipairs(self:ProfessionsFor(itemID, kind, subclassID) or NONE) do
-        if ctx.professions[id] then return true end
-    end
-    return false
 end
 
 -- Why an item is clutter for you: its category key, or nil to keep it. info is the bag slot's (bag, slot when known),
