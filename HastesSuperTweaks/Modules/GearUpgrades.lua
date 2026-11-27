@@ -545,7 +545,8 @@ end
 
 -- How an item compares with what you wear for scale c: the percent change (huge: a slot that's empty now) and where
 -- ("OH" when it'd go in your off hand); or nil when it can't be compared (not gear, a type you can't use, the item
--- you're wearing), with WAIT while the item's or your gear's details are still loading.
+-- you're wearing), with WAIT while the item's or your gear's details are still loading. A ring or trinket, with both
+-- of its slots worn, also gives the change for each: { { worn link, percent }, { worn link, percent } }.
 local WAIT = "wait"
 local function Compare(c, link)
     local _, _, _, equip = ItemInfoInstant(link)
@@ -565,7 +566,7 @@ local function Compare(c, link)
     end
     if where == "RING" or where == "TRINKET" then
         local first = where == "RING" and 11 or 13
-        local best
+        local best, each
         for slot = first, first + 1 do
             local worn, wornStats = Worn(slot)
             if worn and Plain(worn) == key then return nil end
@@ -573,8 +574,10 @@ local function Compare(c, link)
             if not wornStats then return nil, WAIT end
             local change = Percent(Swap(c, stats, "MH", wornStats, "MH"))
             if not best or change > best then best = change end
+            each = each or {}
+            each[#each + 1] = { worn, change }
         end
-        return best
+        return best, nil, each
     end
     local main, mainStats = Worn(16)
     local off, offStats = Worn(17)
@@ -611,6 +614,14 @@ U.generation = 0
 local GREEN, RED, GREY = { 0.25, 1, 0.25 }, { 1, 0.4, 0.4 }, { 0.7, 0.7, 0.7 }
 local NONE = false
 
+-- A worn item's name in its quality's color, or nil while it hasn't loaded.
+local function WornName(link)
+    local name, _, quality = ItemInfo(link)
+    if IsSecret(name) or not name then return nil end
+    local color = ITEM_QUALITY_COLORS and not IsSecret(quality) and ITEM_QUALITY_COLORS[quality]
+    return color and color.hex and color.hex .. name .. "|r" or name
+end
+
 local function Describe(percent, at)
     local where = at == "OH" and " (off hand)" or ""
     if percent == huge then return "Empty slot" .. where, GREEN end
@@ -625,10 +636,20 @@ function U:Result(scale, link)
     if not byLink then byLink = {}; results[scale] = byLink end
     local result = byLink[link]
     if result == nil then
-        local percent, at = Compare(Compile(scale), link)
+        local percent, at, each = Compare(Compile(scale), link)
         if percent then
             local text, color = Describe(percent, at)
             result = { percent, text, color }
+            -- A ring or trinket: a line for each one worn, "Scale (Worn item)" and its change.
+            if each then
+                local a, b = WornName(each[1][1]), WornName(each[2][1])
+                if a and b then
+                    local textA, colorA = Describe(each[1][2])
+                    local textB, colorB = Describe(each[2][2])
+                    result[4] = { format("%s (%s)", scale.name, a), textA, colorA,
+                        format("%s (%s)", scale.name, b), textB, colorB }
+                end
+            end
             byLink[link] = result
         elseif at ~= WAIT then
             byLink[link] = NONE -- nothing to compare with
@@ -681,8 +702,16 @@ local equips = {} -- where each item ID goes (false: not gear)
 local function AddLine(tip, scale, link)
     local result = U:Result(scale, link)
     if not result then return end
-    local color = result[3]
     local r, g, b = NameColor(scale)
+    local each = result[4]
+    if each then
+        local color = each[3]
+        tip:AddDoubleLine(each[1], each[2], r, g, b, color[1], color[2], color[3])
+        color = each[6]
+        tip:AddDoubleLine(each[4], each[5], r, g, b, color[1], color[2], color[3])
+        return
+    end
+    local color = result[3]
     tip:AddDoubleLine(scale.name, result[2], r, g, b, color[1], color[2], color[3])
 end
 
