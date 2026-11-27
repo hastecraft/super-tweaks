@@ -251,7 +251,8 @@ local function PaintLockout()
     SetText(card.day, day .. " of " .. p.limitDay .. " in 24 hours, every character on this realm")
 end
 
--- The tiles share what's left of the band, each after the one shown before it.
+-- The tiles share what's left of the band, each after the one shown before it, as tall as the lockout card. Only
+-- their edges are anchored: a centered point as well pulls two tiles onto each other until the band is resized.
 local function LayoutTiles()
     local shown = Win.auction and #Win.tiles or #Win.tiles - 1
     local each = max(40, floor((Win.band:GetWidth() - LOCKOUT_W - PAD * 3 - 6 * (shown - 1)) / shown))
@@ -260,7 +261,10 @@ local function LayoutTiles()
         local show = tile.key ~= "auction" or Win.auction == true
         tile:SetShown(show)
         if show then
-            tile:SetPoint("LEFT", previous or Win.lockout, "RIGHT", previous and 6 or PAD, 0)
+            local left, gap = previous or Win.lockout, previous and 6 or PAD
+            tile:ClearAllPoints()
+            tile:SetPoint("TOPLEFT", left, "TOPRIGHT", gap, 0)
+            tile:SetPoint("BOTTOMLEFT", left, "BOTTOMRIGHT", gap, 0)
             tile:SetWidth(each)
             previous = tile
         end
@@ -271,8 +275,6 @@ local function BuildTotals(band)
     Win.tiles, Win.band = {}, band
     for i, spec in ipairs(TOTALS) do
         local tile = CreateFrame("Frame", nil, band)
-        tile:SetPoint("TOP", 0, -PAD)
-        tile:SetPoint("BOTTOM", 0, PAD)
         K.Box(tile, P.card, P.border)
         tile.value = K.Text(tile, "GameFontNormalLarge", P.bright, "CENTER")
         tile.value:SetPoint("TOP", 0, -22)
@@ -290,6 +292,7 @@ local function BuildTotals(band)
         Win.tiles[i] = tile
     end
     band:HookScript("OnSizeChanged", LayoutTiles)
+    LayoutTiles()
 end
 
 -- The tile is narrow: from a gold up, the copper goes; from a hundred gold, the silver too.
