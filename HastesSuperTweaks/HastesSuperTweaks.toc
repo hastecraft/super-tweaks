@@ -49,6 +49,7 @@ Modules\KillsToLevel.lua
 Modules\QuestXP.lua
 Modules\QuestSparkle.lua
 Modules\LevelUpScreenshot.lua
+Modules\ZoneLevels.lua
 Modules\CampfireHelper.lua
 Modules\Automation.lua
 Modules\SellClutter.lua
