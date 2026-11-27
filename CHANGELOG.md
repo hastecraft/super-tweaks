@@ -2,6 +2,16 @@
 
 Generated from `HastesSuperTweaks/PatchNotes.lua` by `tools/changelog.py`; don't edit it by hand. The same notes show in game: click the version beside the settings window's title.
 
+## 4.16.0 (2026-11-27)
+
+### Overpower Alert
+
+Shows the Overpower icon and plays a sound when a mob dodges you, in any stance, on screen, on the mob's nameplate or only in the combat text. Choose its glow, border and sound. For warriors. It starts off.
+
+### Changes
+
+- Better Scrolling Combat Text: "Overpower!" shows when a mob dodges you in any stance, not only in Battle Stance.
+
 ## 4.15.0 (2026-11-24)
 
 ### Changes

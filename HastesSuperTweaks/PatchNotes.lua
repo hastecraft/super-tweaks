@@ -16,6 +16,16 @@ local HST = ns.HST
 -- that tweak's settings (its page at path, flashing the setting), so name one when it's about one tweak.
 HST.patchNotes = {
     {
+        version = "4.16.0", date = "2026-11-27",
+        changed = {
+            { "Better Scrolling Combat Text: \"Overpower!\" shows when a mob dodges you in any stance, not only in Battle Stance.", module = "CombatText" },
+        },
+        highlights = {
+            { "Shows the Overpower icon and plays a sound when a mob dodges you, in any stance, on screen, on the mob's nameplate or only in the combat text. Choose its glow, border and sound. For warriors. It starts off.",
+                title = "Overpower Alert", module = "OverpowerAlert" },
+        },
+    },
+    {
         version = "4.15.0", date = "2026-11-24",
         changed = {
             { "Dungeon Timer: killed bosses are greyed out.", module = "DungeonTimer" },
