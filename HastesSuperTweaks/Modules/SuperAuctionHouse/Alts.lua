@@ -77,9 +77,8 @@ local function CountBags()
     record.bags = bags
 end
 
--- The bank, as Bank Helper reads it: WoW Forever's character tabs, or Classic Era's bank and its bag slots. The
--- account's bank is every character's, and the game's own count of an item already has it. Only while you're at the
--- bank.
+-- The bank: WoW Forever's character tabs, or Classic Era's bank and its bag slots. The account's bank is every
+-- character's, and the game's own count of an item already has it. Only while you're at the bank.
 local function CountBank()
     local record = Mine()
     if not record then return end
