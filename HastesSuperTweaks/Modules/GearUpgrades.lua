@@ -208,6 +208,13 @@ local function ReadLine(stats, text)
             return false
         end
     end
+    -- WoW Forever gives separate healing and damage amounts on a single line.
+    local healing, damage = match(text,
+        "^increases healing done by up to ([%d.,]+) and damage done by up to ([%d.,]+) for all magical spells and effects%.?$")
+    if healing then
+        Add(stats, "Healing", Number(healing))
+        Add(stats, "SpellDamage", Number(damage))
+    end
     return false
 end
 
