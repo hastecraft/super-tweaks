@@ -386,6 +386,8 @@ function HST:AboutOptions()
         credits = { type = "group", inline = true, name = "Credits", order = 5, args = {
             text = { type = "description", order = 1, fontSize = "medium",
                 name = "XP Tracker is inspired by Luxthos and Daemoos's XP WeakAura." },
+            contributors = { type = "description", order = 2, fontSize = "medium",
+                name = "Contributors: DenialAdams." },
         } },
     } }
     return self.aboutOptions
