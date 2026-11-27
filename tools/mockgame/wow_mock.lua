@@ -386,7 +386,8 @@ function ui:Click(button) if self.scripts.OnClick and enabled(self) then CallIn(
 -- Animation groups (the patch notes pip's blink): played and stopped, never animated. Unknown methods error.
 local animation = { SetFromAlpha = noop, SetToAlpha = noop, SetDuration = noop, SetSmoothing = noop,
     SetDegrees = noop, SetOrigin = noop, SetScaleFrom = noop, SetScaleTo = noop, SetOffset = noop, SetOrder = noop,
-    SetFlipBookRows = noop, SetFlipBookColumns = noop, SetFlipBookFrames = noop }
+    SetFlipBookRows = noop, SetFlipBookColumns = noop, SetFlipBookFrames = noop, SetFlipBookFrameWidth = noop,
+    SetFlipBookFrameHeight = noop }
 animation.__index = animation
 local animationGroup = { SetLooping = noop }
 animationGroup.__index = animationGroup

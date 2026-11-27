@@ -7,8 +7,9 @@ Every change is reported. It exits 1 only for a major regression in a scenario b
   - in a tweak's own scenarios (its hot paths, and the tweak alone for a busy second), a count went up by more than
     10%, or allocated bytes went up by more than the noise allowance, max(16 B + 4096 B / runs, 1% of the base), per
     run: new garbage on a path that runs often.
-Reported only, never failed: scenarios with every tweak on, the cold login and startup, and the settings window, where a
-new tweak always adds work; and scenarios that did no work on the base (their tweak isn't there yet), like new ones.
+Reported only, never failed: scenarios with every tweak on, loading the addon's files, the cold login and startup, and
+the settings window, where a new tweak always adds work; and scenarios that did no work on the base (their tweak
+isn't there yet), like new ones.
 Counts are API calls, widget calls, frames or regions created, and handlers (calls from the game into the addon).
 They are exact and the same on every run, so any increase is real.
 Allocated bytes:
@@ -29,7 +30,7 @@ EPSILON = 0.0005  # counts are rounded to 3 decimals per run
 COUNT_LIMIT = 0.10  # in a tweak's own scenarios, a count may grow by this much of the base before it fails
 # Every tweak on at once, and one-time startup and settings window work: a new tweak always adds work here, so these
 # are reported, never failed.
-REPORTED_ONLY = ('Every tweak on:', 'All on:', 'Login:', 'Edit Mode: opened', 'ADDON_LOADED', 'Settings:')
+REPORTED_ONLY = ('Every tweak on:', 'All on:', 'Addon files:', 'Login:', 'Edit Mode: opened', 'ADDON_LOADED', 'Settings:')
 # Every tweak off: any increase fails.
 STRICT = ('Every tweak off:',)
 
