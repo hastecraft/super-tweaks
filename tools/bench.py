@@ -1803,6 +1803,34 @@ Section('Swing Timer Style', function()
 end)
 '''
 
+# Zone Levels on World Map: the map's area label sets the hovered zone's name every frame while the map is open.
+ZONE_MOCKS = r'''
+C_Map = { GetMapInfo = function(id) return { mapID = id, name = id == 1434 and 'Stranglethorn Vale' or 'Zone ' .. id } end }
+QuestDifficultyColors = { difficult = { r = 1, g = 0.5, b = 0.25 } }
+function GetQuestDifficultyColor() return { r = 0.25, g = 0.75, b = 0.25 } end
+-- The label as plain tables, so what the map itself does each frame isn't counted, only the tweak's hook.
+local label = {}
+label.Name ={ GetText = function(self) return self.text end, SetText = function(self, text) self.text = text end }
+function label:EvaluateLabels() end
+WorldMapFrame = CreateFrame('Frame')
+WorldMapFrame.dataProviders = { [{ Label = label }] = true }
+ZONE_LABEL = label
+'''
+
+ZONES = r'''
+Only({ 'ZoneLevels' })
+local label = ZONE_LABEL
+Section('Zone Levels on World Map', function()
+    Measure('Zone levels: a frame hovering a zone (the map sets its name)', 300, function()
+        label.Name:SetText('Stranglethorn Vale'); label:EvaluateLabels()
+    end)
+    Measure('Zone levels: a frame hovering a place with no range', 300, function()
+        label.Name:SetText('Booty Bay'); label:EvaluateLabels()
+    end)
+end)
+'''
+
+
 # Druid Mana in Forms, for a druid in cat form (on any other class it registers nothing), in a runtime of its own.
 DRUID = r'''
 Only({ 'DruidMana' })
@@ -2049,6 +2077,7 @@ def main():
     runtime(SWING_MOCKS, SWING)
     runtime(REMINDER_MOCKS, REMINDERS)
     runtime(DRUID_MOCKS, DRUID)
+    runtime(ZONE_MOCKS, ZONES)
     runtime(SUPER_AH_MOCKS, SUPER_AH)
     if JSON:
         json.dump(REPORT.results, sys.stdout, indent=1)
