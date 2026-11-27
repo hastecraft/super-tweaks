@@ -121,7 +121,7 @@ function Z.info.preview(frame)
     if not v then
         v = {}
         frame.hstZoneLevels = v
-        for i, sample in ipairs(SAMPLES) do
+        for i = 1, #SAMPLES do
             local text = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
             text:SetTextColor(1, 0.82, 0)
             v[i] = text
